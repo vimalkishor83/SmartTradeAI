@@ -1,0 +1,191 @@
+﻿{% extends "partials/base.html" %}
+{% block title %}Scanner — SmartTrade AI{% endblock %}
+{% set active = 'scanner' %}
+{% block breadcrumb %}<i class="bi bi-radar me-2"></i> Scanner{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Market Scanner</h1>
+    <p class="page-subtitle">Screen all markets with technical filters in real-time</p>
+  </div>
+</div>
+
+<!-- Info -->
+<div class="section-card mb-4" style="border-color:rgba(99,102,241,0.25);background:rgba(99,102,241,0.04)">
+  <div class="section-card-body py-2 d-flex align-items-center gap-3">
+    <i class="bi bi-info-circle text-accent" style="font-size:18px;flex-shrink:0"></i>
+    <span class="fs-sm text-muted">Select your filters, choose a market and timeframe, then click <strong class="text-primary">Run Scan</strong> to find matching assets. Click <strong class="text-primary">Signal</strong> on any result to generate a detailed signal.</span>
+  </div>
+</div>
+
+<!-- Scan Config -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-funnel-fill text-accent"></i> Scan Filters</span>
+    <button class="btn btn-primary btn-sm px-4" id="runScan">
+      <i class="bi bi-play-fill me-1"></i>Run Scan
+    </button>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-3 mb-4">
+      <div class="col-md-3">
+        <label class="form-label">Market</label>
+        <select class="form-select" id="scanMarket">
+          <option value="">All Markets</option>
+          <option value="crypto">Crypto</option>
+          <option value="forex">Forex</option>
+          <option value="indian_stock">Indian Stocks</option>
+          <option value="index">Indices</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label class="form-label">Timeframe</label>
+        <select class="form-select" id="scanTf">
+          <option value="15m">15 Minutes</option>
+          <option value="30m">30 Minutes</option>
+          <option value="1h" selected>1 Hour</option>
+          <option value="4h">4 Hours</option>
+          <option value="1d">Daily</option>
+        </select>
+      </div>
+      <div class="col-md-6">
+        <label class="form-label">Min Confidence</label>
+        <div class="d-flex align-items-center gap-3">
+          <input type="range" class="form-range" id="scanConf" min="0" max="100" value="60" style="flex:1" />
+          <span class="badge-tag" id="scanConfVal" style="min-width:44px">60%</span>
+        </div>
+      </div>
+    </div>
+
+    <label class="form-label mb-2">Signal Filters <span class="text-muted fs-xs">(select one or more)</span></label>
+    <div class="d-flex flex-wrap gap-2" id="filterBtns"></div>
+  </div>
+</div>
+
+<!-- Results -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-table text-accent"></i> Scan Results</span>
+    <span class="badge-tag" id="resultCount">0 results</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>Symbol</th><th>Market</th><th>Price</th><th>Change</th>
+          <th>RSI</th><th>Volume</th><th>Matched Filters</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="scanResults">
+        <tr>
+          <td colspan="8" class="text-center text-muted py-5">
+            <i class="bi bi-radar d-block mb-2" style="font-size:28px"></i>
+            Configure your filters and click "Run Scan" to find opportunities
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const FILTERS = [
+  { id: 'strong_buy',     label: 'Strong Buy',     cls: 'btn-outline-success' },
+  { id: 'strong_sell',    label: 'Strong Sell',    cls: 'btn-outline-danger'  },
+  { id: 'breakout',       label: 'Breakout',       cls: 'btn-outline-warning' },
+  { id: 'breakdown',      label: 'Breakdown',      cls: 'btn-outline-danger'  },
+  { id: 'volume_spike',   label: 'Volume Spike',   cls: 'btn-outline-info'    },
+  { id: 'rsi_oversold',   label: 'RSI Oversold',   cls: 'btn-outline-success' },
+  { id: 'rsi_overbought', label: 'RSI Overbought', cls: 'btn-outline-danger'  },
+  { id: 'gap_up',         label: 'Gap Up',         cls: 'btn-outline-success' },
+  { id: 'gap_down',       label: 'Gap Down',       cls: 'btn-outline-danger'  },
+  { id: '52w_high',       label: '52W High',       cls: 'btn-outline-warning' },
+  { id: '52w_low',        label: '52W Low',        cls: 'btn-outline-warning' },
+];
+
+const selectedFilters = new Set(['strong_buy']);
+
+document.addEventListener('app:ready', () => {
+  const container = document.getElementById('filterBtns');
+  FILTERS.forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = `btn btn-sm ${f.cls} ${selectedFilters.has(f.id) ? 'active' : ''}`;
+    btn.textContent = f.label;
+    btn.dataset.filter = f.id;
+    btn.style.borderRadius = '7px';
+    btn.style.fontWeight = '600';
+    btn.addEventListener('click', () => {
+      if (selectedFilters.has(f.id)) { selectedFilters.delete(f.id); btn.classList.remove('active'); }
+      else                           { selectedFilters.add(f.id);    btn.classList.add('active');    }
+    });
+    container.appendChild(btn);
+  });
+
+  document.getElementById('runScan').addEventListener('click', runScan);
+  document.getElementById('scanConf').addEventListener('input', function() {
+    document.getElementById('scanConfVal').textContent = this.value + '%';
+  });
+});
+
+async function runScan() {
+  const btn = document.getElementById('runScan');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
+
+  const res = await API.post('/scanner/run', {
+    filters:        [...selectedFilters],
+    market:         document.getElementById('scanMarket').value,
+    timeframe:      document.getElementById('scanTf').value,
+    min_confidence: parseInt(document.getElementById('scanConf').value),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Scan';
+
+  if (!res?.results) { Toast.show('Scan failed — try again', 'error'); return; }
+
+  document.getElementById('resultCount').textContent = `${res.count || 0} results`;
+  const tbody = document.getElementById('scanResults');
+
+  if (!res.results?.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5">
+      <i class="bi bi-search d-block mb-2" style="font-size:28px"></i>
+      No assets matched your filters. Try relaxing the criteria.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = res.results.map(r => {
+    const rsiCls  = r.rsi > 70 ? 'text-red' : r.rsi < 30 ? 'text-green' : 'text-yellow';
+    const chgCls  = (r.change_pct||0) >= 0 ? 'text-green' : 'text-red';
+    const arrow   = (r.change_pct||0) >= 0 ? '▲' : '▼';
+    return `<tr>
+      <td><strong>${r.symbol}</strong><br><small class="text-muted fs-xs">${r.name||''}</small></td>
+      <td><span class="badge-tag">${r.market||''}</span></td>
+      <td class="fw-700">${formatPrice(r.price)}</td>
+      <td class="${chgCls} fw-700">${arrow} ${Math.abs(r.change_pct||0).toFixed(2)}%</td>
+      <td><span class="${rsiCls} fw-700">${r.rsi?.toFixed(1) || '—'}</span></td>
+      <td class="text-muted fs-xs">${r.volume ? r.volume.toLocaleString('en-IN',{maximumFractionDigits:0}) : '—'}</td>
+      <td>${r.matched_filters?.map(f=>`<span class="badge-tag me-1">${f.replace(/_/g,' ')}</span>`).join('')||'—'}</td>
+      <td>
+        <button class="btn btn-sm btn-primary" onclick="generateSignal('${r.symbol}')">
+          <i class="bi bi-lightning-charge-fill me-1"></i>Signal
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function generateSignal(symbol) {
+  Toast.show(`Generating signal for ${symbol}...`, 'info', 2000);
+  const res = await API.post('/signals/generate', {
+    symbol, timeframe: document.getElementById('scanTf').value
+  });
+  if (res?.signal_type) Toast.show(`${res.signal_type} signal for ${symbol}! Conf: ${(res.confidence_score||0).toFixed(0)}%`, 'success');
+  else Toast.show(res?.error || 'Signal generation failed', 'warning');
+}
+</script>
+{% endblock %}

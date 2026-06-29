@@ -1,0 +1,41 @@
+# Core
+flask==3.0.2
+flask-sqlalchemy==3.1.1
+flask-bcrypt==1.0.1
+flask-jwt-extended==4.6.0
+flask-socketio==5.3.6
+flask-limiter==3.5.0
+flask-caching==2.1.0
+
+# Database
+sqlalchemy==2.0.27
+psycopg2-binary==2.9.9
+
+# Scheduler
+apscheduler==3.10.4
+
+# Market Data
+requests==2.31.0
+yfinance==0.2.36
+
+# Technical Analysis
+numpy==1.26.4
+pandas==2.2.0
+
+# AI / ML (optional but recommended)
+scikit-learn==1.4.0
+xgboost==2.0.3
+lightgbm==4.3.0
+
+# System Monitoring
+psutil==5.9.8
+
+# Environment
+python-dotenv==1.0.1
+
+# Production Server
+gunicorn==21.2.0
+eventlet==0.35.1
+
+# Caching (optional Redis)
+redis==5.0.1

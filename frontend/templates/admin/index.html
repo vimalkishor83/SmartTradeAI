@@ -1,0 +1,209 @@
+{% extends "partials/base.html" %}
+{% block title %}Admin Panel — SmartTrade AI{% endblock %}
+{% set active = 'admin' %}
+{% block breadcrumb %}<i class="bi bi-speedometer2 me-2"></i> Admin Panel{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Admin Dashboard</h1>
+    <p class="page-subtitle">System health, user management, and platform analytics</p>
+  </div>
+  <button class="btn btn-outline-light btn-sm" onclick="loadAdminDashboard()">
+    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+  </button>
+</div>
+
+<!-- System Health KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue">
+      <div class="kpi-icon"><i class="bi bi-people-fill" style="color:var(--blue)"></i></div>
+      <div class="kpi-label">Total Users</div>
+      <div class="kpi-value" id="adminTotalUsers">—</div>
+      <div class="kpi-change up" id="adminActiveUsers">— active</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card green">
+      <div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div>
+      <div class="kpi-label">Signals Today</div>
+      <div class="kpi-value" id="adminSignalsToday">—</div>
+      <div class="kpi-change up" id="adminWinRate">— win rate</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card yellow">
+      <div class="kpi-icon text-yellow"><i class="bi bi-cpu-fill"></i></div>
+      <div class="kpi-label">CPU Usage</div>
+      <div class="kpi-value" id="adminCpu">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card">
+      <div class="kpi-icon"><i class="bi bi-memory" style="color:#8b5cf6"></i></div>
+      <div class="kpi-label">Memory</div>
+      <div class="kpi-value" id="adminMem">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- System Health Bars -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-activity text-accent"></i> System Health</span>
+    <span class="badge bg-success" id="dbStatus">DB: Healthy</span>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <label class="form-label text-muted small">CPU Usage</label>
+        <div class="confidence-bar" style="height:10px">
+          <div class="confidence-fill" id="cpuBar" style="width:0%"></div>
+        </div>
+        <span class="small text-muted" id="cpuLabel">0%</span>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label text-muted small">Memory Usage</label>
+        <div class="confidence-bar" style="height:10px">
+          <div class="confidence-fill" id="memBar" style="width:0%;background:var(--yellow)"></div>
+        </div>
+        <span class="small text-muted" id="memLabel">0%</span>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label text-muted small">Disk Usage</label>
+        <div class="confidence-bar" style="height:10px">
+          <div class="confidence-fill" id="diskBar" style="width:0%;background:var(--blue)"></div>
+        </div>
+        <span class="small text-muted" id="diskLabel">0%</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Users + Signals -->
+<div class="row g-4 mb-4">
+  <div class="col-lg-7">
+    <div class="section-card">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-people text-accent"></i> Recent Users</span>
+        <a href="/admin/users" class="btn btn-sm btn-outline-light">View All</a>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Joined</th><th>Action</th></tr></thead>
+          <tbody id="adminUsersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-key text-accent"></i> API Configurations</span>
+        <a href="#" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#apiConfigModal">Add</a>
+      </div>
+      <div id="apiConfigList"><div class="p-3 text-muted small">Loading...</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Audit Logs -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Audit Log</span>
+    <a href="/admin/logs" class="btn btn-sm btn-outline-light">View All</a>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead><tr><th>User</th><th>Action</th><th>Resource</th><th>IP</th><th>Status</th><th>Time</th></tr></thead>
+      <tbody id="auditBody"></tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadAdminDashboard() {
+  const data = await API.get('/admin/dashboard');
+  if (!data) { Toast.show('Admin access required', 'error'); return; }
+
+  document.getElementById('adminTotalUsers').textContent = data.users.total;
+  document.getElementById('adminActiveUsers').textContent = `${data.users.active} active`;
+  document.getElementById('adminSignalsToday').textContent = data.signals.today;
+  document.getElementById('adminWinRate').textContent = `${data.signals.win_rate}% win rate`;
+  document.getElementById('adminCpu').textContent = `${data.system.cpu_pct}%`;
+  document.getElementById('adminMem').textContent = `${data.system.memory_pct}%`;
+
+  // Bars
+  ['cpu', 'mem', 'disk'].forEach(type => {
+    const map = { cpu: data.system.cpu_pct, mem: data.system.memory_pct, disk: data.system.disk_pct };
+    const bar = document.getElementById(`${type}Bar`);
+    const label = document.getElementById(`${type}Label`);
+    if (bar) bar.style.width = `${map[type]}%`;
+    if (label) label.textContent = `${map[type]}%`;
+  });
+
+  document.getElementById('dbStatus').textContent = `DB: ${data.db_status}`;
+
+  loadUsers();
+  loadApiConfigs();
+  loadAuditLogs();
+}
+
+async function loadUsers() {
+  const data = await API.get('/admin/users', { per_page: 8 });
+  if (!data) return;
+  document.getElementById('adminUsersBody').innerHTML = data.users.map(u => `
+    <tr>
+      <td><strong>${u.username}</strong><br><small class="text-muted">${u.email}</small></td>
+      <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'premium' ? 'bg-warning text-dark' : 'bg-secondary'}">${u.role}</span></td>
+      <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
+      <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" onclick="toggleUser(${u.id}, ${!u.is_active})">
+          ${u.is_active ? 'Disable' : 'Enable'}
+        </button>
+      </td>
+    </tr>`).join('');
+}
+
+async function toggleUser(id, active) {
+  const res = await API.put(`/admin/users/${id}`, { is_active: active });
+  if (res?.id || res?.is_active !== undefined) { Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success'); loadUsers(); }
+}
+
+async function loadApiConfigs() {
+  const data = await API.get('/admin/api-configs');
+  if (!data) return;
+  document.getElementById('apiConfigList').innerHTML = data.configs.map(c => `
+    <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-color:var(--border)!important">
+      <div>
+        <div class="fw-semibold">${c.name}</div>
+        <div class="text-muted small">${c.provider} • ${c.market || 'all'}</div>
+      </div>
+      <span class="badge ${c.is_active ? 'bg-success' : 'bg-secondary'}">${c.is_active ? 'Active' : 'Off'}</span>
+    </div>`).join('') || '<div class="p-3 text-muted small">No API configs</div>';
+}
+
+async function loadAuditLogs() {
+  const data = await API.get('/admin/audit-logs', { per_page: 10 });
+  if (!data) return;
+  document.getElementById('auditBody').innerHTML = data.logs.map(l => `
+    <tr>
+      <td>${l.user}</td>
+      <td><code style="font-size:11px">${l.action}</code></td>
+      <td class="text-muted">${l.resource || '—'}</td>
+      <td class="text-muted small">${l.ip_address || '—'}</td>
+      <td><span class="badge ${l.status === 'success' ? 'bg-success' : 'bg-danger'}">${l.status}</span></td>
+      <td class="text-muted small">${formatTime(l.created_at)}</td>
+    </tr>`).join('');
+}
+
+document.addEventListener('app:ready', () => {
+  loadAdminDashboard();
+  setInterval(loadAdminDashboard, 30000);
+});
+</script>
+{% endblock %}

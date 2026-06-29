@@ -1,0 +1,495 @@
+﻿{% extends "partials/base.html" %}
+{% block title %}Auto Generate Signals — SmartTrade AI{% endblock %}
+{% set active = 'auto_generate' %}
+{% block breadcrumb %}<i class="bi bi-robot me-2"></i> Auto Generate{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Auto Generate Signals</h1>
+    <p class="page-subtitle">Configure and run automatic signal generation on a schedule</p>
+  </div>
+  <!-- Status pill -->
+  <div class="d-flex align-items-center gap-3">
+    <div id="globalStatus" class="d-flex align-items-center gap-2 px-3 py-2 rounded-3" style="background:var(--bg-card);border:1px solid var(--border)">
+      <span class="live-dot" id="statusDot" style="background:var(--text-muted);animation:none"></span>
+      <span id="statusLabel" class="fw-600 fs-sm">Idle</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── CONFIG + CONTROLS ──────────────────────────────────── -->
+<div class="row g-3 mb-4">
+  <!-- Config card -->
+  <div class="col-lg-8">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-gear-fill text-accent"></i> Generation Settings</span>
+      </div>
+      <div class="section-card-body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">Market</label>
+            <select class="form-select" id="cfgMarket">
+              <option value="">All Markets</option>
+              <option value="crypto">Crypto</option>
+              <option value="forex">Forex</option>
+              <option value="gold">Gold</option>
+              <option value="silver">Silver</option>
+              <option value="indian_stock">Indian Stocks</option>
+              <option value="index">Indices</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Timeframe</label>
+            <select class="form-select" id="cfgTimeframe">
+              <option value="1m">1 Minute</option>
+              <option value="5m">5 Minutes</option>
+              <option value="15m">15 Minutes</option>
+              <option value="30m">30 Minutes</option>
+              <option value="1h" selected>1 Hour</option>
+              <option value="4h">4 Hours</option>
+              <option value="1d">Daily</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Signal Filter</label>
+            <select class="form-select" id="cfgFilter">
+              <option value="all">All Signals</option>
+              <option value="strong">Strong Only (≥70%)</option>
+              <option value="buy_sell">BUY &amp; SELL Only</option>
+              <option value="buy">BUY Only</option>
+              <option value="sell">SELL Only</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Auto Repeat Interval</label>
+            <select class="form-select" id="cfgInterval">
+              <option value="0">One-time only</option>
+              <option value="1">Every 1 minute</option>
+              <option value="5">Every 5 minutes</option>
+              <option value="15" selected>Every 15 minutes</option>
+              <option value="30">Every 30 minutes</option>
+              <option value="60">Every 1 hour</option>
+              <option value="240">Every 4 hours</option>
+            </select>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Min Confidence</label>
+            <div class="d-flex align-items-center gap-2 mt-1">
+              <input type="range" class="form-range" id="cfgConf" min="0" max="100" value="0" style="flex:1">
+              <span class="badge-tag" id="cfgConfVal" style="min-width:38px">0%</span>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Max Signals per Run</label>
+            <select class="form-select" id="cfgMax">
+              <option value="0">No limit</option>
+              <option value="5">5 signals</option>
+              <option value="10" selected>10 signals</option>
+              <option value="20">20 signals</option>
+              <option value="50">50 signals</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats card -->
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent"></i> Session Stats</span>
+        <button class="btn btn-outline-light btn-sm fs-xs" id="clearStatsBtn">Clear</button>
+      </div>
+      <div class="section-card-body">
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">Total Generated</div>
+              <div class="qs-value text-accent" id="statGenerated">0</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">Runs</div>
+              <div class="qs-value" id="statRuns">0</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">BUY</div>
+              <div class="qs-value text-green" id="statBuy">0</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">SELL</div>
+              <div class="qs-value text-red" id="statSell">0</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">HOLD</div>
+              <div class="qs-value text-yellow" id="statHold">0</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="quick-stat">
+              <div class="qs-label">Errors</div>
+              <div class="qs-value text-red" id="statErrors">0</div>
+            </div>
+          </div>
+        </div>
+        <!-- Countdown to next run -->
+        <div id="nextRunWrap" class="mt-3 p-2 rounded-2 text-center" style="background:var(--bg-secondary);display:none!important">
+          <div class="text-muted fs-xs mb-1">Next run in</div>
+          <div class="fw-800 text-accent" id="nextRunCountdown" style="font-size:20px;letter-spacing:-0.5px">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── START / STOP ───────────────────────────────────────── -->
+<div class="d-flex gap-3 mb-4 align-items-center flex-wrap">
+  <button class="btn btn-lg px-5 fw-700" id="startBtn"
+    style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
+    <i class="bi bi-play-fill me-2"></i>Start Generating
+  </button>
+  <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
+    <i class="bi bi-stop-fill me-2"></i>Stop
+  </button>
+  <button class="btn btn-outline-light btn-sm" id="runOnceBtn">
+    <i class="bi bi-skip-forward-fill me-1"></i>Run Once Now
+  </button>
+  <span class="text-muted fs-xs" id="lastRunLabel"></span>
+</div>
+
+<!-- ── GENERATED SIGNALS TABLE ───────────────────────────── -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-table text-accent"></i> Generated Signals — This Session</span>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge-tag" id="tableCount">0 signals</span>
+      <button class="btn btn-outline-light btn-sm fs-xs" id="clearTableBtn">Clear Table</button>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>Time</th><th>Asset</th><th>Market</th><th>TF</th><th>Signal</th>
+          <th>Entry</th><th>Stop Loss</th><th>T1</th><th>R:R</th><th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="signalsTableBody">
+        <tr id="emptyRow">
+          <td colspan="10" class="text-center py-5 text-muted">
+            <i class="bi bi-robot d-block mb-2" style="font-size:28px;opacity:0.4"></i>
+            Configure settings above and click <strong>Start Generating</strong>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── RUN LOG ────────────────────────────────────────────── -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-terminal text-accent"></i> Run Log</span>
+    <button class="btn btn-outline-light btn-sm fs-xs" id="clearLogBtn">Clear Log</button>
+  </div>
+  <div id="runLog"
+    style="max-height:220px;overflow-y:auto;padding:12px 16px;font-size:12px;font-family:'Courier New',monospace;background:var(--bg-secondary);line-height:1.7">
+    <span class="text-muted">Waiting to start...</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ═══════════════════════════════════════════════════
+   Auto Generate Page — SmartTrade AI
+   State persists in localStorage so the run continues
+   even if you navigate to other pages and come back.
+   ═══════════════════════════════════════════════════ */
+
+
+/* ══════════════════════════════════════════════════════════
+   Auto Generate — SERVER-SIDE mode
+   Generation runs on the Flask/APScheduler backend.
+   This page just polls /status every 3s and renders results.
+   Navigating away does NOT stop generation.
+   ══════════════════════════════════════════════════════════ */
+
+const AG_KEY = 'ag_cfg_v2';
+let _pollTimer   = null;
+let _lastLogLen  = 0;
+let _lastGenCount = 0;
+let _tableSignals = [];
+
+/* ── Persist / restore config ────────────────────────────── */
+function saveConfig() {
+  localStorage.setItem(AG_KEY, JSON.stringify({
+    market:    document.getElementById('cfgMarket').value,
+    timeframe: document.getElementById('cfgTimeframe').value,
+    filter:    document.getElementById('cfgFilter').value,
+    interval:  document.getElementById('cfgInterval').value,
+    conf:      document.getElementById('cfgConf').value,
+    maxSig:    document.getElementById('cfgMax').value,
+  }));
+}
+
+function loadConfig() {
+  try {
+    const c = JSON.parse(localStorage.getItem(AG_KEY) || '{}');
+    if (c.market)    document.getElementById('cfgMarket').value    = c.market;
+    if (c.timeframe) document.getElementById('cfgTimeframe').value = c.timeframe;
+    if (c.filter)    document.getElementById('cfgFilter').value    = c.filter;
+    if (c.interval)  document.getElementById('cfgInterval').value  = c.interval;
+    if (c.conf !== undefined) {
+      document.getElementById('cfgConf').value = c.conf;
+      document.getElementById('cfgConfVal').textContent = c.conf + '%';
+    }
+    if (c.maxSig)    document.getElementById('cfgMax').value = c.maxSig;
+  } catch(e) {}
+}
+
+/* ── Status / UI ─────────────────────────────────────────── */
+function setRunningUI(running) {
+  document.getElementById('startBtn').style.display   = running ? 'none' : 'inline-flex';
+  document.getElementById('stopBtn').style.display    = running ? 'inline-flex' : 'none';
+  document.getElementById('runOnceBtn').disabled      = running;
+  const dot   = document.getElementById('statusDot');
+  const lbl   = document.getElementById('statusLabel');
+  const badge = document.getElementById('navAutoGenBadge');
+  if (running) {
+    dot.style.background = 'var(--green)';
+    dot.style.animation  = '';
+    lbl.textContent      = 'Running…';
+    if (badge) badge.style.display = 'inline-block';
+  } else {
+    dot.style.background = 'var(--text-muted)';
+    dot.style.animation  = 'none';
+    lbl.textContent      = 'Idle';
+    if (badge) badge.style.display = 'none';
+  }
+}
+
+/* ── Render server log lines ─────────────────────────────── */
+function renderLog(lines) {
+  if (!lines?.length) return;
+  const el = document.getElementById('runLog');
+  const placeholder = el.querySelector('span');
+  if (placeholder) el.innerHTML = '';
+
+  // Only append new lines
+  const newLines = lines.slice(_lastLogLen);
+  _lastLogLen = lines.length;
+  if (!newLines.length) return;
+
+  newLines.forEach(line => {
+    const div = document.createElement('div');
+    div.style.paddingBottom = '2px';
+    const color = line.includes('✓') || line.includes('▶') ? '#10b981'
+                : line.includes('✗') || line.includes('✘') ? '#ef4444'
+                : line.includes('⏹') || line.includes('⚠') ? '#f59e0b'
+                : line.startsWith('[') ? '#6366f1'
+                : '#64748b';
+    div.style.color   = color;
+    div.textContent   = line;
+    el.appendChild(div);
+  });
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ── Countdown display ───────────────────────────────────── */
+function updateCountdown(nextRunAt) {
+  const wrap = document.getElementById('nextRunWrap');
+  const cd   = document.getElementById('nextRunCountdown');
+  if (!nextRunAt) { wrap.style.display = 'none'; return; }
+  const diff = Math.max(0, Math.round((new Date(nextRunAt + 'Z') - Date.now()) / 1000));
+  if (diff <= 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  const m = Math.floor(diff / 60), s = diff % 60;
+  cd.textContent = m > 0 ? `${m}m ${String(s).padStart(2,'0')}s` : `${s}s`;
+}
+
+/* ── Poll /status every 3s ───────────────────────────────── */
+async function pollStatus() {
+  const data = await API.get('/signals/auto-generate/status');
+  if (!data) return;
+
+  setRunningUI(data.running);
+
+  document.getElementById('statGenerated').textContent = data.generated ?? 0;
+  document.getElementById('statRuns').textContent      = data.runs      ?? 0;
+  document.getElementById('statBuy').textContent       = data.buy       ?? 0;
+  document.getElementById('statSell').textContent      = data.sell      ?? 0;
+  document.getElementById('statHold').textContent      = data.hold      ?? 0;
+  document.getElementById('statErrors').textContent    = data.errors    ?? 0;
+
+  if (data.last_run_at) {
+    const d = new Date(data.last_run_at + 'Z');
+    document.getElementById('lastRunLabel').textContent =
+      `Last run: ${d.toLocaleTimeString('en-IN',{hour12:false})}`;
+  }
+
+  updateCountdown(data.next_run_at);
+  renderLog(data.log);
+
+  // Sync form fields to running config (so coming back to page shows correct state)
+  if (data.running) {
+    document.getElementById('cfgMarket').value    = data.market    || '';
+    document.getElementById('cfgTimeframe').value = data.timeframe || '1h';
+    document.getElementById('cfgInterval').value  = data.interval_minutes ?? 5;
+  }
+
+  // Reload signals table if new ones were generated this run
+  if (data.generated > _lastGenCount) {
+    _lastGenCount = data.generated;
+    loadRecentSignals();
+  }
+}
+
+/* ── Load recent signals into table ─────────────────────── */
+async function loadRecentSignals() {
+  const market    = document.getElementById('cfgMarket').value;
+  const timeframe = document.getElementById('cfgTimeframe').value;
+  const params    = { timeframe, per_page: 20, page: 1 };
+  if (market) params.market = market;
+
+  const data = await API.get('/signals/', params);
+  if (!data?.signals?.length) return;
+
+  const tbody = document.getElementById('signalsTableBody');
+  document.getElementById('emptyRow')?.remove();
+  document.getElementById('tableCount').textContent = `${data.total ?? data.signals.length} signals`;
+
+  tbody.innerHTML = data.signals.map(s => {
+    const conf    = s.confidence_score || 0;
+    const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const rr      = parseFloat(s.risk_reward) || 0;
+    const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : rr > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
+    const rrText  = rr > 0 ? `${rr.toFixed(1)}x` : '—';
+    const d       = s.generated_at ? new Date(s.generated_at) : null;
+    const tStr    = d ? d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    return `<tr>
+      <td style="color:#7a8fa8;font-size:11px;white-space:nowrap">${tStr}</td>
+      <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>
+      <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
+      <td><span class="badge-tag">${s.timeframe}</span></td>
+      <td>${signalBadge(s.signal_type)}</td>
+      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss)}</td>
+      <td class="text-green">${formatPrice(s.target1)}</td>
+      <td><span style="font-weight:700;color:${rrColor}">${rrText}</span></td>
+      <td style="min-width:100px">
+        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
+        <div style="color:#94a3b8;font-size:11px">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
+      </td>`;
+  }).join('');
+}
+
+/* ── Start ───────────────────────────────────────────────── */
+async function startGeneration() {
+  const btn = document.getElementById('startBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...';
+  saveConfig();
+
+  const payload = {
+    market:           document.getElementById('cfgMarket').value,
+    timeframe:        document.getElementById('cfgTimeframe').value,
+    signal_filter:    document.getElementById('cfgFilter').value,
+    min_confidence:   parseInt(document.getElementById('cfgConf').value),
+    max_per_run:      parseInt(document.getElementById('cfgMax').value),
+    interval_minutes: parseInt(document.getElementById('cfgInterval').value),
+  };
+
+  const res = await API.post('/signals/auto-generate/start', payload);
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-play-fill me-2"></i>Start Generating';
+
+  if (res?.status === 'started') {
+    _lastLogLen  = 0;
+    _lastGenCount = 0;
+    setRunningUI(true);
+    Toast.show('Auto generation started — runs on server, survives navigation', 'success');
+    pollStatus();
+  } else {
+    Toast.show('Failed to start — check server', 'error');
+  }
+}
+
+/* ── Stop ────────────────────────────────────────────────── */
+async function stopGeneration() {
+  const res = await API.post('/signals/auto-generate/stop');
+  if (res?.status === 'stopped') {
+    setRunningUI(false);
+    document.getElementById('nextRunWrap').style.display = 'none';
+    Toast.show('Auto generation stopped', 'info');
+  }
+}
+
+/* ── Run Once ────────────────────────────────────────────── */
+async function runOnce() {
+  const btn = document.getElementById('runOnceBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>';
+  saveConfig();
+
+  const payload = {
+    market:          document.getElementById('cfgMarket').value,
+    timeframe:       document.getElementById('cfgTimeframe').value,
+    signal_filter:   document.getElementById('cfgFilter').value,
+    min_confidence:  parseInt(document.getElementById('cfgConf').value),
+    max_per_run:     parseInt(document.getElementById('cfgMax').value),
+  };
+  await API.post('/signals/auto-generate/run-once', payload);
+  _lastLogLen   = 0;
+  _lastGenCount = 0;
+  Toast.show('Single run triggered', 'info');
+  setTimeout(pollStatus, 1000);
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-skip-forward-fill me-1"></i>Run Once Now';
+}
+
+/* ── Init ────────────────────────────────────────────────── */
+document.addEventListener('app:ready', () => {
+  loadConfig();
+
+  document.getElementById('cfgConf').addEventListener('input', function() {
+    document.getElementById('cfgConfVal').textContent = this.value + '%';
+  });
+
+  document.getElementById('startBtn').addEventListener('click',   startGeneration);
+  document.getElementById('stopBtn').addEventListener('click',    stopGeneration);
+  document.getElementById('runOnceBtn').addEventListener('click', runOnce);
+
+  document.getElementById('clearLogBtn')?.addEventListener('click', () => {
+    document.getElementById('runLog').innerHTML = '';
+    _lastLogLen = 0;
+  });
+
+  document.getElementById('clearTableBtn')?.addEventListener('click', () => {
+    document.getElementById('signalsTableBody').innerHTML = `
+      <tr id="emptyRow"><td colspan="10" class="text-center py-5 text-muted">
+        <i class="bi bi-robot d-block mb-2" style="font-size:28px;opacity:0.4"></i>Table cleared</td></tr>`;
+    document.getElementById('tableCount').textContent = '0 signals';
+  });
+
+  document.getElementById('clearStatsBtn')?.addEventListener('click', () => {
+    ['statGenerated','statRuns','statBuy','statSell','statHold','statErrors']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '0'; });
+  });
+
+  // Initial poll + start polling loop
+  pollStatus();
+  _pollTimer = setInterval(pollStatus, 3000);
+});
+</script>
+{% endblock %}

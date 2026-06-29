@@ -1,0 +1,126 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Login — SmartTrade AI{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="text-center mb-4">
+      <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
+        <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="fs-4 fw-bold">SmartTrade <span class="text-accent">AI</span></span>
+      </div>
+      <h2 class="fw-bold">Welcome Back</h2>
+      <p class="text-muted small">Sign in to access your trading dashboard</p>
+    </div>
+
+    <form id="loginForm">
+      <div class="mb-3">
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-control" id="loginEmail" placeholder="admin@smarttradeai.com" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <div class="input-group">
+          <input type="password" class="form-control" id="loginPassword" placeholder="••••••••" required />
+          <button class="btn btn-outline-light" type="button" id="togglePwd"><i class="bi bi-eye"></i></button>
+        </div>
+      </div>
+
+      <div id="loginError" class="alert alert-danger py-2 d-none small"></div>
+
+      <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="loginBtn">
+        <span id="loginBtnText">Sign In</span>
+        <span class="spinner-border spinner-border-sm d-none ms-1" id="loginSpinner"></span>
+      </button>
+    </form>
+
+    <div class="text-center mb-3">
+      <span class="text-muted small">Don't have an account?</span>
+      <a href="/register" class="text-accent small ms-1 fw-semibold">Create Account</a>
+    </div>
+
+    <div class="p-3 rounded" style="background:var(--glass);border:1px solid var(--border)">
+      <div class="text-muted small fw-semibold mb-1">Demo Credentials</div>
+      <div class="small">Email: <code>admin@smarttradeai.com</code></div>
+      <div class="small">Password: <code>Admin@123</code></div>
+      <button class="btn btn-sm btn-outline-light mt-2 w-100" id="fillDemo">Use Demo Account</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// If already logged in, go straight to dashboard (verify token is valid first)
+(async function() {
+  const token = localStorage.getItem('access_token');
+  if (token) {
+    try {
+      const res = await fetch('/api/v1/auth/me', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (res.ok) {
+        window.location.replace('/dashboard');
+        return;
+      }
+    } catch(e) {}
+    // Token invalid — clear it and show login
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+  }
+})();
+
+document.getElementById('togglePwd').addEventListener('click', () => {
+  const pwd  = document.getElementById('loginPassword');
+  const icon = document.querySelector('#togglePwd i');
+  if (pwd.type === 'password') { pwd.type = 'text';     icon.className = 'bi bi-eye-slash'; }
+  else                         { pwd.type = 'password'; icon.className = 'bi bi-eye'; }
+});
+
+document.getElementById('fillDemo').addEventListener('click', () => {
+  document.getElementById('loginEmail').value    = 'admin@smarttradeai.com';
+  document.getElementById('loginPassword').value = 'Admin@123';
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn     = document.getElementById('loginBtn');
+  const spinner = document.getElementById('loginSpinner');
+  const errEl   = document.getElementById('loginError');
+
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+  errEl.classList.add('d-none');
+
+  try {
+    const res = await fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email:    document.getElementById('loginEmail').value.trim(),
+        password: document.getElementById('loginPassword').value,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (res.ok && data.access_token) {
+      localStorage.setItem('access_token',  data.access_token);
+      localStorage.setItem('refresh_token', data.refresh_token);
+      window.location.replace('/dashboard');
+    } else {
+      errEl.textContent = data.error || 'Invalid email or password';
+      errEl.classList.remove('d-none');
+      btn.disabled = false;
+      spinner.classList.add('d-none');
+    }
+  } catch (err) {
+    errEl.textContent = 'Network error — is the server running?';
+    errEl.classList.remove('d-none');
+    btn.disabled = false;
+    spinner.classList.add('d-none');
+  }
+});
+</script>
+{% endblock %}

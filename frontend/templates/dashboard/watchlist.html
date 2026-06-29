@@ -1,0 +1,124 @@
+{% extends "partials/base.html" %}
+{% block title %}Watchlist — SmartTrade AI{% endblock %}
+{% set active = 'watchlist' %}
+{% block breadcrumb %}<i class="bi bi-star me-2"></i> Watchlist{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">Watchlist</h1></div>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
+    <i class="bi bi-plus-circle me-1"></i> New List
+  </button>
+</div>
+
+<div class="row g-4" id="watchlistsContainer">
+  <div class="col-12 text-center py-4 text-muted">Loading watchlists...</div>
+</div>
+
+<!-- New Watchlist Modal -->
+<div class="modal fade" id="newWlModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h6 class="modal-title">New Watchlist</h6>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="text" class="form-control mb-3" id="wlName" placeholder="My Crypto" />
+        <button class="btn btn-primary w-100" id="createWl">Create</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add Asset Modal -->
+<div class="modal fade" id="addAssetModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h6 class="modal-title">Add Asset</h6>
+        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="addAssetWlId" />
+        <input type="text" class="form-control mb-3" id="addAssetSymbol" placeholder="BTCUSDT" />
+        <input type="number" class="form-control mb-3" id="addAlertPrice" placeholder="Alert Price (optional)" step="any" />
+        <button class="btn btn-primary w-100" id="addAssetBtn">Add</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadWatchlists() {
+  const data = await API.get('/watchlist/');
+  if (!data) return;
+
+  const container = document.getElementById('watchlistsContainer');
+  if (!data.watchlists?.length) {
+    container.innerHTML = '<div class="col-12"><div class="glass-card text-center py-5"><i class="bi bi-star" style="font-size:48px;color:var(--border)"></i><p class="text-muted mt-3">No watchlists yet. Create your first one.</p></div></div>';
+    return;
+  }
+
+  container.innerHTML = data.watchlists.map(wl => `
+    <div class="col-md-6 col-lg-4">
+      <div class="section-card">
+        <div class="section-card-header">
+          <span class="section-card-title">${wl.is_pinned ? '📌 ' : ''}${wl.name}</span>
+          <button class="btn btn-sm btn-outline-light" onclick="openAddAsset(${wl.id})"><i class="bi bi-plus"></i></button>
+        </div>
+        <div>
+          ${wl.items?.length ? wl.items.map(item => `
+            <div class="d-flex justify-content-between align-items-center p-3 border-bottom" style="border-color:var(--border)!important">
+              <div>
+                <strong>${item.symbol}</strong>
+                <span class="badge bg-secondary ms-2">${item.market || ''}</span>
+              </div>
+              <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.id})"><i class="bi bi-x"></i></button>
+            </div>`).join('') : '<div class="p-3 text-muted small">No assets added yet</div>'}
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function openAddAsset(wlId) {
+  document.getElementById('addAssetWlId').value = wlId;
+  new bootstrap.Modal(document.getElementById('addAssetModal')).show();
+}
+
+document.getElementById('addAssetBtn').addEventListener('click', async () => {
+  const wlId = document.getElementById('addAssetWlId').value;
+  const res = await API.post(`/watchlist/${wlId}/items`, {
+    symbol: document.getElementById('addAssetSymbol').value,
+    alert_price: document.getElementById('addAlertPrice').value || null,
+  });
+  if (res?.id) {
+    bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
+    Toast.show('Asset added!', 'success');
+    loadWatchlists();
+  } else Toast.show(res?.error || 'Failed', 'error');
+});
+
+async function removeItem(id) {
+  await API.delete(`/watchlist/items/${id}`);
+  Toast.show('Removed', 'success');
+  loadWatchlists();
+}
+
+document.getElementById('createWl').addEventListener('click', async () => {
+  const name = document.getElementById('wlName').value;
+  if (!name) return;
+  const res = await API.post('/watchlist/', { name });
+  if (res?.id) {
+    bootstrap.Modal.getInstance(document.getElementById('newWlModal')).hide();
+    document.getElementById('wlName').value = '';
+    Toast.show('Watchlist created!', 'success');
+    loadWatchlists();
+  }
+});
+
+document.addEventListener('app:ready', loadWatchlists);
+</script>
+{% endblock %}

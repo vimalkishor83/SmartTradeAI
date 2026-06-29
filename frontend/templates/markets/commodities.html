@@ -1,0 +1,388 @@
+{% extends "partials/base.html" %}
+{% block title %}Commodities — SmartTrade AI{% endblock %}
+{% set active = 'commodities' %}
+
+{% block breadcrumb %}<i class="bi bi-gem me-2"></i> Markets / Commodities{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Commodities Market Signals</h1>
+    <p class="page-subtitle">Gold · Silver · Crude Oil — AI-powered signals with real-time prices</p>
+  </div>
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <select class="form-select form-select-sm" id="tfFilter" style="width:auto">
+      <option value="1m">1 Min</option>
+      <option value="5m">5 Min</option>
+      <option value="15m">15 Min</option>
+      <option value="30m">30 Min</option>
+      <option value="1h" selected>1 Hour</option>
+      <option value="4h">4 Hours</option>
+      <option value="1d">Daily</option>
+    </select>
+    <select class="form-select form-select-sm" id="typeFilter" style="width:auto">
+      <option value="">All Signals</option>
+      <option value="BUY">Buy</option>
+      <option value="SELL">Sell</option>
+      <option value="HOLD">Hold</option>
+    </select>
+    <div class="d-flex align-items-center gap-1">
+      <span style="color:var(--text-muted);font-size:12px">Min:</span>
+      <input type="range" class="form-range" id="minConf" min="0" max="100" value="0" style="width:80px">
+      <span class="badge-tag" id="confVal">0%</span>
+    </div>
+    <button class="btn btn-sm btn-outline-light" onclick="loadAll()">
+      <i class="bi bi-arrow-repeat me-1"></i>Refresh
+    </button>
+    <button class="btn btn-sm btn-primary" id="genAllBtn" onclick="genAllSignals()">
+      <i class="bi bi-lightning-charge-fill me-1"></i>Generate All
+    </button>
+  </div>
+</div>
+
+<!-- Commodity Price Cards + Sentiment -->
+<div class="row g-3 mb-4">
+
+  <!-- Gold -->
+  <div class="col-12 col-md-4 col-lg-3">
+    <div class="section-card p-3" style="cursor:pointer" onclick="genSignal('XAUUSD')">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-gem" style="color:#f59e0b;font-size:18px"></i>
+        </div>
+        <div>
+          <div class="fw-700" style="font-size:13px;color:var(--text-primary)">XAUUSD</div>
+          <div style="font-size:10px;color:var(--text-muted)">Gold / USD</div>
+        </div>
+        <span class="badge-tag ms-auto" style="font-size:9px">COMEX</span>
+      </div>
+      <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_XAUUSD">—</div>
+      <div style="font-size:12px;margin-top:2px" id="change_XAUUSD"><span style="color:var(--text-muted)">loading...</span></div>
+      <button class="btn btn-sm w-100 mt-2" style="font-size:11px;padding:3px 6px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25);border-radius:6px"
+        onclick="event.stopPropagation();genSignal('XAUUSD')">
+        <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
+      </button>
+    </div>
+  </div>
+
+  <!-- Silver -->
+  <div class="col-12 col-md-4 col-lg-3">
+    <div class="section-card p-3" style="cursor:pointer">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(148,163,184,0.15);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-circle-fill" style="color:#94a3b8;font-size:18px"></i>
+        </div>
+        <div>
+          <div class="fw-700" style="font-size:13px;color:var(--text-primary)">XAGUSD</div>
+          <div style="font-size:10px;color:var(--text-muted)">Silver / USD</div>
+        </div>
+        <span class="badge-tag ms-auto" style="font-size:9px">COMEX</span>
+      </div>
+      <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_XAGUSD">—</div>
+      <div style="font-size:12px;margin-top:2px" id="change_XAGUSD"><span style="color:var(--text-muted)">loading...</span></div>
+      <button class="btn btn-sm w-100 mt-2" style="font-size:11px;padding:3px 6px;background:rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.25);border-radius:6px"
+        onclick="genSignal('XAGUSD')">
+        <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
+      </button>
+    </div>
+  </div>
+
+  <!-- Crude Oil -->
+  <div class="col-12 col-md-4 col-lg-3">
+    <div class="section-card p-3" style="cursor:pointer">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div style="width:36px;height:36px;border-radius:50%;background:rgba(239,68,68,0.12);display:flex;align-items:center;justify-content:center">
+          <i class="bi bi-droplet-fill" style="color:#ef4444;font-size:18px"></i>
+        </div>
+        <div>
+          <div class="fw-700" style="font-size:13px;color:var(--text-primary)">CLUSD</div>
+          <div style="font-size:10px;color:var(--text-muted)">Crude Oil WTI / USD</div>
+        </div>
+        <span class="badge-tag ms-auto" style="font-size:9px">NYMEX</span>
+      </div>
+      <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_CLUSD">—</div>
+      <div style="font-size:12px;margin-top:2px" id="change_CLUSD"><span style="color:var(--text-muted)">loading...</span></div>
+      <button class="btn btn-sm w-100 mt-2" style="font-size:11px;padding:3px 6px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:6px"
+        onclick="genSignal('CLUSD')">
+        <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
+      </button>
+    </div>
+  </div>
+
+  <!-- Market Sentiment -->
+  <div class="col-12 col-md-12 col-lg-3">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-activity text-accent"></i> Sentiment</span>
+        <span class="badge-tag" id="sentimentAsset">XAUUSD</span>
+      </div>
+      <div class="section-card-body text-center">
+        <div id="sentimentScore" style="font-size:44px;font-weight:900;letter-spacing:-2px;color:var(--yellow)">—</div>
+        <div id="sentimentLabel" style="font-size:14px;font-weight:700;color:var(--text-secondary);margin-bottom:10px">Loading...</div>
+        <div class="confidence-bar mb-3" style="height:7px">
+          <div class="confidence-fill" id="sentimentBar" style="width:50%;background:var(--yellow);height:7px"></div>
+        </div>
+        <div class="row g-2">
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">RSI</div><div class="qs-value" id="sentRSI">—</div></div></div>
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">MACD</div><div class="qs-value" id="sentMACD" style="font-size:12px;text-transform:capitalize">—</div></div></div>
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">Trend</div><div class="qs-value" id="sentTrend" style="font-size:12px">—</div></div></div>
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">Volume</div><div class="qs-value" id="sentVol" style="font-size:12px">—</div></div></div>
+        </div>
+        <div class="mt-2 d-flex gap-1 flex-wrap justify-content-center">
+          <button class="badge-tag" style="cursor:pointer;border:none;background:rgba(245,158,11,0.12);color:#f59e0b" onclick="loadSentiment('gold')">Gold</button>
+          <button class="badge-tag" style="cursor:pointer;border:none;background:rgba(148,163,184,0.12);color:#94a3b8" onclick="loadSentiment('silver')">Silver</button>
+          <button class="badge-tag" style="cursor:pointer;border:none;background:rgba(239,68,68,0.12);color:#f87171" onclick="loadSentiment('oil')">Crude</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Signals Table -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title">
+      <i class="bi bi-lightning-charge text-accent"></i> Commodities Signals
+    </span>
+    <span class="badge-tag" id="sigCount">—</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>Asset</th><th>Commodity</th><th>Signal</th><th>TF</th>
+          <th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>T3</th>
+          <th>R:R</th><th>Confidence</th><th>Time</th><th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="mktSignalsBody">
+        <tr><td colspan="13" class="text-center text-muted py-4">Loading signals...</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="p-3 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
+    <span style="color:var(--text-muted);font-size:11px" id="sigTotal"></span>
+    <nav><ul class="pagination pagination-sm mb-0" id="mktPagination"></ul></nav>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const COMMODITY_SYMBOLS = {
+  'XAUUSD': { name:'Gold',      icon:'bi-gem',         color:'#f59e0b' },
+  'XAGUSD': { name:'Silver',    icon:'bi-circle-fill', color:'#94a3b8' },
+  'CLUSD':  { name:'Crude Oil', icon:'bi-droplet-fill','color':'#ef4444' },
+};
+let _assets = [];
+let _sentimentMap = {};   // symbol -> asset_id
+
+function shortTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  const now = new Date();
+  if ((now - d) / 36e5 < 24)
+    return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
+         d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+}
+
+/* ── Load Assets (commodity market) ─────────── */
+async function loadAssets() {
+  // Try commodity market first, fall back to gold+silver
+  let data = await API.get('/assets/', { market: 'commodity' });
+  let assets = data?.assets || [];
+
+  if (!assets.length) {
+    // Legacy: might be stored as gold/silver markets
+    const [g, s] = await Promise.all([
+      API.get('/assets/', { market: 'gold' }),
+      API.get('/assets/', { market: 'silver' }),
+    ]);
+    assets = [...(g?.assets || []), ...(s?.assets || [])];
+  }
+
+  _assets = assets;
+  assets.forEach(a => {
+    _sentimentMap[a.symbol] = a.id;
+    loadPrice(a);
+  });
+  // Default sentiment = Gold
+  const goldAsset = assets.find(a => a.symbol === 'XAUUSD');
+  if (goldAsset) {
+    _sentimentMap.current = goldAsset.id;
+    document.getElementById('sentimentAsset').textContent = 'XAUUSD';
+    loadSentiment('gold');
+  }
+  loadSignals(1);
+}
+
+async function loadPrice(asset) {
+  const priceEl  = document.getElementById(`price_${asset.symbol}`);
+  const changeEl = document.getElementById(`change_${asset.symbol}`);
+  if (!priceEl) return;
+  const data = await API.get(`/assets/${asset.id}/ticker`);
+  if (data?.price) {
+    priceEl.textContent = formatPrice(data.price);
+    const chg = data.change_pct ?? 0;
+    const col = chg >= 0 ? 'var(--green)' : 'var(--red)';
+    const arr = chg >= 0 ? '▲' : '▼';
+    changeEl.innerHTML = `<span style="color:${col};font-weight:700">${arr} ${Math.abs(chg).toFixed(2)}%</span>`;
+  } else {
+    priceEl.textContent = '—';
+    changeEl.innerHTML  = '<span style="color:var(--text-muted);font-size:11px">unavailable</span>';
+  }
+}
+
+/* ── Sentiment ───────────────────────────────── */
+async function loadSentiment(which) {
+  const map = { gold:'XAUUSD', silver:'XAGUSD', oil:'CLUSD' };
+  const sym = map[which] || 'XAUUSD';
+  const id  = _sentimentMap[sym];
+  if (!id) return;
+
+  document.getElementById('sentimentAsset').textContent = sym;
+  const tf   = document.getElementById('tfFilter').value || '1h';
+  const data = await API.get(`/market-data/${id}/sentiment`, { timeframe: tf });
+  if (!data?.sentiment) return;
+
+  const s     = data.sentiment;
+  const score = s.score ?? 50;
+  const label = s.label || 'Neutral';
+  const color = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--yellow)';
+
+  document.getElementById('sentimentScore').textContent = score;
+  document.getElementById('sentimentScore').style.color = color;
+  document.getElementById('sentimentLabel').textContent = label;
+  document.getElementById('sentimentLabel').style.color = color;
+  document.getElementById('sentimentBar').style.width      = score + '%';
+  document.getElementById('sentimentBar').style.background = color;
+
+  if (s.indicators) {
+    const rsi = s.indicators.rsi;
+    const rsiColor = rsi > 70 ? 'var(--red)' : rsi < 30 ? 'var(--green)' : 'var(--yellow)';
+    const macd  = s.indicators.macd_signal || '—';
+    const trend = s.indicators.ema_trend   || '—';
+    const setEl = (id, val, col) => { const el = document.getElementById(id); if (el) { el.textContent = val; if (col) el.style.color = col; }};
+    setEl('sentRSI',  rsi?.toFixed(1) || '—', rsiColor);
+    setEl('sentMACD', macd,  macd === 'bullish' ? 'var(--green)' : macd === 'bearish' ? 'var(--red)' : null);
+    setEl('sentTrend', trend, trend === 'bullish' ? 'var(--green)' : trend === 'bearish' ? 'var(--red)' : null);
+    setEl('sentVol',  s.indicators.volume_trend || '—', null);
+  }
+}
+
+/* ── Signals Table ───────────────────────────── */
+async function loadSignals(page = 1) {
+  const tf   = document.getElementById('tfFilter').value;
+  const type = document.getElementById('typeFilter').value;
+  const conf = document.getElementById('minConf').value;
+
+  // Fetch signals for all commodity markets
+  const [r1, r2, r3] = await Promise.all([
+    API.get('/signals/', { market:'commodity', timeframe:tf, page, per_page:20, min_confidence:conf, ...(type?{signal_type:type}:{}) }),
+    API.get('/signals/', { market:'gold',      timeframe:tf, page, per_page:10, min_confidence:conf, ...(type?{signal_type:type}:{}) }),
+    API.get('/signals/', { market:'silver',    timeframe:tf, page, per_page:10, min_confidence:conf, ...(type?{signal_type:type}:{}) }),
+  ]);
+
+  // Merge and deduplicate by id
+  const seen = new Set();
+  const signals = [...(r1?.signals||[]), ...(r2?.signals||[]), ...(r3?.signals||[])]
+    .filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; })
+    .sort((a,b) => new Date(b.generated_at) - new Date(a.generated_at));
+
+  const total = (r1?.total||0) + (r2?.total||0) + (r3?.total||0);
+  document.getElementById('sigCount').textContent  = `${signals.length} signals`;
+  document.getElementById('sigTotal').textContent  = `${total} total`;
+
+  const tbody = document.getElementById('mktSignalsBody');
+  if (!signals.length) {
+    tbody.innerHTML = `<tr><td colspan="13" class="text-center text-muted py-5">
+      <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+      No signals yet — click "Generate Signal" on any commodity above
+    </td></tr>`;
+    return;
+  }
+
+  const commodityLabel = { XAUUSD:'Gold', XAGUSD:'Silver', CLUSD:'Crude Oil' };
+  const commodityColor = { XAUUSD:'#f59e0b', XAGUSD:'#94a3b8', CLUSD:'#f87171' };
+
+  tbody.innerHTML = signals.map(s => {
+    const rr      = parseFloat(s.risk_reward) || 0;
+    const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-muted)';
+    const conf2   = s.confidence_score || 0;
+    const confClr = conf2 >= 85 ? 'var(--green)' : conf2 >= 70 ? 'var(--accent-light)' : conf2 >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const cLabel  = commodityLabel[s.asset] || s.asset;
+    const cColor  = commodityColor[s.asset] || 'var(--text-muted)';
+    return `<tr>
+      <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>
+      <td><span style="color:${cColor};font-weight:600;font-size:12px">${cLabel}</span></td>
+      <td>${signalBadge(s.signal_type)}</td>
+      <td><span class="badge-tag">${s.timeframe}</span></td>
+      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss)}</td>
+      <td class="text-green">${formatPrice(s.target1)}</td>
+      <td class="text-green">${formatPrice(s.target2)}</td>
+      <td class="text-green">${formatPrice(s.target3)}</td>
+      <td><span style="font-weight:700;color:${rrColor}">${rr.toFixed(1)}x</span></td>
+      <td style="min-width:110px">
+        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf2}%;background:${confClr}"></div></div>
+        <div style="font-size:11px;color:#94a3b8">${conf2.toFixed(0)}% · ${s.confidence_label||''}</div>
+      </td>
+      <td style="font-size:11px;color:#7a8fa8;white-space:nowrap">${shortTime(s.generated_at)}</td>
+      <td>
+        <button class="btn btn-sm" style="background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px"
+          onclick="genSignal('${s.asset}','${s.timeframe}')" title="Regenerate">
+          <i class="bi bi-arrow-repeat"></i>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Generate ────────────────────────────────── */
+async function genSignal(symbol, timeframe) {
+  const tf = timeframe || document.getElementById('tfFilter').value;
+  Toast.show(`Generating ${tf} signal for ${symbol}...`, 'info', 2000);
+  const res = await API.post('/signals/generate', { symbol, timeframe: tf });
+  if (res?.signal_type) {
+    Toast.show(`${res.signal_type} signal for ${symbol} — ${(res.confidence_score||0).toFixed(0)}% confidence`, 'success');
+    loadSignals(1);
+  } else {
+    Toast.show(res?.error || 'Signal generation failed', 'warning');
+  }
+}
+
+async function genAllSignals() {
+  const btn = document.getElementById('genAllBtn');
+  const tf  = document.getElementById('tfFilter').value;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
+  const syms = ['XAUUSD', 'XAGUSD', 'CLUSD'];
+  let count = 0;
+  for (const sym of syms) {
+    const res = await API.post('/signals/generate', { symbol: sym, timeframe: tf });
+    if (res?.signal_type) count++;
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i>Generate All';
+  Toast.show(`${count} signals generated for Commodities`, 'success');
+  loadSignals(1);
+}
+
+/* ── Init ────────────────────────────────────── */
+function loadAll() { loadAssets(); }
+
+document.addEventListener('app:ready', () => {
+  loadAll();
+  document.getElementById('tfFilter').addEventListener('change',  () => { loadSignals(1); loadSentiment('gold'); });
+  document.getElementById('typeFilter').addEventListener('change', () => loadSignals(1));
+  document.getElementById('minConf').addEventListener('input', function() {
+    document.getElementById('confVal').textContent = this.value + '%';
+    loadSignals(1);
+  });
+  setInterval(() => loadSignals(1), 60000);
+  setInterval(() => _assets.forEach(a => loadPrice(a)), 30000);
+});
+</script>
+{% endblock %}

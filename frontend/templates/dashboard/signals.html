@@ -1,0 +1,318 @@
+﻿{% extends "partials/base.html" %}
+{% block title %}All Signals — SmartTrade AI{% endblock %}
+{% set active = 'signals' %}
+{% block breadcrumb %}<i class="bi bi-lightning-charge-fill me-2"></i> All Signals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">All Signals</h1>
+    <p class="page-subtitle">Live signals across all markets and timeframes</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <button class="btn btn-sm btn-primary" id="refreshSignals">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Win Rate Summary Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card green">
+      <div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="statWinRate">—</div></div><div class="kpi-icon"><i class="bi bi-trophy-fill text-green"></i></div></div>
+      <div class="kpi-change" id="statTotalHistory">0 closed trades</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue">
+      <div class="kpi-top"><div><div class="kpi-label">Active Signals</div><div class="kpi-value" id="statActive">—</div></div><div class="kpi-icon"><i class="bi bi-lightning-charge-fill text-blue"></i></div></div>
+      <div class="kpi-change">right now</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card yellow">
+      <div class="kpi-top"><div><div class="kpi-label">Avg Confidence</div><div class="kpi-value text-yellow" id="statConf">—</div></div><div class="kpi-icon"><i class="bi bi-graph-up text-yellow"></i></div></div>
+      <div class="kpi-change">today's signals</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card purple">
+      <div class="kpi-top"><div><div class="kpi-label">Top Signal</div><div class="fw-800" style="font-size:16px;margin-top:4px" id="statTop">—</div></div><div class="kpi-icon"><i class="bi bi-star-fill text-purple"></i></div></div>
+      <div class="kpi-change text-muted fs-xs" id="statTopConf"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" id="signalTabs" style="border-color:var(--border)">
+  <li class="nav-item">
+    <a class="nav-link active" id="tabLiveBtn" href="#" onclick="showTab('live');return false">
+      <i class="bi bi-lightning-charge me-1"></i>Live Signals
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tabHistBtn" href="#" onclick="showTab('history');return false">
+      <i class="bi bi-clock-history me-1"></i>Signal History
+    </a>
+  </li>
+</ul>
+
+<!-- ── LIVE TAB ──────────────────────────────────────── -->
+<div id="liveTab">
+  <div class="section-card mb-3">
+    <div class="section-card-body py-2">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="allMkt" style="width:auto">
+          <option value="">All Markets</option>
+          <option value="crypto">Crypto</option>
+          <option value="forex">Forex</option>
+          <option value="gold">Gold</option>
+          <option value="silver">Silver</option>
+          <option value="indian_stock">Indian Stocks</option>
+          <option value="index">Indices</option>
+        </select>
+        <select class="form-select form-select-sm" id="allTf" style="width:auto">
+          <option value="">All TF</option>
+          <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
+          <option value="30m">30m</option><option value="1h" selected>1h</option>
+          <option value="4h">4h</option><option value="1d">1d</option>
+        </select>
+        <select class="form-select form-select-sm" id="allType" style="width:auto">
+          <option value="">All Types</option>
+          <option value="BUY">BUY</option><option value="SELL">SELL</option>
+          <option value="HOLD">HOLD</option><option value="EXIT">EXIT</option>
+        </select>
+        <div class="d-flex align-items-center gap-2">
+          <span class="text-muted fs-xs">Min:</span>
+          <input type="range" class="form-range" id="allConf" min="0" max="100" value="0" style="width:90px" />
+          <span class="badge-tag" id="allConfVal" style="min-width:32px">0%</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="table-responsive">
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th>Asset</th><th>Market</th><th>TF</th><th>Signal</th>
+            <th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th>
+            <th>R:R</th><th>Confidence</th><th>Expires</th><th>Reasoning</th>
+          </tr>
+        </thead>
+        <tbody id="allSignalsBody">
+          <tr><td colspan="12" class="text-center py-5 text-muted">
+            <i class="bi bi-lightning-charge d-block mb-2" style="font-size:28px"></i>Loading signals...
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
+      <span class="text-muted fs-xs" id="allCount"></span>
+      <nav><ul class="pagination pagination-sm mb-0" id="allPagination"></ul></nav>
+    </div>
+  </div>
+</div>
+
+<!-- ── HISTORY TAB ──────────────────────────────────── -->
+<div id="historyTab" style="display:none">
+  <div class="section-card mb-3">
+    <div class="section-card-body py-2">
+      <div class="d-flex flex-wrap gap-2 align-items-center">
+        <select class="form-select form-select-sm" id="histMkt" style="width:auto">
+          <option value="">All Markets</option>
+          <option value="crypto">Crypto</option><option value="forex">Forex</option>
+          <option value="indian_stock">Indian Stocks</option><option value="index">Indices</option>
+        </select>
+        <select class="form-select form-select-sm" id="histOutcome" style="width:auto">
+          <option value="">All Outcomes</option>
+          <option value="win">Win ✓</option><option value="loss">Loss ✗</option><option value="neutral">Neutral</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="table-responsive">
+      <table class="smart-table">
+        <thead>
+          <tr>
+            <th>Asset</th><th>TF</th><th>Signal</th>
+            <th>Entry</th><th>Exit</th><th>P&amp;L %</th>
+            <th>Outcome</th><th>Confidence</th><th>Duration</th><th>Closed</th>
+          </tr>
+        </thead>
+        <tbody id="historyBody">
+          <tr><td colspan="10" class="text-center py-5 text-muted">
+            <i class="bi bi-clock-history d-block mb-2" style="font-size:28px"></i>
+            No history yet — signals close automatically when they hit target or stop loss.
+          </td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
+      <span class="text-muted fs-xs" id="histCount"></span>
+      <nav><ul class="pagination pagination-sm mb-0" id="histPagination"></ul></nav>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showTab(tab) {
+  document.getElementById('liveTab').style.display    = tab === 'live'    ? 'block' : 'none';
+  document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+  document.getElementById('tabLiveBtn').classList.toggle('active', tab === 'live');
+  document.getElementById('tabHistBtn').classList.toggle('active', tab === 'history');
+  if (tab === 'history') loadHistory(1);
+}
+
+async function loadSummary() {
+  const data = await API.get('/signals/summary');
+  if (!data) return;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
+  set('statWinRate',      data.win_rate != null ? data.win_rate.toFixed(1) + '%' : '—');
+  set('statTotalHistory', `${data.total_historical || 0} closed trades`);
+  set('statActive',       data.open_alerts ?? 0);
+  set('statConf',         data.avg_confidence != null ? data.avg_confidence.toFixed(1) + '%' : '—');
+  if (data.top_signal) {
+    set('statTop',    data.top_signal.asset);
+    set('statTopConf', `${data.top_signal.signal_type} · ${(data.top_signal.confidence_score||0).toFixed(0)}% conf.`);
+  }
+}
+
+async function loadSignals(page = 1) {
+  const params = {
+    page, per_page: 25,
+    timeframe:      document.getElementById('allTf').value,
+    min_confidence: document.getElementById('allConf').value,
+  };
+  const mkt  = document.getElementById('allMkt').value;
+  const type = document.getElementById('allType').value;
+  if (mkt)  params.market      = mkt;
+  if (type) params.signal_type = type;
+
+  const data = await API.get('/signals/', params);
+  if (!data) return;
+
+  document.getElementById('allCount').textContent = `${data.total} signals found`;
+  const tbody = document.getElementById('allSignalsBody');
+
+  if (!data.signals?.length) {
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center py-5 text-muted">
+      <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
+      No signals match your filters.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.signals.map(s => {
+    const conf    = s.confidence_score || 0;
+    const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const rr      = parseFloat(s.risk_reward) || 0;
+    const rrCls   = rr >= 2 ? 'text-green' : rr >= 1.5 ? 'text-yellow' : 'text-muted';
+    return `<tr>
+      <td><strong>${s.asset}</strong></td>
+      <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
+      <td><span class="badge-tag">${s.timeframe}</span></td>
+      <td>${signalBadge(s.signal_type)}</td>
+      <td class="fw-700">${formatPrice(s.entry_price)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss)}</td>
+      <td class="text-green">${formatPrice(s.target1)}</td>
+      <td class="text-green">${formatPrice(s.target2)}</td>
+      <td class="${rrCls} fw-700">${rr.toFixed(1)}x</td>
+      <td style="min-width:100px">
+        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
+        <div class="text-muted fs-xs">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
+      </td>
+      <td class="text-muted fs-xs">${s.expires_at ? formatTime(s.expires_at) : '—'}</td>
+      <td class="text-muted fs-xs" style="max-width:180px;white-space:normal;line-height:1.4">${s.reasoning ? s.reasoning.slice(0,100) + (s.reasoning.length > 100 ? '…' : '') : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  _buildPag('allPagination', data.pages, page, 'loadSignals');
+}
+
+async function loadHistory(page = 1) {
+  const params = { page, per_page: 25 };
+  const mkt = document.getElementById('histMkt').value;
+  const out = document.getElementById('histOutcome').value;
+  if (mkt) params.market  = mkt;
+  if (out) params.outcome = out;
+
+  const data = await API.get('/signals/history', params);
+  if (!data) return;
+
+  document.getElementById('histCount').textContent = `${data.total} records`;
+  const tbody = document.getElementById('historyBody');
+
+  if (!data.history?.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="text-center py-5 text-muted">
+      <i class="bi bi-clock-history d-block mb-2" style="font-size:28px"></i>
+      No closed signals yet.
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = data.history.map(h => {
+    const pnl    = h.pnl_pct ?? 0;
+    const pnlCls = pnl >= 0 ? 'text-green' : 'text-red';
+    const outCls = h.outcome === 'win' ? 'signal-buy' : h.outcome === 'loss' ? 'signal-sell' : 'signal-hold';
+    const dur    = h.duration_minutes
+      ? (h.duration_minutes < 60 ? h.duration_minutes + 'm' : Math.round(h.duration_minutes/60) + 'h')
+      : '—';
+    return `<tr>
+      <td><strong>${h.asset}</strong></td>
+      <td><span class="badge-tag">${h.timeframe}</span></td>
+      <td>${signalBadge(h.signal_type)}</td>
+      <td class="fw-700">${formatPrice(h.entry)}</td>
+      <td class="fw-700">${formatPrice(h.exit)}</td>
+      <td class="${pnlCls} fw-700">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
+      <td><span class="signal-badge ${outCls}">${(h.outcome||'—').toUpperCase()}</span></td>
+      <td>
+        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${h.confidence||0}%;background:var(--accent)"></div></div>
+        <div class="text-muted fs-xs">${(h.confidence||0).toFixed(0)}%</div>
+      </td>
+      <td class="text-muted fs-xs">${dur}</td>
+      <td class="text-muted fs-xs">${formatTime(h.closed_at)}</td>
+    </tr>`;
+  }).join('');
+
+  _buildPag('histPagination', data.pages, page, 'loadHistory');
+}
+
+function _buildPag(id, total, cur, fn) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const pages = Math.min(total || 1, 8);
+  let html = '';
+  if (cur > 1) html += `<li class="page-item"><a class="page-link" href="#" onclick="${fn}(${cur-1});return false">‹</a></li>`;
+  for (let i = 1; i <= pages; i++)
+    html += `<li class="page-item ${i===cur?'active':''}"><a class="page-link" href="#" onclick="${fn}(${i});return false">${i}</a></li>`;
+  if (cur < total) html += `<li class="page-item"><a class="page-link" href="#" onclick="${fn}(${cur+1});return false">›</a></li>`;
+  el.innerHTML = html;
+}
+
+document.addEventListener('app:ready', () => {
+  loadSummary();
+  loadSignals(1);
+
+  document.getElementById('refreshSignals').addEventListener('click', () => { loadSummary(); loadSignals(1); });
+  ['allMkt','allTf','allType'].forEach(id =>
+    document.getElementById(id)?.addEventListener('change', () => loadSignals(1)));
+  document.getElementById('allConf').addEventListener('input', function() {
+    document.getElementById('allConfVal').textContent = `${this.value}%`;
+    loadSignals(1);
+  });
+  document.getElementById('histMkt')?.addEventListener('change',     () => loadHistory(1));
+  document.getElementById('histOutcome')?.addEventListener('change', () => loadHistory(1));
+
+  if (location.search.includes('tab=history')) showTab('history');
+
+  setInterval(() => { loadSummary(); loadSignals(1); }, 60000);
+});
+</script>
+{% endblock %}

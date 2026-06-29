@@ -1,0 +1,204 @@
+{% extends "partials/base.html" %}
+{% block title %}Backtesting — SmartTrade AI{% endblock %}
+{% set active = 'backtesting' %}
+{% block breadcrumb %}<i class="bi bi-clock-history me-2"></i> Backtesting{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Strategy Backtesting</h1>
+    <p class="page-subtitle">Test your strategies on historical data with full statistics</p>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="section-card">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Configuration</span>
+      </div>
+      <div class="section-card-body">
+        <div class="mb-3">
+          <label class="form-label">Asset Symbol</label>
+          <input type="text" class="form-control" id="btSymbol" placeholder="BTCUSDT, NIFTY50..." />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Timeframe</label>
+          <select class="form-select" id="btTf">
+            <option value="1h" selected>1 Hour</option>
+            <option value="4h">4 Hours</option>
+            <option value="1d">Daily</option>
+            <option value="15m">15 Min</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Strategy</label>
+          <select class="form-select" id="btStrategy">
+            <option value="Default Multi-Indicator">Multi-Indicator (Default)</option>
+            <option value="EMA Crossover">EMA Crossover</option>
+            <option value="RSI + MACD">RSI + MACD</option>
+            <option value="SuperTrend">SuperTrend</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Initial Capital (₹)</label>
+          <input type="number" class="form-control" id="btCapital" value="100000" />
+        </div>
+        <button class="btn btn-primary w-100" id="runBt">
+          <i class="bi bi-play-circle me-1"></i> Run Backtest
+        </button>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="section-card mt-3">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-list text-accent"></i> History</span>
+      </div>
+      <div id="btHistory"><div class="p-3 text-muted small">No backtests yet</div></div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <!-- Results -->
+    <div id="btResults" style="display:none;">
+      <!-- KPIs -->
+      <div class="row g-3 mb-4" id="btKpis"></div>
+
+      <!-- Equity Curve -->
+      <div class="section-card mb-4">
+        <div class="section-card-header">
+          <span class="section-card-title"><i class="bi bi-graph-up text-green"></i> Equity Curve</span>
+        </div>
+        <div class="section-card-body">
+          <div class="chart-wrapper"><canvas id="equityChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Trades -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <span class="section-card-title"><i class="bi bi-table text-accent"></i> Trade List</span>
+        </div>
+        <div class="table-responsive">
+          <table class="smart-table">
+            <thead><tr><th>#</th><th>Type</th><th>Entry</th><th>Exit</th><th>PnL %</th><th>Outcome</th><th>Date</th></tr></thead>
+            <tbody id="btTrades"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div id="btPlaceholder" class="d-flex align-items-center justify-content-center" style="height:400px;">
+      <div class="text-center">
+        <i class="bi bi-clock-history" style="font-size:64px;color:var(--border)"></i>
+        <p class="text-muted mt-3">Configure and run a backtest to see results</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let equityChart;
+
+async function loadHistory() {
+  const data = await API.get('/backtesting/');
+  if (!data?.backtests?.length) return;
+  document.getElementById('btHistory').innerHTML = data.backtests.map(bt => `
+    <div class="p-3 border-bottom" style="border-color:var(--border)!important;cursor:pointer" onclick="loadBacktestDetails(${bt.id})">
+      <div class="d-flex justify-content-between">
+        <strong>${bt.asset} (${bt.timeframe})</strong>
+        <span class="${bt.net_profit >= 0 ? 'text-green' : 'text-red'}">${bt.net_profit_pct >= 0 ? '+' : ''}${bt.net_profit_pct}%</span>
+      </div>
+      <small class="text-muted">${bt.strategy} • ${bt.total_trades} trades • ${bt.win_rate}% WR</small>
+    </div>`).join('');
+}
+
+async function loadBacktestDetails(id) {
+  const data = await API.get(`/backtesting/${id}`);
+  if (!data) return;
+  showResults(data);
+}
+
+document.getElementById('runBt').addEventListener('click', async () => {
+  const btn = document.getElementById('runBt');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
+
+  const res = await API.post('/backtesting/run', {
+    symbol: document.getElementById('btSymbol').value,
+    timeframe: document.getElementById('btTf').value,
+    strategy: document.getElementById('btStrategy').value,
+    initial_capital: parseFloat(document.getElementById('btCapital').value),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Run Backtest';
+
+  if (res?.error) { Toast.show(res.error, 'error'); return; }
+  showResults(res);
+  loadHistory();
+});
+
+function showResults(data) {
+  document.getElementById('btPlaceholder').style.display = 'none';
+  document.getElementById('btResults').style.display = 'block';
+
+  const kpis = [
+    { label: 'Total Trades', value: data.total_trades, cls: '' },
+    { label: 'Win Rate', value: `${data.win_rate}%`, cls: data.win_rate >= 50 ? 'text-green' : 'text-red' },
+    { label: 'Net Profit', value: `${data.net_profit_pct >= 0 ? '+' : ''}${data.net_profit_pct}%`, cls: data.net_profit >= 0 ? 'text-green' : 'text-red' },
+    { label: 'Max Drawdown', value: `${data.max_drawdown}%`, cls: 'text-red' },
+    { label: 'Sharpe Ratio', value: data.sharpe_ratio, cls: data.sharpe_ratio >= 1 ? 'text-green' : '' },
+    { label: 'Profit Factor', value: data.profit_factor, cls: data.profit_factor >= 1.5 ? 'text-green' : 'text-yellow' },
+  ];
+
+  document.getElementById('btKpis').innerHTML = kpis.map(k => `
+    <div class="col-md-4 col-6">
+      <div class="kpi-card">
+        <div class="kpi-label">${k.label}</div>
+        <div class="kpi-value ${k.cls}">${k.value}</div>
+      </div>
+    </div>`).join('');
+
+  // Equity Chart
+  const ctx = document.getElementById('equityChart').getContext('2d');
+  if (equityChart) equityChart.destroy();
+  equityChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.equity_curve?.map((_, i) => i),
+      datasets: [{
+        label: 'Equity', data: data.equity_curve,
+        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
+        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { display: false },
+        y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+      },
+    },
+  });
+
+  // Trades
+  document.getElementById('btTrades').innerHTML = (data.trades_data || []).slice(0, 50).map((t, i) => `
+    <tr>
+      <td>${i + 1}</td>
+      <td>${signalBadge(t.type)}</td>
+      <td>${formatPrice(t.entry)}</td>
+      <td>${formatPrice(t.exit)}</td>
+      <td class="${t.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct?.toFixed(2)}%</td>
+      <td><span class="badge ${t.outcome === 'win' ? 'bg-success' : 'bg-danger'}">${t.outcome}</span></td>
+      <td class="text-muted small">${t.date?.slice(0, 10) || '—'}</td>
+    </tr>`).join('');
+}
+
+document.addEventListener('app:ready', loadHistory);
+</script>
+{% endblock %}

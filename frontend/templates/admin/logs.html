@@ -1,0 +1,51 @@
+{% extends "partials/base.html" %}
+{% block title %}System Logs — SmartTrade AI{% endblock %}
+{% set active = 'admin' %}
+{% block breadcrumb %}<i class="bi bi-list-ul me-2"></i> Admin / Logs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">System Logs</h1></div>
+  <select class="form-select form-select-sm" id="levelFilter" style="width:auto">
+    <option value="">All Levels</option>
+    <option value="INFO">INFO</option>
+    <option value="WARNING">WARNING</option>
+    <option value="ERROR">ERROR</option>
+    <option value="CRITICAL">CRITICAL</option>
+  </select>
+</div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead><tr><th>Level</th><th>Module</th><th>Message</th><th>Time</th></tr></thead>
+      <tbody id="logsBody"><tr><td colspan="4" class="text-center py-4 text-muted">Loading...</td></tr></tbody>
+    </table>
+  </div>
+  <div class="p-3"><nav><ul class="pagination pagination-sm mb-0" id="logsPagination"></ul></nav></div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadLogs(page = 1) {
+  const level = document.getElementById('levelFilter').value;
+  const params = { page, per_page: 50 };
+  if (level) params.level = level;
+  const data = await API.get('/admin/system-logs', params);
+  if (!data) return;
+
+  const LEVEL_COLORS = { INFO: 'bg-info text-dark', WARNING: 'bg-warning text-dark', ERROR: 'bg-danger', CRITICAL: 'bg-danger' };
+  document.getElementById('logsBody').innerHTML = data.logs.map(l => `
+    <tr>
+      <td><span class="badge ${LEVEL_COLORS[l.level] || 'bg-secondary'}">${l.level}</span></td>
+      <td class="text-muted small">${l.module || '—'}</td>
+      <td><code style="font-size:11px;color:var(--text-secondary)">${l.message}</code></td>
+      <td class="text-muted small">${formatTime(l.created_at)}</td>
+    </tr>`).join('');
+}
+
+document.getElementById('levelFilter').addEventListener('change', () => loadLogs(1));
+document.addEventListener('app:ready', () => loadLogs());
+</script>
+{% endblock %}

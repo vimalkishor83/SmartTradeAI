@@ -1,0 +1,94 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Register — SmartTrade AI{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container">
+  <div class="auth-card">
+    <div class="text-center mb-4">
+      <div class="brand justify-content-center mb-3" style="display:flex">
+        <div class="brand-icon me-2"><i class="bi bi-graph-up-arrow"></i></div>
+        <span class="brand-name fs-4">SmartTrade <span class="text-accent">AI</span></span>
+      </div>
+      <h2 class="fw-bold">Create Account</h2>
+      <p class="text-muted small">Start your AI-powered trading journey</p>
+    </div>
+
+    <form id="registerForm">
+      <div class="row g-3 mb-3">
+        <div class="col">
+          <label class="form-label">First Name</label>
+          <input type="text" class="form-control" id="firstName" placeholder="John" />
+        </div>
+        <div class="col">
+          <label class="form-label">Last Name</label>
+          <input type="text" class="form-control" id="lastName" placeholder="Doe" />
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-control" id="username" placeholder="trader123" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Email Address</label>
+        <input type="email" class="form-control" id="email" placeholder="you@example.com" required />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Password</label>
+        <input type="password" class="form-control" id="password" placeholder="••••••••" required />
+      </div>
+
+      <div id="registerError" class="alert alert-danger py-2 d-none"></div>
+
+      <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="registerBtn">
+        <span class="btn-text">Create Account</span>
+        <span class="spinner-border spinner-border-sm d-none" id="registerSpinner"></span>
+      </button>
+    </form>
+
+    <div class="text-center">
+      <span class="text-muted small">Already have an account?</span>
+      <a href="/login" class="text-accent small ms-1 fw-semibold">Sign In</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('registerBtn');
+  const spinner = document.getElementById('registerSpinner');
+  const errEl = document.getElementById('registerError');
+
+  btn.disabled = true;
+  spinner.classList.remove('d-none');
+  errEl.classList.add('d-none');
+
+  const res = await fetch('/api/v1/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: document.getElementById('username').value,
+      email: document.getElementById('email').value,
+      password: document.getElementById('password').value,
+      first_name: document.getElementById('firstName').value,
+      last_name: document.getElementById('lastName').value,
+    }),
+  });
+
+  const data = await res.json();
+  if (res.ok) {
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    window.location.href = '/dashboard';
+  } else {
+    errEl.textContent = data.error || 'Registration failed';
+    errEl.classList.remove('d-none');
+    btn.disabled = false;
+    spinner.classList.add('d-none');
+  }
+});
+</script>
+{% endblock %}

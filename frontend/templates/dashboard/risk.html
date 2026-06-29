@@ -1,0 +1,116 @@
+{% extends "partials/base.html" %}
+{% block title %}Risk Manager — SmartTrade AI{% endblock %}
+{% set active = 'risk' %}
+{% block breadcrumb %}<i class="bi bi-shield-check me-2"></i> Risk Manager{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">Risk Management</h1><p class="page-subtitle">Position sizing and risk-reward calculator</p></div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="section-card">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calculator text-accent"></i> Position Size Calculator</span></div>
+      <div class="section-card-body">
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label">Capital (₹)</label>
+            <input type="number" class="form-control" id="capital" value="100000" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Risk % per Trade</label>
+            <input type="number" class="form-control" id="riskPct" value="2" min="0.1" max="10" step="0.1" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Entry Price</label>
+            <input type="number" class="form-control" id="entryPrice" placeholder="e.g. 19500" step="any" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Stop Loss</label>
+            <input type="number" class="form-control" id="stopLoss" placeholder="e.g. 19200" step="any" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Lot Size</label>
+            <input type="number" class="form-control" id="lotSize" value="1" step="any" />
+          </div>
+          <div class="col-6">
+            <label class="form-label">Target Price (optional)</label>
+            <input type="number" class="form-control" id="targetPrice" placeholder="e.g. 20000" step="any" />
+          </div>
+        </div>
+        <button class="btn btn-primary w-100" id="calcBtn"><i class="bi bi-calculator me-1"></i> Calculate</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="section-card h-100" id="riskResults" style="display:none">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bar-chart text-green"></i> Results</span></div>
+      <div class="section-card-body">
+        <div class="row g-3" id="riskResultGrid"></div>
+        <div class="mt-3" id="rrResult"></div>
+      </div>
+    </div>
+    <div id="riskPlaceholder" class="d-flex align-items-center justify-content-center h-100" style="min-height:300px">
+      <div class="text-center">
+        <i class="bi bi-shield" style="font-size:64px;color:var(--border)"></i>
+        <p class="text-muted mt-3">Fill in trade parameters to calculate position size</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('calcBtn').addEventListener('click', async () => {
+  const entry = parseFloat(document.getElementById('entryPrice').value);
+  const sl = parseFloat(document.getElementById('stopLoss').value);
+
+  if (!entry || !sl) { Toast.show('Please enter entry price and stop loss', 'warning'); return; }
+
+  const res = await API.post('/risk/position-size', {
+    capital: parseFloat(document.getElementById('capital').value),
+    risk_pct: parseFloat(document.getElementById('riskPct').value),
+    entry, stop_loss: sl,
+    lot_size: parseFloat(document.getElementById('lotSize').value) || 1,
+  });
+
+  if (res?.error) { Toast.show(res.error, 'error'); return; }
+
+  document.getElementById('riskPlaceholder').style.display = 'none';
+  document.getElementById('riskResults').style.display = 'block';
+
+  const items = [
+    { label: 'Risk Amount', value: '₹' + res.risk_amount?.toLocaleString('en-IN'), cls: 'red' },
+    { label: 'Units to Buy', value: res.units?.toLocaleString(), cls: '' },
+    { label: 'Lots', value: res.lots, cls: '' },
+    { label: 'Position Value', value: '₹' + res.position_value?.toLocaleString('en-IN'), cls: 'blue' },
+    { label: 'Margin Required', value: '₹' + res.margin_required?.toLocaleString('en-IN'), cls: 'yellow' },
+    { label: 'Max Loss', value: '₹' + res.max_loss?.toLocaleString('en-IN'), cls: 'red' },
+  ];
+
+  document.getElementById('riskResultGrid').innerHTML = items.map(i => `
+    <div class="col-6">
+      <div class="kpi-card ${i.cls}">
+        <div class="kpi-label">${i.label}</div>
+        <div class="kpi-value ${i.cls ? 'text-' + i.cls : ''}">${i.value}</div>
+      </div>
+    </div>`).join('');
+
+  const target = parseFloat(document.getElementById('targetPrice').value);
+  if (target) {
+    const rr = await API.post('/risk/risk-reward', { entry, stop_loss: sl, target });
+    if (rr) {
+      document.getElementById('rrResult').innerHTML = `
+        <div class="glass-card text-center">
+          <div class="text-muted small mb-1">Risk : Reward Ratio</div>
+          <div class="display-5 fw-bold ${rr.ratio >= 2 ? 'text-green' : rr.ratio >= 1 ? 'text-yellow' : 'text-red'}">${rr.ratio}x</div>
+          <div class="badge ${rr.ratio >= 2 ? 'bg-success' : rr.ratio >= 1 ? 'bg-warning text-dark' : 'bg-danger'} mt-2">${rr.label}</div>
+        </div>`;
+    }
+  }
+});
+</script>
+{% endblock %}

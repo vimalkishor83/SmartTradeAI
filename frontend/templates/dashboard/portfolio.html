@@ -1,0 +1,152 @@
+﻿{% extends "partials/base.html" %}
+{% block title %}Portfolio — SmartTrade AI{% endblock %}
+{% set active = 'portfolio' %}
+{% block breadcrumb %}<i class="bi bi-pie-chart me-2"></i> Portfolio{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Portfolio</h1>
+    <p class="page-subtitle">Track all your positions and P&amp;L in one place</p>
+  </div>
+  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
+    <i class="bi bi-plus-circle me-1"></i> Add Position
+  </button>
+</div>
+
+<!-- Portfolio Summary -->
+<div class="row g-3 mb-4" id="portfolioSummary">
+  <div class="col-md-3"><div class="kpi-card blue"><div class="kpi-label">Total Invested</div><div class="kpi-value" id="totalInvested">—</div></div></div>
+  <div class="col-md-3"><div class="kpi-card green"><div class="kpi-label">Current Value</div><div class="kpi-value" id="totalCurrent">—</div></div></div>
+  <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="totalPnl">—</div></div></div>
+  <div class="col-md-3"><div class="kpi-card yellow"><div class="kpi-label">P&amp;L %</div><div class="kpi-value" id="totalPnlPct">—</div></div></div>
+</div>
+
+<!-- Holdings Table -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-briefcase text-accent"></i> Holdings</span>
+    <span class="badge-tag" id="holdingCount">0 positions</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr><th>Asset</th><th>Qty</th><th>Buy Price</th><th>Current Price</th>
+        <th>Invested</th><th>Current Value</th><th>P&amp;L</th><th>P&amp;L %</th>
+        <th>Days</th><th>Action</th></tr>
+      </thead>
+      <tbody id="holdingsBody">
+        <tr><td colspan="10" class="text-center text-muted py-4">No positions yet</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Add Position Modal -->
+<div class="modal fade" id="addPositionModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title">Add Position</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="addPositionForm">
+          <div class="mb-3">
+            <label class="form-label">Symbol</label>
+            <input type="text" class="form-control" id="posSymbol" placeholder="BTCUSDT" required />
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col">
+              <label class="form-label">Quantity</label>
+              <input type="number" class="form-control" id="posQty" step="any" required />
+            </div>
+            <div class="col">
+              <label class="form-label">Buy Price</label>
+              <input type="number" class="form-control" id="posBuyPrice" step="any" required />
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col">
+              <label class="form-label">Stop Loss (optional)</label>
+              <input type="number" class="form-control" id="posSL" step="any" />
+            </div>
+            <div class="col">
+              <label class="form-label">Target (optional)</label>
+              <input type="number" class="form-control" id="posTarget" step="any" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Notes</label>
+            <textarea class="form-control" id="posNotes" rows="2"></textarea>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">Add Position</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadPortfolio() {
+  const data = await API.get('/portfolio/');
+  if (!data) return;
+
+  const p = data.portfolio;
+  document.getElementById('totalInvested').textContent = '₹' + (p.total_invested || 0).toLocaleString('en-IN');
+  document.getElementById('totalCurrent').textContent = '₹' + (p.total_current || 0).toLocaleString('en-IN');
+  const pnl = p.total_pnl || 0;
+  document.getElementById('totalPnl').textContent = (pnl >= 0 ? '+₹' : '-₹') + Math.abs(pnl).toLocaleString('en-IN');
+  document.getElementById('totalPnl').className = `kpi-value ${pnl >= 0 ? 'text-green' : 'text-red'}`;
+  document.getElementById('totalPnlPct').textContent = (p.total_pnl_pct >= 0 ? '+' : '') + p.total_pnl_pct + '%';
+  document.getElementById('holdingCount').textContent = `${data.holdings.length} positions`;
+
+  if (!data.holdings.length) return;
+
+  document.getElementById('holdingsBody').innerHTML = data.holdings.map(h => `
+    <tr>
+      <td><strong>${h.asset}</strong></td>
+      <td>${h.quantity}</td>
+      <td>₹${formatPrice(h.buy_price)}</td>
+      <td>₹${formatPrice(h.current_price)}</td>
+      <td>₹${h.invested_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
+      <td>₹${h.current_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
+      <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}₹${Math.abs(h.pnl || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td class="${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
+      <td>${h.holding_days}d</td>
+      <td><button class="btn btn-sm btn-outline-danger" onclick="removePosition(${h.id})"><i class="bi bi-trash"></i></button></td>
+    </tr>`).join('');
+}
+
+async function removePosition(id) {
+  if (!confirm('Remove this position?')) return;
+  await API.delete(`/portfolio/${id}`);
+  Toast.show('Position removed', 'success');
+  loadPortfolio();
+}
+
+document.getElementById('addPositionForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await API.post('/portfolio/add', {
+    symbol: document.getElementById('posSymbol').value,
+    quantity: parseFloat(document.getElementById('posQty').value),
+    buy_price: parseFloat(document.getElementById('posBuyPrice').value),
+    stop_loss: document.getElementById('posSL').value || null,
+    target: document.getElementById('posTarget').value || null,
+    notes: document.getElementById('posNotes').value,
+  });
+  if (res?.id) {
+    bootstrap.Modal.getInstance(document.getElementById('addPositionModal')).hide();
+    e.target.reset();
+    Toast.show('Position added!', 'success');
+    loadPortfolio();
+  } else {
+    Toast.show(res?.error || 'Failed to add position', 'error');
+  }
+});
+
+document.addEventListener('app:ready', loadPortfolio);
+</script>
+{% endblock %}

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}SmartTrade AI{% endblock %}</title>
+  <meta name="description" content="AI-powered trading signals platform" />
+  <link href="/static/vendor/bootstrap.min.css" rel="stylesheet" />
+  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin />
+  <!-- Font preconnect for performance -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="/static/css/main.css" />
+  {% block extra_css %}{% endblock %}
+</head>
+<body>
+
+{% if not hide_sidebar %}
+<!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+
+  <!-- Logo -->
+  <div class="sidebar-header">
+    <a href="/dashboard" class="brand">
+      <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <span class="brand-name">SmartTrade <span class="text-accent">AI</span></span>
+    </a>
+    <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+      <i class="bi bi-layout-sidebar-inset"></i>
+    </button>
+  </div>
+
+  <!-- User -->
+  <div class="sidebar-user">
+    <div class="user-avatar" id="userAvatar">A</div>
+    <div class="sidebar-user-info">
+      <span class="user-name" id="sidebarUserName">Loading...</span>
+      <span class="user-role" id="sidebarUserRole">FREE</span>
+    </div>
+  </div>
+
+  <!-- Navigation -->
+  <nav class="sidebar-nav" id="sidebarNav">
+
+    <div class="nav-section">
+      <span class="nav-label">Main</span>
+      <a href="/dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
+        <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-label">Markets</span>
+      <a href="/markets/crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
+        <i class="bi bi-currency-bitcoin"></i>
+        <span class="nav-text">Crypto</span>
+        <span class="nav-badge badge-live">Live</span>
+      </a>
+      <a href="/markets/forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
+        <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
+      </a>
+      <a href="/markets/commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
+        <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
+      </a>
+      <a href="/markets/indian_stock" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
+        <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
+      </a>
+      <a href="/markets/index" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
+        <i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">Indices</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-label">Tools</span>
+      <a href="/signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
+        <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
+      </a>
+      <a href="/auto-generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
+        <i class="bi bi-robot"></i>
+        <span class="nav-text">Auto Generate</span>
+        <span class="nav-badge badge-live" id="navAutoGenBadge" style="display:none">ON</span>
+      </a>
+      <a href="/scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
+        <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
+      </a>
+      <a href="/backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
+        <i class="bi bi-clock-history"></i>
+        <span class="nav-text">Backtesting</span>
+        <span class="nav-badge badge-pro">PRO</span>
+      </a>
+      <a href="/ai-insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
+        <i class="bi bi-cpu-fill"></i>
+        <span class="nav-text">AI Insights</span>
+        <span class="nav-badge badge-pro">PRO</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-label">Portfolio</span>
+      <a href="/portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
+        <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+      </a>
+      <a href="/watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
+        <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
+      </a>
+      <a href="/risk" class="nav-item {% if active == 'risk' %}active{% endif %}">
+        <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
+      </a>
+    </div>
+
+    <div class="nav-section">
+      <span class="nav-label">Analysis</span>
+      <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
+        <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
+      </a>
+      <a href="/signals?tab=history" class="nav-item">
+        <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
+      </a>
+    </div>
+
+    <div class="nav-section" id="adminNav" style="display:none">
+      <span class="nav-label">Admin</span>
+      <a href="/admin" class="nav-item {% if active == 'admin' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
+      </a>
+      <a href="/admin/users" class="nav-item">
+        <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
+      </a>
+      <a href="/admin/logs" class="nav-item">
+        <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
+      </a>
+    </div>
+
+  </nav>
+
+  <!-- Footer links -->
+  <div class="sidebar-footer">
+    <a href="/settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
+      <i class="bi bi-gear-fill"></i><span class="nav-text">Settings</span>
+    </a>
+    <a href="#" class="nav-item" id="logoutBtn">
+      <i class="bi bi-box-arrow-right"></i><span class="nav-text">Logout</span>
+    </a>
+  </div>
+
+</aside>
+
+<!-- ═══ MAIN WRAPPER ═══════════════════════════════════════════ -->
+<div class="main-wrapper" id="mainWrapper">
+
+  <!-- Top Navbar -->
+  <nav class="top-navbar">
+    <div class="navbar-left">
+      <button class="btn-icon" id="mobileSidebarToggle" title="Menu">
+        <i class="bi bi-list"></i>
+      </button>
+      <div class="breadcrumb-nav">
+        {% block breadcrumb %}<i class="bi bi-grid-1x2 me-1"></i> Dashboard{% endblock %}
+      </div>
+    </div>
+
+    <!-- Ticker ribbon -->
+    <div class="ticker-ribbon" id="tickerRibbon">
+      <div class="ticker-track" id="tickerTrack">
+        <span class="ticker-item text-muted">Loading market data...</span>
+      </div>
+    </div>
+
+    <div class="navbar-right">
+      <!-- Theme toggle -->
+      <button class="btn-icon" id="themeToggle" title="Toggle theme">
+        <i class="bi bi-moon-fill"></i>
+      </button>
+
+      <!-- Notification bell -->
+      <div class="notification-bell" id="notifBell" title="Notifications">
+        <i class="bi bi-bell-fill" style="font-size:14px"></i>
+        <span class="notif-badge" id="notifCount" style="display:none">0</span>
+      </div>
+
+      <!-- User -->
+      <div class="user-menu" id="userMenu">
+        <div class="user-avatar-sm" id="navUserAvatar">A</div>
+        <span id="navUserName" class="d-none d-sm-inline">User</span>
+        <i class="bi bi-chevron-down" style="font-size:10px"></i>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Notification dropdown -->
+  <div class="notif-dropdown" id="notifDropdown" style="display:none">
+    <div class="notif-header">
+      <span>Notifications</span>
+      <a href="#" id="markAllRead" class="text-muted fs-sm text-decoration-none">Mark all read</a>
+    </div>
+    <div id="notifList">
+      <p class="p-3 text-muted fs-sm mb-0">No notifications</p>
+    </div>
+  </div>
+
+  <!-- Page content -->
+  <main class="page-content">
+    {% block content %}{% endblock %}
+  </main>
+
+</div><!-- /main-wrapper -->
+
+{% else %}
+{% block auth_content %}{% endblock %}
+{% endif %}
+
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index:9999"></div>
+
+<!-- Scripts -->
+<script src="/static/vendor/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/vendor/socket.io.min.js"></script>
+<script src="/static/js/app.js"></script>
+{% block extra_js %}{% endblock %}
+</body>
+</html>

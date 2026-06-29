@@ -1,0 +1,109 @@
+{% extends "partials/base.html" %}
+{% block title %}Settings — SmartTrade AI{% endblock %}
+{% set active = 'settings' %}
+{% block breadcrumb %}<i class="bi bi-gear me-2"></i> Settings{% endblock %}
+
+{% block content %}
+<div class="page-header"><div><h1 class="page-title">Settings</h1></div></div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="section-card">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-person text-accent"></i> Profile</span></div>
+      <div class="section-card-body">
+        <form id="profileForm">
+          <div class="row g-3 mb-3">
+            <div class="col"><label class="form-label">First Name</label><input type="text" class="form-control" id="firstName" /></div>
+            <div class="col"><label class="form-label">Last Name</label><input type="text" class="form-control" id="lastName" /></div>
+          </div>
+          <div class="mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" id="phone" /></div>
+          <div class="mb-3">
+            <label class="form-label">Theme</label>
+            <select class="form-select" id="theme">
+              <option value="dark">Dark (Default)</option>
+              <option value="light">Light</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Save Profile</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="section-card">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bell text-accent"></i> Notifications</span></div>
+      <div class="section-card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span>Email Notifications</span>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="emailNotif" /></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span>Telegram Alerts</span>
+          <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="telegramNotif" /></div>
+        </div>
+        <div class="mb-3"><label class="form-label">Telegram Chat ID</label><input type="text" class="form-control" id="telegramId" /></div>
+        <button class="btn btn-primary" id="saveNotifs">Save Notifications</button>
+      </div>
+    </div>
+
+    <div class="section-card mt-4">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lock text-accent"></i> Change Password</span></div>
+      <div class="section-card-body">
+        <form id="pwdForm">
+          <div class="mb-3"><label class="form-label">Current Password</label><input type="password" class="form-control" id="curPwd" /></div>
+          <div class="mb-3"><label class="form-label">New Password</label><input type="password" class="form-control" id="newPwd" /></div>
+          <button type="submit" class="btn btn-primary">Update Password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('app:ready', async () => {
+  const user = Auth.user || await API.get('/auth/me');
+  if (!user) return;
+  document.getElementById('firstName').value = user.first_name || '';
+  document.getElementById('lastName').value = user.last_name || '';
+  document.getElementById('phone').value = user.phone || '';
+  document.getElementById('theme').value = user.theme || 'dark';
+  document.getElementById('emailNotif').checked = user.email_notifications;
+  document.getElementById('telegramNotif').checked = user.telegram_enabled;
+  document.getElementById('telegramId').value = user.telegram_chat_id || '';
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await API.put('/auth/me', {
+    first_name: document.getElementById('firstName').value,
+    last_name: document.getElementById('lastName').value,
+    phone: document.getElementById('phone').value,
+    theme: document.getElementById('theme').value,
+  });
+  if (res?.user) Toast.show('Profile updated!', 'success');
+  else Toast.show('Update failed', 'error');
+});
+
+document.getElementById('saveNotifs').addEventListener('click', async () => {
+  const res = await API.put('/auth/me', {
+    email_notifications: document.getElementById('emailNotif').checked,
+    telegram_enabled: document.getElementById('telegramNotif').checked,
+    telegram_chat_id: document.getElementById('telegramId').value,
+  });
+  if (res?.user) Toast.show('Notifications saved!', 'success');
+});
+
+document.getElementById('pwdForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await API.put('/auth/me', {
+    current_password: document.getElementById('curPwd').value,
+    password: document.getElementById('newPwd').value,
+  });
+  if (res?.user) { Toast.show('Password updated!', 'success'); e.target.reset(); }
+  else Toast.show(res?.error || 'Failed', 'error');
+});
+</script>
+{% endblock %}

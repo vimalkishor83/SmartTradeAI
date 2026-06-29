@@ -1,0 +1,165 @@
+﻿{% extends "partials/base.html" %}
+{% block title %}AI Insights — SmartTrade AI{% endblock %}
+{% set active = 'ai' %}
+{% block breadcrumb %}<i class="bi bi-cpu me-2"></i> AI Insights{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">AI Prediction Engine</h1>
+    <p class="page-subtitle">Ensemble ML predictions: Random Forest + XGBoost + LightGBM + LSTM</p>
+  </div>
+</div>
+
+<div class="row g-4 mb-4">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Run Prediction</span>
+      </div>
+      <div class="section-card-body">
+        <div class="mb-3">
+          <label class="form-label">Select Asset</label>
+          <select class="form-select" id="aiAsset">
+            <option value="">Loading assets...</option>
+          </select>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Timeframe</label>
+          <select class="form-select" id="aiTf">
+            <option value="1h" selected>1 Hour</option>
+            <option value="4h">4 Hours</option>
+            <option value="1d">Daily</option>
+          </select>
+        </div>
+        <button class="btn btn-primary w-100" id="runAI">
+          <i class="bi bi-cpu me-1"></i> Predict
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="section-card h-100" id="aiResultCard" style="display:none;">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent"></i> Prediction Result</span>
+        <span class="badge-tag" id="aiModelBadge">ensemble</span>
+      </div>
+      <div class="section-card-body">
+        <div class="row g-4 text-center">
+          <div class="col-6">
+            <div class="p-4 rounded" style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)">
+              <div class="display-5 fw-bold text-green" id="aisBull">—</div>
+              <div class="text-muted mt-2">Bullish Probability</div>
+              <div class="confidence-bar mt-3">
+                <div class="confidence-fill" id="bullBar" style="width:0%;background:#10b981"></div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="p-4 rounded" style="background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2)">
+              <div class="display-5 fw-bold text-red" id="aisBear">—</div>
+              <div class="text-muted mt-2">Bearish Probability</div>
+              <div class="confidence-bar mt-3">
+                <div class="confidence-fill" id="bearBar" style="width:0%;background:#ef4444"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center mt-4">
+          <div class="fw-bold fs-5 mb-2">Suggested Action</div>
+          <div id="aiDirection" class="display-6 fw-bold">—</div>
+          <div class="text-muted mt-2" id="aiConfidence"></div>
+        </div>
+
+        <div class="row g-3 mt-3">
+          <div class="col-6">
+            <div class="kpi-card green">
+              <div class="kpi-label">Predicted Target</div>
+              <div class="kpi-value text-green" id="aiTarget">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="kpi-card red">
+              <div class="kpi-label">Predicted Stop</div>
+              <div class="kpi-value text-red" id="aiStop">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="aiPlaceholder" class="d-flex align-items-center justify-content-center h-100" style="min-height:300px">
+      <div class="text-center">
+        <i class="bi bi-cpu" style="font-size:64px;color:var(--border)"></i>
+        <p class="text-muted mt-3">Select an asset and run AI prediction</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Model Info -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-info-circle text-accent"></i> Models Used</span>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-3">
+      <div class="col-md-3"><div class="glass-card text-center"><i class="bi bi-tree" style="font-size:32px;color:#10b981"></i><div class="fw-bold mt-2">Random Forest</div><div class="text-muted small">100 trees, depth 8</div></div></div>
+      <div class="col-md-3"><div class="glass-card text-center"><i class="bi bi-lightning" style="font-size:32px;color:#f59e0b"></i><div class="fw-bold mt-2">XGBoost</div><div class="text-muted small">Gradient boosting</div></div></div>
+      <div class="col-md-3"><div class="glass-card text-center"><i class="bi bi-diagram-3" style="font-size:32px;color:#6366f1"></i><div class="fw-bold mt-2">LightGBM</div><div class="text-muted small">Fast gradient boost</div></div></div>
+      <div class="col-md-3"><div class="glass-card text-center"><i class="bi bi-graph-up" style="font-size:32px;color:#3b82f6"></i><div class="fw-bold mt-2">Ensemble</div><div class="text-muted small">Average of all models</div></div></div>
+    </div>
+    <div class="mt-3 text-muted small">Features: OHLCV, EMA20/50, RSI, MACD, ATR, Bollinger Bands, OBV, price returns (1/5/10 candles), volatility bands</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadAssets() {
+  const data = await API.get('/assets/');
+  if (!data?.assets) return;
+  const select = document.getElementById('aiAsset');
+  select.innerHTML = data.assets.map(a => `<option value="${a.id}">${a.symbol} — ${a.name}</option>`).join('');
+}
+
+document.getElementById('runAI').addEventListener('click', async () => {
+  const assetId = document.getElementById('aiAsset').value;
+  const tf = document.getElementById('aiTf').value;
+  if (!assetId) return;
+
+  const btn = document.getElementById('runAI');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Predicting...';
+
+  const data = await API.get(`/predictions/${assetId}`, { timeframe: tf });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Predict';
+
+  if (!data) { Toast.show('Prediction failed or PRO required', 'error'); return; }
+
+  document.getElementById('aiPlaceholder').style.display = 'none';
+  document.getElementById('aiResultCard').style.display = 'block';
+  document.getElementById('aiModelBadge').textContent = data.model_name;
+
+  document.getElementById('aisBull').textContent = `${data.bullish_probability}%`;
+  document.getElementById('aisBear').textContent = `${data.bearish_probability}%`;
+  document.getElementById('bullBar').style.width = `${data.bullish_probability}%`;
+  document.getElementById('bearBar').style.width = `${data.bearish_probability}%`;
+
+  const dir = data.predicted_direction;
+  const dirEl = document.getElementById('aiDirection');
+  dirEl.textContent = dir.toUpperCase();
+  dirEl.className = `display-6 fw-bold ${dir === 'bullish' ? 'text-green' : dir === 'bearish' ? 'text-red' : 'text-yellow'}`;
+  document.getElementById('aiConfidence').textContent = `Confidence: ${data.confidence?.toFixed(1)}%`;
+
+  document.getElementById('aiTarget').textContent = formatPrice(data.predicted_target);
+  document.getElementById('aiStop').textContent = formatPrice(data.predicted_stop);
+});
+
+document.addEventListener('app:ready', loadAssets);
+</script>
+{% endblock %}

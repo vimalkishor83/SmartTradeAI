@@ -1,0 +1,93 @@
+{% extends "partials/base.html" %}
+{% block title %}User Management — SmartTrade AI{% endblock %}
+{% set active = 'admin' %}
+{% block breadcrumb %}<i class="bi bi-people me-2"></i> Admin / Users{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><h1 class="page-title">User Management</h1></div>
+  <input type="text" class="form-control" id="userSearch" placeholder="Search users..." style="width:240px" />
+</div>
+
+<div class="section-card">
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Plan</th>
+        <th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="usersBody"><tr><td colspan="9" class="text-center py-4 text-muted">Loading...</td></tr></tbody>
+    </table>
+  </div>
+  <div class="p-3 d-flex justify-content-between">
+    <span class="text-muted small" id="userCount"></span>
+    <nav><ul class="pagination pagination-sm mb-0" id="userPagination"></ul></nav>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let userPage = 1;
+let searchTimeout;
+
+async function loadUsers(page = 1) {
+  userPage = page;
+  const search = document.getElementById('userSearch').value;
+  const data = await API.get('/admin/users', { page, per_page: 20, search });
+  if (!data) return;
+
+  document.getElementById('userCount').textContent = `${data.total} users`;
+  document.getElementById('usersBody').innerHTML = data.users.map(u => `
+    <tr>
+      <td class="text-muted">${u.id}</td>
+      <td><strong>${u.username}</strong></td>
+      <td>${u.email}</td>
+      <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'premium' ? 'bg-warning text-dark' : 'bg-secondary'}">${u.role}</span></td>
+      <td>${u.subscription || 'free'}</td>
+      <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
+      <td class="text-muted small">${u.last_login ? formatTime(u.last_login) : 'Never'}</td>
+      <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" onclick="toggleUser(${u.id}, ${!u.is_active})">
+            ${u.is_active ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteUser(${u.id}, '${u.username}')">
+            <i class="bi bi-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  // Pagination
+  const pag = document.getElementById('userPagination');
+  let html = '';
+  for (let i = 1; i <= Math.min(data.pages, 7); i++) {
+    html += `<li class="page-item ${i === page ? 'active' : ''}">
+      <a class="page-link" href="#" onclick="loadUsers(${i});return false;">${i}</a></li>`;
+  }
+  pag.innerHTML = html;
+}
+
+async function toggleUser(id, active) {
+  await API.put(`/admin/users/${id}`, { is_active: active });
+  Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success');
+  loadUsers(userPage);
+}
+
+async function deleteUser(id, username) {
+  if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+  const ok = await API.delete(`/admin/users/${id}`);
+  if (ok) { Toast.show('User deleted', 'success'); loadUsers(userPage); }
+  else Toast.show('Delete failed', 'error');
+}
+
+document.getElementById('userSearch').addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadUsers(1), 400);
+});
+
+document.addEventListener('app:ready', () => loadUsers());
+</script>
+{% endblock %}
