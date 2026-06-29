@@ -1,4 +1,4 @@
-﻿{% extends "partials/base.html" %}
+{% extends "partials/base.html" %}
 {% block title %}News — SmartTrade AI{% endblock %}
 {% set active = 'news' %}
 {% block breadcrumb %}<i class="bi bi-newspaper me-2"></i> News{% endblock %}
@@ -14,6 +14,10 @@
   </select>
 </div>
 
+<div id="fetchingAlert" class="alert alert-info d-none" role="alert">
+  <i class="bi bi-arrow-repeat me-2 spin"></i> Fetching latest news from Yahoo Finance&hellip; This may take a moment. The page will refresh automatically.
+</div>
+
 <div class="row g-4" id="newsGrid">
   <div class="col-12 text-center py-4 text-muted">Loading news...</div>
 </div>
@@ -21,18 +25,47 @@
 <nav class="mt-3"><ul class="pagination pagination-sm mb-0" id="newsPagination"></ul></nav>
 
 <div class="mt-5 section-card">
-  <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calendar3 text-accent"></i> Economic Calendar (Next 7 Days)</span></div>
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-calendar3 text-accent"></i> Economic Calendar (This &amp; Next Week)</span>
+  </div>
   <div class="table-responsive">
     <table class="smart-table">
-      <thead><tr><th>Event</th><th>Country</th><th>Impact</th><th>Forecast</th><th>Previous</th><th>Actual</th><th>Date/Time</th></tr></thead>
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Currency</th>
+          <th>Impact</th>
+          <th>Event</th>
+          <th>Forecast</th>
+          <th>Previous</th>
+          <th>Actual</th>
+        </tr>
+      </thead>
       <tbody id="econBody"><tr><td colspan="7" class="text-center py-3 text-muted">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
+
+<style>
+.spin { display: inline-block; animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.impact-high   { background: #dc3545; color: #fff; }
+.impact-medium { background: #fd7e14; color: #fff; }
+.impact-low    { background: #6c757d; color: #fff; }
+.actual-better { color: #28a745; font-weight: 600; }
+.actual-worse  { color: #dc3545; font-weight: 600; }
+</style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+const CURRENCY_FLAGS = {
+  USD: '🇺🇸', EUR: '🇪🇺', GBP: '🇬🇧', JPY: '🇯🇵',
+  AUD: '🇦🇺', INR: '🇮🇳', CAD: '🇨🇦', CHF: '🇨🇭', NZD: '🇳🇿'
+};
+
+let _fetchingPoller = null;
+
 async function loadNews(page = 1) {
   const sentiment = document.getElementById('sentimentFilter').value;
   const params = { page, per_page: 12 };
@@ -42,7 +75,33 @@ async function loadNews(page = 1) {
   if (!data) return;
 
   const grid = document.getElementById('newsGrid');
-  if (!data.news?.length) { grid.innerHTML = '<div class="col-12 text-center text-muted">No news available</div>'; return; }
+  const alert = document.getElementById('fetchingAlert');
+
+  if (data.fetching) {
+    alert.classList.remove('d-none');
+    grid.innerHTML = '<div class="col-12 text-center py-4 text-muted">No news yet — fetching from Yahoo Finance in the background&hellip;</div>';
+    // Poll every 15 seconds until news arrives
+    if (!_fetchingPoller) {
+      _fetchingPoller = setInterval(async () => {
+        const d2 = await API.get('/news/', { page: 1, per_page: 1 });
+        if (d2 && !d2.fetching && d2.total > 0) {
+          clearInterval(_fetchingPoller);
+          _fetchingPoller = null;
+          alert.classList.add('d-none');
+          loadNews(1);
+        }
+      }, 15000);
+    }
+    return;
+  }
+
+  alert.classList.add('d-none');
+  if (_fetchingPoller) { clearInterval(_fetchingPoller); _fetchingPoller = null; }
+
+  if (!data.news?.length) {
+    grid.innerHTML = '<div class="col-12 text-center text-muted">No news available</div>';
+    return;
+  }
 
   grid.innerHTML = data.news.map(n => `
     <div class="col-md-4">
@@ -53,7 +112,7 @@ async function loadNews(page = 1) {
             <span class="text-muted small">${n.source || ''}</span>
           </div>
           <h6 class="fw-semibold mb-2">${n.title}</h6>
-          <p class="text-muted small">${n.summary?.slice(0, 150) || ''}...</p>
+          <p class="text-muted small">${(n.summary || '').slice(0, 150)}${n.summary && n.summary.length > 150 ? '&hellip;' : ''}</p>
           ${n.related_assets?.length ? `<div class="mt-2">${n.related_assets.map(a => `<span class="badge-tag me-1">${a}</span>`).join('')}</div>` : ''}
         </div>
         <div class="p-3 pt-0">
@@ -72,25 +131,56 @@ async function loadNews(page = 1) {
   pag.innerHTML = html;
 }
 
+function _compareValues(actual, forecast) {
+  // Returns 'better', 'worse', or null
+  if (!actual || !forecast) return null;
+  const a = parseFloat(actual.replace(/[^0-9.\-]/g, ''));
+  const f = parseFloat(forecast.replace(/[^0-9.\-]/g, ''));
+  if (isNaN(a) || isNaN(f)) return null;
+  // Higher is generally better for most indicators; not perfect but conventional
+  if (a > f) return 'better';
+  if (a < f) return 'worse';
+  return null;
+}
+
 async function loadEcon() {
   const data = await API.get('/news/economic-calendar');
   if (!data?.events) return;
-  document.getElementById('econBody').innerHTML = data.events.map(e => `
+
+  const tbody = document.getElementById('econBody');
+  if (!data.events.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">No events this week</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = data.events.map(e => {
+    const impactClass = e.impact === 'high' ? 'impact-high' : e.impact === 'medium' ? 'impact-medium' : 'impact-low';
+    const flag = CURRENCY_FLAGS[e.currency] || CURRENCY_FLAGS[e.country] || '';
+    const cmp = _compareValues(e.actual, e.forecast);
+    const actualClass = cmp === 'better' ? 'actual-better' : cmp === 'worse' ? 'actual-worse' : '';
+    const timeStr = e.event_time ? formatTime(e.event_time) : '—';
+    return `
     <tr>
+      <td class="text-muted small">${timeStr}</td>
+      <td>${flag} <strong>${e.currency || e.country || '—'}</strong></td>
+      <td><span class="badge ${impactClass}">${e.impact || 'low'}</span></td>
       <td><strong>${e.title}</strong></td>
-      <td>${e.country}</td>
-      <td><span class="badge ${e.impact === 'high' ? 'bg-danger' : e.impact === 'medium' ? 'bg-warning text-dark' : 'bg-secondary'}">${e.impact}</span></td>
       <td>${e.forecast || '—'}</td>
       <td>${e.previous || '—'}</td>
-      <td><strong>${e.actual || '—'}</strong></td>
-      <td class="text-muted small">${e.event_time ? formatTime(e.event_time) : '—'}</td>
-    </tr>`).join('') || '<tr><td colspan="7" class="text-center py-3 text-muted">No events this week</td></tr>';
+      <td class="${actualClass}">${e.actual || '—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="7" class="text-center py-3 text-muted">No events this week</td></tr>';
 }
 
 document.addEventListener('app:ready', () => {
   loadNews();
   loadEcon();
   document.getElementById('sentimentFilter').addEventListener('change', () => loadNews(1));
+
+  // Auto-refresh every 5 minutes
+  setInterval(loadNews, 300000);
+  // Refresh econ calendar every 30 minutes
+  setInterval(loadEcon, 1800000);
 });
 </script>
 {% endblock %}

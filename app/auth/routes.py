@@ -133,6 +133,49 @@ def update_profile():
     return jsonify({"message": "Profile updated", "user": user.to_dict()}), 200
 
 
+@auth_bp.route("/me/asset-preferences", methods=["GET"])
+@login_required
+def get_asset_preferences():
+    from app.models.user import UserAssetPreference
+    from app.models.asset import Asset
+    user  = get_current_user()
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+    return jsonify({
+        "assets": [
+            {"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market,
+             "enabled": prefs.get(a.id, True)}  # default: all enabled
+            for a in assets
+        ]
+    }), 200
+
+
+@auth_bp.route("/me/asset-preferences", methods=["PUT"])
+@login_required
+def save_asset_preferences():
+    from app.models.user import UserAssetPreference
+    user  = get_current_user()
+    data  = request.get_json()
+    # data = {"preferences": {"asset_id": true/false, ...}}
+    prefs_in = data.get("preferences", {})
+    existing = {p.asset_id: p for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+
+    for asset_id_str, enabled in prefs_in.items():
+        asset_id = int(asset_id_str)
+        if asset_id in existing:
+            existing[asset_id].enabled = bool(enabled)
+        else:
+            db.session.add(UserAssetPreference(user_id=user.id, asset_id=asset_id, enabled=bool(enabled)))
+
+    db.session.commit()
+    # Invalidate TA/MTF cache for this user (clear all market variants)
+    from app.extensions import cache
+    for mkt in ["all", "crypto", "forex", "commodity", "indian_stock", "index"]:
+        cache.delete(f"ta_summary_{user.id}_{mkt}")
+        cache.delete(f"mtf_matrix_{user.id}_{mkt}")
+    return jsonify({"message": "Preferences saved"}), 200
+
+
 def _audit(user_id, action, resource, resource_id):
     try:
         log = AuditLog(

@@ -94,7 +94,17 @@ const Auth = {
 
     this.user = data;
     this.updateUI();
+    this.applyTheme(data.theme);
     return true;
+  },
+
+  applyTheme(theme) {
+    // localStorage wins if the user has already toggled manually; server value is used as fallback
+    const t = localStorage.getItem('theme') || theme || 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('theme', t);
+    const btn = document.getElementById('themeToggle');
+    if (btn) btn.innerHTML = t === 'dark' ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
   },
 
   updateUI() {
@@ -191,11 +201,23 @@ const Ticker = {
 };
 
 // ─── Formatters ───────────────────────────────
-function formatPrice(price) {
+function formatPrice(price, market) {
   if (!price && price !== 0) return '—';
-  if (price >= 10000) return price.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-  if (price >= 1)     return parseFloat(price).toFixed(4);
-  return parseFloat(price).toFixed(6);
+  const p = parseFloat(price);
+  // Explicit market hint
+  if (market === 'forex')        return p.toFixed(4);
+  if (market === 'crypto') {
+    if (p >= 1000)  return p.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+    if (p >= 1)     return p.toFixed(4);
+    return p.toFixed(6);
+  }
+  // commodity / indian_stock / index — always 2 dp
+  if (market)                    return p.toFixed(2);
+  // Auto-detect by magnitude (fallback when no market passed)
+  if (p >= 10000) return p.toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  if (p >= 100)   return p.toFixed(2);
+  if (p >= 1)     return p.toFixed(4);
+  return p.toFixed(6);
 }
 
 function formatTime(iso) {
@@ -283,6 +305,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load shared navbar data
   Notifications.load();
   Ticker.load();
+  setInterval(() => Ticker.load(), 30000);   // auto-refresh ticker ribbon every 30s
+  setInterval(() => Notifications.load(), 60000); // refresh notification count every 60s
 
   // Fire ready event for page-specific scripts
   document.dispatchEvent(new Event('app:ready'));

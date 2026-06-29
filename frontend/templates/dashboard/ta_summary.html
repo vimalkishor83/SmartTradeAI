@@ -1,0 +1,318 @@
+{% extends "partials/base.html" %}
+{% block title %}TA Summary — SmartTrade AI{% endblock %}
+{% set active = 'ta_summary' %}
+{% block breadcrumb %}<i class="bi bi-speedometer2 me-2"></i> TA Summary{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Technical Analysis Summary</h1>
+    <p class="page-subtitle">Indicator-based ratings across timeframes &amp; live OHLCV quotes</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <select class="form-select form-select-sm" id="mktFilter" style="width:auto">
+      <option value="all">All Markets</option>
+      <option value="crypto">Crypto</option>
+      <option value="forex">Forex</option>
+      <option value="commodity">Commodities</option>
+      <option value="indian_stock">Indian Stocks</option>
+      <option value="index">Indices</option>
+    </select>
+    <button class="btn btn-sm btn-outline-light" id="refreshBtn">
+      <i class="bi bi-arrow-repeat me-1"></i>Refresh
+    </button>
+    <span class="badge-tag" id="lastUpdated" style="font-size:11px">—</span>
+  </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-4" style="border-color:var(--border)">
+  <li class="nav-item">
+    <a class="nav-link active" id="tabRatingsBtn" href="#" onclick="showTab('ratings');return false">
+      <i class="bi bi-bar-chart-fill me-1"></i>Technical Ratings
+    </a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tabQuotesBtn" href="#" onclick="showTab('quotes');return false">
+      <i class="bi bi-currency-dollar me-1"></i>Live Quotes
+    </a>
+  </li>
+</ul>
+
+<!-- ── TAB 1: Technical Ratings ───────────────────────────── -->
+<div id="tabRatings">
+  <!-- Legend -->
+  <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
+    <span style="font-size:11px;color:var(--text-muted)">Rating:</span>
+    <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#10b981"></span><span style="font-size:12px;color:var(--text-secondary)">Strong Buy</span></span>
+    <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#6ee7b7"></span><span style="font-size:12px;color:var(--text-secondary)">Buy</span></span>
+    <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#64748b"></span><span style="font-size:12px;color:var(--text-secondary)">Neutral</span></span>
+    <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#fca5a5"></span><span style="font-size:12px;color:var(--text-secondary)">Sell</span></span>
+    <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#ef4444"></span><span style="font-size:12px;color:var(--text-secondary)">Strong Sell</span></span>
+    <span style="font-size:11px;color:var(--text-muted);margin-left:8px">Based on 12 indicators per cell</span>
+  </div>
+
+  <div class="section-card">
+    <div class="table-responsive" id="ratingsWrap">
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Calculating indicators...
+        <div style="font-size:12px;margin-top:8px;color:var(--text-muted)">This may take 15–30 seconds on first load</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 2: Live Quotes ──────────────────────────────────── -->
+<div id="tabQuotes" style="display:none">
+  <div class="section-card">
+    <div class="table-responsive" id="quotesWrap">
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading quotes...
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.rating-dot { display:inline-block; width:10px; height:10px; border-radius:50%; }
+.ta-cell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: .3px;
+}
+.ta-strong-buy  { background:rgba(16,185,129,0.2);  color:#10b981; border:1px solid rgba(16,185,129,0.4); }
+.ta-buy         { background:rgba(110,231,183,0.15); color:#6ee7b7; border:1px solid rgba(110,231,183,0.35); }
+.ta-neutral     { background:rgba(100,116,139,0.15); color:#94a3b8; border:1px solid rgba(100,116,139,0.3); }
+.ta-sell        { background:rgba(252,165,165,0.15); color:#fca5a5; border:1px solid rgba(252,165,165,0.3); }
+.ta-strong-sell { background:rgba(239,68,68,0.2);    color:#ef4444; border:1px solid rgba(239,68,68,0.4); }
+.ta-loading     { background:rgba(255,255,255,0.04); color:var(--text-muted); border:1px solid var(--border); font-weight:400; font-size:11px; }
+.asset-row-header td {
+  background: rgba(255,255,255,0.03);
+  padding: 5px 12px !important;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: .8px;
+  text-transform: uppercase;
+}
+</style>
+
+<script>
+const TA_TFS = ['5m','15m','30m','1h','1d'];
+let _data = [];
+let _currentTab = 'ratings';
+
+function showTab(tab) {
+  _currentTab = tab;
+  document.getElementById('tabRatings').style.display = tab === 'ratings' ? 'block' : 'none';
+  document.getElementById('tabQuotes').style.display  = tab === 'quotes'  ? 'block' : 'none';
+  document.getElementById('tabRatingsBtn').classList.toggle('active', tab === 'ratings');
+  document.getElementById('tabQuotesBtn').classList.toggle('active', tab === 'quotes');
+  if (_data.length) renderBoth();
+}
+
+const LABEL_MAP = {
+  'Strong Buy':  'ta-strong-buy',
+  'Buy':         'ta-buy',
+  'Neutral':     'ta-neutral',
+  'Sell':        'ta-sell',
+  'Strong Sell': 'ta-strong-sell',
+};
+
+function ratingCell(tf_data) {
+  if (!tf_data) return `<span class="ta-cell ta-loading">—</span>`;
+  const cls = LABEL_MAP[tf_data.rating] || 'ta-neutral';
+  const tip = `Buy:${tf_data.buy} Sell:${tf_data.sell} Neutral:${tf_data.neutral}`;
+  return `<span class="ta-cell ${cls}" title="${tip}">${tf_data.rating}</span>`;
+}
+
+function overallRating(tf_obj) {
+  // Weighted average: 1d > 1h > 30m > 15m > 5m
+  const weights = {'5m':1,'15m':2,'30m':2,'1h':3,'1d':4};
+  let wSum = 0, wTotal = 0;
+  for (const [tf, w] of Object.entries(weights)) {
+    const d = tf_obj?.[tf];
+    if (d?.score != null) { wSum += d.score * w; wTotal += w; }
+  }
+  if (!wTotal) return null;
+  const score = wSum / wTotal;
+  if (score >= 0.6)  return {rating:'Strong Buy',  cls:'ta-strong-buy'};
+  if (score >= 0.2)  return {rating:'Buy',          cls:'ta-buy'};
+  if (score <= -0.6) return {rating:'Strong Sell',  cls:'ta-strong-sell'};
+  if (score <= -0.2) return {rating:'Sell',         cls:'ta-sell'};
+  return {rating:'Neutral', cls:'ta-neutral'};
+}
+
+const MKT_LABEL = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
+
+function renderRatings() {
+  const wrap = document.getElementById('ratingsWrap');
+  if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+
+  const byMarket = {};
+  _data.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
+
+  let html = `<table class="smart-table" style="min-width:700px">
+    <thead><tr>
+      <th style="min-width:140px;position:sticky;left:0;background:var(--bg-card);z-index:2">Name</th>
+      ${TA_TFS.map(tf => `<th style="text-align:center;min-width:108px">${tfLabel(tf)}</th>`).join('')}
+      <th style="text-align:center;min-width:112px">Overall</th>
+    </tr></thead><tbody>`;
+
+  for (const [mkt, assets] of Object.entries(byMarket)) {
+    html += `<tr class="asset-row-header"><td colspan="${TA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    assets.forEach(a => {
+      const overall = overallRating(a.tf);
+      html += `<tr>
+        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+        </td>
+        ${TA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${ratingCell(a.tf[tf])}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px">
+          ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
+        </td>
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderQuotes() {
+  const wrap = document.getElementById('quotesWrap');
+  if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+
+  const byMarket = {};
+  _data.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
+
+  let html = `<table class="smart-table" style="min-width:800px">
+    <thead><tr>
+      <th style="min-width:140px;position:sticky;left:0;background:var(--bg-card);z-index:2">Name</th>
+      <th style="min-width:100px">Symbol</th>
+      <th style="text-align:right;min-width:90px">Last</th>
+      <th style="text-align:right;min-width:90px">Open</th>
+      <th style="text-align:right;min-width:90px">High</th>
+      <th style="text-align:right;min-width:90px">Low</th>
+      <th style="text-align:right;min-width:80px">Chg.</th>
+      <th style="text-align:right;min-width:80px">Chg. %</th>
+      <th style="text-align:right;min-width:80px">Volume</th>
+      <th style="text-align:center;min-width:70px">Time</th>
+    </tr></thead><tbody>`;
+
+  for (const [mkt, assets] of Object.entries(byMarket)) {
+    html += `<tr class="asset-row-header"><td colspan="10">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    assets.forEach(a => {
+      const p = a.price;
+      const chgCls  = a.change >= 0 ? 'text-green' : 'text-red';
+      const chgSign = a.change >= 0 ? '+' : '';
+      const fp = (v) => formatPrice(v, a.market);
+      const fv = (v) => {
+        if (!v) return '—';
+        if (v >= 1e9) return (v/1e9).toFixed(2)+'B';
+        if (v >= 1e6) return (v/1e6).toFixed(2)+'M';
+        if (v >= 1e3) return (v/1e3).toFixed(2)+'K';
+        return v.toFixed(2);
+      };
+      html += `<tr>
+        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.name}</div>
+        </td>
+        <td><span class="badge-tag" style="font-size:11px">${a.symbol}</span></td>
+        <td style="text-align:right;font-weight:700;color:var(--text-primary)">${p ? fp(p) : '—'}</td>
+        <td style="text-align:right;color:var(--text-secondary)">${a.open ? fp(a.open) : '—'}</td>
+        <td style="text-align:right;color:var(--green)">${a.high ? fp(a.high) : '—'}</td>
+        <td style="text-align:right;color:var(--red)">${a.low ? fp(a.low) : '—'}</td>
+        <td style="text-align:right" class="${chgCls}">${a.change != null ? chgSign+fp(a.change) : '—'}</td>
+        <td style="text-align:right;font-weight:700" class="${chgCls}">${a.change_pct != null ? chgSign+a.change_pct.toFixed(2)+'%' : '—'}</td>
+        <td style="text-align:right;color:var(--text-muted);font-size:12px">${fv(a.volume)}</td>
+        <td style="text-align:center;color:var(--text-muted);font-size:12px">${a.time || '—'} <span style="color:#10b981;font-size:10px">●</span></td>
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+function renderBoth() {
+  renderRatings();
+  renderQuotes();
+  const now = new Date();
+  document.getElementById('lastUpdated').textContent =
+    'Updated ' + now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+}
+
+function tfLabel(tf) {
+  return {
+    '1m':'1 Min','5m':'5 Minutes','15m':'15 Minutes',
+    '30m':'30 Minutes','1h':'Hourly','4h':'4 Hours','1d':'Daily'
+  }[tf] || tf;
+}
+
+let _loadStart = 0;
+
+async function loadData(showSpinner = true) {
+  const market = document.getElementById('mktFilter').value;
+
+  if (showSpinner) {
+    _loadStart = Date.now();
+    document.getElementById('ratingsWrap').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span id="loadMsg">Loading from cache...</span>
+        <div style="font-size:11px;margin-top:6px;color:var(--text-muted)" id="loadHint"></div>
+        <div style="margin:16px auto 0;max-width:220px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+          <div id="loadBar" style="height:3px;width:0%;background:var(--accent);border-radius:2px;transition:width 1s linear"></div>
+        </div>
+      </div>`;
+    document.getElementById('quotesWrap').innerHTML = `<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading...</div>`;
+
+    // Animate progress bar — gives user feedback even when waiting
+    let pct = 0;
+    const barTimer = setInterval(() => {
+      pct = Math.min(pct + (pct < 60 ? 3 : pct < 85 ? 1 : 0.3), 95);
+      const bar = document.getElementById('loadBar');
+      const msg = document.getElementById('loadMsg');
+      const hint = document.getElementById('loadHint');
+      if (bar) bar.style.width = pct + '%';
+      if (msg && pct > 20) msg.textContent = pct < 50 ? 'Fetching market data...' : pct < 80 ? 'Computing indicators...' : 'Almost ready...';
+      if (hint && pct > 30) hint.textContent = `${((Date.now() - _loadStart)/1000).toFixed(0)}s elapsed`;
+      if (pct >= 95) clearInterval(barTimer);
+    }, 800);
+
+    const data = await API.get('/market-data/ta-summary', { market });
+    clearInterval(barTimer);
+    if (!data?.assets) return;
+    _data = data.assets;
+    renderBoth();
+    const elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
+    document.getElementById('lastUpdated').textContent = `Updated (${elapsed}s)`;
+  } else {
+    // Silent background refresh — don't disrupt the page
+    const data = await API.get('/market-data/ta-summary', { market });
+    if (!data?.assets) return;
+    _data = data.assets;
+    renderBoth();
+  }
+}
+
+document.addEventListener('app:ready', () => {
+  loadData(true);
+  document.getElementById('refreshBtn').addEventListener('click', () => loadData(true));
+  document.getElementById('mktFilter').addEventListener('change', () => loadData(true));
+  // Silent background refresh every 2 min
+  setInterval(() => loadData(false), 120000);
+});
+</script>
+{% endblock %}

@@ -1,0 +1,228 @@
+{% extends "partials/base.html" %}
+{% block title %}MTF Analysis — SmartTrade AI{% endblock %}
+{% set active = 'mtf' %}
+{% block breadcrumb %}<i class="bi bi-table me-2"></i> MTF Analysis{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Multi-Timeframe Analysis</h1>
+    <p class="page-subtitle">Latest signal per asset across all timeframes — spot confluences instantly</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <select class="form-select form-select-sm" id="mktFilter" style="width:auto">
+      <option value="all">All Markets</option>
+      <option value="crypto">Crypto</option>
+      <option value="forex">Forex</option>
+      <option value="commodity">Commodities</option>
+      <option value="indian_stock">Indian Stocks</option>
+      <option value="index">Indices</option>
+    </select>
+    <select class="form-select form-select-sm" id="viewMode" style="width:auto">
+      <option value="signal">Signal Type</option>
+      <option value="confidence">Confidence %</option>
+      <option value="rr">Risk:Reward</option>
+    </select>
+    <button class="btn btn-sm btn-outline-light" id="refreshBtn">
+      <i class="bi bi-arrow-repeat me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="d-flex gap-3 mb-3 align-items-center flex-wrap">
+  <span style="font-size:12px;color:var(--text-muted)">Legend:</span>
+  <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:14px;height:14px;background:rgba(16,185,129,0.25);border:1px solid #10b981;border-radius:3px"></span><span style="font-size:12px;color:var(--text-secondary)">BUY</span></span>
+  <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:14px;height:14px;background:rgba(239,68,68,0.25);border:1px solid #ef4444;border-radius:3px"></span><span style="font-size:12px;color:var(--text-secondary)">SELL</span></span>
+  <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:14px;height:14px;background:rgba(245,158,11,0.2);border:1px solid #f59e0b;border-radius:3px"></span><span style="font-size:12px;color:var(--text-secondary)">HOLD</span></span>
+  <span class="d-flex align-items-center gap-1"><span style="display:inline-block;width:14px;height:14px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:3px"></span><span style="font-size:12px;color:var(--text-muted)">Insufficient data</span></span>
+  <span style="font-size:12px;color:var(--text-muted);margin-left:8px">Ratings computed live from 12 indicators · hover any cell for details</span>
+</div>
+
+<!-- Confluence Summary -->
+<div class="row g-3 mb-4" id="confluenceRow" style="display:none!important"></div>
+
+<!-- Matrix Table -->
+<div class="section-card">
+  <div class="section-card-body p-0">
+    <div class="table-responsive" id="matrixWrap">
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading matrix...
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Confluence bar below -->
+<div class="row g-3 mt-1" id="summaryCards"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const TFS   = ['5m','15m','30m','1h','4h','1d'];
+let _matrix = {};
+let _assets = [];
+
+const SIG_STYLE = {
+  BUY:  { bg:'rgba(16,185,129,0.18)',  border:'#10b981', text:'#10b981' },
+  SELL: { bg:'rgba(239,68,68,0.18)',   border:'#ef4444', text:'#ef4444' },
+  HOLD: { bg:'rgba(245,158,11,0.15)',  border:'#f59e0b', text:'#f59e0b' },
+};
+
+function cellContent(cell) {
+  const mode = document.getElementById('viewMode').value;
+  if (!cell?.signal_type) {
+    return `<div style="color:var(--text-muted);font-size:11px">—</div>`;
+  }
+  const s    = SIG_STYLE[cell.signal_type] || SIG_STYLE.HOLD;
+  const conf = cell.confidence ?? 0;
+
+  if (mode === 'confidence') {
+    const c = conf >= 75 ? '#10b981' : conf >= 55 ? '#f59e0b' : '#ef4444';
+    return `<div style="text-align:center">
+      <div style="font-size:11px;font-weight:700;color:${s.text}">${cell.signal_type}</div>
+      <div style="font-size:14px;font-weight:900;color:${c}">${conf}%</div>
+    </div>`;
+  }
+
+  // Default: label + mini indicator bar (buy vs sell count)
+  const total = (cell.buy||0) + (cell.sell||0) + (cell.neutral||0);
+  const buyPct  = total ? Math.round((cell.buy||0)  / total * 100) : 0;
+  const sellPct = total ? Math.round((cell.sell||0) / total * 100) : 0;
+  return `<div style="text-align:center">
+    <div style="font-size:12px;font-weight:800;color:${s.text};letter-spacing:.4px">${cell.signal_type}</div>
+    <div style="margin-top:4px;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;display:flex">
+      <div style="height:4px;width:${buyPct}%;background:#10b981"></div>
+      <div style="height:4px;width:${sellPct}%;background:#ef4444"></div>
+    </div>
+    <div style="font-size:10px;color:var(--text-muted);margin-top:2px">${conf}%</div>
+  </div>`;
+}
+
+function renderMatrix() {
+  const wrap = document.getElementById('matrixWrap');
+  if (!_assets.length) {
+    wrap.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>No assets found.</div>';
+    return;
+  }
+
+  const byMarket = {};
+  _assets.forEach(a => { (byMarket[a.market] = byMarket[a.market]||[]).push(a); });
+  const mktLabel = m => ({'crypto':'Crypto','forex':'Forex','commodity':'Commodities','indian_stock':'Indian Stocks','index':'Indices'}[m]||m);
+
+  let html = `<table class="smart-table" style="min-width:800px">
+    <thead><tr>
+      <th style="min-width:130px;position:sticky;left:0;background:var(--bg-card);z-index:2">Asset</th>
+      <th style="min-width:80px">Market</th>
+      ${TFS.map(tf => `<th style="text-align:center;min-width:95px">${tf}</th>`).join('')}
+      <th style="text-align:center;min-width:110px">Trend</th>
+    </tr></thead><tbody>`;
+
+  for (const [mkt, assets] of Object.entries(byMarket)) {
+    html += `<tr><td colspan="${TFS.length+3}" style="background:rgba(255,255,255,0.03);padding:5px 12px;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase">${mktLabel(mkt)}</td></tr>`;
+
+    assets.forEach(a => {
+      const row  = _matrix[a.id] || {};
+      const cells = TFS.map(tf => row[tf]);
+      const buys  = cells.filter(c => c?.signal_type === 'BUY').length;
+      const sells = cells.filter(c => c?.signal_type === 'SELL').length;
+      const total = cells.filter(c => c?.signal_type).length;
+
+      const trend      = total === 0 ? '—'
+        : buys/total >= 0.67 ? '▲ Bullish'
+        : sells/total >= 0.67 ? '▼ Bearish'
+        : buys > sells ? '↗ Leaning Bull'
+        : sells > buys ? '↘ Leaning Bear'
+        : '↔ Mixed';
+      const trendColor = trend.startsWith('▲') ? '#10b981'
+        : trend.startsWith('▼') ? '#ef4444'
+        : trend.startsWith('↗') ? '#6ee7b7'
+        : trend.startsWith('↘') ? '#fca5a5'
+        : 'var(--text-muted)';
+
+      html += `<tr>
+        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+        </td>
+        <td><span class="badge-tag" style="font-size:10px">${mktLabel(mkt)}</span></td>`;
+
+      TFS.forEach(tf => {
+        const cell   = row[tf];
+        const s      = cell?.signal_type ? SIG_STYLE[cell.signal_type] : null;
+        const bg     = s ? s.bg     : 'transparent';
+        const border = s ? s.border : 'var(--border)';
+        const tip    = cell?.signal_type
+          ? `${a.symbol} ${tf} | ${cell.signal_type} | Conf: ${cell.confidence}% | ▲${cell.buy} ▼${cell.sell} ●${cell.neutral}`
+          : `${a.symbol} ${tf} — insufficient data`;
+        html += `<td style="padding:4px;text-align:center">
+          <div title="${tip}" style="padding:5px 4px;border-radius:6px;border:1px solid ${border};background:${bg};min-height:50px;display:flex;align-items:center;justify-content:center">
+            ${cellContent(cell)}
+          </div>
+        </td>`;
+      });
+
+      html += `<td style="text-align:center;font-size:12px;font-weight:700;color:${trendColor};white-space:nowrap">${trend}</td></tr>`;
+    });
+  }
+
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+  renderSummaryCards();
+}
+
+function renderSummaryCards() {
+  let buy = 0, sell = 0, hold = 0;
+  _assets.forEach(a => {
+    TFS.forEach(tf => {
+      const t = _matrix[a.id]?.[tf]?.signal_type;
+      if (t === 'BUY') buy++; else if (t === 'SELL') sell++; else if (t === 'HOLD') hold++;
+    });
+  });
+  const total = buy + sell + hold;
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="col-6 col-md-3"><div class="kpi-card green">
+      <div class="kpi-top"><div><div class="kpi-label">BUY</div><div class="kpi-value text-green">${buy}</div></div><div class="kpi-icon text-green"><i class="bi bi-arrow-up-circle-fill"></i></div></div>
+      <div class="kpi-change up">${total ? Math.round(buy/total*100) : 0}% of rated cells</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card red">
+      <div class="kpi-top"><div><div class="kpi-label">SELL</div><div class="kpi-value text-red">${sell}</div></div><div class="kpi-icon text-red"><i class="bi bi-arrow-down-circle-fill"></i></div></div>
+      <div class="kpi-change down">${total ? Math.round(sell/total*100) : 0}% of rated cells</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card yellow">
+      <div class="kpi-top"><div><div class="kpi-label">HOLD</div><div class="kpi-value text-yellow">${hold}</div></div><div class="kpi-icon text-yellow"><i class="bi bi-pause-circle-fill"></i></div></div>
+      <div class="kpi-change">neutral / mixed</div>
+    </div></div>
+    <div class="col-6 col-md-3"><div class="kpi-card blue">
+      <div class="kpi-top"><div><div class="kpi-label">Total Cells</div><div class="kpi-value">${total}</div></div><div class="kpi-icon text-blue"><i class="bi bi-grid-3x3-gap-fill"></i></div></div>
+      <div class="kpi-change">live indicator ratings</div>
+    </div></div>`;
+}
+
+async function loadMatrix() {
+  const market = document.getElementById('mktFilter').value;
+  document.getElementById('matrixWrap').innerHTML = `<div class="text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm me-2"></div>Calculating indicators...
+    <div style="font-size:12px;margin-top:8px">May take 15–30 seconds</div>
+  </div>`;
+  const data = await API.get('/signals/mtf-matrix', { market });
+  if (!data) return;
+  _matrix = data.matrix || {};
+  _assets = data.assets || [];
+  renderMatrix();
+}
+
+document.addEventListener('app:ready', () => {
+  loadMatrix();
+  document.getElementById('refreshBtn').addEventListener('click', loadMatrix);
+  document.getElementById('mktFilter').addEventListener('change', loadMatrix);
+  document.getElementById('viewMode').addEventListener('change', () => renderMatrix());
+  setInterval(loadMatrix, 120000);
+});
+</script>
+
+<style>
+#matrixWrap td:first-child, #matrixWrap th:first-child { box-shadow: 2px 0 8px rgba(0,0,0,0.3); }
+#matrixWrap .smart-table td, #matrixWrap .smart-table th { padding: 6px 4px; }
+</style>
+{% endblock %}

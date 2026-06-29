@@ -92,3 +92,16 @@ class User(db.Model):
 
     def __repr__(self):
         return f"<User {self.username}>"
+
+
+class UserAssetPreference(db.Model):
+    """Stores which assets a user has selected for TA Summary / MTF Analysis."""
+    __tablename__ = "user_asset_preferences"
+
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    asset_id   = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
+    enabled    = db.Column(db.Boolean, default=True)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "asset_id", name="uq_user_asset"),)

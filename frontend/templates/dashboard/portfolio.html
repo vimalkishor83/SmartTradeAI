@@ -9,9 +9,14 @@
     <h1 class="page-title">My Portfolio</h1>
     <p class="page-subtitle">Track all your positions and P&amp;L in one place</p>
   </div>
-  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
-    <i class="bi bi-plus-circle me-1"></i> Add Position
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary btn-sm" onclick="window.open('/api/v1/portfolio/export/csv','_blank')">
+      <i class="bi bi-download me-1"></i>Download CSV
+    </button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
+      <i class="bi bi-plus-circle me-1"></i> Add Position
+    </button>
+  </div>
 </div>
 
 <!-- Portfolio Summary -->

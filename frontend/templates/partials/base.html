@@ -12,6 +12,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#6366f1">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
 </head>
 <body>
@@ -94,6 +100,9 @@
         <span class="nav-text">AI Insights</span>
         <span class="nav-badge badge-pro">PRO</span>
       </a>
+      <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+        <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
+      </a>
     </div>
 
     <div class="nav-section">
@@ -111,6 +120,12 @@
 
     <div class="nav-section">
       <span class="nav-label">Analysis</span>
+      <a href="/ta-summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
+      </a>
+      <a href="/mtf-analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+        <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+      </a>
       <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
         <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
       </a>
@@ -219,5 +234,10 @@
 <script src="/static/vendor/socket.io.min.js"></script>
 <script src="/static/js/app.js"></script>
 {% block extra_js %}{% endblock %}
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+}
+</script>
 </body>
 </html>

@@ -63,6 +63,7 @@ class Signal(db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "asset_id": self.asset_id,
             "asset": self.asset.symbol if self.asset else None,
             "market": self.asset.market if self.asset else None,
             "timeframe": self.timeframe,

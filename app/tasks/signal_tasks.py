@@ -1,6 +1,7 @@
 """Background jobs for automatic signal generation on all timeframes."""
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
+from sqlalchemy import and_
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,16 @@ def generate_signals_for_timeframe(app, timeframe: str):
 
                 result = signal_engine.generate_signal(df, asset, timeframe)
                 if not result or result["signal_type"] == "HOLD":
+                    continue
+
+                # Skip if same asset already has an active signal generated in the last 30 minutes
+                cutoff = datetime.utcnow() - timedelta(minutes=30)
+                if Signal.query.filter(and_(
+                    Signal.asset_id == asset.id,
+                    Signal.timeframe == timeframe,
+                    Signal.status == "active",
+                    Signal.generated_at >= cutoff,
+                )).first():
                     continue
 
                 signal = Signal(

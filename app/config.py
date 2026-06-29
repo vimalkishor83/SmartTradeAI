@@ -26,7 +26,7 @@ class Config:
     CACHE_DEFAULT_TIMEOUT = 300
     CACHE_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
-    RATELIMIT_DEFAULT = "200 per day;50 per hour"
+    RATELIMIT_DEFAULT = "2000 per day;500 per hour;60 per minute"
     RATELIMIT_STORAGE_URL = os.environ.get("REDIS_URL", "memory://")
 
     SOCKETIO_ASYNC_MODE = "threading"

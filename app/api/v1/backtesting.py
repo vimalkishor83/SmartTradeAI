@@ -51,7 +51,22 @@ def run_backtest():
         db.session.commit()
         return jsonify({"error": "Failed to fetch data"}), 503
 
-    result = backtest_engine.run(df, asset, timeframe, initial_capital)
+    # Map strategy display names / keys to engine strategy identifiers
+    _STRATEGY_MAP = {
+        "rsi":          "rsi",
+        "rsi_strategy": "rsi",
+        "macd":         "macd",
+        "macd_strategy":"macd",
+        "ema":          "ema_crossover",
+        "ema_crossover":"ema_crossover",
+        "ema_cross":    "ema_crossover",
+        "multi_factor": "multi_factor",
+        "multi":        "multi_factor",
+    }
+    raw_strategy = (data.get("strategy") or "multi_factor").lower().replace(" ", "_")
+    engine_strategy = _STRATEGY_MAP.get(raw_strategy, "multi_factor")
+
+    result = backtest_engine.run(df, asset, timeframe, initial_capital, strategy=engine_strategy)
 
     if "error" in result:
         bt.status = "failed"

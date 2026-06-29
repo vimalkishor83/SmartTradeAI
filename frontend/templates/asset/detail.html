@@ -1,0 +1,677 @@
+{% extends "partials/base.html" %}
+{% block title %}{{ asset.symbol }} — SmartTrade AI{% endblock %}
+{% set active = '' %}
+{% block breadcrumb %}
+  <a href="/markets/{{ asset.market }}" class="text-muted text-decoration-none">
+    <i class="bi bi-bar-chart-line me-1"></i>{{ asset.market | capitalize }}
+  </a>
+  <i class="bi bi-chevron-right mx-1" style="font-size:10px;color:var(--text-muted)"></i>
+  <span>{{ asset.symbol }}</span>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .tf-btn {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .tf-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .tf-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .indicator-group { margin-bottom: 1.5rem; }
+  .indicator-group-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: .5rem;
+  }
+  .indicator-card {
+    background: var(--surface-2, #1e293b);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .indicator-name { font-size: 12px; color: var(--text-secondary); }
+  .indicator-value { font-size: 13px; font-weight: 700; }
+
+  .sentiment-bar-wrap {
+    background: var(--surface-2, #1e293b);
+    border-radius: 6px;
+    height: 8px;
+    overflow: hidden;
+    margin: 6px 0;
+  }
+  .sentiment-bar-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
+    transition: width .4s;
+  }
+
+  .price-hero {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -.02em;
+  }
+
+  #chartContainer {
+    background: #0f172a;
+    border-radius: 0 0 8px 8px;
+    position: relative;
+  }
+  #tvChart { width: 100%; height: 420px; }
+  #tvVolume { width: 100%; height: 120px; }
+
+  .tab-nav .nav-link {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 16px;
+    background: transparent;
+  }
+  .tab-nav .nav-link.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .market-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+  }
+  .market-badge.crypto   { background: rgba(245,158,11,.15); color: #f59e0b; }
+  .market-badge.forex    { background: rgba(99,102,241,.15);  color: #818cf8; }
+  .market-badge.gold,
+  .market-badge.silver,
+  .market-badge.commodity { background: rgba(251,191,36,.15); color: #fbbf24; }
+  .market-badge.indian_stock { background: rgba(16,185,129,.15); color: #10b981; }
+  .market-badge.index    { background: rgba(59,130,246,.15);  color: #60a5fa; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="assetDetailRoot">
+
+  <!-- ═══ PAGE HEADER ════════════════════════════════════════════ -->
+  <div class="page-header mb-3">
+    <div class="d-flex align-items-center gap-3">
+      <div>
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <h1 class="page-title mb-0" style="font-size:1.6rem">{{ asset.symbol }}</h1>
+          <span class="market-badge {{ asset.market }}">{{ asset.market | replace('_', ' ') }}</span>
+        </div>
+        <div class="text-muted fs-sm">{{ asset.name }}{% if asset.exchange %} · {{ asset.exchange }}{% endif %}</div>
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-3">
+      <div class="text-end">
+        <div class="price-hero" id="livePrice">—</div>
+        <div id="livePriceChange" class="text-muted fs-sm">loading…</div>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" id="btnRefreshAll" title="Refresh">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══ 3-COL LAYOUT ══════════════════════════════════════════ -->
+  <div class="row g-3">
+
+    <!-- ─── MAIN (col-lg-9) ───────────────────────────────────── -->
+    <div class="col-lg-9">
+
+      <!-- Tab navigation -->
+      <ul class="nav tab-nav mb-0" id="assetTabs" style="border-bottom:1px solid var(--border)">
+        <li class="nav-item">
+          <a class="nav-link active" id="tabChartBtn" href="#" onclick="showAssetTab('chart');return false">
+            <i class="bi bi-bar-chart-fill me-1"></i>Chart
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" id="tabIndBtn" href="#" onclick="showAssetTab('indicators');return false">
+            <i class="bi bi-speedometer2 me-1"></i>Indicators
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" id="tabSigBtn" href="#" onclick="showAssetTab('signals');return false">
+            <i class="bi bi-lightning-charge-fill me-1"></i>Signals History
+          </a>
+        </li>
+      </ul>
+
+      <!-- ── Tab 1: Chart ─────────────────────────────────────── -->
+      <div id="tabChart">
+        <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0">
+          <!-- Timeframe selector -->
+          <div class="p-3 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs me-1">Timeframe:</span>
+            {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
+            <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
+                    onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
+            {% endfor %}
+            <span class="ms-auto text-muted fs-xs" id="chartStatus"></span>
+          </div>
+
+          <!-- Chart container -->
+          <div id="chartContainer">
+            <div id="tvChart"></div>
+            <div id="tvVolume" style="border-top:1px solid #1e293b"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab 2: Indicators ────────────────────────────────── -->
+      <div id="tabIndicators" style="display:none">
+        <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0;padding:20px">
+          <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-muted fs-xs">Timeframe:</span>
+            {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
+            <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
+                    onclick="setIndTF('{{ tf }}')" data-ind-tf="{{ tf }}">{{ tf }}</button>
+            {% endfor %}
+          </div>
+          <div id="indicatorsGrid" class="row g-3">
+            <div class="col-12 text-center py-5 text-muted">
+              <i class="bi bi-speedometer2 d-block mb-2" style="font-size:28px"></i>Loading indicators…
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab 3: Signals History ───────────────────────────── -->
+      <div id="tabSignals" style="display:none">
+        <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0">
+          <div class="table-responsive">
+            <table class="smart-table">
+              <thead>
+                <tr>
+                  <th>Time</th><th>TF</th><th>Type</th>
+                  <th>Entry</th><th>SL</th><th>T1</th>
+                  <th>R:R</th><th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="assetSignalsBody">
+                <tr><td colspan="8" class="text-center py-5 text-muted">
+                  <i class="bi bi-lightning-charge d-block mb-2" style="font-size:28px"></i>Loading signals…
+                </td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="px-3 py-2 d-flex justify-content-between align-items-center"
+               style="border-top:1px solid var(--border)">
+            <span class="text-muted fs-xs" id="assetSigCount"></span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /col-lg-9 -->
+
+    <!-- ─── SIDE PANEL (col-lg-3) ────────────────────────────── -->
+    <div class="col-lg-3">
+
+      <!-- Live Price Card -->
+      <div class="kpi-card mb-3" id="sidePriceCard">
+        <div class="kpi-top">
+          <div>
+            <div class="kpi-label">Live Price</div>
+            <div class="kpi-value" id="sideLivePrice">—</div>
+          </div>
+          <div class="kpi-icon">
+            <i class="bi bi-graph-up-arrow" id="sidePriceIcon" style="color:var(--text-muted)"></i>
+          </div>
+        </div>
+        <div class="kpi-change" id="sidePriceChange">—</div>
+      </div>
+
+      <!-- Market Sentiment -->
+      <div class="section-card mb-3" style="padding:14px">
+        <div class="fw-600 fs-sm mb-3">
+          <i class="bi bi-activity me-1 text-accent"></i>Market Sentiment
+        </div>
+        <div id="sentimentContent">
+          <div class="text-center py-3 text-muted fs-xs">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="section-card" style="padding:14px">
+        <div class="fw-600 fs-sm mb-3">
+          <i class="bi bi-info-circle me-1 text-accent"></i>Quick Stats
+        </div>
+        <div id="quickStats">
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs">Market</span>
+            <span class="fs-xs fw-600">{{ asset.market | replace('_',' ') | title }}</span>
+          </div>
+          {% if asset.exchange %}
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs">Exchange</span>
+            <span class="fs-xs fw-600">{{ asset.exchange }}</span>
+          </div>
+          {% endif %}
+          {% if asset.base_currency %}
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs">Base</span>
+            <span class="fs-xs fw-600">{{ asset.base_currency }}</span>
+          </div>
+          {% endif %}
+          {% if asset.quote_currency %}
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs">Quote</span>
+            <span class="fs-xs fw-600">{{ asset.quote_currency }}</span>
+          </div>
+          {% endif %}
+          <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs">Data Source</span>
+            <span class="fs-xs fw-600">{{ asset.data_source or '—' }}</span>
+          </div>
+          <div class="d-flex justify-content-between py-2">
+            <span class="text-muted fs-xs">Status</span>
+            <span class="fs-xs fw-600 {% if asset.is_active %}text-green{% else %}text-red{% endif %}">
+              {{ 'Active' if asset.is_active else 'Inactive' }}
+            </span>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /col-lg-3 -->
+
+  </div><!-- /row -->
+</div><!-- /assetDetailRoot -->
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+/* ── Constants ────────────────────────────────────────── */
+const ASSET_ID   = {{ asset_id }};
+const ASSET_NAME = "{{ asset.symbol }}";
+
+let _tf     = '1h';
+let _indTf  = '1h';
+let _candleSeries  = null;
+let _volumeSeries  = null;
+let _chartInstance = null;
+let _volChart      = null;
+
+/* ── Tab switching ────────────────────────────────────── */
+function showAssetTab(tab) {
+  ['chart','indicators','signals'].forEach(t => {
+    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = 'none';
+    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn')?.classList.remove('active');
+  });
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = 'block';
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn')?.classList.add('active');
+
+  if (tab === 'indicators') loadIndicators();
+  if (tab === 'signals')    loadAssetSignals();
+}
+
+/* ── Timeframe helpers ────────────────────────────────── */
+function setTF(tf) {
+  _tf = tf;
+  document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
+  loadChart();
+}
+
+function setIndTF(tf) {
+  _indTf = tf;
+  document.querySelectorAll('[data-ind-tf]').forEach(b => b.classList.toggle('active', b.dataset.indTf === tf));
+  loadIndicators();
+}
+
+/* ── Live price ───────────────────────────────────────── */
+async function loadLivePrice() {
+  const data = await API.get(`/market-data/${ASSET_ID}/ticker`);
+  if (!data) return;
+
+  const price  = parseFloat(data.last_price || data.price || 0);
+  const change = parseFloat(data.change_pct || data.price_change_pct || 0);
+  const isUp   = change >= 0;
+  const clr    = isUp ? 'var(--green)' : 'var(--red)';
+  const arrow  = isUp ? '▲' : '▼';
+  const fmt    = price >= 1000 ? price.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})
+               : price >= 1    ? price.toFixed(4)
+               :                 price.toFixed(6);
+
+  document.getElementById('livePrice').textContent = fmt;
+  document.getElementById('livePrice').style.color = clr;
+  document.getElementById('livePriceChange').innerHTML =
+    `<span style="color:${clr}">${arrow} ${Math.abs(change).toFixed(2)}% today</span>`;
+
+  // side panel
+  document.getElementById('sideLivePrice').textContent = fmt;
+  document.getElementById('sideLivePrice').style.color = clr;
+  document.getElementById('sidePriceChange').innerHTML =
+    `<span style="color:${clr}">${arrow} ${Math.abs(change).toFixed(2)}% (24h)</span>`;
+  const icon = document.getElementById('sidePriceIcon');
+  icon.className = isUp ? 'bi bi-graph-up-arrow text-green' : 'bi bi-graph-down-arrow text-red';
+  document.getElementById('sidePriceCard').className =
+    `kpi-card mb-3 ${isUp ? 'green' : 'red'}`;
+}
+
+/* ── Chart ────────────────────────────────────────────── */
+async function loadChart() {
+  const status = document.getElementById('chartStatus');
+  if (status) status.textContent = 'Loading…';
+
+  const data = await API.get(`/market-data/${ASSET_ID}/ohlcv`, { timeframe: _tf, limit: 200 });
+
+  if (!data || !Array.isArray(data) || data.length === 0) {
+    if (status) status.textContent = 'No data';
+    return;
+  }
+  if (status) status.textContent = `${data.length} candles · ${_tf}`;
+
+  // Map API format {t,o,h,l,c,v} → TradingView format
+  const candles = data.map(d => ({
+    time:  Math.floor(d.t / 1000),
+    open:  parseFloat(d.o),
+    high:  parseFloat(d.h),
+    low:   parseFloat(d.l),
+    close: parseFloat(d.c),
+  })).sort((a, b) => a.time - b.time);
+
+  const volumes = data.map(d => ({
+    time:  Math.floor(d.t / 1000),
+    value: parseFloat(d.v),
+    color: parseFloat(d.c) >= parseFloat(d.o) ? 'rgba(16,185,129,.5)' : 'rgba(239,68,68,.5)',
+  })).sort((a, b) => a.time - b.time);
+
+  const chartOpts = {
+    layout: {
+      background:  { type: 'solid', color: '#0f172a' },
+      textColor:   '#94a3b8',
+    },
+    grid: {
+      vertLines:   { color: '#1e293b' },
+      horzLines:   { color: '#1e293b' },
+    },
+    crosshair: { mode: 1 },
+    rightPriceScale: { borderColor: '#1e293b' },
+    timeScale: {
+      borderColor:    '#1e293b',
+      timeVisible:    true,
+      secondsVisible: false,
+    },
+    width:  document.getElementById('tvChart').clientWidth  || 700,
+    height: 420,
+  };
+
+  const volOpts = {
+    layout: {
+      background: { type: 'solid', color: '#0f172a' },
+      textColor:  '#94a3b8',
+    },
+    grid: {
+      vertLines: { color: '#1e293b' },
+      horzLines: { color: '#1e293b' },
+    },
+    rightPriceScale: { borderColor: '#1e293b' },
+    timeScale: {
+      borderColor:    '#1e293b',
+      timeVisible:    true,
+      secondsVisible: false,
+    },
+    width:  document.getElementById('tvVolume').clientWidth || 700,
+    height: 120,
+  };
+
+  // Destroy old instances
+  if (_chartInstance) { _chartInstance.remove(); _chartInstance = null; }
+  if (_volChart)      { _volChart.remove();      _volChart      = null; }
+
+  _chartInstance = LightweightCharts.createChart(document.getElementById('tvChart'), chartOpts);
+  _candleSeries  = _chartInstance.addCandlestickSeries({
+    upColor:   '#10b981', downColor:       '#ef4444',
+    borderUpColor: '#10b981', borderDownColor: '#ef4444',
+    wickUpColor:   '#10b981', wickDownColor:   '#ef4444',
+  });
+  _candleSeries.setData(candles);
+  _chartInstance.timeScale().fitContent();
+
+  _volChart     = LightweightCharts.createChart(document.getElementById('tvVolume'), volOpts);
+  _volumeSeries = _volChart.addHistogramSeries({
+    priceFormat: { type: 'volume' },
+    priceScaleId: '',
+  });
+  _volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+  _volumeSeries.setData(volumes);
+  _volChart.timeScale().fitContent();
+
+  // Sync timescales
+  _chartInstance.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) _volChart.timeScale().setVisibleLogicalRange(range);
+  });
+  _volChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
+    if (range) _chartInstance.timeScale().setVisibleLogicalRange(range);
+  });
+
+  // Resize observer
+  const resizeObs = new ResizeObserver(() => {
+    const w = document.getElementById('tvChart').clientWidth;
+    if (w > 0) {
+      _chartInstance.resize(w, 420);
+      _volChart.resize(w, 120);
+    }
+  });
+  resizeObs.observe(document.getElementById('tvChart'));
+}
+
+/* ── Indicators ───────────────────────────────────────── */
+async function loadIndicators() {
+  const grid = document.getElementById('indicatorsGrid');
+  grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading indicators…</div>`;
+
+  const data = await API.get(`/market-data/${ASSET_ID}/indicators`, { timeframe: _indTf });
+  if (!data) {
+    grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">No indicator data available.</div>`;
+    return;
+  }
+
+  // Group indicators by category
+  const groups = {
+    Trend:      ['ema_20','ema_50','ema_200','sma_20','supertrend','supertrend_direction','adx'],
+    Momentum:   ['rsi','macd','macd_signal','macd_hist','stoch_k','stoch_d','cci','williams_r','momentum'],
+    Volatility: ['atr','bb_upper','bb_lower','bb_middle','bb_width','keltner_upper','keltner_lower'],
+    Volume:     ['obv','cmf','mfi','vwap','ad_line'],
+  };
+
+  function fmtVal(key, val) {
+    if (val === null || val === undefined) return '<span class="text-muted">—</span>';
+    if (key === 'supertrend_direction' || key === 'supertrend') {
+      const bull = String(val).toLowerCase().includes('bull') || val === 1 || val === '1';
+      return bull
+        ? '<span class="text-green fw-700">▲ Bullish</span>'
+        : '<span class="text-red fw-700">▼ Bearish</span>';
+    }
+    if (key === 'rsi') {
+      const n = parseFloat(val);
+      const clr = n > 70 ? 'var(--red)' : n < 30 ? 'var(--green)' : 'var(--text-secondary)';
+      return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}</span>`;
+    }
+    if (key === 'cmf') {
+      const n = parseFloat(val);
+      return `<span class="${n >= 0 ? 'text-green' : 'text-red'} fw-700">${n.toFixed(4)}</span>`;
+    }
+    const n = parseFloat(val);
+    return isNaN(n) ? `<span class="text-muted">${val}</span>`
+                    : `<span>${n.toFixed(4)}</span>`;
+  }
+
+  function labelOf(k) {
+    return k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+  }
+
+  let html = '';
+  for (const [grp, keys] of Object.entries(groups)) {
+    const rows = keys
+      .filter(k => data[k] !== undefined)
+      .map(k => `
+        <div class="indicator-card">
+          <span class="indicator-name">${labelOf(k)}</span>
+          <span class="indicator-value">${fmtVal(k, data[k])}</span>
+        </div>`).join('');
+
+    if (!rows) continue;
+    html += `
+      <div class="col-md-6">
+        <div class="indicator-group">
+          <div class="indicator-group-label">${grp}</div>
+          ${rows}
+        </div>
+      </div>`;
+  }
+
+  // Catch-all for unlisted keys
+  const knownKeys = Object.values(groups).flat();
+  const extra = Object.entries(data)
+    .filter(([k]) => !knownKeys.includes(k) && k !== 'asset_id' && k !== 'timeframe')
+    .map(([k, v]) => `
+      <div class="indicator-card">
+        <span class="indicator-name">${labelOf(k)}</span>
+        <span class="indicator-value">${fmtVal(k, v)}</span>
+      </div>`).join('');
+  if (extra) {
+    html += `
+      <div class="col-md-6">
+        <div class="indicator-group">
+          <div class="indicator-group-label">Other</div>
+          ${extra}
+        </div>
+      </div>`;
+  }
+
+  grid.innerHTML = html || `<div class="col-12 text-center py-5 text-muted">No indicator data available.</div>`;
+}
+
+/* ── Asset Signals History ────────────────────────────── */
+async function loadAssetSignals() {
+  const tbody = document.getElementById('assetSignalsBody');
+  tbody.innerHTML = `<tr><td colspan="8" class="text-center py-4 text-muted">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading…</td></tr>`;
+
+  const data = await API.get('/signals/', { per_page: 20, asset_id: ASSET_ID });
+  if (!data) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted">Failed to load signals.</td></tr>`;
+    return;
+  }
+
+  const signals = data.signals || [];
+  document.getElementById('assetSigCount').textContent =
+    `${data.total || signals.length} signals for ${ASSET_NAME}`;
+
+  if (!signals.length) {
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted">
+      <i class="bi bi-lightning-charge d-block mb-2" style="font-size:28px"></i>
+      No signals yet for ${ASSET_NAME}.</td></tr>`;
+    return;
+  }
+
+  function shortTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso), now = new Date();
+    if ((now - d) / 36e5 < 24)
+      return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+    return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
+           d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+  }
+
+  tbody.innerHTML = signals.map(s => {
+    const conf    = s.confidence_score || 0;
+    const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const rr      = parseFloat(s.risk_reward) || 0;
+    const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-secondary)';
+    return `<tr>
+      <td class="text-muted fs-xs" style="white-space:nowrap">${shortTime(s.generated_at)}</td>
+      <td><span class="badge-tag">${s.timeframe || '—'}</span></td>
+      <td>${signalBadge(s.signal_type)}</td>
+      <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss, s.market)}</td>
+      <td class="text-green">${formatPrice(s.target1, s.market)}</td>
+      <td style="font-weight:700;color:${rrColor}">${rr > 0 ? rr.toFixed(1)+'x' : '—'}</td>
+      <td style="min-width:90px">
+        <div class="confidence-bar mb-1">
+          <div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div>
+        </div>
+        <div class="text-muted fs-xs">${conf.toFixed(0)}%</div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+/* ── Sentiment ────────────────────────────────────────── */
+async function loadSentiment() {
+  const el = document.getElementById('sentimentContent');
+  const data = await API.get(`/market-data/${ASSET_ID}/sentiment`, { timeframe: _tf });
+  if (!data) {
+    el.innerHTML = `<div class="text-center py-2 text-muted fs-xs">Sentiment data unavailable.</div>`;
+    return;
+  }
+
+  const score   = parseFloat(data.score || data.sentiment_score || 50);
+  const label   = data.label || data.sentiment_label || (score >= 60 ? 'Bullish' : score >= 40 ? 'Neutral' : 'Bearish');
+  const clr     = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--red)';
+
+  const bullPct = parseFloat(data.bullish_pct || data.bull_pct || score).toFixed(0);
+  const bearPct = parseFloat(data.bearish_pct || data.bear_pct || (100 - score)).toFixed(0);
+
+  el.innerHTML = `
+    <div class="d-flex justify-content-between mb-1">
+      <span class="fs-xs text-muted">Sentiment</span>
+      <span class="fs-xs fw-700" style="color:${clr}">${label}</span>
+    </div>
+    <div class="sentiment-bar-wrap">
+      <div class="sentiment-bar-fill" style="width:${score}%"></div>
+    </div>
+    <div class="d-flex justify-content-between mt-1">
+      <span class="fs-xs text-green">Bull ${bullPct}%</span>
+      <span class="fs-xs text-red">Bear ${bearPct}%</span>
+    </div>
+    ${data.sources ? `<div class="text-muted fs-xs mt-2">Based on ${data.sources} sources</div>` : ''}
+  `;
+}
+
+/* ── Init ─────────────────────────────────────────────── */
+document.addEventListener('app:ready', () => {
+  loadLivePrice();
+  loadChart();
+  loadSentiment();
+
+  document.getElementById('btnRefreshAll')?.addEventListener('click', () => {
+    loadLivePrice();
+    loadChart();
+    loadSentiment();
+    const active = document.querySelector('#assetTabs .nav-link.active');
+    if (active?.id === 'tabIndBtn')  loadIndicators();
+    if (active?.id === 'tabSigBtn')  loadAssetSignals();
+  });
+
+  // Auto-refresh price every 30s
+  setInterval(loadLivePrice, 30000);
+});
+</script>
+{% endblock %}

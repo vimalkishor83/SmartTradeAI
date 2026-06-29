@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, Response
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
@@ -9,7 +9,10 @@ from app.services.signals.engine import signal_engine
 from app.services.data.fetcher import market_fetcher
 from app.services.sentiment.engine import calculate_sentiment
 from datetime import datetime, timedelta
+from sqlalchemy import and_, func
 import logging
+import csv
+import io
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +93,18 @@ def _run_auto_generate(app):
                 if sig_filter == "strong" and result.get("confidence_score", 0) < 70:
                     continue
                 if result.get("confidence_score", 0) < min_conf:
+                    continue
+
+                # Skip if same asset already has a recent active signal (< 30 min)
+                cutoff = datetime.utcnow() - timedelta(minutes=30)
+                recent = Signal.query.filter(and_(
+                    Signal.asset_id == asset.id,
+                    Signal.timeframe == timeframe,
+                    Signal.status == "active",
+                    Signal.generated_at >= cutoff,
+                )).first()
+                if recent:
+                    _ag_log(f"  ↷ {asset.symbol} skipped — active signal from {int((datetime.utcnow() - recent.generated_at).total_seconds() / 60)}m ago")
                     continue
 
                 sig = Signal(
@@ -221,6 +236,140 @@ def ag_run_once():
     import threading
     threading.Thread(target=_run_auto_generate, args=[app], daemon=True).start()
     return jsonify({"status": "running"}), 200
+
+
+@signals_bp.route("/mtf-matrix", methods=["GET"])
+@login_required
+def mtf_matrix():
+    """
+    Computes live indicator-based ratings per (asset, timeframe).
+    Never returns — because ratings are derived from live OHLCV data, not DB signals.
+    """
+    from app.services.data.fetcher import market_fetcher
+    from app.services.indicators.calculator import calculate_all_indicators
+    from concurrent.futures import ThreadPoolExecutor
+    from app.auth.decorators import get_current_user
+    from app.models.user import UserAssetPreference
+
+    user       = get_current_user()
+    market     = request.args.get("market") or "all"
+    ck         = f"mtf_matrix_{user.id}_{market}"
+    cached     = cache.get(ck)
+    if cached:
+        return jsonify(cached), 200
+
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+
+    timeframes = ["5m", "15m", "30m", "1h", "4h", "1d"]
+
+    asset_q = Asset.query.filter_by(is_active=True)
+    if market != "all":
+        asset_q = asset_q.filter_by(market=market)
+    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
+    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+
+    all_data = market_fetcher.fetch_many(assets, timeframes, limit=200)
+
+    def _rate_asset(a):
+        dfs = all_data.get(a.symbol, {})
+        row = {}
+        for tf in timeframes:
+            try:
+                df = dfs.get(tf)
+                if df is None or len(df) < 52:
+                    row[tf] = None
+                    continue
+                ind   = calculate_all_indicators(df)
+                close = float(df["close"].iloc[-1])
+                row[tf] = _mtf_rating(ind, close)
+            except Exception:
+                row[tf] = None
+        return a.id, row
+
+    matrix = {}
+    with ThreadPoolExecutor(max_workers=min(8, len(assets))) as ex:
+        for asset_id, row in ex.map(_rate_asset, assets):
+            matrix[asset_id] = row
+
+    payload = {
+        "matrix": matrix,
+        "assets": [{"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market} for a in assets],
+        "timeframes": timeframes,
+    }
+    cache.set(ck, payload, timeout=120)
+    return jsonify(payload), 200
+
+
+def _mtf_rating(ind, close):
+    """Score 12 indicators → BUY / SELL / HOLD signal with confidence %."""
+    buy = sell = neutral = 0
+
+    def vote(v):
+        nonlocal buy, sell, neutral
+        if v == "buy":     buy    += 1
+        elif v == "sell":  sell   += 1
+        else:              neutral += 1
+
+    rsi = ind.get("rsi")
+    if rsi is not None:
+        vote("buy" if rsi < 30 else "sell" if rsi > 70 else "neutral")
+
+    macd, macd_sig = ind.get("macd"), ind.get("macd_signal")
+    if macd is not None and macd_sig is not None:
+        vote("buy" if macd > macd_sig else "sell" if macd < macd_sig else "neutral")
+
+    cci = ind.get("cci")
+    if cci is not None:
+        vote("buy" if cci < -100 else "sell" if cci > 100 else "neutral")
+
+    roc = ind.get("roc")
+    if roc is not None:
+        vote("buy" if roc > 0 else "sell" if roc < 0 else "neutral")
+
+    stoch_k = ind.get("stoch_rsi_k")
+    if stoch_k is not None:
+        vote("buy" if stoch_k < 20 else "sell" if stoch_k > 80 else "neutral")
+
+    for ma_key in ["ema20", "ema50", "ema100", "ema200", "sma20", "sma50"]:
+        ma = ind.get(ma_key)
+        if ma:
+            vote("buy" if close > ma else "sell")
+
+    tenkan, kijun = ind.get("ichimoku_tenkan"), ind.get("ichimoku_kijun")
+    if tenkan and kijun:
+        vote("buy" if tenkan > kijun else "sell")
+
+    bb_upper, bb_lower = ind.get("bb_upper"), ind.get("bb_lower")
+    if bb_upper and bb_lower:
+        vote("buy" if close < bb_lower else "sell" if close > bb_upper else "neutral")
+
+    st_dir = ind.get("supertrend_direction")
+    if st_dir:
+        vote("buy" if st_dir == "up" else "sell")
+
+    cmf = ind.get("cmf")
+    if cmf is not None:
+        vote("buy" if cmf > 0 else "sell" if cmf < 0 else "neutral")
+
+    total = buy + sell + neutral
+    if not total:
+        return None
+
+    score = (buy - sell) / total   # -1 … +1
+    confidence = round(max(buy, sell) / total * 100)
+
+    if score >= 0.5:    signal = "BUY"
+    elif score <= -0.5: signal = "SELL"
+    else:               signal = "HOLD"
+
+    return {
+        "signal_type": signal,
+        "confidence":  confidence,
+        "buy":         buy,
+        "sell":        sell,
+        "neutral":     neutral,
+        "score":       round(score, 2),
+    }
 
 
 @signals_bp.route("/", methods=["GET"])
@@ -409,3 +558,239 @@ def signal_history():
         "total": history.total,
         "pages": history.pages,
     }), 200
+
+
+@signals_bp.route("/analytics", methods=["GET"])
+@login_required
+def get_analytics():
+    """Return signal performance analytics from Signal + SignalHistory tables."""
+
+    # ── Overall stats ────────────────────────────────────────────────────────
+    total_signals = Signal.query.count()
+    active_count  = Signal.query.filter_by(status="active").count()
+    closed_count  = Signal.query.filter(Signal.status != "active").count()
+
+    hist_q    = SignalHistory.query
+    total_h   = hist_q.count()
+    wins      = hist_q.filter(SignalHistory.outcome == "hit_target").count()
+    losses    = hist_q.filter(SignalHistory.outcome == "hit_sl").count()
+    win_rate  = round(wins / total_h * 100, 1) if total_h else 0.0
+
+    avg_rr_row = db.session.query(func.avg(Signal.risk_reward)).scalar()
+    avg_rr     = round(float(avg_rr_row), 2) if avg_rr_row else 0.0
+
+    # ── By market ────────────────────────────────────────────────────────────
+    mkt_rows = (
+        db.session.query(Asset.market, func.count(SignalHistory.id).label("total"))
+        .join(SignalHistory, SignalHistory.asset_id == Asset.id)
+        .group_by(Asset.market)
+        .all()
+    )
+    by_market = []
+    for mkt, total in mkt_rows:
+        w = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
+            Asset.market == mkt, SignalHistory.outcome == "hit_target").count()
+        l = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
+            Asset.market == mkt, SignalHistory.outcome == "hit_sl").count()
+        by_market.append({
+            "market": mkt, "total": total, "wins": w, "losses": l,
+            "win_rate": round(w / total * 100, 1) if total else 0.0,
+        })
+
+    # ── By timeframe ─────────────────────────────────────────────────────────
+    tf_rows = (
+        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("total"))
+        .group_by(SignalHistory.timeframe)
+        .all()
+    )
+    by_timeframe = []
+    for tf, total in tf_rows:
+        w = SignalHistory.query.filter_by(timeframe=tf, outcome="hit_target").count()
+        by_timeframe.append({
+            "timeframe": tf, "total": total, "wins": w,
+            "win_rate": round(w / total * 100, 1) if total else 0.0,
+        })
+
+    # ── By signal type ───────────────────────────────────────────────────────
+    st_rows = (
+        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("total"))
+        .group_by(SignalHistory.signal_type)
+        .all()
+    )
+    by_signal_type = []
+    for st, total in st_rows:
+        w = SignalHistory.query.filter_by(signal_type=st, outcome="hit_target").count()
+        by_signal_type.append({
+            "signal_type": st, "total": total, "wins": w,
+            "win_rate": round(w / total * 100, 1) if total else 0.0,
+        })
+
+    # ── Confidence buckets ───────────────────────────────────────────────────
+    confidence_buckets = []
+    for lo, hi, label in [(50,60,"50-60%"),(60,70,"60-70%"),(70,80,"70-80%"),(80,90,"80-90%"),(90,101,"90-100%")]:
+        rows = SignalHistory.query.filter(
+            SignalHistory.confidence_score >= lo,
+            SignalHistory.confidence_score < hi,
+        )
+        total = rows.count()
+        w     = rows.filter(SignalHistory.outcome == "hit_target").count()
+        confidence_buckets.append({
+            "range": label, "total": total,
+            "win_rate": round(w / total * 100, 1) if total else 0.0,
+        })
+
+    # ── Recent performance (last 30 days) ────────────────────────────────────
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    recent_rows = (
+        db.session.query(
+            func.date(SignalHistory.closed_at).label("day"),
+            func.count(SignalHistory.id).label("total"),
+        )
+        .filter(SignalHistory.closed_at >= cutoff)
+        .group_by(func.date(SignalHistory.closed_at))
+        .order_by(func.date(SignalHistory.closed_at))
+        .all()
+    )
+    recent_performance = []
+    for row in recent_rows:
+        day_str = str(row.day)
+        w = SignalHistory.query.filter(
+            func.date(SignalHistory.closed_at) == row.day,
+            SignalHistory.outcome == "hit_target",
+        ).count()
+        l = SignalHistory.query.filter(
+            func.date(SignalHistory.closed_at) == row.day,
+            SignalHistory.outcome == "hit_sl",
+        ).count()
+        recent_performance.append({"date": day_str, "signals": row.total, "wins": w, "losses": l})
+
+    # ── Top assets (min 5 trades) ─────────────────────────────────────────────
+    asset_rows = (
+        db.session.query(Asset.symbol, Asset.market, func.count(SignalHistory.id).label("total"))
+        .join(SignalHistory, SignalHistory.asset_id == Asset.id)
+        .group_by(Asset.id, Asset.symbol, Asset.market)
+        .having(func.count(SignalHistory.id) >= 5)
+        .order_by(func.count(SignalHistory.id).desc())
+        .limit(20)
+        .all()
+    )
+    top_assets = []
+    for sym, mkt, total in asset_rows:
+        w = (
+            SignalHistory.query
+            .join(Asset, SignalHistory.asset_id == Asset.id)
+            .filter(Asset.symbol == sym, SignalHistory.outcome == "hit_target")
+            .count()
+        )
+        top_assets.append({
+            "symbol": sym, "market": mkt, "total": total, "wins": w,
+            "win_rate": round(w / total * 100, 1) if total else 0.0,
+        })
+    top_assets.sort(key=lambda x: x["win_rate"], reverse=True)
+
+    return jsonify({
+        "overall": {
+            "total_signals": total_signals,
+            "active": active_count,
+            "closed": closed_count,
+            "win_rate": win_rate,
+            "avg_rr_achieved": avg_rr,
+            "total_wins": wins,
+            "total_losses": losses,
+        },
+        "by_market": by_market,
+        "by_timeframe": by_timeframe,
+        "by_signal_type": by_signal_type,
+        "confidence_buckets": confidence_buckets,
+        "recent_performance": recent_performance,
+        "top_assets": top_assets,
+    }), 200
+
+
+@signals_bp.route("/export/csv", methods=["GET"])
+@login_required
+def export_signals_csv():
+    """Export live signals as CSV."""
+    market      = request.args.get("market")
+    timeframe   = request.args.get("timeframe")
+    signal_type = request.args.get("signal_type")
+    status      = request.args.get("status", "active")
+
+    query = Signal.query.join(Asset)
+    if market:
+        query = query.filter(Asset.market == market)
+    if timeframe:
+        query = query.filter(Signal.timeframe == timeframe)
+    if signal_type:
+        query = query.filter(Signal.signal_type == signal_type)
+    if status:
+        query = query.filter(Signal.status == status)
+
+    signals = query.order_by(Signal.generated_at.desc()).all()
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Date","Asset","Market","Timeframe","Signal","Entry","Stop Loss",
+                     "Target1","Target2","R:R","Confidence","Status","Reasoning"])
+    for s in signals:
+        writer.writerow([
+            s.generated_at.strftime("%Y-%m-%d %H:%M") if s.generated_at else "",
+            s.asset.symbol if s.asset else "",
+            s.asset.market if s.asset else "",
+            s.timeframe,
+            s.signal_type,
+            s.entry_price,
+            s.stop_loss,
+            s.target1,
+            s.target2,
+            round(s.risk_reward, 2) if s.risk_reward else "",
+            round(s.confidence_score, 1) if s.confidence_score else "",
+            s.status,
+            s.reasoning or "",
+        ])
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=signals_{today}.csv"},
+    )
+
+
+@signals_bp.route("/history/export/csv", methods=["GET"])
+@login_required
+def export_history_csv():
+    """Export signal history as CSV."""
+    records = SignalHistory.query.order_by(SignalHistory.closed_at.desc()).all()
+    asset_ids = {r.asset_id for r in records}
+    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Date","Asset","Market","Timeframe","Signal","Entry",
+                     "Outcome","PnL%","Duration(min)","R:R Predicted"])
+    for h in records:
+        asset = assets_map.get(h.asset_id)
+        # Approximate R:R from entry/stop_loss/target1
+        predicted_rr = ""
+        if h.entry_price and h.stop_loss and h.target1 and h.entry_price != h.stop_loss:
+            predicted_rr = round(abs(h.target1 - h.entry_price) / abs(h.entry_price - h.stop_loss), 2)
+        writer.writerow([
+            h.closed_at.strftime("%Y-%m-%d %H:%M") if h.closed_at else "",
+            asset.symbol if asset else "",
+            asset.market if asset else "",
+            h.timeframe,
+            h.signal_type,
+            h.entry_price,
+            h.outcome,
+            round(h.pnl_pct, 2) if h.pnl_pct is not None else "",
+            h.duration_minutes or "",
+            predicted_rr,
+        ])
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=signal_history_{today}.csv"},
+    )

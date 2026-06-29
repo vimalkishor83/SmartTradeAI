@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
-from app.extensions import db, cache
+from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, admin_required
 from app.services.data.fetcher import market_fetcher
 
@@ -34,6 +34,7 @@ def get_asset(asset_id):
 
 @assets_bp.route("/<int:asset_id>/ticker", methods=["GET"])
 @login_required
+@limiter.exempt
 def get_ticker(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     ticker = market_fetcher.fetch_ticker(asset)

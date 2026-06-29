@@ -1,11 +1,14 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
 from app.models.portfolio import Portfolio, PortfolioItem
 from app.models.asset import Asset
 from app.auth.decorators import login_required
 from app.services.data.fetcher import market_fetcher
+from datetime import datetime
 import pandas as pd
+import csv
+import io
 
 portfolio_bp = Blueprint("portfolio", __name__)
 
@@ -91,3 +94,42 @@ def remove_position(item_id):
     db.session.delete(item)
     db.session.commit()
     return jsonify({"message": "Position removed"}), 200
+
+
+@portfolio_bp.route("/export/csv", methods=["GET"])
+@login_required
+def export_portfolio_csv():
+    """Export portfolio holdings as CSV."""
+    user_id   = get_jwt_identity()
+    portfolio = _get_user_portfolio(user_id)
+    items     = portfolio.items.all()
+
+    buf    = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Symbol","Name","Market","Qty","Buy Price","Current Price",
+                     "P&L","P&L%","Buy Date","Days Held"])
+    for item in items:
+        asset    = item.asset
+        days     = (datetime.utcnow() - item.buy_date).days if item.buy_date else ""
+        pnl      = round(item.current_value - item.invested_value, 2) if item.current_price else ""
+        pnl_pct  = round((item.current_value - item.invested_value) / item.invested_value * 100, 2) \
+                   if item.current_price and item.invested_value else ""
+        writer.writerow([
+            asset.symbol if asset else "",
+            asset.name if asset else "",
+            asset.market if asset else "",
+            item.quantity,
+            item.buy_price,
+            item.current_price or "",
+            pnl,
+            pnl_pct,
+            item.buy_date.strftime("%Y-%m-%d") if item.buy_date else "",
+            days,
+        ])
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=portfolio_{today}.csv"},
+    )

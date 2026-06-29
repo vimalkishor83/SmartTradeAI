@@ -67,6 +67,7 @@ def _register_blueprints(app):
 
 def _init_db(app):
     with app.app_context():
+        from app.models.user import UserAssetPreference  # ensure model is registered
         db.create_all()
         _seed_initial_data(app)
 
@@ -113,6 +114,12 @@ def _seed_initial_data(app):
         admin.set_password("Admin@123")
         db.session.add(admin)
 
+    # Migrate forex assets from alphavantage → yahoo (yfinance)
+    for sym in ["EURUSD","GBPUSD","USDJPY","AUDUSD","USDINR"]:
+        a = Asset.query.filter_by(symbol=sym).first()
+        if a and a.data_source == "alphavantage":
+            a.data_source = "yahoo"
+
     # Migrate old gold/silver market labels → commodity
     for sym, mkt in [("XAUUSD","gold"),("XAGUSD","silver")]:
         a = Asset.query.filter_by(symbol=sym).first()
@@ -134,11 +141,11 @@ def _seed_initial_data(app):
             Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="binance", data_source="binance"),
             Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="binance", data_source="binance"),
             # Forex
-            Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="alphavantage"),
-            Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="alphavantage"),
-            Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="alphavantage"),
-            Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="alphavantage"),
-            Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="alphavantage"),
+            Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
+            Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),
+            Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="yahoo"),
+            Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="yahoo"),
+            Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="yahoo"),
             # Commodities
             Asset(symbol="XAUUSD", name="Gold",      market="commodity", exchange="commodity", data_source="yahoo"),
             Asset(symbol="XAGUSD", name="Silver",    market="commodity", exchange="commodity", data_source="yahoo"),
@@ -197,17 +204,36 @@ def _configure_logging(app):
     log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
     os.makedirs(log_dir, exist_ok=True)
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        handlers=[
-            logging.FileHandler(os.path.join(log_dir, "app.log")),
-            logging.StreamHandler(),
-        ],
-    )
+    log_file = os.path.join(log_dir, "app.log")
+
+    # File handler — all INFO+ logs go here
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(logging.Formatter(
+        "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    ))
+
+    # Console handler — WARNING+ only (errors you must see)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.WARNING)
+    console_handler.setFormatter(logging.Formatter(
+        "[%(levelname)s] %(name)s: %(message)s"
+    ))
+
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    root.handlers.clear()
+    root.addHandler(file_handler)
+    root.addHandler(console_handler)
+
     app.logger.setLevel(logging.INFO)
 
-    # Silence noisy scheduler execution logs (keep WARNING+ only)
+    # Silence noisy third-party loggers even in file
     logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
     logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
     logging.getLogger("werkzeug").setLevel(logging.WARNING)
+    logging.getLogger("yfinance").setLevel(logging.WARNING)
+    logging.getLogger("peewee").setLevel(logging.WARNING)
+    logging.getLogger("urllib3").setLevel(logging.WARNING)
+
+    print(f"SmartTrade AI - logs -> {log_file}")

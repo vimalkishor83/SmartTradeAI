@@ -274,14 +274,14 @@ function _renderSignals(signals) {
     const conf = s.confidence_score || 0;
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
     return `<tr>
-      <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>
+      <td><a href="/asset/${s.asset_id}" style="color:var(--text-primary);text-decoration:none;font-weight:700" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">${s.asset}</a></td>
       <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
       <td><span class="badge-tag">${s.timeframe}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price)}</td>
-      <td class="text-red">${formatPrice(s.stop_loss)}</td>
-      <td class="text-green">${formatPrice(s.target1)}</td>
-      <td class="text-green">${formatPrice(s.target2)}</td>
+      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price, s.market)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss, s.market)}</td>
+      <td class="text-green">${formatPrice(s.target1, s.market)}</td>
+      <td class="text-green">${formatPrice(s.target2, s.market)}</td>
       <td><span style="font-weight:700;color:${rrColor}">${rrText}</span></td>
       <td>
         <div style="min-width:90px">

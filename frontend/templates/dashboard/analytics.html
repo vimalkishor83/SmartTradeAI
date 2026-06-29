@@ -1,0 +1,276 @@
+{% extends "partials/base.html" %}
+{% block title %}Analytics — SmartTrade AI{% endblock %}
+{% set active = 'analytics' %}
+{% block breadcrumb %}<i class="bi bi-graph-up me-2"></i> Signal Analytics{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Signal Performance Analytics</h1>
+    <p class="page-subtitle">Historical win rates, R:R analysis, and performance breakdowns</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.open('/api/v1/signals/export/csv','_blank')">
+      <i class="bi bi-download me-1"></i>Export Signals CSV
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" onclick="window.open('/api/v1/signals/history/export/csv','_blank')">
+      <i class="bi bi-download me-1"></i>Export History CSV
+    </button>
+    <button class="btn btn-sm btn-primary" id="refreshAnalytics">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Row 1: KPI Cards -->
+<div class="row g-3 mb-4" id="analyticsKpi">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Total Signals</div>
+          <div class="kpi-value" id="kpiTotal">—</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-lightning-charge-fill text-blue"></i></div>
+      </div>
+      <div class="kpi-change" id="kpiActiveClose">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card green">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Win Rate</div>
+          <div class="kpi-value text-green fw-800" id="kpiWinRate" style="font-size:2rem">—</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-trophy-fill text-green"></i></div>
+      </div>
+      <div class="kpi-change" id="kpiWL">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Avg R:R</div>
+          <div class="kpi-value text-yellow" id="kpiAvgRR">—</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-bar-chart-fill text-yellow"></i></div>
+      </div>
+      <div class="kpi-change">risk/reward ratio</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card purple">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Total Closed</div>
+          <div class="kpi-value" id="kpiClosed">—</div>
+        </div>
+        <div class="kpi-icon"><i class="bi bi-check-circle-fill text-purple"></i></div>
+      </div>
+      <div class="kpi-change">signals resolved</div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Charts -->
+<div class="row g-3 mb-4">
+  <div class="col-md-7">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart text-accent"></i> Win Rate by Market</span>
+      </div>
+      <div class="section-card-body" style="padding:16px">
+        <canvas id="chartMarket" style="max-height:280px"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-pie-chart text-accent"></i> Signals by Type</span>
+      </div>
+      <div class="section-card-body" style="padding:16px">
+        <canvas id="chartType" style="max-height:280px"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: Timeframe + Confidence tables -->
+<div class="row g-3 mb-4">
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-clock text-accent"></i> Win Rate by Timeframe</span>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead><tr><th>Timeframe</th><th>Total</th><th>Wins</th><th>Win Rate</th></tr></thead>
+          <tbody id="tfTableBody">
+            <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-speedometer2 text-accent"></i> Win Rate by Confidence Level</span>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead><tr><th>Confidence</th><th>Total</th><th>Win Rate</th></tr></thead>
+          <tbody id="confTableBody">
+            <tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 4: Top Assets -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-star-fill text-accent"></i> Top Assets by Win Rate</span>
+    <span class="text-muted fs-xs">min 5 trades</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr><th>#</th><th>Symbol</th><th>Market</th><th>Total Trades</th><th>Wins</th><th>Win Rate</th></tr>
+      </thead>
+      <tbody id="topAssetsBody">
+        <tr><td colspan="6" class="text-center text-muted py-3">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let _marketChart = null;
+let _typeChart   = null;
+
+function winRateColor(rate) {
+  if (rate >= 60) return 'var(--green, #22c55e)';
+  if (rate >= 45) return 'var(--yellow, #eab308)';
+  return 'var(--red, #ef4444)';
+}
+
+function buildMarketChart(data) {
+  const ctx = document.getElementById('chartMarket').getContext('2d');
+  if (_marketChart) _marketChart.destroy();
+  const labels = data.map(d => d.market);
+  const rates  = data.map(d => d.win_rate);
+  _marketChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Win Rate %',
+        data: rates,
+        backgroundColor: rates.map(r => r >= 60 ? 'rgba(34,197,94,0.75)' : r >= 45 ? 'rgba(234,179,8,0.75)' : 'rgba(239,68,68,0.75)'),
+        borderRadius: 6,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', color: 'var(--text-secondary)' }, grid: { color: 'var(--border)' } },
+        x: { ticks: { color: 'var(--text-secondary)' }, grid: { display: false } },
+      }
+    }
+  });
+}
+
+function buildTypeChart(data) {
+  const ctx = document.getElementById('chartType').getContext('2d');
+  if (_typeChart) _typeChart.destroy();
+  const labels = data.map(d => d.signal_type);
+  const totals = data.map(d => d.total);
+  _typeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: totals,
+        backgroundColor: ['rgba(34,197,94,0.8)','rgba(239,68,68,0.8)','rgba(234,179,8,0.8)','rgba(139,92,246,0.8)'],
+        borderWidth: 0,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'bottom', labels: { color: 'var(--text-secondary)', padding: 12 } }
+      }
+    }
+  });
+}
+
+function renderTfTable(data) {
+  const tbody = document.getElementById('tfTableBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr>'; return; }
+  tbody.innerHTML = data.map(r => `<tr>
+    <td><span class="badge-tag">${r.timeframe}</span></td>
+    <td>${r.total}</td>
+    <td class="text-green">${r.wins}</td>
+    <td style="color:${winRateColor(r.win_rate)};font-weight:700">${r.win_rate.toFixed(1)}%</td>
+  </tr>`).join('');
+}
+
+function renderConfTable(data) {
+  const tbody = document.getElementById('confTableBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No data</td></tr>'; return; }
+  tbody.innerHTML = data.map(r => `<tr>
+    <td><span class="badge-tag">${r.range}</span></td>
+    <td>${r.total}</td>
+    <td style="color:${winRateColor(r.win_rate)};font-weight:700">${r.win_rate.toFixed(1)}%</td>
+  </tr>`).join('');
+}
+
+function renderTopAssets(data) {
+  const tbody = document.getElementById('topAssetsBody');
+  if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No assets with 5+ trades yet</td></tr>'; return; }
+  tbody.innerHTML = data.slice(0, 20).map((a, idx) => `<tr>
+    <td class="text-muted">${idx + 1}</td>
+    <td><strong>${a.symbol}</strong></td>
+    <td><span class="badge-tag">${(a.market||'').replace('_',' ')}</span></td>
+    <td>${a.total}</td>
+    <td class="text-green">${a.wins}</td>
+    <td style="color:${winRateColor(a.win_rate)};font-weight:700">${a.win_rate.toFixed(1)}%</td>
+  </tr>`).join('');
+}
+
+async function loadAnalytics() {
+  const data = await API.get('/signals/analytics');
+  if (!data) return;
+
+  const o = data.overall;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('kpiTotal',       o.total_signals.toLocaleString());
+  set('kpiWinRate',     o.win_rate.toFixed(1) + '%');
+  set('kpiAvgRR',       o.avg_rr_achieved.toFixed(2) + 'x');
+  set('kpiClosed',      o.closed.toLocaleString());
+  set('kpiActiveClose', `${o.active} active / ${o.closed} closed`);
+  set('kpiWL',          `${o.total_wins}W / ${o.total_losses}L`);
+
+  if (data.by_market.length)      buildMarketChart(data.by_market);
+  if (data.by_signal_type.length) buildTypeChart(data.by_signal_type);
+  renderTfTable(data.by_timeframe);
+  renderConfTable(data.confidence_buckets);
+  renderTopAssets(data.top_assets);
+}
+
+document.addEventListener('app:ready', () => {
+  loadAnalytics();
+  document.getElementById('refreshAnalytics').addEventListener('click', loadAnalytics);
+});
+</script>
+{% endblock %}

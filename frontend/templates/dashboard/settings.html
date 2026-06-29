@@ -59,10 +59,124 @@
     </div>
   </div>
 </div>
+
+<!-- Analysis Assets -->
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="section-card">
+      <div class="section-card-header d-flex justify-content-between align-items-center">
+        <span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent"></i> Analysis Assets</span>
+        <div class="d-flex gap-2">
+          <button class="btn btn-sm btn-outline-light" id="selAll">Select All</button>
+          <button class="btn btn-sm btn-outline-light" id="deselAll">Deselect All</button>
+          <button class="btn btn-sm btn-primary" id="saveAssets">
+            <i class="bi bi-check2 me-1"></i>Save Selection
+          </button>
+        </div>
+      </div>
+      <div class="section-card-body">
+        <p style="font-size:13px;color:var(--text-muted)" class="mb-3">
+          Choose which assets appear in <strong>TA Summary</strong> and <strong>MTF Analysis</strong>. Fewer assets = faster load.
+        </p>
+        <div id="assetGrid" class="row g-2">
+          <div class="text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading assets...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<style>
+.asset-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  cursor: pointer;
+  transition: border-color .15s, background .15s;
+  user-select: none;
+}
+.asset-toggle:hover { border-color: var(--accent); }
+.asset-toggle.active { border-color: var(--accent); background: rgba(99,102,241,0.12); }
+.asset-toggle .check {
+  width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: background .15s, border-color .15s;
+}
+.asset-toggle.active .check { background: var(--accent); border-color: var(--accent); }
+.asset-toggle.active .check::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
+.mkt-header { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .8px; text-transform: uppercase; margin: 12px 0 6px; }
+</style>
+
 <script>
+let _assetPrefs = {};  // { asset_id: true/false }
+
+function renderAssetGrid(assets) {
+  const grid = document.getElementById('assetGrid');
+  const MKT  = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
+  const byMkt = {};
+  assets.forEach(a => { (byMkt[a.market] = byMkt[a.market]||[]).push(a); });
+
+  let html = '';
+  for (const [mkt, list] of Object.entries(byMkt)) {
+    html += `<div class="col-12"><div class="mkt-header">${MKT[mkt]||mkt}</div></div>`;
+    list.forEach(a => {
+      const on = _assetPrefs[a.id] !== false;
+      html += `<div class="col-6 col-md-4 col-lg-3 col-xl-2">
+        <div class="asset-toggle ${on?'active':''}" data-id="${a.id}" onclick="toggleAsset(this,${a.id})">
+          <div class="check"></div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${a.symbol}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+          </div>
+        </div>
+      </div>`;
+    });
+  }
+  grid.innerHTML = html;
+  updateCounter();
+}
+
+function toggleAsset(el, id) {
+  const on = el.classList.toggle('active');
+  _assetPrefs[id] = on;
+  updateCounter();
+}
+
+function updateCounter() {
+  const total   = Object.keys(_assetPrefs).length;
+  const enabled = Object.values(_assetPrefs).filter(Boolean).length;
+  const btn = document.getElementById('saveAssets');
+  btn.innerHTML = `<i class="bi bi-check2 me-1"></i>Save (${enabled}/${total} selected)`;
+}
+
+document.getElementById('selAll').addEventListener('click', () => {
+  document.querySelectorAll('.asset-toggle').forEach(el => {
+    el.classList.add('active');
+    _assetPrefs[el.dataset.id] = true;
+  });
+  updateCounter();
+});
+
+document.getElementById('deselAll').addEventListener('click', () => {
+  document.querySelectorAll('.asset-toggle').forEach(el => {
+    el.classList.remove('active');
+    _assetPrefs[el.dataset.id] = false;
+  });
+  updateCounter();
+});
+
+document.getElementById('saveAssets').addEventListener('click', async () => {
+  const res = await API.put('/auth/me/asset-preferences', { preferences: _assetPrefs });
+  if (res?.message) Toast.show('Asset selection saved — analysis pages will refresh', 'success');
+  else Toast.show('Save failed', 'error');
+});
+
 document.addEventListener('app:ready', async () => {
   const user = Auth.user || await API.get('/auth/me');
   if (!user) return;
@@ -73,18 +187,38 @@ document.addEventListener('app:ready', async () => {
   document.getElementById('emailNotif').checked = user.email_notifications;
   document.getElementById('telegramNotif').checked = user.telegram_enabled;
   document.getElementById('telegramId').value = user.telegram_chat_id || '';
+
+  // Load asset preferences
+  const prefs = await API.get('/auth/me/asset-preferences');
+  if (prefs?.assets) {
+    prefs.assets.forEach(a => { _assetPrefs[a.id] = a.enabled; });
+    renderAssetGrid(prefs.assets);
+  }
+});
+
+// Apply theme live when dropdown changes
+document.getElementById('theme').addEventListener('change', function () {
+  document.documentElement.setAttribute('data-theme', this.value);
+  localStorage.setItem('theme', this.value);
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.innerHTML = this.value === 'dark' ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
 });
 
 document.getElementById('profileForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const selectedTheme = document.getElementById('theme').value;
   const res = await API.put('/auth/me', {
     first_name: document.getElementById('firstName').value,
     last_name: document.getElementById('lastName').value,
     phone: document.getElementById('phone').value,
-    theme: document.getElementById('theme').value,
+    theme: selectedTheme,
   });
-  if (res?.user) Toast.show('Profile updated!', 'success');
-  else Toast.show('Update failed', 'error');
+  if (res?.user) {
+    // Persist theme after successful save
+    document.documentElement.setAttribute('data-theme', selectedTheme);
+    localStorage.setItem('theme', selectedTheme);
+    Toast.show('Profile updated!', 'success');
+  } else Toast.show('Update failed', 'error');
 });
 
 document.getElementById('saveNotifs').addEventListener('click', async () => {

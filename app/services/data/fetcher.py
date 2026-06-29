@@ -7,8 +7,11 @@ Pluggable market data fetcher — 100% free APIs, no keys required.
 """
 from __future__ import annotations
 import logging
+import time
+import threading
 import requests
 import pandas as pd
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 try:
     import yfinance as yf
@@ -21,6 +24,37 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────
+# In-process OHLCV cache (avoids redundant network hits)
+# ─────────────────────────────────────────────────────────
+class _OHLCVCache:
+    """Thread-safe in-memory cache with per-key TTL."""
+    def __init__(self):
+        self._store: dict[str, tuple[pd.DataFrame, float]] = {}
+        self._lock  = threading.Lock()
+
+    # TTL by timeframe — shorter TFs need fresher data
+    _TTL = {"1m":30,"5m":60,"15m":90,"30m":120,"1h":180,"4h":300,"1d":600}
+
+    def get(self, key: str) -> pd.DataFrame | None:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry and time.time() - entry[1] < self._TTL.get(key.rsplit("_",1)[-1], 180):
+                return entry[0]
+        return None
+
+    def set(self, key: str, df: pd.DataFrame):
+        with self._lock:
+            self._store[key] = (df, time.time())
+
+    def clear(self):
+        with self._lock:
+            self._store.clear()
+
+
+_cache = _OHLCVCache()
+
+
+# ─────────────────────────────────────────────────────────
 # Binance (crypto) — completely public, no key needed
 # ─────────────────────────────────────────────────────────
 class BinanceFetcher:
@@ -28,6 +62,11 @@ class BinanceFetcher:
     INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","4h":"4h","1d":"1d"}
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
+        cache_key = f"{symbol}_{timeframe}"
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         interval = self.INTERVAL.get(timeframe, "1h")
         try:
             resp = requests.get(
@@ -46,7 +85,9 @@ class BinanceFetcher:
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
             for col in ["open","high","low","close","volume"]:
                 df[col] = df[col].astype(float)
-            return df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
+            df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
+            _cache.set(cache_key, df)
+            return df
         except Exception as e:
             logger.warning(f"Binance OHLCV error {symbol}/{timeframe}: {e}")
             return None
@@ -73,19 +114,15 @@ class BinanceFetcher:
 # Yahoo Finance — free, no key needed
 # ─────────────────────────────────────────────────────────
 class YahooFetcher:
-    # Map our symbols → Yahoo Finance symbols
     SYMBOL_MAP = {
-        # Indices
         "NIFTY50":    "^NSEI",
         "BANKNIFTY":  "^NSEBANK",
         "SENSEX":     "^BSESN",
         "FINNIFTY":   "NIFTY_FIN_SERVICE.NS",
         "MIDCPNIFTY": "^NSMIDCP",
-        # Commodities
         "XAUUSD": "GC=F",
         "XAGUSD": "SI=F",
         "CLUSD":  "CL=F",
-        # Forex
         "EURUSD": "EURUSD=X",
         "GBPUSD": "GBPUSD=X",
         "USDJPY": "USDJPY=X",
@@ -93,7 +130,6 @@ class YahooFetcher:
         "USDINR": "INR=X",
     }
 
-    # NSE-listed stocks
     NSE_STOCKS = {
         "RELIANCE","TCS","INFY","HDFCBANK","ICICIBANK","SBIN",
         "WIPRO","ADANIENT","BAJFINANCE","KOTAKBANK","HINDUNILVR",
@@ -108,15 +144,19 @@ class YahooFetcher:
             return self.SYMBOL_MAP[symbol]
         if symbol in self.NSE_STOCKS:
             return f"{symbol}.NS"
-        # BSE stocks
         if symbol.endswith(".BO") or symbol.endswith(".NS"):
             return symbol
         return symbol
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
         if not _YF_AVAILABLE:
-            logger.debug(f"yfinance unavailable, skipping {symbol}")
             return None
+
+        cache_key = f"{symbol}_{timeframe}"
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             yf_symbol = self._yahoo_symbol(symbol)
             interval  = self.TF_INTERVAL.get(timeframe, "1d")
@@ -132,10 +172,8 @@ class YahooFetcher:
             )
 
             if df is None or df.empty:
-                logger.warning(f"Yahoo empty data for {yf_symbol}")
                 return None
 
-            # Flatten multi-level columns if present (yfinance 0.2+)
             if isinstance(df.columns, pd.MultiIndex):
                 df.columns = df.columns.get_level_values(0)
 
@@ -145,10 +183,87 @@ class YahooFetcher:
             if "volume" not in df.columns:
                 df["volume"] = 0.0
 
-            return df.tail(limit)
+            df = df.tail(limit)
+            _cache.set(cache_key, df)
+            return df
         except Exception as e:
             logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
             return None
+
+    def fetch_ohlcv_batch(self, symbols: list[str], timeframe: str, limit: int = 300) -> dict[str, pd.DataFrame]:
+        """Fetch multiple Yahoo symbols in a single download call (much faster than one-by-one)."""
+        if not _YF_AVAILABLE or not symbols:
+            return {}
+
+        # Check cache first — only fetch what's missing
+        result: dict[str, pd.DataFrame] = {}
+        to_fetch_sym: list[str]  = []   # our symbols
+        to_fetch_yf:  list[str]  = []   # yahoo symbols
+
+        for sym in symbols:
+            cached = _cache.get(f"{sym}_{timeframe}")
+            if cached is not None:
+                result[sym] = cached
+            else:
+                to_fetch_sym.append(sym)
+                to_fetch_yf.append(self._yahoo_symbol(sym))
+
+        if not to_fetch_yf:
+            return result
+
+        interval = self.TF_INTERVAL.get(timeframe, "1d")
+        period   = self.TF_PERIOD.get(timeframe, "1y")
+
+        try:
+            raw = yf.download(
+                " ".join(to_fetch_yf),
+                period=period,
+                interval=interval,
+                progress=False,
+                auto_adjust=True,
+                threads=True,   # yfinance internal threading for batch
+                group_by="ticker",
+            )
+            if raw is None or raw.empty:
+                return result
+
+            # Build reverse map: yahoo symbol → our symbol
+            rev = {yf_sym: our_sym for our_sym, yf_sym in zip(to_fetch_sym, to_fetch_yf)}
+
+            # Single-ticker download has flat columns; multi-ticker has MultiIndex
+            if len(to_fetch_yf) == 1:
+                yf_sym = to_fetch_yf[0]
+                our    = rev[yf_sym]
+                df = raw.copy()
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                df.columns = [c.lower() for c in df.columns]
+                needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
+                df = df[needed].dropna().tail(limit)
+                if "volume" not in df.columns:
+                    df["volume"] = 0.0
+                _cache.set(f"{our}_{timeframe}", df)
+                result[our] = df
+            else:
+                for yf_sym in to_fetch_yf:
+                    our = rev[yf_sym]
+                    try:
+                        df = raw[yf_sym].copy() if yf_sym in raw.columns.get_level_values(0) else pd.DataFrame()
+                        if df.empty:
+                            continue
+                        df.columns = [c.lower() for c in df.columns]
+                        needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
+                        df = df[needed].dropna().tail(limit)
+                        if "volume" not in df.columns:
+                            df["volume"] = 0.0
+                        _cache.set(f"{our}_{timeframe}", df)
+                        result[our] = df
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.debug(f"Yahoo batch error {timeframe}: {e}")
+
+        return result
 
 
 # ─────────────────────────────────────────────────────────
@@ -167,18 +282,51 @@ class MarketDataFetcher:
     def fetch_ticker(self, asset) -> dict | None:
         if asset.data_source == "binance":
             return self.binance.fetch_ticker(asset.symbol)
-        # Yahoo quick price
         if not _YF_AVAILABLE:
             return None
         try:
             yf_symbol = self.yahoo._yahoo_symbol(asset.symbol)
-            info = yf.Ticker(yf_symbol).fast_info  # noqa: F821 — yf imported at top
+            info  = yf.Ticker(yf_symbol).fast_info
             price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
             if price:
                 return {"symbol": asset.symbol, "price": float(price), "change_pct": 0.0}
         except Exception:
             pass
         return None
+
+    def fetch_many(self, assets: list, timeframes: list[str], limit: int = 300) -> dict[str, dict[str, pd.DataFrame]]:
+        """
+        Fetch OHLCV for multiple assets × timeframes in parallel.
+        Returns {symbol: {timeframe: DataFrame}}
+        """
+        # Separate by data source
+        binance_assets = [a for a in assets if a.data_source == "binance"]
+        yahoo_assets   = [a for a in assets if a.data_source != "binance"]
+
+        results: dict[str, dict[str, pd.DataFrame]] = {a.symbol: {} for a in assets}
+
+        # ── Binance: parallel per (symbol, tf) ──────────────────
+        def _binance_fetch(asset, tf):
+            return asset.symbol, tf, self.binance.fetch_ohlcv(asset.symbol, tf, limit)
+
+        if binance_assets:
+            with ThreadPoolExecutor(max_workers=min(20, len(binance_assets) * len(timeframes))) as ex:
+                futures = {ex.submit(_binance_fetch, a, tf): (a.symbol, tf)
+                           for a in binance_assets for tf in timeframes}
+                for fut in as_completed(futures):
+                    sym, tf, df = fut.result()
+                    if df is not None:
+                        results[sym][tf] = df
+
+        # ── Yahoo: batch per timeframe (1 HTTP call per TF) ─────
+        if yahoo_assets:
+            yahoo_syms = [a.symbol for a in yahoo_assets]
+            for tf in timeframes:
+                batch = self.yahoo.fetch_ohlcv_batch(yahoo_syms, tf, limit)
+                for sym, df in batch.items():
+                    results[sym][tf] = df
+
+        return results
 
 
 market_fetcher = MarketDataFetcher()

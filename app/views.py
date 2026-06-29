@@ -1,4 +1,5 @@
 from flask import Blueprint, render_template, redirect, url_for
+from app.models.asset import Asset
 
 views_bp = Blueprint("views", __name__)
 
@@ -6,6 +7,11 @@ views_bp = Blueprint("views", __name__)
 @views_bp.route("/")
 def index():
     return redirect(url_for("views.dashboard"))
+
+
+@views_bp.route("/home")
+def landing():
+    return render_template("landing.html")
 
 
 @views_bp.route("/dashboard")
@@ -55,6 +61,11 @@ def signals():
     return render_template("dashboard/signals.html")
 
 
+@views_bp.route("/analytics")
+def analytics():
+    return render_template("dashboard/analytics.html")
+
+
 @views_bp.route("/news")
 def news():
     return render_template("dashboard/news.html")
@@ -80,6 +91,16 @@ def auto_generate():
     return render_template("dashboard/auto_generate.html")
 
 
+@views_bp.route("/mtf-analysis")
+def mtf_analysis():
+    return render_template("dashboard/mtf_analysis.html")
+
+
+@views_bp.route("/ta-summary")
+def ta_summary():
+    return render_template("dashboard/ta_summary.html")
+
+
 @views_bp.route("/admin")
 def admin():
     return render_template("admin/index.html")
@@ -93,3 +114,9 @@ def admin_users():
 @views_bp.route("/admin/logs")
 def admin_logs():
     return render_template("admin/logs.html")
+
+
+@views_bp.route("/asset/<int:asset_id>")
+def asset_detail(asset_id):
+    asset = Asset.query.get_or_404(asset_id)
+    return render_template("asset/detail.html", asset=asset, asset_id=asset_id)

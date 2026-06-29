@@ -13,6 +13,9 @@
     <button class="btn btn-sm btn-primary" id="refreshSignals">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
+    <button class="btn btn-sm btn-outline-secondary" id="exportSignalsCsv">
+      <i class="bi bi-download me-1"></i>Download CSV
+    </button>
   </div>
 </div>
 
@@ -67,8 +70,7 @@
           <option value="">All Markets</option>
           <option value="crypto">Crypto</option>
           <option value="forex">Forex</option>
-          <option value="gold">Gold</option>
-          <option value="silver">Silver</option>
+          <option value="commodity">Commodities</option>
           <option value="indian_stock">Indian Stocks</option>
           <option value="index">Indices</option>
         </select>
@@ -99,7 +101,7 @@
           <tr>
             <th>Asset</th><th>Market</th><th>TF</th><th>Signal</th>
             <th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th>
-            <th>R:R</th><th>Confidence</th><th>Expires</th><th>Reasoning</th>
+            <th>R:R</th><th>Confidence</th><th>Time</th><th>Reasoning</th>
           </tr>
         </thead>
         <tbody id="allSignalsBody">
@@ -162,6 +164,15 @@
 
 {% block extra_js %}
 <script>
+function shortTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso), now = new Date();
+  if ((now - d) / 36e5 < 24)
+    return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
+         d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+}
+
 function showTab(tab) {
   document.getElementById('liveTab').style.display    = tab === 'live'    ? 'block' : 'none';
   document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
@@ -213,22 +224,23 @@ async function loadSignals(page = 1) {
     const conf    = s.confidence_score || 0;
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
     const rr      = parseFloat(s.risk_reward) || 0;
-    const rrCls   = rr >= 2 ? 'text-green' : rr >= 1.5 ? 'text-yellow' : 'text-muted';
+    const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : rr > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
+    const rrText  = rr > 0 ? `${rr.toFixed(1)}x` : '—';
     return `<tr>
-      <td><strong>${s.asset}</strong></td>
+      <td><a href="/asset/${s.asset_id}" style="color:var(--text-primary);text-decoration:none;font-weight:700" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">${s.asset}</a></td>
       <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
       <td><span class="badge-tag">${s.timeframe}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td class="fw-700">${formatPrice(s.entry_price)}</td>
-      <td class="text-red">${formatPrice(s.stop_loss)}</td>
-      <td class="text-green">${formatPrice(s.target1)}</td>
-      <td class="text-green">${formatPrice(s.target2)}</td>
-      <td class="${rrCls} fw-700">${rr.toFixed(1)}x</td>
+      <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
+      <td class="text-red">${formatPrice(s.stop_loss, s.market)}</td>
+      <td class="text-green">${formatPrice(s.target1, s.market)}</td>
+      <td class="text-green">${formatPrice(s.target2, s.market)}</td>
+      <td style="font-weight:700;color:${rrColor}">${rrText}</td>
       <td style="min-width:100px">
         <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
         <div class="text-muted fs-xs">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
       </td>
-      <td class="text-muted fs-xs">${s.expires_at ? formatTime(s.expires_at) : '—'}</td>
+      <td class="text-muted fs-xs" style="white-space:nowrap">${shortTime(s.generated_at)}</td>
       <td class="text-muted fs-xs" style="max-width:180px;white-space:normal;line-height:1.4">${s.reasoning ? s.reasoning.slice(0,100) + (s.reasoning.length > 100 ? '…' : '') : '—'}</td>
     </tr>`;
   }).join('');
@@ -277,7 +289,7 @@ async function loadHistory(page = 1) {
         <div class="text-muted fs-xs">${(h.confidence||0).toFixed(0)}%</div>
       </td>
       <td class="text-muted fs-xs">${dur}</td>
-      <td class="text-muted fs-xs">${formatTime(h.closed_at)}</td>
+      <td class="text-muted fs-xs" style="white-space:nowrap">${shortTime(h.closed_at)}</td>
     </tr>`;
   }).join('');
 
@@ -301,11 +313,23 @@ document.addEventListener('app:ready', () => {
   loadSignals(1);
 
   document.getElementById('refreshSignals').addEventListener('click', () => { loadSummary(); loadSignals(1); });
+  document.getElementById('exportSignalsCsv').addEventListener('click', () => {
+    const params = new URLSearchParams();
+    const mkt  = document.getElementById('allMkt').value;
+    const tf   = document.getElementById('allTf').value;
+    const type = document.getElementById('allType').value;
+    if (mkt)  params.set('market',      mkt);
+    if (tf)   params.set('timeframe',   tf);
+    if (type) params.set('signal_type', type);
+    window.open('/api/v1/signals/export/csv?' + params.toString(), '_blank');
+  });
   ['allMkt','allTf','allType'].forEach(id =>
     document.getElementById(id)?.addEventListener('change', () => loadSignals(1)));
+  let _confTimer;
   document.getElementById('allConf').addEventListener('input', function() {
     document.getElementById('allConfVal').textContent = `${this.value}%`;
-    loadSignals(1);
+    clearTimeout(_confTimer);
+    _confTimer = setTimeout(() => loadSignals(1), 350);
   });
   document.getElementById('histMkt')?.addEventListener('change',     () => loadHistory(1));
   document.getElementById('histOutcome')?.addEventListener('change', () => loadHistory(1));

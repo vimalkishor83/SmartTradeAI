@@ -37,21 +37,35 @@ def close_and_record_signals(app):
         active = Signal.query.filter_by(status="active").all()
         closed = 0
 
+        # Build asset map to avoid N+1 queries
+        asset_ids = {s.asset_id for s in active}
+        assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+
+        # Cache ticker per asset to avoid duplicate calls when same asset has multiple signals
+        price_cache = {}
+
         for signal in active:
             try:
-                asset = Asset.query.get(signal.asset_id)
+                asset = assets_map.get(signal.asset_id)
                 if not asset:
                     continue
 
-                # Get current price
-                ticker = market_fetcher.fetch_ticker(asset)
-                if not ticker or not ticker.get("price"):
-                    # No price — just expire if past expiry time
-                    if signal.expires_at and signal.expires_at < datetime.utcnow():
-                        signal.status = "expired"
+                # Expire by time first (works without price data)
+                if signal.expires_at and signal.expires_at < datetime.utcnow():
+                    signal.status = "expired"
+                    closed += 1
                     continue
 
-                current_price = float(ticker["price"])
+                # Get current price (cached per asset)
+                if asset.id not in price_cache:
+                    ticker = market_fetcher.fetch_ticker(asset)
+                    price_cache[asset.id] = float(ticker["price"]) if ticker and ticker.get("price") else None
+
+                current_price = price_cache[asset.id]
+                if not current_price:
+                    continue
+
+                signal.current_price = current_price
                 signal.current_price = current_price
 
                 # Determine outcome
@@ -92,9 +106,13 @@ def close_and_record_signals(app):
             except Exception as e:
                 logger.debug(f"Signal close check failed for signal {signal.id}: {e}")
 
-        if closed:
+        try:
             db.session.commit()
-            logger.info(f"Closed {closed} signals with outcome")
+            if closed:
+                logger.info(f"Closed {closed} signals with outcome")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Signal close commit failed: {e}")
 
 
 def _check_outcome(signal, current_price):
@@ -122,6 +140,285 @@ def _check_outcome(signal, current_price):
     return None
 
 
+def prewarm_ta_cache(app):
+    """Pre-compute TA summary and MTF matrix and store in cache so page loads are instant."""
+    with app.app_context():
+        from app.models.asset import Asset
+        from app.services.data.fetcher import market_fetcher
+        from app.services.indicators.calculator import calculate_all_indicators
+        from app.extensions import cache
+        from concurrent.futures import ThreadPoolExecutor
+        from app.api.v1.market_data import _compute_ta_rating
+        from app.api.v1.signals import _mtf_rating
+
+        ta_tfs  = ["5m", "15m", "30m", "1h", "1d"]
+        mtf_tfs = ["5m", "15m", "30m", "1h", "4h", "1d"]
+        assets  = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+
+        # Fetch all data once — covers both TA and MTF (union of timeframes)
+        all_tfs  = list(dict.fromkeys(ta_tfs + mtf_tfs))  # preserves order, deduplicates
+        all_data = market_fetcher.fetch_many(assets, all_tfs, limit=200)
+
+        def _make_ta_row(asset):
+            sym = asset.symbol
+            dfs = all_data.get(sym, {})
+            row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market,
+                   "tf": {}, "price": None, "open": None, "high": None, "low": None,
+                   "change": None, "change_pct": None, "volume": None, "time": None}
+            df_price = dfs.get("1h")
+            if df_price is not None and len(df_price) >= 2:
+                try:
+                    last  = df_price.iloc[-1]; prev = df_price.iloc[-2]
+                    price = float(last["close"]); chg = price - float(prev["close"])
+                    row.update({"price": price, "open": float(last["open"]), "high": float(last["high"]),
+                                "low": float(last["low"]), "change": round(chg, 6),
+                                "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
+                                "volume": float(last.get("volume", 0)),
+                                "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else ""})
+                except Exception:
+                    pass
+            for tf in ta_tfs:
+                try:
+                    df = dfs.get(tf)
+                    if df is None or len(df) < 52: row["tf"][tf] = None; continue
+                    ind = calculate_all_indicators(df)
+                    row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
+                except Exception:
+                    row["tf"][tf] = None
+            return row
+
+        def _make_mtf_row(asset):
+            dfs = all_data.get(asset.symbol, {})
+            row = {}
+            for tf in mtf_tfs:
+                try:
+                    df = dfs.get(tf)
+                    if df is None or len(df) < 52: row[tf] = None; continue
+                    ind = calculate_all_indicators(df)
+                    row[tf] = _mtf_rating(ind, float(df["close"].iloc[-1]))
+                except Exception:
+                    row[tf] = None
+            return asset.id, row
+
+        with ThreadPoolExecutor(max_workers=8) as ex:
+            ta_rows  = list(ex.map(_make_ta_row, assets))
+            mtf_rows = list(ex.map(_make_mtf_row, assets))
+
+        cache.set("ta_summary_all",  {"assets": ta_rows,  "timeframes": ta_tfs},  timeout=150)
+        mtf_matrix = {aid: row for aid, row in mtf_rows}
+        cache.set("mtf_matrix_all",  {
+            "matrix": mtf_matrix,
+            "assets": [{"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market} for a in assets],
+            "timeframes": mtf_tfs,
+        }, timeout=150)
+        logger.info("TA/MTF cache pre-warmed")
+
+
+def fetch_news(app):
+    """Fetch latest market news from Yahoo Finance RSS (free, no API key)."""
+    with app.app_context():
+        from app.models.news import News
+        from app.models.asset import Asset
+        from app.services.news.fetcher import fetch_news_for_symbols
+        from app.extensions import db
+
+        assets = Asset.query.filter_by(is_active=True).all()
+        symbols = [a.symbol for a in assets]
+
+        try:
+            items = fetch_news_for_symbols(symbols)
+        except Exception as e:
+            logger.error(f"News fetch failed: {e}")
+            return
+
+        new_count = 0
+        for item in items:
+            if not item.get("url"):
+                continue
+            exists = News.query.filter_by(url=item["url"]).first()
+            if exists:
+                continue
+            news = News(
+                title=item["title"],
+                summary=item.get("summary"),
+                url=item["url"],
+                source=item.get("source", "Yahoo Finance"),
+                sentiment=item.get("sentiment"),
+                sentiment_score=item.get("sentiment_score"),
+                related_assets=item.get("related_assets", []),
+                published_at=item.get("published_at"),
+            )
+            db.session.add(news)
+            new_count += 1
+
+        try:
+            db.session.commit()
+            if new_count:
+                logger.info(f"Saved {new_count} new news items")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"News save failed: {e}")
+
+
+def fetch_economic_calendar(app):
+    """Fetch economic calendar from Forex Factory free JSON API."""
+    with app.app_context():
+        from app.models.economic import EconomicEvent
+        from app.extensions import db, cache
+        import requests
+        from datetime import datetime
+
+        urls = [
+            "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+            "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+        ]
+        all_events = []
+        for url in urls:
+            try:
+                resp = requests.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                resp.raise_for_status()
+                all_events.extend(resp.json())
+            except Exception as e:
+                logger.debug(f"Economic calendar fetch failed for {url}: {e}")
+
+        saved = 0
+        for ev in all_events:
+            title = ev.get("title", "").strip()
+            date_str = ev.get("date", "")
+            if not title or not date_str:
+                continue
+            # Parse ISO date string (e.g. "2024-01-15T13:30:00-0500")
+            event_time = None
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+                try:
+                    dt = datetime.strptime(date_str[:19], "%Y-%m-%dT%H:%M:%S")
+                    event_time = dt
+                    break
+                except ValueError:
+                    pass
+            if not event_time:
+                continue
+
+            impact_raw = (ev.get("impact") or "").lower()
+            # Normalize: High/Medium/Low
+            impact = impact_raw if impact_raw in ("high", "medium", "low") else "low"
+
+            country = ev.get("country", "")
+            # Upsert by title + event_time
+            existing = EconomicEvent.query.filter_by(title=title, event_time=event_time).first()
+            if existing:
+                existing.actual = ev.get("actual") or existing.actual
+                existing.forecast = ev.get("forecast") or existing.forecast
+                existing.previous = ev.get("previous") or existing.previous
+            else:
+                event = EconomicEvent(
+                    title=title,
+                    country=country,
+                    currency=country,  # FF uses currency code as country
+                    impact=impact,
+                    forecast=ev.get("forecast"),
+                    previous=ev.get("previous"),
+                    actual=ev.get("actual"),
+                    event_time=event_time,
+                )
+                db.session.add(event)
+                saved += 1
+
+        try:
+            db.session.commit()
+            # Invalidate cache so next request re-fetches from DB
+            cache.delete("econ_calendar")
+            if saved:
+                logger.info(f"Saved {saved} new economic events")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Economic calendar save failed: {e}")
+
+
+def check_watchlist_alerts(app):
+    """Check if any watchlist items have crossed their alert price and notify the user."""
+    with app.app_context():
+        from app.models.watchlist import WatchlistItem, Watchlist
+        from app.models.notification import Notification
+        from app.models.asset import Asset
+        from app.services.data.fetcher import market_fetcher
+        from app.extensions import db
+
+        items = WatchlistItem.query.filter(WatchlistItem.alert_price.isnot(None)).all()
+        if not items:
+            return
+
+        # Build asset cache to avoid duplicate fetches
+        price_cache = {}
+        triggered = 0
+
+        for item in items:
+            try:
+                asset = item.asset
+                if not asset:
+                    continue
+
+                # Fetch current price (cached per asset id)
+                if asset.id not in price_cache:
+                    ticker = market_fetcher.fetch_ticker(asset)
+                    if ticker and ticker.get("price"):
+                        price_cache[asset.id] = float(ticker["price"])
+                    else:
+                        price_cache[asset.id] = None
+
+                current_price = price_cache.get(asset.id)
+                if current_price is None:
+                    continue
+
+                alert_price = float(item.alert_price)
+                symbol = asset.symbol
+
+                # Check if alert has been crossed (either direction)
+                # We store a flag by setting alert_price to None after firing
+                if current_price >= alert_price or current_price <= alert_price:
+                    # Determine the watchlist owner
+                    watchlist = Watchlist.query.get(item.watchlist_id)
+                    if not watchlist:
+                        continue
+                    user_id = watchlist.user_id
+
+                    direction = "above" if current_price >= alert_price else "below"
+                    notif = Notification(
+                        user_id=user_id,
+                        title=f"{symbol} hit your alert price",
+                        message=(
+                            f"{symbol} crossed ₹{alert_price:.2f} — "
+                            f"current price: ₹{current_price:.2f} ({direction} alert)"
+                        ),
+                        notification_type="price_alert",
+                        channel="web",
+                        asset_symbol=symbol,
+                    )
+                    db.session.add(notif)
+
+                    # One-shot alert: clear the alert_price so it doesn't fire again
+                    item.alert_price = None
+                    triggered += 1
+
+                    # Broadcast via WebSocket if available
+                    try:
+                        from app.websocket.events import broadcast_notification
+                        broadcast_notification(user_id, notif.title, notif.message)
+                    except Exception:
+                        pass  # WebSocket broadcast is best-effort
+
+            except Exception as e:
+                logger.debug(f"Watchlist alert check failed for item {item.id}: {e}")
+
+        try:
+            db.session.commit()
+            if triggered:
+                logger.info(f"Fired {triggered} watchlist price alerts")
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Watchlist alert commit failed: {e}")
+
+
 def register_data_jobs(scheduler, app):
     # Crypto ticker — every 5 seconds
     scheduler.add_job(update_tickers, "interval", seconds=5,
@@ -129,4 +426,16 @@ def register_data_jobs(scheduler, app):
     # Signal outcome tracking — every 5 minutes
     scheduler.add_job(close_and_record_signals, "interval", minutes=5,
                       args=[app], id="close_signals", replace_existing=True)
+    # TA/MTF cache pre-warm — every 2 minutes
+    scheduler.add_job(prewarm_ta_cache, "interval", minutes=2,
+                      args=[app], id="prewarm_ta", replace_existing=True)
+    # News feed — every 30 minutes
+    scheduler.add_job(fetch_news, "interval", minutes=30,
+                      args=[app], id="fetch_news", replace_existing=True)
+    # Economic calendar — every 6 hours
+    scheduler.add_job(fetch_economic_calendar, "interval", hours=6,
+                      args=[app], id="fetch_econ_calendar", replace_existing=True)
+    # Watchlist price alerts — every 2 minutes
+    scheduler.add_job(check_watchlist_alerts, "interval", minutes=2,
+                      args=[app], id="watchlist_alerts", replace_existing=True)
     logger.info("Data jobs registered")
