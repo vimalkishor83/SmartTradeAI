@@ -125,55 +125,15 @@
     </div>
   </div>
 
-  <!-- ── Right: Results (stacked cards top to bottom) ── -->
+  <!-- ── Right: single panel, JS replaces innerHTML ── -->
   <div class="col-lg-8">
-    <!-- Placeholder -->
-    <div id="aiPlaceholder" class="section-card text-center" style="min-height:360px;display:flex;align-items:center;justify-content:center">
-      <div>
-        <i class="bi bi-cpu" style="font-size:64px;color:var(--accent);opacity:0.3"></i>
-        <p class="mt-3" style="color:var(--text-muted)">Select an asset and timeframes, then click <strong style="color:var(--accent)">Run Prediction</strong></p>
-        <p style="font-size:12px;color:var(--text-muted)">Multiple timeframes run in parallel — results appear as cards below</p>
+    <div id="aiRightPanel">
+      <!-- Placeholder — shown by default -->
+      <div class="section-card text-center py-5">
+        <i class="bi bi-cpu" style="font-size:64px;color:var(--accent);opacity:0.35"></i>
+        <p class="mt-3 mb-1" style="color:var(--text-secondary);font-size:15px;font-weight:600">Select an asset and timeframes</p>
+        <p style="font-size:12px;color:var(--text-muted)">Click <strong style="color:var(--accent)">Run Prediction</strong> — all selected timeframes run in parallel</p>
       </div>
-    </div>
-
-    <!-- Confluence summary (shown when multiple TFs run) -->
-    <div id="confluenceSummary" style="display:none" class="section-card mb-3">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent"></i> Confluence Summary</span>
-        <span class="badge-tag" id="confluenceAssetLabel"></span>
-      </div>
-      <div class="section-card-body">
-        <div class="row g-3 text-center" id="confluenceStats">
-          <div class="col-4">
-            <div class="p-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)">
-              <div class="fw-900" style="font-size:28px;color:var(--green)" id="confBullCount">0</div>
-              <div style="font-size:12px;color:var(--text-muted)">Bullish TFs</div>
-            </div>
-          </div>
-          <div class="col-4">
-            <div class="p-3 rounded" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)">
-              <div class="fw-900" style="font-size:28px;color:var(--red)" id="confBearCount">0</div>
-              <div style="font-size:12px;color:var(--text-muted)">Bearish TFs</div>
-            </div>
-          </div>
-          <div class="col-4">
-            <div class="p-3 rounded" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2)">
-              <div class="fw-900" style="font-size:28px;color:var(--yellow)" id="confNeutCount">0</div>
-              <div style="font-size:12px;color:var(--text-muted)">Neutral TFs</div>
-            </div>
-          </div>
-        </div>
-        <div class="mt-3 text-center" id="confVerdict"></div>
-      </div>
-    </div>
-
-    <!-- Per-TF result cards stacked vertically -->
-    <div id="aiResultsList" style="display:none">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
-        <span class="badge-tag" id="resultsAssetLabel"></span>
-      </div>
-      <div id="aiResultCards" class="d-flex flex-column gap-3"></div>
     </div>
   </div>
 </div>
@@ -289,26 +249,24 @@ function buildResultCard(tf, data) {
 document.getElementById('runAI').addEventListener('click', async () => {
   const assetId  = document.getElementById('aiAsset').value;
   const selected = [...document.querySelectorAll('input[name="aiTf"]:checked')].map(c => c.value);
-
-  if (!assetId) { Toast.show('Select an asset first', 'warning'); return; }
+  if (!assetId)       { Toast.show('Select an asset first', 'warning'); return; }
   if (!selected.length) { Toast.show('Select at least one timeframe', 'warning'); return; }
 
   const assetLabel = document.getElementById('aiAsset').selectedOptions[0]?.text || '';
+  const panel      = document.getElementById('aiRightPanel');
+  const btn        = document.getElementById('runAI');
+  btn.disabled     = true;
+  btn.innerHTML    = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
 
-  const btn = document.getElementById('runAI');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
-
-  // Hide placeholder, show result panels
-  const ph = document.getElementById('aiPlaceholder');
-  ph.style.setProperty('display', 'none', 'important');
-  document.getElementById('confluenceSummary').style.setProperty('display', selected.length > 1 ? 'block' : 'none', 'important');
-  document.getElementById('aiResultsList').style.setProperty('display', 'block', 'important');
-  document.getElementById('confluenceAssetLabel').textContent = assetLabel;
-  document.getElementById('resultsAssetLabel').textContent = assetLabel;
-
-  // Render skeleton cards
-  document.getElementById('aiResultCards').innerHTML = selected.map(buildSkeletonCard).join('');
+  // Show skeleton immediately — replaces placeholder entirely
+  panel.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
+      <span class="badge-tag">${assetLabel}</span>
+    </div>
+    <div id="aiResultCards" class="d-flex flex-column gap-3">
+      ${selected.map(buildSkeletonCard).join('')}
+    </div>`;
 
   // Fetch all TFs in parallel
   const results = await Promise.all(
@@ -319,37 +277,62 @@ document.getElementById('runAI').addEventListener('click', async () => {
     )
   );
 
-  // Render result cards
-  document.getElementById('aiResultCards').innerHTML = results.map(r => buildResultCard(r.tf, r.data)).join('');
-
-  // Update confluence summary
-  if (selected.length > 1) {
-    let bull = 0, bear = 0, neut = 0;
-    results.forEach(r => {
-      if (!r.data) return;
-      const dir = (r.data.predicted_direction || '').toLowerCase();
-      if (dir === 'bullish') bull++;
-      else if (dir === 'bearish') bear++;
-      else neut++;
-    });
-    document.getElementById('confBullCount').textContent = bull;
-    document.getElementById('confBearCount').textContent = bear;
-    document.getElementById('confNeutCount').textContent = neut;
-
-    const total = bull + bear + neut;
-    let verdict = '', vClr = 'var(--text-muted)';
-    if (total > 0) {
-      if (bull >= total * 0.7)      { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Strong Bullish Confluence (${bull}/${total} TFs agree)`; vClr = 'var(--green)'; }
-      else if (bear >= total * 0.7) { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Strong Bearish Confluence (${bear}/${total} TFs agree)`; vClr = 'var(--red)'; }
-      else if (bull > bear)         { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Mild Bullish Bias (${bull} bullish, ${bear} bearish)`; vClr = 'var(--green)'; }
-      else if (bear > bull)         { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Mild Bearish Bias (${bear} bearish, ${bull} bullish)`; vClr = 'var(--red)'; }
-      else                          { verdict = `<i class="bi bi-dash me-1"></i>Mixed — No Clear Direction`; vClr = 'var(--yellow)'; }
-    }
-    document.getElementById('confVerdict').innerHTML =
-      `<span style="font-size:15px;font-weight:700;color:${vClr}">${verdict}</span>`;
+  // Compute confluence
+  let bull = 0, bear = 0, neut = 0;
+  results.forEach(r => {
+    if (!r.data) return;
+    const dir = (r.data.predicted_direction || '').toLowerCase();
+    if (dir === 'bullish') bull++;
+    else if (dir === 'bearish') bear++;
+    else neut++;
+  });
+  const total = bull + bear + neut;
+  let verdict = '', vClr = 'var(--text-muted)';
+  if (total > 0) {
+    if      (bull >= total * 0.7) { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Strong Bullish Confluence (${bull}/${total} TFs agree)`;  vClr = 'var(--green)'; }
+    else if (bear >= total * 0.7) { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Strong Bearish Confluence (${bear}/${total} TFs agree)`; vClr = 'var(--red)'; }
+    else if (bull > bear)         { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Mild Bullish Bias (${bull} bullish, ${bear} bearish)`;      vClr = 'var(--green)'; }
+    else if (bear > bull)         { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Mild Bearish Bias (${bear} bearish, ${bull} bullish)`;    vClr = 'var(--red)'; }
+    else                          { verdict = `<i class="bi bi-dash me-1"></i>Mixed — No Clear Direction`;                                           vClr = 'var(--yellow)'; }
   }
 
-  btn.disabled = false;
+  const confluenceHtml = selected.length > 1 ? `
+    <div class="section-card mb-3">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent"></i> Confluence Summary</span>
+        <span class="badge-tag">${assetLabel}</span>
+      </div>
+      <div class="section-card-body">
+        <div class="row g-3 text-center mb-3">
+          <div class="col-4"><div class="p-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)">
+            <div class="fw-900" style="font-size:28px;color:var(--green)">${bull}</div>
+            <div style="font-size:12px;color:var(--text-muted)">Bullish TFs</div>
+          </div></div>
+          <div class="col-4"><div class="p-3 rounded" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)">
+            <div class="fw-900" style="font-size:28px;color:var(--red)">${bear}</div>
+            <div style="font-size:12px;color:var(--text-muted)">Bearish TFs</div>
+          </div></div>
+          <div class="col-4"><div class="p-3 rounded" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2)">
+            <div class="fw-900" style="font-size:28px;color:var(--yellow)">${neut}</div>
+            <div style="font-size:12px;color:var(--text-muted)">Neutral TFs</div>
+          </div></div>
+        </div>
+        <div class="text-center"><span style="font-size:15px;font-weight:700;color:${vClr}">${verdict}</span></div>
+      </div>
+    </div>` : '';
+
+  // Replace panel with final content
+  panel.innerHTML = `
+    ${confluenceHtml}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
+      <span class="badge-tag">${assetLabel}</span>
+    </div>
+    <div class="d-flex flex-column gap-3">
+      ${results.map(r => buildResultCard(r.tf, r.data)).join('')}
+    </div>`;
+
+  btn.disabled  = false;
   btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Prediction';
 });
 
