@@ -3,6 +3,19 @@
 {% set active = 'signals' %}
 {% block breadcrumb %}<i class="bi bi-lightning-charge-fill me-2"></i> All Signals{% endblock %}
 
+{% block extra_css %}
+<style>
+@keyframes pulse {
+  0%,100% { opacity:1; }
+  50%      { opacity:.4; }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+.spin { animation: spin .6s linear infinite; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div>
@@ -43,6 +56,57 @@
     <div class="kpi-card purple">
       <div class="kpi-top"><div><div class="kpi-label">Top Signal</div><div class="fw-800" style="font-size:16px;margin-top:4px" id="statTop">—</div></div><div class="kpi-icon"><i class="bi bi-star-fill text-purple"></i></div></div>
       <div class="kpi-change text-muted fs-xs" id="statTopConf"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Open Positions P&L Panel ──────────────────────── -->
+<div class="section-card mb-4" id="pnlPanel">
+  <div class="section-card-header" style="cursor:pointer" onclick="togglePnlPanel()">
+    <span class="section-card-title">
+      <i class="bi bi-graph-up-arrow text-accent me-1"></i>
+      Open Positions — Live P&amp;L
+      <span class="badge-tag ms-2" id="pnlCount" style="display:none">0</span>
+    </span>
+    <div class="d-flex align-items-center gap-2">
+      <button class="btn btn-xs btn-outline-secondary" id="pnlRefreshBtn"
+              onclick="event.stopPropagation();loadOpenPnl()"
+              title="Refresh P&amp;L">
+        <i class="bi bi-arrow-clockwise"></i>
+      </button>
+      <i class="bi bi-chevron-down" id="pnlChevron" style="transition:transform .2s;color:var(--text-muted)"></i>
+    </div>
+  </div>
+  <div id="pnlPanelBody">
+    <div class="table-responsive">
+      <table class="smart-table" id="pnlTable" style="font-size:12px">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>TF</th>
+            <th>Type</th>
+            <th>Entry</th>
+            <th>Current</th>
+            <th>P&amp;L %</th>
+            <th>Dist. to SL</th>
+            <th>Dist. to T1</th>
+            <th>Age</th>
+          </tr>
+        </thead>
+        <tbody id="pnlTableBody">
+          <!-- skeleton -->
+          {% for _ in range(3) %}
+          <tr class="pnl-skeleton">
+            {% for _ in range(9) %}
+            <td><div style="background:var(--border);border-radius:4px;height:14px;width:70%;animation:pulse 1.2s infinite"></div></td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="px-3 py-2" style="border-top:1px solid var(--border)">
+      <span class="text-muted fs-xs" id="pnlLastUpdated">Fetching live prices…</span>
     </div>
   </div>
 </div>
@@ -308,9 +372,104 @@ function _buildPag(id, total, cur, fn) {
   el.innerHTML = html;
 }
 
+/* ── Open P&L panel ───────────────────────────────────── */
+let _pnlCollapsed = false;
+
+function togglePnlPanel() {
+  _pnlCollapsed = !_pnlCollapsed;
+  document.getElementById('pnlPanelBody').style.display = _pnlCollapsed ? 'none' : 'block';
+  const ch = document.getElementById('pnlChevron');
+  ch.style.transform = _pnlCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+}
+
+async function loadOpenPnl() {
+  const tbody = document.getElementById('pnlTableBody');
+  const btn   = document.getElementById('pnlRefreshBtn');
+  const ts    = document.getElementById('pnlLastUpdated');
+
+  btn.querySelector('i').classList.add('spin');
+
+  const data = await API.get('/signals/open-pnl');
+
+  btn.querySelector('i').classList.remove('spin');
+
+  if (!data || !Array.isArray(data)) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted fs-xs">
+      Failed to load P&L data.</td></tr>`;
+    return;
+  }
+
+  const countEl = document.getElementById('pnlCount');
+  countEl.textContent = data.length;
+  countEl.style.display = data.length ? 'inline' : 'none';
+
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted fs-xs">
+      <i class="bi bi-inbox me-2"></i>No open positions.</td></tr>`;
+    ts.textContent = 'No active signals.';
+    return;
+  }
+
+  function fmtDist(pct) {
+    if (pct === null || pct === undefined) return '<span class="text-muted">—</span>';
+    const cls = pct < 1 ? 'text-red' : pct < 2 ? 'text-yellow' : 'text-green';
+    return `<span class="${cls} fw-700">${pct.toFixed(2)}%</span>`;
+  }
+
+  function fmtPrice(v) {
+    if (v === null || v === undefined) return '—';
+    const n = parseFloat(v);
+    return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits:2})
+         : n >= 1    ? n.toFixed(4)
+         :             n.toFixed(6);
+  }
+
+  tbody.innerHTML = data.map(row => {
+    const pnl    = row.pnl_pct;
+    const pnlStr = pnl !== null && pnl !== undefined
+      ? `<span class="${pnl >= 0 ? 'text-green' : 'text-red'} fw-700">
+           ${pnl >= 0 ? '▲' : '▼'} ${Math.abs(pnl).toFixed(2)}%
+         </span>`
+      : '<span class="text-muted">—</span>';
+
+    const age = row.age_hours !== null && row.age_hours !== undefined
+      ? (row.age_hours < 1 ? Math.round(row.age_hours * 60) + 'm' : row.age_hours.toFixed(1) + 'h')
+      : '—';
+
+    return `<tr>
+      <td><a href="/asset/${row.asset_id}" style="color:var(--text-primary);font-weight:700;text-decoration:none"
+             onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">
+        ${row.asset}</a></td>
+      <td><span class="badge-tag">${row.timeframe}</span></td>
+      <td>${signalBadge(row.signal_type)}</td>
+      <td class="fw-700">${fmtPrice(row.entry_price)}</td>
+      <td class="fw-700">${row.current_price ? fmtPrice(row.current_price) : '<span class="text-muted">—</span>'}</td>
+      <td>${pnlStr}</td>
+      <td>${fmtDist(row.distance_to_sl_pct)}</td>
+      <td>${row.distance_to_t1_pct !== null && row.distance_to_t1_pct !== undefined
+           ? `<span class="text-muted fw-700">${row.distance_to_t1_pct.toFixed(2)}%</span>` : '<span class="text-muted">—</span>'}</td>
+      <td class="text-muted">${age}</td>
+    </tr>`;
+  }).join('');
+
+  const now = new Date();
+  ts.textContent = `Last updated: ${now.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · Auto-refreshes every 60s`;
+}
+
 document.addEventListener('app:ready', () => {
+  // Sync local Min Confidence slider to global MIN_CONFIDENCE
+  (function() {
+    const mc = window.MIN_CONFIDENCE || parseInt(localStorage.getItem('min_confidence'), 10) || 0;
+    const sl = document.getElementById('allConf');
+    const vl = document.getElementById('allConfVal');
+    if (sl && mc) { sl.value = mc; }
+    if (vl && mc) { vl.textContent = mc + '%'; }
+  })();
+
   loadSummary();
   loadSignals(1);
+  loadOpenPnl();
+  setInterval(loadOpenPnl, 60000);
 
   document.getElementById('refreshSignals').addEventListener('click', () => { loadSummary(); loadSignals(1); });
   document.getElementById('exportSignalsCsv').addEventListener('click', () => {

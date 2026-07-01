@@ -251,16 +251,19 @@ async function loadSignals(page) {
 }
 
 function _renderSignals(signals) {
-  const tbody  = document.getElementById('signalsBody');
+  const tbody   = document.getElementById('signalsBody');
   if (!tbody) return;
-  const search = (document.getElementById('signalSearch')?.value || '').toLowerCase();
+  const search  = (document.getElementById('signalSearch')?.value || '').toLowerCase();
+  const minConf = window.MIN_CONFIDENCE || 0;
 
-  const filtered = search
-    ? signals.filter(s => (s.asset||'').toLowerCase().includes(search) || (s.market||'').toLowerCase().includes(search))
-    : signals;
+  let filtered = signals.filter(s => (s.confidence_score || 0) >= minConf);
+  if (search) {
+    filtered = filtered.filter(s =>
+      (s.asset||'').toLowerCase().includes(search) || (s.market||'').toLowerCase().includes(search));
+  }
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-5">
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-5">
       <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
       No signals found yet. Go to a market page and click "Generate Signal" to create one.
     </td></tr>`;
@@ -289,8 +292,103 @@ function _renderSignals(signals) {
           <div style="color:#94a3b8;font-size:11px;margin-top:3px">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
         </div>
       </td>
+      <td id="conf_${s.id}" style="font-size:11px;color:var(--text-muted);white-space:nowrap">…</td>
       <td style="color:#7a8fa8;font-size:11px;white-space:nowrap">${shortTime(s.generated_at)}</td>
     </tr>`;
+  }).join('');
+
+  // Lazy-load confluence for each signal (non-blocking)
+  _loadConfluenceCells(filtered);
+  _loadConfluenceWidget(filtered);
+}
+
+/* ── Confluence cell lazy-loader ──────────────── */
+async function _loadConfluenceCells(signals) {
+  // Deduplicate by asset_id so we don't call the same endpoint multiple times
+  const seen = new Set();
+  for (const s of signals) {
+    if (!s.asset_id || seen.has(s.asset_id)) continue;
+    seen.add(s.asset_id);
+    // Fire and forget — update cells for all signals sharing this asset_id
+    (async () => {
+      try {
+        const data = await API.get(`/signals/confluence/${s.asset_id}`);
+        if (!data) return;
+        const label = _confluenceLabel(data);
+        // Update all cells on this page for this asset
+        signals
+          .filter(x => x.asset_id === s.asset_id)
+          .forEach(x => {
+            const cell = document.getElementById(`conf_${x.id}`);
+            if (cell) cell.innerHTML = label;
+          });
+      } catch (_) {}
+    })();
+  }
+}
+
+function _confluenceLabel(data) {
+  if (!data) return '—';
+  const buy  = data.buy_tfs  || 0;
+  const sell = data.sell_tfs || 0;
+  const total = data.total   || 7;
+  const dominant = buy >= sell ? 'BUY' : 'SELL';
+  const count    = Math.max(buy, sell);
+  const clr = dominant === 'BUY' ? 'var(--green)' : 'var(--red)';
+  return `<span style="font-weight:700;color:${clr}">${count}/${total}</span>
+    <span style="color:var(--text-muted)"> ${dominant}</span>`;
+}
+
+/* ── Confluence Score Widget ──────────────────── */
+async function _loadConfluenceWidget(signals) {
+  const widget = document.getElementById('confluenceWidget');
+  const barsEl = document.getElementById('confluenceBars');
+  if (!widget || !barsEl) return;
+
+  // Take top 5 unique assets from current signals list
+  const seen = new Set();
+  const topAssets = signals.filter(s => {
+    if (!s.asset_id || seen.has(s.asset_id)) return false;
+    seen.add(s.asset_id);
+    return true;
+  }).slice(0, 5);
+
+  if (!topAssets.length) return;
+
+  widget.style.display = '';
+  barsEl.innerHTML = '<div class="text-muted fs-sm">Computing confluence...</div>';
+
+  const results = await Promise.all(
+    topAssets.map(s => API.get(`/signals/confluence/${s.asset_id}`).catch(() => null))
+  );
+
+  const valid = results.filter(Boolean);
+  if (!valid.length) {
+    barsEl.innerHTML = '<div class="text-muted fs-sm">No confluence data available</div>';
+    return;
+  }
+
+  // Sort by dominant TF count descending
+  valid.sort((a, b) => Math.max(b.buy_tfs, b.sell_tfs) - Math.max(a.buy_tfs, a.sell_tfs));
+
+  barsEl.innerHTML = valid.map(d => {
+    const total  = d.total || 7;
+    const buyPct  = Math.round((d.buy_tfs  / total) * 100);
+    const sellPct = Math.round((d.sell_tfs / total) * 100);
+    const neuPct  = 100 - buyPct - sellPct;
+    return `<div class="d-flex align-items-center gap-3 mb-2">
+      <div style="width:80px;font-weight:700;font-size:12px;color:var(--text-primary);flex-shrink:0">${d.symbol}</div>
+      <div style="flex:1;height:14px;border-radius:7px;overflow:hidden;background:var(--bg-input);display:flex">
+        <div style="width:${buyPct}%;background:var(--green);height:100%" title="BUY ${d.buy_tfs}/${total}"></div>
+        <div style="width:${neuPct}%;background:rgba(100,116,139,0.4);height:100%" title="Neutral ${d.neutral_tfs}/${total}"></div>
+        <div style="width:${sellPct}%;background:var(--red);height:100%" title="SELL ${d.sell_tfs}/${total}"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);flex-shrink:0;min-width:90px">
+        <span style="color:var(--green)">${d.buy_tfs}B</span> /
+        <span style="color:var(--red)">${d.sell_tfs}S</span> /
+        <span>${d.neutral_tfs}N</span> of ${total}
+      </div>
+    </div>`;
   }).join('');
 }
 

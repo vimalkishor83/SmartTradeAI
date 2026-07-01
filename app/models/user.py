@@ -56,6 +56,9 @@ class User(db.Model):
     telegram_enabled = db.Column(db.Boolean, default=False)
     push_enabled = db.Column(db.Boolean, default=False)
     theme = db.Column(db.String(10), default="dark")
+    account_size = db.Column(db.Float, default=100000.0)
+    risk_per_trade_pct = db.Column(db.Float, default=1.0)
+    min_confidence_filter = db.Column(db.Integer, default=60)
 
     last_login = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -86,6 +89,9 @@ class User(db.Model):
             "subscription": self.subscription.name if self.subscription else "free",
             "is_active": self.is_active,
             "theme": self.theme,
+            "account_size": self.account_size or 100000.0,
+            "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,
+            "min_confidence_filter": self.min_confidence_filter if self.min_confidence_filter is not None else 60,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat(),
         }

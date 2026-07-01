@@ -119,7 +119,8 @@ def update_profile():
     user = get_current_user()
     data = request.get_json()
     allowed = ["first_name", "last_name", "phone", "theme", "email_notifications",
-               "telegram_chat_id", "telegram_enabled", "push_enabled"]
+               "telegram_chat_id", "telegram_enabled", "push_enabled",
+               "account_size", "risk_per_trade_pct", "min_confidence_filter"]
     for field in allowed:
         if field in data:
             setattr(user, field, data[field])

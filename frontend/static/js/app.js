@@ -5,6 +5,9 @@
 const PUBLIC_ROUTES = ['/login', '/register'];
 const IS_PUBLIC = PUBLIC_ROUTES.includes(window.location.pathname);
 
+// Expose global confidence threshold early — updated properly after Auth.init()
+window.MIN_CONFIDENCE = parseInt(localStorage.getItem('min_confidence'), 10) || 60;
+
 // ─── API Client ───────────────────────────────
 const API = {
   base: '/api/v1',
@@ -301,6 +304,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ── Auth check ──
   const authed = await Auth.init();
   if (!authed) return;  // redirected to login
+
+  // ── Global confidence filter ──────────────────────────────────────────────
+  (function initConfFilter() {
+    const slider = document.getElementById('globalConfFilter');
+    const valEl  = document.getElementById('globalConfVal');
+    if (!slider || !valEl) return;
+
+    // Seed from server preference, then localStorage override
+    const serverVal = Auth.user?.min_confidence_filter ?? 60;
+    const stored    = parseInt(localStorage.getItem('min_confidence'), 10);
+    const initial   = !isNaN(stored) ? stored : serverVal;
+
+    window.MIN_CONFIDENCE = initial;
+    slider.value    = initial;
+    valEl.textContent = initial + '%';
+
+    let _saveTimer;
+    slider.addEventListener('input', function () {
+      const val = parseInt(this.value, 10);
+      valEl.textContent     = val + '%';
+      window.MIN_CONFIDENCE = val;
+      localStorage.setItem('min_confidence', val);
+      clearTimeout(_saveTimer);
+      _saveTimer = setTimeout(() => {
+        API.put('/auth/me', { min_confidence_filter: val });
+      }, 500);
+    });
+  })();
 
   // Load shared navbar data
   Notifications.load();

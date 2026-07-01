@@ -6,13 +6,34 @@
 {% block content %}
 <div class="page-header">
   <div><h1 class="page-title">Watchlist</h1></div>
-  <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
-    <i class="bi bi-plus-circle me-1"></i> New List
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-sm btn-outline-secondary" id="viewListBtn" onclick="switchView('list')">
+      <i class="bi bi-list-ul me-1"></i>List View
+    </button>
+    <button class="btn btn-sm btn-primary" id="viewContextBtn" onclick="switchView('context')">
+      <i class="bi bi-grid-3x3-gap me-1"></i>Context View
+    </button>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
+      <i class="bi bi-plus-circle me-1"></i> New List
+    </button>
+  </div>
 </div>
 
-<div class="row g-4" id="watchlistsContainer">
-  <div class="col-12 text-center py-4 text-muted">Loading watchlists...</div>
+<!-- ── List View ─────────────────────────────────────────────────────────── -->
+<div id="listView">
+  <div class="row g-4" id="watchlistsContainer">
+    <div class="col-12 text-center py-4 text-muted">Loading watchlists...</div>
+  </div>
+</div>
+
+<!-- ── Context View ──────────────────────────────────────────────────────── -->
+<div id="contextView" style="display:none">
+  <div class="row g-3" id="contextGrid">
+    <div class="col-12 text-center py-5 text-muted">
+      <i class="bi bi-hourglass-split d-block mb-2" style="font-size:32px"></i>
+      Loading context data…
+    </div>
+  </div>
 </div>
 
 <!-- New Watchlist Modal -->
@@ -52,6 +73,25 @@
 
 {% block extra_js %}
 <script>
+let _contextLoaded = false;
+let _currentView = 'list';
+
+function switchView(view) {
+  _currentView = view;
+  document.getElementById('listView').style.display    = view === 'list'    ? 'block' : 'none';
+  document.getElementById('contextView').style.display = view === 'context' ? 'block' : 'none';
+  document.getElementById('viewListBtn').classList.toggle('btn-primary',       view === 'list');
+  document.getElementById('viewListBtn').classList.toggle('btn-outline-secondary', view !== 'list');
+  document.getElementById('viewContextBtn').classList.toggle('btn-primary',       view === 'context');
+  document.getElementById('viewContextBtn').classList.toggle('btn-outline-secondary', view !== 'context');
+
+  if (view === 'context' && !_contextLoaded) {
+    _contextLoaded = true;
+    loadContextView();
+  }
+}
+
+/* ── List View ─────────────────────────────────────── */
 async function loadWatchlists() {
   const data = await API.get('/watchlist/');
   if (!data) return;
@@ -98,6 +138,7 @@ document.getElementById('addAssetBtn').addEventListener('click', async () => {
     bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
     Toast.show('Asset added!', 'success');
     loadWatchlists();
+    _contextLoaded = false;  // invalidate context cache
   } else Toast.show(res?.error || 'Failed', 'error');
 });
 
@@ -105,6 +146,8 @@ async function removeItem(id) {
   await API.delete(`/watchlist/items/${id}`);
   Toast.show('Removed', 'success');
   loadWatchlists();
+  _contextLoaded = false;
+  if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
 }
 
 document.getElementById('createWl').addEventListener('click', async () => {
@@ -118,6 +161,105 @@ document.getElementById('createWl').addEventListener('click', async () => {
     loadWatchlists();
   }
 });
+
+/* ── Context View ──────────────────────────────────── */
+async function loadContextView() {
+  const grid = document.getElementById('contextGrid');
+  grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+    <div class="spinner-border spinner-border-sm me-2"></div> Fetching live context…
+  </div>`;
+
+  const data = await API.get('/watchlist/context');
+  if (!data?.context?.length) {
+    grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+      <i class="bi bi-star d-block mb-2" style="font-size:40px;color:var(--border)"></i>
+      No watchlist items yet. Add some assets to see context.
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = data.context.map(item => _buildContextCard(item)).join('');
+}
+
+function _confBadgeClass(score) {
+  if (!score) return '';
+  if (score.includes('3/3 BUY') || score.includes('3/3 SELL')) return score.includes('BUY') ? 'text-bg-success' : 'text-bg-danger';
+  if (score.includes('BUY'))  return 'text-bg-success';
+  if (score.includes('SELL')) return 'text-bg-danger';
+  return 'text-bg-secondary';
+}
+
+function _buildContextCard(item) {
+  const priceStr   = item.current_price != null ? formatPrice(item.current_price, item.market) : '—';
+  const changePct  = item.change_pct;
+  const changeStr  = changePct != null
+    ? `<span style="color:${changePct >= 0 ? 'var(--green)' : 'var(--red)'};font-size:13px;font-weight:600">${changePct >= 0 ? '▲' : '▼'}${Math.abs(changePct).toFixed(2)}%</span>`
+    : '';
+
+  const mktLabel = (item.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  let confluenceBadge = '';
+  if (item.confluence_score) {
+    const isBuy  = item.confluence_score.includes('BUY');
+    const isSell = item.confluence_score.includes('SELL');
+    const is3    = item.confluence_score.startsWith('3/3');
+    const bg     = is3 && isBuy ? 'var(--green)' : is3 && isSell ? 'var(--red)' : 'var(--border)';
+    confluenceBadge = `<span style="background:${bg};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${item.confluence_score}</span>`;
+  }
+
+  let lastSigStr = '—';
+  if (item.last_signal_type) {
+    const elapsed = item.last_signal_time
+      ? _elapsed(item.last_signal_time) : '';
+    const conf = item.last_signal_confidence ? `, ${Math.round(item.last_signal_confidence)}%` : '';
+    lastSigStr = `${item.last_signal_type} ${item.last_signal_tf || ''}${elapsed ? ' (' + elapsed + ')' : ''}${conf}`;
+  }
+
+  const alertStr = item.alert_price
+    ? `Alert: ${formatPrice(item.alert_price, item.market)}${item.distance_to_alert_pct != null ? ` (${item.distance_to_alert_pct > 0 ? '+' : ''}${item.distance_to_alert_pct.toFixed(1)}% away)` : ''}`
+    : 'No alert set';
+
+  const slHover = item.last_signal_stop_loss && item.current_price
+    ? `Distance to SL: ${Math.abs(((item.last_signal_stop_loss - item.current_price) / item.current_price) * 100).toFixed(2)}%`
+    : '';
+
+  return `<div class="col-sm-6 col-lg-4 col-xl-3">
+    <div class="section-card h-100" style="cursor:default" title="${slHover}">
+      <!-- Top row -->
+      <div class="d-flex justify-content-between align-items-start p-3 pb-1">
+        <div>
+          <div style="font-weight:800;font-size:16px;color:var(--text-primary)">${item.symbol}</div>
+          <span style="background:var(--bg-secondary);color:var(--text-muted);font-size:10px;padding:2px 6px;border-radius:8px">${mktLabel}</span>
+        </div>
+        <div>${confluenceBadge}</div>
+      </div>
+      <!-- Middle: price -->
+      <div class="px-3 py-2">
+        <div style="font-size:22px;font-weight:800;color:var(--text-primary)">${priceStr}</div>
+        <div>${changeStr}</div>
+      </div>
+      <!-- Bottom row -->
+      <div class="px-3 pb-3" style="font-size:11px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:8px;margin-top:4px">
+        <div class="d-flex align-items-center gap-1 mb-1">
+          <i class="bi bi-lightning-charge-fill" style="color:var(--accent);font-size:10px"></i>
+          <span>Last signal: ${lastSigStr}</span>
+        </div>
+        <div class="d-flex align-items-center gap-1">
+          <i class="bi bi-bell-fill" style="color:var(--yellow);font-size:10px"></i>
+          <span>${alertStr}</span>
+        </div>
+        ${slHover ? `<div class="mt-1" style="color:var(--red);font-size:10px"><i class="bi bi-shield-exclamation me-1"></i>${slHover}</div>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function _elapsed(iso) {
+  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (diff < 3600) return Math.round(diff / 60) + 'm ago';
+  if (diff < 86400) return Math.round(diff / 3600) + 'h ago';
+  return Math.round(diff / 86400) + 'd ago';
+}
 
 document.addEventListener('app:ready', loadWatchlists);
 </script>

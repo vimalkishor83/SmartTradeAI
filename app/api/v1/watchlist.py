@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from app.extensions import db
+from app.extensions import db, cache
 from app.models.watchlist import Watchlist, WatchlistItem
 from app.models.asset import Asset
+from app.models.signal import Signal
 from app.auth.decorators import login_required
+from datetime import datetime, timedelta
 
 watchlist_bp = Blueprint("watchlist", __name__)
 
@@ -57,6 +59,147 @@ def add_to_watchlist(wl_id):
     db.session.add(item)
     db.session.commit()
     return jsonify({"id": item.id, "symbol": asset.symbol}), 201
+
+
+@watchlist_bp.route("/context", methods=["GET"])
+@login_required
+def watchlist_context():
+    """Rich context view for all watchlist items — price, last signal, MTF confluence."""
+    user_id = get_jwt_identity()
+    ck = f"watchlist_context_{user_id}"
+    cached = cache.get(ck)
+    if cached:
+        return jsonify(cached), 200
+
+    lists = Watchlist.query.filter_by(user_id=user_id).all()
+    # Collect unique (item_id, asset) pairs across all watchlists
+    seen_asset_ids = set()
+    items_raw = []
+    for wl in lists:
+        for item in wl.items.all():
+            if item.asset_id not in seen_asset_ids and item.asset:
+                seen_asset_ids.add(item.asset_id)
+                items_raw.append(item)
+
+    from app.services.data.fetcher import market_fetcher
+    from app.services.indicators.calculator import calculate_all_indicators
+
+    def _mtf_confluence(asset):
+        """Return buy_count, sell_count, hold_count across 1h/4h/1d."""
+        tfs = ["1h", "4h", "1d"]
+        buy_c = sell_c = hold_c = 0
+        try:
+            dfs = market_fetcher.fetch_many([asset], tfs, limit=200).get(asset.symbol, {})
+            for tf in tfs:
+                df = dfs.get(tf)
+                if df is None or len(df) < 52:
+                    continue
+                ind   = calculate_all_indicators(df)
+                close = float(df["close"].iloc[-1])
+                rating = _compute_mtf_rating(ind, close)
+                if rating:
+                    if rating["signal_type"] == "BUY":  buy_c  += 1
+                    elif rating["signal_type"] == "SELL": sell_c += 1
+                    else:                                 hold_c += 1
+        except Exception:
+            pass
+        return buy_c, sell_c, hold_c
+
+    def _compute_mtf_rating(ind, close):
+        buy = sell = neutral = 0
+        def vote(v):
+            nonlocal buy, sell, neutral
+            if v == "buy":    buy     += 1
+            elif v == "sell": sell    += 1
+            else:             neutral += 1
+
+        rsi = ind.get("rsi")
+        if rsi is not None:
+            vote("buy" if rsi < 30 else "sell" if rsi > 70 else "neutral")
+        macd, macd_sig = ind.get("macd"), ind.get("macd_signal")
+        if macd is not None and macd_sig is not None:
+            vote("buy" if macd > macd_sig else "sell" if macd < macd_sig else "neutral")
+        for ma_key in ["ema20", "ema50", "ema200", "sma50"]:
+            ma = ind.get(ma_key)
+            if ma:
+                vote("buy" if close > ma else "sell")
+        total = buy + sell + neutral
+        if not total:
+            return None
+        score = (buy - sell) / total
+        if score >= 0.4:    sig = "BUY"
+        elif score <= -0.4: sig = "SELL"
+        else:               sig = "HOLD"
+        return {"signal_type": sig, "confidence": round(max(buy, sell) / total * 100)}
+
+    result = []
+    now_utc = datetime.utcnow()
+
+    for item in items_raw:
+        asset = item.asset
+        entry = {
+            "asset_id":  asset.id,
+            "symbol":    asset.symbol,
+            "name":      asset.name,
+            "market":    asset.market,
+            "alert_price": item.alert_price,
+            "current_price": None,
+            "change_pct": None,
+            "last_signal_type": None,
+            "last_signal_tf": None,
+            "last_signal_time": None,
+            "last_signal_confidence": None,
+            "last_signal_stop_loss": None,
+            "confluence_score": None,
+            "distance_to_alert_pct": None,
+        }
+
+        # Current price
+        try:
+            ticker = market_fetcher.fetch_ticker(asset)
+            if ticker:
+                entry["current_price"] = ticker.get("price")
+                entry["change_pct"]    = ticker.get("change_pct")
+        except Exception:
+            pass
+
+        # Last active signal
+        try:
+            sig = (Signal.query
+                   .filter_by(asset_id=asset.id, status="active")
+                   .order_by(Signal.generated_at.desc())
+                   .first())
+            if sig:
+                entry["last_signal_type"]       = sig.signal_type
+                entry["last_signal_tf"]         = sig.timeframe
+                entry["last_signal_time"]       = sig.generated_at.isoformat() if sig.generated_at else None
+                entry["last_signal_confidence"] = sig.confidence_score
+                entry["last_signal_stop_loss"]  = sig.stop_loss
+        except Exception:
+            pass
+
+        # MTF confluence
+        try:
+            buy_c, sell_c, hold_c = _mtf_confluence(asset)
+            total_tf = buy_c + sell_c + hold_c
+            if total_tf:
+                if buy_c >= sell_c:
+                    entry["confluence_score"] = f"{buy_c}/{total_tf} BUY"
+                else:
+                    entry["confluence_score"] = f"{sell_c}/{total_tf} SELL"
+        except Exception:
+            pass
+
+        # Distance to alert price
+        if entry["current_price"] and item.alert_price and item.alert_price > 0:
+            dist = (item.alert_price - entry["current_price"]) / entry["current_price"] * 100
+            entry["distance_to_alert_pct"] = round(dist, 2)
+
+        result.append(entry)
+
+    payload = {"context": result}
+    cache.set(ck, payload, timeout=60)
+    return jsonify(payload), 200
 
 
 @watchlist_bp.route("/items/<int:item_id>", methods=["DELETE"])

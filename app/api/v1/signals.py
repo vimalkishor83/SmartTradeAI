@@ -372,6 +372,156 @@ def _mtf_rating(ind, close):
     }
 
 
+@signals_bp.route("/confluence/<int:asset_id>", methods=["GET"])
+@login_required
+def get_confluence(asset_id):
+    """
+    Compute per-timeframe confluence for an asset.
+    Returns how many TFs align BUY vs SELL vs neutral.
+    """
+    from app.services.data.fetcher import market_fetcher
+    from app.services.indicators.calculator import calculate_all_indicators
+
+    asset = Asset.query.get_or_404(asset_id)
+
+    ck = f"confluence_{asset_id}"
+    cached = cache.get(ck)
+    if cached:
+        return jsonify(cached), 200
+
+    timeframes = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+    all_data = market_fetcher.fetch_many([asset], timeframes, limit=100)
+    dfs = all_data.get(asset.symbol, {})
+
+    # Get primary signal direction from the most recent DB signal
+    primary_signal = Signal.query.filter(
+        Signal.asset_id == asset_id,
+        Signal.status == "active",
+        Signal.signal_type.in_(["BUY", "SELL"]),
+    ).order_by(Signal.generated_at.desc()).first()
+    primary_direction = primary_signal.signal_type if primary_signal else None
+
+    buy_tfs = sell_tfs = neutral_tfs = 0
+    tf_details = {}
+
+    for tf in timeframes:
+        try:
+            df = dfs.get(tf)
+            if df is None or len(df) < 52:
+                neutral_tfs += 1
+                tf_details[tf] = None
+                continue
+            ind = calculate_all_indicators(df)
+            close = float(df["close"].iloc[-1])
+            rating = _mtf_rating(ind, close)
+            if rating is None:
+                neutral_tfs += 1
+                tf_details[tf] = None
+                continue
+            sig = rating["signal_type"]
+            tf_details[tf] = sig
+            if sig == "BUY":
+                buy_tfs += 1
+            elif sig == "SELL":
+                sell_tfs += 1
+            else:
+                neutral_tfs += 1
+        except Exception:
+            neutral_tfs += 1
+            tf_details[tf] = None
+
+    total = len(timeframes)
+    dominant = "BUY" if buy_tfs >= sell_tfs else "SELL"
+    dominant_count = max(buy_tfs, sell_tfs)
+    confluence_str = f"{dominant_count}/{total} {dominant}"
+
+    payload = {
+        "asset_id": asset_id,
+        "symbol": asset.symbol,
+        "buy_tfs": buy_tfs,
+        "sell_tfs": sell_tfs,
+        "neutral_tfs": neutral_tfs,
+        "total": total,
+        "confluence": confluence_str,
+        "primary_direction": primary_direction,
+        "tf_details": tf_details,
+    }
+    cache.set(ck, payload, timeout=120)
+    return jsonify(payload), 200
+
+
+@signals_bp.route("/open-pnl", methods=["GET"])
+@login_required
+def open_pnl():
+    """Return unrealized P&L for all active signals with live prices."""
+    cached = cache.get("open_pnl")
+    if cached:
+        return jsonify(cached), 200
+
+    active_signals = Signal.query.filter_by(status="active") \
+        .order_by(Signal.generated_at.desc()).all()
+
+    asset_ids  = {s.asset_id for s in active_signals}
+    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+
+    now = datetime.utcnow()
+    result = []
+    for s in active_signals:
+        asset = assets_map.get(s.asset_id)
+        if not asset:
+            continue
+
+        current_price = None
+        try:
+            ticker = market_fetcher.fetch_ticker(asset)
+            if ticker:
+                current_price = float(
+                    ticker.get("last_price") or ticker.get("price") or ticker.get("close") or 0
+                ) or None
+        except Exception:
+            pass
+
+        entry = float(s.entry_price or 0)
+        pnl_pct = None
+        if current_price and entry:
+            if s.signal_type == "BUY":
+                pnl_pct = (current_price - entry) / entry * 100
+            elif s.signal_type == "SELL":
+                pnl_pct = (entry - current_price) / entry * 100
+
+        sl   = float(s.stop_loss or 0) or None
+        tgt1 = float(s.target1   or 0) or None
+        dist_sl  = None
+        dist_t1  = None
+        if current_price and sl and entry:
+            dist_sl  = abs(current_price - sl)  / entry * 100
+        if current_price and tgt1 and entry:
+            dist_t1  = abs(tgt1 - current_price) / entry * 100
+
+        age_hours = round((now - s.generated_at).total_seconds() / 3600, 1) if s.generated_at else None
+
+        result.append({
+            "signal_id":          s.id,
+            "asset":              asset.symbol,
+            "asset_id":           asset.id,
+            "symbol":             asset.symbol,
+            "timeframe":          s.timeframe,
+            "signal_type":        s.signal_type,
+            "entry_price":        entry,
+            "current_price":      current_price,
+            "pnl_pct":            round(pnl_pct, 2) if pnl_pct is not None else None,
+            "stop_loss":          sl,
+            "target1":            tgt1,
+            "distance_to_sl_pct": round(dist_sl,  2) if dist_sl  is not None else None,
+            "distance_to_t1_pct": round(dist_t1,  2) if dist_t1  is not None else None,
+            "status":             s.status,
+            "age_hours":          age_hours,
+        })
+
+    cache.set("open_pnl", result, timeout=30)
+    return jsonify(result), 200
+
+
 @signals_bp.route("/", methods=["GET"])
 @login_required
 def get_signals():
@@ -704,6 +854,169 @@ def get_analytics():
         "confidence_buckets": confidence_buckets,
         "recent_performance": recent_performance,
         "top_assets": top_assets,
+    }), 200
+
+
+
+@signals_bp.route("/performance", methods=["GET"])
+@login_required
+def get_performance():
+    """Personal performance dashboard — aggregated stats from SignalHistory."""
+
+    hist_q = SignalHistory.query
+    total_closed = hist_q.count()
+    wins   = hist_q.filter(SignalHistory.outcome == "win").count()
+    win_rate = round(wins / total_closed * 100, 1) if total_closed else 0.0
+
+    avg_rr_row = db.session.query(
+        func.avg(Signal.risk_reward)
+    ).join(SignalHistory, SignalHistory.signal_id == Signal.id).scalar()
+    avg_rr = round(float(avg_rr_row), 2) if avg_rr_row else 0.0
+
+    total_pnl_row = db.session.query(func.sum(SignalHistory.pnl_pct)).scalar()
+    total_pnl = round(float(total_pnl_row), 2) if total_pnl_row else 0.0
+
+    avg_dur_row = db.session.query(func.avg(SignalHistory.duration_minutes)).scalar()
+    avg_duration = int(avg_dur_row) if avg_dur_row else 0
+
+    best_row  = db.session.query(func.max(SignalHistory.pnl_pct)).scalar()
+    worst_row = db.session.query(func.min(SignalHistory.pnl_pct)).scalar()
+    best_win   = round(float(best_row),  2) if best_row  is not None else 0.0
+    worst_loss = round(float(worst_row), 2) if worst_row is not None else 0.0
+
+    # ── By market ─────────────────────────────────────────────────────────────
+    mkt_rows = (
+        db.session.query(Asset.market, func.count(SignalHistory.id).label("trades"))
+        .join(SignalHistory, SignalHistory.asset_id == Asset.id)
+        .group_by(Asset.market).all()
+    )
+    by_market = []
+    for mkt, trades in mkt_rows:
+        w = (SignalHistory.query
+             .join(Asset, SignalHistory.asset_id == Asset.id)
+             .filter(Asset.market == mkt, SignalHistory.outcome == "win").count())
+        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
+                     .join(Asset, SignalHistory.asset_id == Asset.id)
+                     .filter(Asset.market == mkt).scalar())
+        by_market.append({
+            "market": mkt, "trades": trades,
+            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
+            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
+        })
+
+    # ── By timeframe ─────────────────────────────────────────────────────────
+    tf_rows = (
+        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("trades"))
+        .group_by(SignalHistory.timeframe).all()
+    )
+    by_timeframe = []
+    for tf, trades in tf_rows:
+        w = SignalHistory.query.filter_by(timeframe=tf, outcome="win").count()
+        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
+                     .filter(SignalHistory.timeframe == tf).scalar())
+        by_timeframe.append({
+            "timeframe": tf, "trades": trades,
+            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
+            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
+        })
+
+    # ── By signal type ────────────────────────────────────────────────────────
+    st_rows = (
+        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("trades"))
+        .group_by(SignalHistory.signal_type).all()
+    )
+    by_signal_type = []
+    for st, trades in st_rows:
+        w = SignalHistory.query.filter_by(signal_type=st, outcome="win").count()
+        by_signal_type.append({
+            "type": st, "trades": trades,
+            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
+        })
+
+    # ── By confidence bucket ──────────────────────────────────────────────────
+    by_confidence = []
+    for lo, hi, label in [(50,60,"50-60%"),(60,70,"60-70%"),(70,80,"70-80%"),(80,90,"80-90%"),(90,101,"90-100%")]:
+        brows  = SignalHistory.query.filter(
+            SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi)
+        trades = brows.count()
+        w      = brows.filter(SignalHistory.outcome == "win").count()
+        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
+                     .filter(SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi).scalar())
+        by_confidence.append({
+            "bucket": label, "trades": trades,
+            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
+            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
+        })
+
+    # ── Daily P&L last 30 days ────────────────────────────────────────────────
+    cutoff = datetime.utcnow() - timedelta(days=30)
+    day_rows = (
+        db.session.query(
+            func.date(SignalHistory.closed_at).label("day"),
+            func.count(SignalHistory.id).label("trades"),
+            func.sum(SignalHistory.pnl_pct).label("pnl"),
+        )
+        .filter(SignalHistory.closed_at >= cutoff)
+        .group_by(func.date(SignalHistory.closed_at))
+        .order_by(func.date(SignalHistory.closed_at))
+        .all()
+    )
+    daily_pnl = []
+    for row in day_rows:
+        day_str = str(row.day)
+        w = SignalHistory.query.filter(
+            func.date(SignalHistory.closed_at) == row.day,
+            SignalHistory.outcome == "win").count()
+        daily_pnl.append({
+            "date": day_str,
+            "pnl_pct": round(float(row.pnl), 2) if row.pnl else 0.0,
+            "trades": row.trades,
+            "wins": w,
+        })
+
+    # ── Hourly win rate (UTC+5:30 = +330 min) ────────────────────────────────
+    IST_OFFSET = 330
+    try:
+        hourly_rows = (
+            db.session.query(
+                func.strftime('%H', func.datetime(
+                    SignalHistory.closed_at, f'+{IST_OFFSET} minutes'
+                )).label("hour"),
+                func.count(SignalHistory.id).label("trades"),
+            )
+            .group_by("hour")
+            .all()
+        )
+        hourly_win_rate = []
+        for row in hourly_rows:
+            h = int(row.hour)
+            w = SignalHistory.query.filter(
+                func.strftime('%H', func.datetime(
+                    SignalHistory.closed_at, f'+{IST_OFFSET} minutes'
+                )) == str(h).zfill(2),
+                SignalHistory.outcome == "win"
+            ).count()
+            hourly_win_rate.append({"hour": h, "win_rate": round(w / row.trades * 100, 1) if row.trades else 0.0, "trades": row.trades})
+        hourly_win_rate.sort(key=lambda x: x["hour"])
+    except Exception:
+        hourly_win_rate = []
+
+    return jsonify({
+        "overall": {
+            "total_closed": total_closed,
+            "win_rate": win_rate,
+            "avg_rr": avg_rr,
+            "total_pnl_pct": total_pnl,
+            "avg_duration_minutes": avg_duration,
+            "best_win_pct": best_win,
+            "worst_loss_pct": worst_loss,
+        },
+        "by_market": by_market,
+        "by_timeframe": by_timeframe,
+        "by_signal_type": by_signal_type,
+        "by_confidence": by_confidence,
+        "daily_pnl": daily_pnl,
+        "hourly_win_rate": hourly_win_rate,
     }), 200
 
 

@@ -1,0 +1,389 @@
+{% extends "partials/base.html" %}
+{% block title %}Morning Briefing — SmartTrade AI{% endblock %}
+{% set active = 'briefing' %}
+{% block breadcrumb %}<i class="bi bi-sunrise me-2"></i>Morning Briefing{% endblock %}
+
+{% block extra_css %}
+<style>
+.briefing-date {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.market-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+.status-open  { background: rgba(16,185,129,0.18); color: var(--green); border: 1px solid rgba(16,185,129,0.35); }
+.status-closed{ background: rgba(239,68,68,0.18);  color: var(--red);   border: 1px solid rgba(239,68,68,0.35); }
+.mover-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: border-color .2s;
+}
+.mover-card:hover { border-color: var(--accent); }
+.mover-sym  { font-weight: 700; font-size: 13px; color: var(--text-primary); }
+.mover-name { font-size: 10px; color: var(--text-muted); }
+.mover-price{ font-size: 11px; color: var(--text-secondary); }
+.mover-chg  { font-weight: 700; font-size: 13px; }
+.mover-up   { color: var(--green); }
+.mover-down { color: var(--red); }
+.event-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.event-row:last-child { border-bottom: none; }
+.event-impact {
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.impact-high   { background: rgba(239,68,68,0.2);  color: var(--red);    border: 1px solid rgba(239,68,68,0.3); }
+.impact-medium { background: rgba(245,158,11,0.2); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+.impact-low    { background: rgba(100,116,139,0.2);color: #94a3b8;       border: 1px solid rgba(100,116,139,0.3); }
+.signal-mini-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: border-color .2s, transform .15s;
+  text-decoration: none;
+  display: block;
+  color: inherit;
+}
+.signal-mini-card:hover { border-color: var(--accent); transform: translateY(-1px); }
+.position-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.pnl-positive { color: var(--green); font-weight: 700; }
+.pnl-negative { color: var(--red);   font-weight: 700; }
+.section-sub-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+.dot-live {
+  display: inline-block;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 1.5s infinite;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+@keyframes pulse {
+  0%,100%{ opacity:1; transform:scale(1); }
+  50%{ opacity:.5; transform:scale(1.4); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title"><i class="bi bi-sunrise text-accent me-2"></i>Morning Briefing</h1>
+    <p class="page-subtitle">Your daily trading snapshot — updated on load</p>
+  </div>
+  <button class="btn btn-primary btn-sm px-3" onclick="loadAll()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
+</div>
+
+<!-- Section 1: Date + Market Status -->
+<div class="section-card mb-3">
+  <div class="section-card-body py-3">
+    <div class="d-flex flex-wrap align-items-center gap-3">
+      <div class="briefing-date" id="briefDate">—</div>
+      <div class="d-flex gap-2 flex-wrap" id="marketStatusBadges"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 2: Overnight Movers -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-arrow-left-right text-accent"></i> Overnight Movers</span>
+    <span class="text-muted fs-xs">From heatmap data</span>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="section-sub-title text-green"><i class="bi bi-arrow-up-circle-fill me-1"></i>Top Gainers</div>
+        <div id="gainersGrid" class="d-flex flex-column gap-2">
+          <div class="text-muted fs-sm">Loading...</div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="section-sub-title text-red"><i class="bi bi-arrow-down-circle-fill me-1"></i>Top Losers</div>
+        <div id="losersGrid" class="d-flex flex-column gap-2">
+          <div class="text-muted fs-sm">Loading...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 3: Economic Events -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-calendar-event text-accent"></i> Today's Economic Events</span>
+    <span class="badge-tag" id="eventDateLabel"></span>
+  </div>
+  <div class="section-card-body" id="eventsBody">
+    <div class="text-muted fs-sm">Loading...</div>
+  </div>
+</div>
+
+<!-- Section 4: Top Signals -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent"></i> Top Signals <span class="text-muted fs-xs">(last 6 hrs, ≥70% confidence)</span></span>
+    <span class="dot-live"></span><span class="text-muted fs-xs">Live</span>
+  </div>
+  <div class="section-card-body">
+    <div id="signalsGrid" class="row g-2">
+      <div class="text-muted fs-sm col-12">Loading...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Section 5: Open Positions -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent"></i> Your Open Positions</span>
+    <a href="/portfolio" class="btn btn-sm btn-outline-light">View Portfolio</a>
+  </div>
+  <div class="section-card-body" id="positionsBody">
+    <div class="text-muted fs-sm">Loading...</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+/* ── Date & Market Status ─────────────────────── */
+function renderDateAndStatus() {
+  const now = new Date();
+  const dateEl = document.getElementById('briefDate');
+  if (dateEl) {
+    dateEl.textContent = now.toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
+  const badgesEl = document.getElementById('marketStatusBadges');
+  if (!badgesEl) return;
+
+  // Crypto: always open
+  const cryptoHtml = `<span class="market-status-badge status-open">
+    <i class="bi bi-circle-fill" style="font-size:7px"></i> Crypto OPEN
+  </span>`;
+
+  // NSE: open 9:15–15:30 IST Mon–Fri
+  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+  const day = ist.getDay(); // 0=Sun,6=Sat
+  const h = ist.getHours(), m = ist.getMinutes();
+  const inMins = h * 60 + m;
+  const nseOpen = day >= 1 && day <= 5 && inMins >= 555 && inMins < 930; // 9:15=555, 15:30=930
+  const nseHtml = `<span class="market-status-badge ${nseOpen ? 'status-open' : 'status-closed'}">
+    <i class="bi bi-circle-fill" style="font-size:7px"></i> NSE ${nseOpen ? 'OPEN' : 'CLOSED'}
+  </span>`;
+
+  // Forex: closed Sat/Sun UTC
+  const utcDay = now.getUTCDay();
+  const forexOpen = utcDay >= 1 && utcDay <= 5;
+  const forexHtml = `<span class="market-status-badge ${forexOpen ? 'status-open' : 'status-closed'}">
+    <i class="bi bi-circle-fill" style="font-size:7px"></i> Forex ${forexOpen ? 'OPEN' : 'CLOSED'}
+  </span>`;
+
+  badgesEl.innerHTML = cryptoHtml + nseHtml + forexHtml;
+}
+
+/* ── Movers ───────────────────────────────────── */
+async function loadMovers() {
+  const data = await API.get('/market-data/heatmap');
+  const items = data?.heatmap || [];
+
+  const sorted = [...items].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
+  const gainers = sorted.slice(0, 5);
+  const losers  = sorted.slice(-5).reverse();
+
+  function moverCard(item) {
+    const up = item.change_pct >= 0;
+    const arrow = up ? '▲' : '▼';
+    const cls   = up ? 'mover-up' : 'mover-down';
+    return `<div class="mover-card">
+      <div>
+        <div class="mover-sym">${item.symbol}</div>
+        <div class="mover-name">${item.name || ''}</div>
+        <div class="mover-price">${item.price != null ? formatPrice(item.price) : '—'}</div>
+      </div>
+      <div class="mover-chg ${cls}">${arrow} ${Math.abs(item.change_pct || 0).toFixed(2)}%</div>
+    </div>`;
+  }
+
+  const gEl = document.getElementById('gainersGrid');
+  const lEl = document.getElementById('losersGrid');
+  if (gEl) gEl.innerHTML = gainers.length ? gainers.map(moverCard).join('') : '<div class="text-muted fs-sm">No data</div>';
+  if (lEl) lEl.innerHTML = losers.length  ? losers.map(moverCard).join('')  : '<div class="text-muted fs-sm">No data</div>';
+}
+
+/* ── Economic Events ──────────────────────────── */
+async function loadEvents() {
+  const data = await API.get('/news/economic-calendar');
+  const events = data?.events || [];
+
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+
+  const labelEl = document.getElementById('eventDateLabel');
+  if (labelEl) labelEl.textContent = today.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+
+  const todayEvents = events.filter(e => {
+    const evDate = (e.event_time || '').slice(0, 10);
+    return evDate === todayStr;
+  });
+
+  const el = document.getElementById('eventsBody');
+  if (!el) return;
+
+  if (!todayEvents.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-check-circle text-green me-2"></i>No major economic events today — good day to trade</div>';
+    return;
+  }
+
+  const impactClass = { high: 'impact-high', medium: 'impact-medium', low: 'impact-low' };
+  el.innerHTML = todayEvents.map(e => {
+    const imp = (e.impact || 'low').toLowerCase();
+    const time = e.event_time ? new Date(e.event_time + 'Z').toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+    return `<div class="event-row">
+      <span class="event-impact ${impactClass[imp] || 'impact-low'}">${(e.impact || 'LOW').toUpperCase()}</span>
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${e.title || '—'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${time} &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Signals ──────────────────────────────────── */
+async function loadSignals() {
+  const data = await API.get('/signals/', { per_page: 6, min_confidence: 70 });
+  const signals = data?.signals || [];
+
+  const el = document.getElementById('signalsGrid');
+  if (!el) return;
+
+  if (!signals.length) {
+    el.innerHTML = '<div class="text-muted fs-sm col-12">No high-confidence signals in the last 6 hours</div>';
+    return;
+  }
+
+  function timeAgo(iso) {
+    if (!iso) return '—';
+    const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if (secs < 60)   return `${secs}s ago`;
+    if (secs < 3600) return `${Math.floor(secs/60)}m ago`;
+    return `${Math.floor(secs/3600)}h ago`;
+  }
+
+  const sigClsMap = { BUY: 'text-green', SELL: 'text-red', HOLD: 'text-muted', EXIT: 'text-purple' };
+  const sigBgMap  = { BUY: 'rgba(16,185,129,0.15)', SELL: 'rgba(239,68,68,0.15)', HOLD: 'rgba(100,116,139,0.1)', EXIT: 'rgba(139,92,246,0.15)' };
+
+  el.innerHTML = signals.map(s => {
+    const cls = sigClsMap[s.signal_type] || '';
+    const bg  = sigBgMap[s.signal_type]  || '';
+    const conf = (s.confidence_score || 0).toFixed(0);
+    return `<div class="col-md-6 col-lg-4">
+      <a href="/asset/${s.asset_id}" class="signal-mini-card">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <div class="fw-700" style="font-size:14px">${s.asset || '—'}</div>
+          <span style="padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${bg};color:${cls.replace('text-','var(--')})">${s.signal_type}</span>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="badge-tag">${s.timeframe || '—'}</span>
+          <span style="font-size:11px;color:var(--text-muted)">${timeAgo(s.generated_at)}</span>
+        </div>
+        <div class="mt-2">
+          <div class="confidence-bar" style="height:5px">
+            <div class="confidence-fill" style="width:${conf}%;background:${conf>=85?'var(--green)':conf>=70?'var(--accent)':'var(--yellow)'}"></div>
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">${conf}% confidence</div>
+        </div>
+      </a>
+    </div>`;
+  }).join('');
+}
+
+/* ── Positions ────────────────────────────────── */
+async function loadPositions() {
+  const data = await API.get('/portfolio/');
+  const holdings = data?.holdings || [];
+
+  const el = document.getElementById('positionsBody');
+  if (!el) return;
+
+  if (!holdings.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>No open positions. <a href="/portfolio" style="color:var(--accent)">Add to your portfolio</a></div>';
+    return;
+  }
+
+  el.innerHTML = `<div class="table-responsive">
+    <table class="smart-table">
+      <thead><tr>
+        <th>Asset</th><th>Qty</th><th>Buy Price</th><th>Invested</th><th>P&amp;L</th><th>Notes</th>
+      </tr></thead>
+      <tbody>
+        ${holdings.map(h => {
+          const pnl = h.unrealized_pnl || 0;
+          const pnlPct = h.unrealized_pnl_pct || 0;
+          const pnlCls = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
+          const arrow  = pnl >= 0 ? '▲' : '▼';
+          return `<tr>
+            <td><span class="fw-700">${h.symbol || h.asset || '—'}</span></td>
+            <td>${h.quantity != null ? h.quantity : '—'}</td>
+            <td>${h.buy_price != null ? formatPrice(h.buy_price) : '—'}</td>
+            <td>${h.invested_value != null ? formatPrice(h.invested_value) : '—'}</td>
+            <td class="${pnlCls}">${arrow} ${Math.abs(pnlPct).toFixed(2)}%</td>
+            <td style="color:var(--text-muted);font-size:11px">${h.notes || '—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ── Init ─────────────────────────────────────── */
+function loadAll() {
+  renderDateAndStatus();
+  loadMovers();
+  loadEvents();
+  loadSignals();
+  loadPositions();
+}
+
+document.addEventListener('app:ready', loadAll);
+</script>
+{% endblock %}

@@ -91,14 +91,29 @@ def auto_generate():
     return render_template("dashboard/auto_generate.html")
 
 
+@views_bp.route("/briefing")
+def briefing():
+    return render_template("dashboard/briefing.html")
+
+
 @views_bp.route("/mtf-analysis")
 def mtf_analysis():
     return render_template("dashboard/mtf_analysis.html")
 
 
+@views_bp.route("/performance")
+def performance():
+    return render_template("dashboard/performance.html")
+
+
 @views_bp.route("/ta-summary")
 def ta_summary():
     return render_template("dashboard/ta_summary.html")
+
+
+@views_bp.route("/journal")
+def journal():
+    return render_template("dashboard/journal.html")
 
 
 @views_bp.route("/admin")

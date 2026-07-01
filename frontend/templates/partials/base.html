@@ -79,6 +79,9 @@
 
     <div class="nav-section">
       <span class="nav-label">Tools</span>
+      <a href="/briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
+        <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
+      </a>
       <a href="/signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
         <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
       </a>
@@ -103,6 +106,9 @@
       <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
         <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
       </a>
+      <a href="/journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
+        <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
+      </a>
     </div>
 
     <div class="nav-section">
@@ -125,6 +131,9 @@
       </a>
       <a href="/mtf-analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
         <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+      </a>
+      <a href="/performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
+        <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
       </a>
       <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
         <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
@@ -183,6 +192,13 @@
     </div>
 
     <div class="navbar-right">
+      <!-- Global confidence filter -->
+      <div class="d-none d-md-flex align-items-center gap-1" style="margin-right:4px">
+        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">Min Conf:</span>
+        <input type="range" id="globalConfFilter" min="50" max="95" step="5" value="60" style="width:80px;accent-color:var(--accent)">
+        <span id="globalConfVal" style="font-size:11px;color:var(--accent);font-weight:700;min-width:28px">60%</span>
+      </div>
+
       <!-- Theme toggle -->
       <button class="btn-icon" id="themeToggle" title="Toggle theme">
         <i class="bi bi-moon-fill"></i>

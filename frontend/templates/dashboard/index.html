@@ -151,6 +151,17 @@
   </div>
 </div>
 
+<!-- Confluence Score Widget -->
+<div class="section-card mb-3" id="confluenceWidget" style="display:none">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-layers-fill text-accent"></i> Confluence Score — Top Assets</span>
+    <span class="text-muted fs-xs">Timeframe agreement across 7 TFs</span>
+  </div>
+  <div class="section-card-body" id="confluenceBars">
+    <div class="text-muted fs-sm">Loading confluence data...</div>
+  </div>
+</div>
+
 <!-- Live Signals Table -->
 <div class="section-card mb-3">
   <div class="section-card-header">
@@ -191,11 +202,12 @@
           <th>Target 2</th>
           <th>R:R</th>
           <th>Confidence</th>
+          <th>Confluence</th>
           <th>Time</th>
         </tr>
       </thead>
       <tbody id="signalsBody">
-        <tr><td colspan="11" class="text-center text-muted py-4">Loading signals...</td></tr>
+        <tr><td colspan="12" class="text-center text-muted py-4">Loading signals...</td></tr>
       </tbody>
     </table>
   </div>

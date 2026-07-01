@@ -300,6 +300,83 @@
 
   </div><!-- /row -->
 </div><!-- /assetDetailRoot -->
+
+<!-- ── Pre-Trade Checklist floating button ──────────── -->
+<button id="checklistFab" onclick="openChecklist()"
+  style="position:fixed;bottom:28px;right:28px;z-index:1050;
+         background:var(--accent);color:#fff;border:none;border-radius:50px;
+         padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;
+         box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px">
+  <i class="bi bi-clipboard-check"></i> Pre-Trade Check
+</button>
+
+<!-- ── Checklist Modal ──────────────────────────────── -->
+<div id="checklistModal" style="display:none;position:fixed;inset:0;z-index:2000;
+     background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+     display:none;align-items:center;justify-content:center">
+  <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:14px;
+              width:100%;max-width:500px;margin:20px;box-shadow:0 20px 60px rgba(0,0,0,.5)">
+    <!-- Header -->
+    <div style="padding:18px 20px;border-bottom:1px solid var(--border);
+                display:flex;align-items:center;justify-content:space-between">
+      <div>
+        <div style="font-weight:800;font-size:16px">Pre-Trade Checklist</div>
+        <div class="text-muted fs-xs mt-1">{{ asset.symbol }} — verify before entering</div>
+      </div>
+      <button onclick="closeChecklist()"
+        style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
+
+    <!-- Checklist items -->
+    <div style="padding:16px 20px" id="checklistItems">
+      {% set items = [
+        "Trend is confirmed (higher TF aligned)",
+        "Volume is above average",
+        "No major news in next 2 hours",
+        "Stop Loss is defined and acceptable",
+        "R:R is at least 1.5:1",
+        "Not entering out of FOMO",
+        "Position size calculated",
+        "Entry level matches support/resistance"
+      ] %}
+      {% for item in items %}
+      <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;
+                    border-bottom:1px solid var(--border);cursor:pointer"
+             class="checklist-item-label">
+        <input type="checkbox" class="checklist-cb" data-index="{{ loop.index0 }}"
+               style="margin-top:2px;accent-color:var(--accent);width:16px;height:16px"
+               onchange="updateScore()" />
+        <span style="font-size:13px;line-height:1.5">{{ item }}</span>
+      </label>
+      {% endfor %}
+    </div>
+
+    <!-- Score bar -->
+    <div style="padding:16px 20px;border-top:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span class="fw-700" id="clScoreLabel">0/8 conditions met</span>
+        <span id="clScoreBadge" class="badge-tag">—</span>
+      </div>
+      <div style="background:var(--bg-secondary);border-radius:6px;height:8px;overflow:hidden">
+        <div id="clScoreBar"
+             style="height:100%;border-radius:6px;background:var(--red);width:0%;transition:width .3s,background .3s">
+        </div>
+      </div>
+      <div id="clWarning" class="mt-3 p-3" style="border-radius:8px;font-size:13px;font-weight:600;display:none"></div>
+
+      <div style="display:flex;gap:10px;margin-top:16px">
+        <button class="btn btn-sm btn-outline-secondary" onclick="resetChecklist()" style="flex:1">
+          <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
+        </button>
+        <button class="btn btn-sm btn-primary" onclick="logChecklist()" style="flex:1" id="clLogBtn">
+          <i class="bi bi-save me-1"></i>Log This Check
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -673,5 +750,102 @@ document.addEventListener('app:ready', () => {
   // Auto-refresh price every 30s
   setInterval(loadLivePrice, 30000);
 });
+
+/* ── Pre-Trade Checklist ──────────────────────────────── */
+function openChecklist() {
+  const modal = document.getElementById('checklistModal');
+  modal.style.display = 'flex';
+  // Restore saved state if exists
+  const today = new Date().toISOString().slice(0, 10);
+  const saved = localStorage.getItem(`checklist_${ASSET_ID}_${today}`);
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      document.querySelectorAll('.checklist-cb').forEach((cb, i) => {
+        cb.checked = !!(data.checks && data.checks[i]);
+      });
+      updateScore();
+    } catch(e) {}
+  }
+}
+
+function closeChecklist() {
+  document.getElementById('checklistModal').style.display = 'none';
+}
+
+// Close on backdrop click
+document.getElementById('checklistModal').addEventListener('click', function(e) {
+  if (e.target === this) closeChecklist();
+});
+
+function updateScore() {
+  const cbs    = document.querySelectorAll('.checklist-cb');
+  const score  = Array.from(cbs).filter(cb => cb.checked).length;
+  const total  = cbs.length;
+  const pct    = (score / total * 100).toFixed(0);
+
+  document.getElementById('clScoreLabel').textContent = `${score}/${total} conditions met`;
+
+  const bar  = document.getElementById('clScoreBar');
+  const warn = document.getElementById('clWarning');
+  const badge = document.getElementById('clScoreBadge');
+
+  bar.style.width = pct + '%';
+
+  if (score < 5) {
+    bar.style.background  = 'var(--red)';
+    warn.style.display    = 'block';
+    warn.style.background = 'rgba(239,68,68,.12)';
+    warn.style.color      = 'var(--red)';
+    warn.innerHTML        = '<i class="bi bi-exclamation-triangle me-2"></i>High risk — reconsider entry';
+    badge.textContent     = 'High Risk';
+    badge.style.color     = 'var(--red)';
+  } else if (score <= 6) {
+    bar.style.background  = 'var(--yellow)';
+    warn.style.display    = 'block';
+    warn.style.background = 'rgba(245,158,11,.12)';
+    warn.style.color      = 'var(--yellow)';
+    warn.innerHTML        = '<i class="bi bi-exclamation-circle me-2"></i>Proceed with caution';
+    badge.textContent     = 'Caution';
+    badge.style.color     = 'var(--yellow)';
+  } else {
+    bar.style.background  = 'var(--green)';
+    warn.style.display    = 'block';
+    warn.style.background = 'rgba(16,185,129,.12)';
+    warn.style.color      = 'var(--green)';
+    warn.innerHTML        = '<i class="bi bi-check-circle me-2"></i>Good setup — conditions favourable';
+    badge.textContent     = 'Good Setup';
+    badge.style.color     = 'var(--green)';
+  }
+}
+
+function resetChecklist() {
+  document.querySelectorAll('.checklist-cb').forEach(cb => { cb.checked = false; });
+  const bar  = document.getElementById('clScoreBar');
+  const warn = document.getElementById('clWarning');
+  const badge = document.getElementById('clScoreBadge');
+  bar.style.width = '0%';
+  bar.style.background = 'var(--red)';
+  warn.style.display = 'none';
+  badge.textContent = '—';
+  badge.style.color = '';
+  document.getElementById('clScoreLabel').textContent = '0/8 conditions met';
+}
+
+function logChecklist() {
+  const cbs   = document.querySelectorAll('.checklist-cb');
+  const score = Array.from(cbs).filter(cb => cb.checked).length;
+  const checks = Array.from(cbs).map(cb => cb.checked);
+  const today = new Date().toISOString().slice(0, 10);
+  const key   = `checklist_${ASSET_ID}_${today}`;
+  localStorage.setItem(key, JSON.stringify({
+    score, checks, asset: ASSET_NAME, timestamp: new Date().toISOString(),
+  }));
+  Toast.show(`Checklist logged — ${score}/8 conditions met`, 'success');
+  document.getElementById('clLogBtn').innerHTML = '<i class="bi bi-check-circle me-1"></i>Logged!';
+  setTimeout(() => {
+    document.getElementById('clLogBtn').innerHTML = '<i class="bi bi-save me-1"></i>Log This Check';
+  }, 2000);
+}
 </script>
 {% endblock %}

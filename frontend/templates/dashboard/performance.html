@@ -1,0 +1,376 @@
+{% extends "partials/base.html" %}
+{% block title %}My Performance — SmartTrade AI{% endblock %}
+{% set active = 'performance' %}
+{% block breadcrumb %}<i class="bi bi-graph-up-arrow me-2"></i> My Performance{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Performance</h1>
+    <p class="page-subtitle">Aggregated stats from your closed signals</p>
+  </div>
+  <button class="btn btn-sm btn-primary" id="refreshPerf">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
+</div>
+
+<!-- ── Row 1: KPI Cards ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-4" id="kpiRow">
+  <div class="col-6 col-md">
+    <div class="kpi-card green">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="kpiWinRate">—</div></div>
+        <div class="kpi-icon"><i class="bi bi-trophy-fill text-green"></i></div>
+      </div>
+      <div class="kpi-change text-muted fs-xs" id="kpiTotalClosed">0 closed trades</div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Total Closed</div><div class="kpi-value" id="kpiClosed">—</div></div>
+        <div class="kpi-icon"><i class="bi bi-check2-circle text-blue"></i></div>
+      </div>
+      <div class="kpi-change text-muted fs-xs">historical signals</div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="kpiAvgRR">—</div></div>
+        <div class="kpi-icon"><i class="bi bi-arrows-expand text-yellow"></i></div>
+      </div>
+      <div class="kpi-change text-muted fs-xs">risk:reward ratio</div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="kpi-card purple">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Best Timeframe</div><div class="kpi-value" id="kpiBestTF" style="font-size:18px">—</div></div>
+        <div class="kpi-icon"><i class="bi bi-clock-fill text-purple"></i></div>
+      </div>
+      <div class="kpi-change text-muted fs-xs" id="kpiBestTFWR"></div>
+    </div>
+  </div>
+  <div class="col-6 col-md">
+    <div class="kpi-card">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Best Market</div><div class="kpi-value" id="kpiBestMkt" style="font-size:18px">—</div></div>
+        <div class="kpi-icon"><i class="bi bi-globe2"></i></div>
+      </div>
+      <div class="kpi-change text-muted fs-xs" id="kpiBestMktWR"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 2: Timeframe Win Rate + Signal Type Doughnut ───────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Win Rate by Timeframe</span>
+      </div>
+      <div style="height:220px;padding:12px">
+        <canvas id="tfWinChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Signals by Type</span>
+      </div>
+      <div style="height:220px;padding:12px">
+        <canvas id="typeDonut"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 3: Daily P&L Line + Market Win Rate Horizontal Bar ─────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-md-7">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Daily P&amp;L % — Last 30 Days (Running Total)</span>
+      </div>
+      <div style="height:220px;padding:12px">
+        <canvas id="dailyPnlChart"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-5">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Win Rate by Market</span>
+      </div>
+      <div style="height:220px;padding:12px">
+        <canvas id="mktWinChart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Row 4: Confidence Buckets Table + Hourly Heatmap ──────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Confidence Buckets</span>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead>
+            <tr>
+              <th>Confidence</th><th>Trades</th><th>Win Rate</th><th>Avg P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody id="confTable">
+            <tr><td colspan="4" class="text-center text-muted py-4">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title">Best/Worst Hours (IST)</span>
+        <span class="text-muted fs-xs">0–23h · green=good, red=bad, gray=no data</span>
+      </div>
+      <div style="padding:16px">
+        <div id="hourHeatmap" style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px"></div>
+        <div class="d-flex align-items-center gap-3 mt-3" style="font-size:11px;color:var(--text-muted)">
+          <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--green);vertical-align:middle"></span> High WR</span>
+          <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--red);vertical-align:middle"></span> Low WR</span>
+          <span><span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:var(--border);vertical-align:middle"></span> No data</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _tfChart = null, _typeChart = null, _pnlChart = null, _mktChart = null;
+
+function _chartDefaults() {
+  if (typeof Chart === 'undefined') return;
+  Chart.defaults.color       = '#64748b';
+  Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+  Chart.defaults.font.size   = 12;
+}
+
+async function loadPerformance() {
+  const data = await API.get('/signals/performance');
+  if (!data) return;
+
+  const o = data.overall || {};
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
+
+  set('kpiWinRate',   o.win_rate    != null ? o.win_rate.toFixed(1) + '%' : '—');
+  set('kpiClosed',    o.total_closed ?? 0);
+  set('kpiTotalClosed', `${o.total_closed ?? 0} closed trades`);
+  set('kpiAvgRR',     o.avg_rr       != null ? o.avg_rr.toFixed(2) + 'x' : '—');
+
+  // Best TF
+  const tfs = (data.by_timeframe || []).filter(t => t.trades >= 3);
+  if (tfs.length) {
+    const best = tfs.reduce((a, b) => b.win_rate > a.win_rate ? b : a);
+    set('kpiBestTF',   best.timeframe);
+    set('kpiBestTFWR', `${best.win_rate.toFixed(0)}% win rate · ${best.trades} trades`);
+  }
+
+  // Best Market
+  const mkts = (data.by_market || []).filter(m => m.trades >= 3);
+  if (mkts.length) {
+    const best = mkts.reduce((a, b) => b.win_rate > a.win_rate ? b : a);
+    set('kpiBestMkt',   (best.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()));
+    set('kpiBestMktWR', `${best.win_rate.toFixed(0)}% win rate · ${best.trades} trades`);
+  }
+
+  _buildTfChart(data.by_timeframe || []);
+  _buildTypeDonut(data.by_signal_type || []);
+  _buildDailyPnl(data.daily_pnl || []);
+  _buildMktChart(data.by_market || []);
+  _buildConfTable(data.by_confidence || []);
+  _buildHourHeatmap(data.hourly_win_rate || []);
+}
+
+function _buildTfChart(rows) {
+  const ctx = document.getElementById('tfWinChart');
+  if (!ctx) return;
+  if (_tfChart) { _tfChart.destroy(); _tfChart = null; }
+  if (!rows.length) return;
+
+  const TF_ORDER = ['1m','5m','15m','30m','1h','2h','4h','1d','1w'];
+  rows.sort((a, b) => TF_ORDER.indexOf(a.timeframe) - TF_ORDER.indexOf(b.timeframe));
+
+  _tfChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.timeframe),
+      datasets: [{
+        label: 'Win Rate %',
+        data: rows.map(r => r.win_rate),
+        backgroundColor: rows.map(r => r.win_rate >= 60 ? 'rgba(16,185,129,0.75)' : r.win_rate >= 45 ? 'rgba(245,158,11,0.75)' : 'rgba(239,68,68,0.75)'),
+        borderRadius: 5, borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%', stepSize: 25 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        x: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+function _buildTypeDonut(rows) {
+  const ctx = document.getElementById('typeDonut');
+  if (!ctx) return;
+  if (_typeChart) { _typeChart.destroy(); _typeChart = null; }
+  if (!rows.length) return;
+
+  const colorMap = { BUY: 'rgba(16,185,129,0.85)', SELL: 'rgba(239,68,68,0.85)', HOLD: 'rgba(245,158,11,0.85)', EXIT: 'rgba(139,92,246,0.85)' };
+  _typeChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: rows.map(r => r.type),
+      datasets: [{
+        data: rows.map(r => r.trades),
+        backgroundColor: rows.map(r => colorMap[r.type] || 'rgba(100,116,139,0.7)'),
+        borderWidth: 2,
+        hoverOffset: 6,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'bottom' } },
+    },
+  });
+}
+
+function _buildDailyPnl(rows) {
+  const ctx = document.getElementById('dailyPnlChart');
+  if (!ctx) return;
+  if (_pnlChart) { _pnlChart.destroy(); _pnlChart = null; }
+  if (!rows.length) return;
+
+  // Build running total
+  let running = 0;
+  const runningVals = rows.map(r => { running += r.pnl_pct; return parseFloat(running.toFixed(2)); });
+
+  _pnlChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: rows.map(r => r.date.slice(5)),  // MM-DD
+      datasets: [{
+        label: 'Cumulative P&L %',
+        data: runningVals,
+        borderColor: running >= 0 ? '#10b981' : '#ef4444',
+        backgroundColor: running >= 0 ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)',
+        fill: true,
+        tension: 0.35,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } },
+      },
+    },
+  });
+}
+
+function _buildMktChart(rows) {
+  const ctx = document.getElementById('mktWinChart');
+  if (!ctx) return;
+  if (_mktChart) { _mktChart.destroy(); _mktChart = null; }
+  if (!rows.length) return;
+
+  const labels = rows.map(r => (r.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()));
+  _mktChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Win Rate %',
+        data: rows.map(r => r.win_rate),
+        backgroundColor: rows.map(r => r.win_rate >= 60 ? 'rgba(99,102,241,0.75)' : 'rgba(100,116,139,0.5)'),
+        borderRadius: 5,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { grid: { display: false } },
+      },
+    },
+  });
+}
+
+function _buildConfTable(rows) {
+  const tbody = document.getElementById('confTable');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No data yet</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const wrColor = r.win_rate >= 70 ? 'var(--green)' : r.win_rate >= 50 ? 'var(--yellow)' : 'var(--red)';
+    const pnlColor = r.avg_pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    return `<tr>
+      <td><span class="badge-tag">${r.bucket}</span></td>
+      <td>${r.trades}</td>
+      <td style="color:${wrColor};font-weight:700">${r.win_rate.toFixed(1)}%</td>
+      <td style="color:${pnlColor};font-weight:700">${r.avg_pnl >= 0 ? '+' : ''}${r.avg_pnl.toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function _buildHourHeatmap(rows) {
+  const container = document.getElementById('hourHeatmap');
+  if (!container) return;
+  const byHour = {};
+  rows.forEach(r => { byHour[r.hour] = r; });
+
+  let html = '';
+  for (let h = 0; h < 24; h++) {
+    const d = byHour[h];
+    let bg, title, label;
+    if (!d || d.trades === 0) {
+      bg = 'var(--border)';
+      title = `${h}:00 — no data`;
+      label = h + ':00';
+    } else {
+      const wr = d.win_rate;
+      // Interpolate green (120°) to red (0°) based on win rate 30–80%
+      const pct = Math.max(0, Math.min(1, (wr - 30) / 50));
+      const hue = Math.round(pct * 120);
+      bg = `hsla(${hue}, 70%, 45%, 0.85)`;
+      title = `${h}:00 IST — ${wr.toFixed(0)}% win rate (${d.trades} trades)`;
+      label = h + ':00';
+    }
+    html += `<div title="${title}" style="background:${bg};border-radius:6px;padding:6px 4px;text-align:center;font-size:10px;color:var(--text-primary);cursor:default;font-weight:600">${label}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+document.addEventListener('app:ready', () => {
+  _chartDefaults();
+  loadPerformance();
+  document.getElementById('refreshPerf')?.addEventListener('click', loadPerformance);
+});
+</script>
+{% endblock %}

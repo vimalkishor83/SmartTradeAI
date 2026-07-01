@@ -3,60 +3,244 @@
 {% set active = 'risk' %}
 {% block breadcrumb %}<i class="bi bi-shield-check me-2"></i> Risk Manager{% endblock %}
 
+{% block extra_css %}
+<style>
+  .account-bar {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 16px;
+  }
+  .account-bar .field-group { display: flex; flex-direction: column; gap: 4px; }
+  .account-bar label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
+  .account-bar .input-with-prefix { display: flex; align-items: center; }
+  .account-bar .input-prefix {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-right: none;
+    border-radius: 6px 0 0 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .account-bar .input-with-prefix input {
+    border-radius: 0 6px 6px 0;
+    border-left: none;
+    width: 130px;
+  }
+  .account-bar .input-suffix {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .account-bar .input-with-suffix input {
+    border-radius: 6px 0 0 6px;
+    border-right: none;
+    width: 80px;
+  }
+
+  .direction-toggle { display: flex; gap: 0; }
+  .direction-toggle button {
+    padding: 6px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .direction-toggle button:first-child { border-radius: 6px 0 0 6px; }
+  .direction-toggle button:last-child  { border-radius: 0 6px 6px 0; }
+  .direction-toggle button.buy.active  { background: var(--green); border-color: var(--green); color: #fff; }
+  .direction-toggle button.sell.active { background: var(--red);   border-color: var(--red);   color: #fff; }
+
+  .result-metric {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .result-metric .rm-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .result-metric .rm-value { font-size: 18px; font-weight: 800; }
+
+  .pnl-bar-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    height: 36px;
+    margin-top: 10px;
+    border: 1px solid var(--border);
+  }
+  .pnl-loss-seg {
+    background: linear-gradient(90deg, rgba(239,68,68,.8), rgba(239,68,68,.4));
+    display: flex; align-items: center; justify-content: flex-start;
+    padding: 0 10px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    min-width: 60px; white-space: nowrap; overflow: hidden;
+    transition: width .4s;
+  }
+  .pnl-profit-seg {
+    background: linear-gradient(90deg, rgba(16,185,129,.4), rgba(16,185,129,.8));
+    display: flex; align-items: center; justify-content: flex-end;
+    padding: 0 10px;
+    font-size: 12px; font-weight: 700; color: #fff;
+    min-width: 60px; white-space: nowrap; overflow: hidden;
+    transition: width .4s;
+    flex: 1;
+  }
+
+  .quick-signal-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .quick-signal-row:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div><h1 class="page-title">Risk Management</h1><p class="page-subtitle">Position sizing and risk-reward calculator</p></div>
 </div>
 
+<!-- ── My Account Bar ──────────────────────────────────── -->
+<div class="account-bar" id="accountBar">
+  <div class="field-group">
+    <label>Account Size</label>
+    <div class="input-with-prefix">
+      <span class="input-prefix">₹</span>
+      <input type="number" class="form-control form-control-sm" id="accAccountSize" value="100000" min="1000" step="1000" />
+    </div>
+  </div>
+  <div class="field-group">
+    <label>Risk Per Trade</label>
+    <div class="input-with-suffix">
+      <input type="number" class="form-control form-control-sm" id="accRiskPct" value="1" min="0.1" max="20" step="0.1" />
+      <span class="input-suffix">%</span>
+    </div>
+  </div>
+  <div class="ms-auto d-flex align-items-center gap-2">
+    <span class="text-muted fs-xs" id="accSavedMsg" style="display:none">
+      <i class="bi bi-check-circle text-green me-1"></i>Saved
+    </span>
+    <button class="btn btn-sm btn-primary" id="saveAccBtn">
+      <i class="bi bi-save me-1"></i>Save Settings
+    </button>
+  </div>
+</div>
+
+<!-- ── Trade Calculator ────────────────────────────────── -->
 <div class="row g-4">
   <div class="col-lg-6">
     <div class="section-card">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calculator text-accent"></i> Position Size Calculator</span></div>
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-calculator text-accent"></i> Trade Calculator</span>
+      </div>
       <div class="section-card-body">
-        <div class="row g-3 mb-3">
+        <div class="row g-3">
           <div class="col-6">
-            <label class="form-label">Capital (₹)</label>
-            <input type="number" class="form-control" id="capital" value="100000" />
+            <label class="form-label">Asset Symbol</label>
+            <input type="text" class="form-control" id="calcSymbol" placeholder="e.g. BTCUSDT" />
           </div>
           <div class="col-6">
-            <label class="form-label">Risk % per Trade</label>
-            <input type="number" class="form-control" id="riskPct" value="2" min="0.1" max="10" step="0.1" />
+            <label class="form-label">Direction</label>
+            <div class="direction-toggle">
+              <button class="buy active" id="dirBuy" onclick="setDir('BUY')">BUY</button>
+              <button class="sell" id="dirSell" onclick="setDir('SELL')">SELL</button>
+            </div>
           </div>
-          <div class="col-6">
+          <div class="col-4">
             <label class="form-label">Entry Price</label>
-            <input type="number" class="form-control" id="entryPrice" placeholder="e.g. 19500" step="any" />
+            <input type="number" class="form-control" id="calcEntry" placeholder="e.g. 19500" step="any" />
           </div>
-          <div class="col-6">
+          <div class="col-4">
             <label class="form-label">Stop Loss</label>
-            <input type="number" class="form-control" id="stopLoss" placeholder="e.g. 19200" step="any" />
+            <input type="number" class="form-control" id="calcSL" placeholder="e.g. 19200" step="any" />
           </div>
-          <div class="col-6">
-            <label class="form-label">Lot Size</label>
-            <input type="number" class="form-control" id="lotSize" value="1" step="any" />
-          </div>
-          <div class="col-6">
-            <label class="form-label">Target Price (optional)</label>
-            <input type="number" class="form-control" id="targetPrice" placeholder="e.g. 20000" step="any" />
+          <div class="col-4">
+            <label class="form-label">Target Price</label>
+            <input type="number" class="form-control" id="calcTarget" placeholder="e.g. 20000" step="any" />
           </div>
         </div>
-        <button class="btn btn-primary w-100" id="calcBtn"><i class="bi bi-calculator me-1"></i> Calculate</button>
+        <div class="mt-3 text-muted fs-xs">
+          <i class="bi bi-info-circle me-1"></i>Results update automatically as you type
+        </div>
       </div>
     </div>
   </div>
 
   <div class="col-lg-6">
-    <div class="section-card h-100" id="riskResults" style="display:none">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bar-chart text-green"></i> Results</span></div>
+    <div class="section-card h-100" id="calcResults" style="display:none">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart text-green"></i> Results</span>
+      </div>
       <div class="section-card-body">
-        <div class="row g-3" id="riskResultGrid"></div>
-        <div class="mt-3" id="rrResult"></div>
+        <div class="row g-2">
+          <div class="col-6">
+            <div class="result-metric">
+              <div class="rm-label">Position Size</div>
+              <div class="rm-value" id="rmUnits">—</div>
+              <div class="text-muted fs-xs" id="rmValue">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="result-metric">
+              <div class="rm-label">R:R Ratio</div>
+              <div class="rm-value" id="rmRR">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="result-metric">
+              <div class="rm-label">Max Loss</div>
+              <div class="rm-value text-red" id="rmMaxLoss">—</div>
+            </div>
+          </div>
+          <div class="col-6">
+            <div class="result-metric">
+              <div class="rm-label">Potential Profit</div>
+              <div class="rm-value text-green" id="rmProfit">—</div>
+            </div>
+          </div>
+        </div>
+        <div class="pnl-bar-wrap" id="pnlBar" style="display:none">
+          <div class="pnl-loss-seg" id="pnlLossSeg">LOSS ₹0</div>
+          <div class="pnl-profit-seg" id="pnlProfitSeg">PROFIT ₹0</div>
+        </div>
       </div>
     </div>
-    <div id="riskPlaceholder" class="d-flex align-items-center justify-content-center h-100" style="min-height:300px">
+    <div id="calcPlaceholder" class="d-flex align-items-center justify-content-center h-100" style="min-height:280px">
       <div class="text-center">
         <i class="bi bi-shield" style="font-size:64px;color:var(--border)"></i>
-        <p class="text-muted mt-3">Fill in trade parameters to calculate position size</p>
+        <p class="text-muted mt-3">Enter entry price and stop loss to calculate</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Quick Signals ───────────────────────────────────── -->
+<div class="section-card mt-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-lightning-charge text-yellow"></i> Quick Signals</span>
+    <span class="text-muted fs-xs">Load an active signal into the calculator</span>
+  </div>
+  <div id="quickSignalsList">
+    <div class="text-center py-4 text-muted">
+      <div class="spinner-border spinner-border-sm me-2"></div>Loading signals…
     </div>
   </div>
 </div>
@@ -64,53 +248,162 @@
 
 {% block extra_js %}
 <script>
-document.getElementById('calcBtn').addEventListener('click', async () => {
-  const entry = parseFloat(document.getElementById('entryPrice').value);
-  const sl = parseFloat(document.getElementById('stopLoss').value);
+let _direction = 'BUY';
 
-  if (!entry || !sl) { Toast.show('Please enter entry price and stop loss', 'warning'); return; }
+function setDir(d) {
+  _direction = d;
+  document.getElementById('dirBuy').classList.toggle('active', d === 'BUY');
+  document.getElementById('dirSell').classList.toggle('active', d === 'SELL');
+  recalculate();
+}
 
-  const res = await API.post('/risk/position-size', {
-    capital: parseFloat(document.getElementById('capital').value),
-    risk_pct: parseFloat(document.getElementById('riskPct').value),
-    entry, stop_loss: sl,
-    lot_size: parseFloat(document.getElementById('lotSize').value) || 1,
+/* ── Auto-calculate ───────────────────────────────────── */
+function recalculate() {
+  const entry   = parseFloat(document.getElementById('calcEntry').value);
+  const sl      = parseFloat(document.getElementById('calcSL').value);
+  const target  = parseFloat(document.getElementById('calcTarget').value);
+  const account = parseFloat(document.getElementById('accAccountSize').value) || 100000;
+  const riskPct = parseFloat(document.getElementById('accRiskPct').value) || 1;
+
+  if (!entry || !sl || entry === sl) {
+    document.getElementById('calcResults').style.display   = 'none';
+    document.getElementById('calcPlaceholder').style.display = 'flex';
+    return;
+  }
+
+  const riskPerUnit  = Math.abs(entry - sl);
+  const maxLoss      = account * riskPct / 100;
+  const positionSize = maxLoss / riskPerUnit;
+  const positionVal  = positionSize * entry;
+
+  document.getElementById('calcResults').style.display   = 'block';
+  document.getElementById('calcPlaceholder').style.display = 'none';
+
+  document.getElementById('rmUnits').textContent =
+    positionSize.toLocaleString('en-IN', {maximumFractionDigits: 4}) + ' units';
+  document.getElementById('rmValue').textContent =
+    '₹' + positionVal.toLocaleString('en-IN', {maximumFractionDigits: 2}) + ' value';
+  document.getElementById('rmMaxLoss').textContent =
+    '₹' + maxLoss.toLocaleString('en-IN', {maximumFractionDigits: 2});
+
+  if (target) {
+    const rr = Math.abs(target - entry) / riskPerUnit;
+    const profit = positionSize * Math.abs(target - entry);
+    const rrEl = document.getElementById('rmRR');
+    rrEl.textContent = rr.toFixed(2) + 'x';
+    rrEl.style.color = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--red)';
+
+    document.getElementById('rmProfit').textContent =
+      '₹' + profit.toLocaleString('en-IN', {maximumFractionDigits: 2});
+
+    // P&L bar
+    const total    = maxLoss + profit;
+    const lossPct  = (maxLoss  / total * 100).toFixed(1);
+    const profPct  = (profit   / total * 100).toFixed(1);
+    document.getElementById('pnlLossSeg').style.width = lossPct + '%';
+    document.getElementById('pnlLossSeg').textContent = 'LOSS ₹' + Math.round(maxLoss).toLocaleString('en-IN');
+    document.getElementById('pnlProfitSeg').textContent = 'PROFIT ₹' + Math.round(profit).toLocaleString('en-IN');
+    document.getElementById('pnlBar').style.display = 'flex';
+  } else {
+    document.getElementById('rmRR').textContent = '—';
+    document.getElementById('rmRR').style.color = '';
+    document.getElementById('rmProfit').textContent = '—';
+    document.getElementById('pnlBar').style.display = 'none';
+  }
+}
+
+['calcEntry','calcSL','calcTarget','accAccountSize','accRiskPct'].forEach(id => {
+  document.getElementById(id)?.addEventListener('input', recalculate);
+});
+
+/* ── Load signal into calculator ─────────────────────── */
+function loadSignal(entry, sl, target, symbol, type) {
+  document.getElementById('calcEntry').value  = entry  || '';
+  document.getElementById('calcSL').value     = sl     || '';
+  document.getElementById('calcTarget').value = target || '';
+  if (symbol) document.getElementById('calcSymbol').value = symbol;
+  if (type)   setDir(type === 'SELL' ? 'SELL' : 'BUY');
+  recalculate();
+  document.querySelector('.section-card').scrollIntoView({ behavior: 'smooth' });
+  Toast.show('Signal loaded into calculator', 'success');
+}
+
+/* ── Quick Signals ────────────────────────────────────── */
+async function loadQuickSignals() {
+  const container = document.getElementById('quickSignalsList');
+  const data = await API.get('/signals/', { per_page: 5, status: 'active' });
+  if (!data || !data.signals?.length) {
+    container.innerHTML = '<div class="text-center py-4 text-muted fs-xs">No active signals found.</div>';
+    return;
+  }
+  container.innerHTML = data.signals.map(s => {
+    const isBuy = s.signal_type === 'BUY';
+    const badgeCls = isBuy ? 'text-green' : s.signal_type === 'SELL' ? 'text-red' : 'text-yellow';
+    const rr = parseFloat(s.risk_reward) || 0;
+    return `<div class="quick-signal-row">
+      <div>
+        <span class="fw-700">${s.asset}</span>
+        <span class="badge-tag ms-2">${s.timeframe}</span>
+        <span class="ms-2 fw-700 ${badgeCls}">${s.signal_type}</span>
+      </div>
+      <div class="d-flex gap-3 fs-xs text-muted">
+        <span>Entry: <span class="fw-700 text-primary">${s.entry_price ?? '—'}</span></span>
+        <span>SL: <span class="fw-700 text-red">${s.stop_loss ?? '—'}</span></span>
+        <span>T1: <span class="fw-700 text-green">${s.target1 ?? '—'}</span></span>
+        ${rr > 0 ? `<span>RR: <span class="fw-700">${rr.toFixed(1)}x</span></span>` : ''}
+      </div>
+      <button class="btn btn-xs btn-outline-accent"
+        onclick="loadSignal(${s.entry_price}, ${s.stop_loss}, ${s.target1}, '${s.asset}', '${s.signal_type}')">
+        <i class="bi bi-box-arrow-in-down-left me-1"></i>Load
+      </button>
+    </div>`;
+  }).join('');
+}
+
+/* ── Save / Load account settings ────────────────────── */
+async function saveAccountSettings() {
+  const btn = document.getElementById('saveAccBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+  const res = await API.put('/auth/me', {
+    account_size:        parseFloat(document.getElementById('accAccountSize').value) || 100000,
+    risk_per_trade_pct:  parseFloat(document.getElementById('accRiskPct').value)     || 1,
   });
 
-  if (res?.error) { Toast.show(res.error, 'error'); return; }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-save me-1"></i>Save Settings';
 
-  document.getElementById('riskPlaceholder').style.display = 'none';
-  document.getElementById('riskResults').style.display = 'block';
-
-  const items = [
-    { label: 'Risk Amount', value: '₹' + res.risk_amount?.toLocaleString('en-IN'), cls: 'red' },
-    { label: 'Units to Buy', value: res.units?.toLocaleString(), cls: '' },
-    { label: 'Lots', value: res.lots, cls: '' },
-    { label: 'Position Value', value: '₹' + res.position_value?.toLocaleString('en-IN'), cls: 'blue' },
-    { label: 'Margin Required', value: '₹' + res.margin_required?.toLocaleString('en-IN'), cls: 'yellow' },
-    { label: 'Max Loss', value: '₹' + res.max_loss?.toLocaleString('en-IN'), cls: 'red' },
-  ];
-
-  document.getElementById('riskResultGrid').innerHTML = items.map(i => `
-    <div class="col-6">
-      <div class="kpi-card ${i.cls}">
-        <div class="kpi-label">${i.label}</div>
-        <div class="kpi-value ${i.cls ? 'text-' + i.cls : ''}">${i.value}</div>
-      </div>
-    </div>`).join('');
-
-  const target = parseFloat(document.getElementById('targetPrice').value);
-  if (target) {
-    const rr = await API.post('/risk/risk-reward', { entry, stop_loss: sl, target });
-    if (rr) {
-      document.getElementById('rrResult').innerHTML = `
-        <div class="glass-card text-center">
-          <div class="text-muted small mb-1">Risk : Reward Ratio</div>
-          <div class="display-5 fw-bold ${rr.ratio >= 2 ? 'text-green' : rr.ratio >= 1 ? 'text-yellow' : 'text-red'}">${rr.ratio}x</div>
-          <div class="badge ${rr.ratio >= 2 ? 'bg-success' : rr.ratio >= 1 ? 'bg-warning text-dark' : 'bg-danger'} mt-2">${rr.label}</div>
-        </div>`;
-    }
+  if (res && !res.error) {
+    const msg = document.getElementById('accSavedMsg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 3000);
+    Toast.show('Account settings saved', 'success');
+    recalculate();
+  } else {
+    Toast.show(res?.error || 'Failed to save', 'error');
   }
+}
+
+document.getElementById('saveAccBtn').addEventListener('click', saveAccountSettings);
+
+/* ── Init ─────────────────────────────────────────────── */
+document.addEventListener('app:ready', () => {
+  // Populate from Auth.user if available
+  const u = Auth.user;
+  if (u) {
+    if (u.account_size)       document.getElementById('accAccountSize').value = u.account_size;
+    if (u.risk_per_trade_pct) document.getElementById('accRiskPct').value     = u.risk_per_trade_pct;
+  }
+  // Fallback: fetch from API
+  API.get('/auth/me').then(me => {
+    if (!me) return;
+    if (me.account_size)       document.getElementById('accAccountSize').value = me.account_size;
+    if (me.risk_per_trade_pct) document.getElementById('accRiskPct').value     = me.risk_per_trade_pct;
+    recalculate();
+  });
+
+  loadQuickSignals();
 });
 </script>
 {% endblock %}
