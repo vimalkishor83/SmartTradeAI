@@ -49,114 +49,195 @@
   <!-- Navigation -->
   <nav class="sidebar-nav" id="sidebarNav">
 
+    <!-- Main (always visible, no collapse) -->
     <div class="nav-section">
-      <span class="nav-label">Main</span>
       <a href="/dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
         <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
       </a>
     </div>
 
-    <div class="nav-section">
-      <span class="nav-label">Markets</span>
-      <a href="/markets/crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
-        <i class="bi bi-currency-bitcoin"></i>
-        <span class="nav-text">Crypto</span>
-        <span class="nav-badge badge-live">Live</span>
-      </a>
-      <a href="/markets/forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
-        <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
-      </a>
-      <a href="/markets/commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
-        <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
-      </a>
-      <a href="/markets/indian_stock" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-        <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
-      </a>
-      <a href="/markets/index" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-        <i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">Indices</span>
-      </a>
+    <!-- Markets -->
+    <div class="nav-section nav-collapsible" data-group="markets">
+      <button class="nav-group-toggle" aria-expanded="true">
+        <span class="nav-label">Markets</span>
+        <i class="bi bi-chevron-down nav-chevron"></i>
+      </button>
+      <div class="nav-group-items">
+        <a href="/markets/crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
+          <i class="bi bi-currency-bitcoin"></i>
+          <span class="nav-text">Crypto</span>
+          <span class="nav-badge badge-live">Live</span>
+        </a>
+        <a href="/markets/forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
+          <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
+        </a>
+        <a href="/markets/commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
+          <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
+        </a>
+        <a href="/markets/indian_stock" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
+          <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
+        </a>
+        <a href="/markets/index" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
+          <i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">Indices</span>
+        </a>
+      </div>
     </div>
 
-    <div class="nav-section">
-      <span class="nav-label">Tools</span>
-      <a href="/briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
-        <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
-      </a>
-      <a href="/signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-        <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
-      </a>
-      <a href="/auto-generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
-        <i class="bi bi-robot"></i>
-        <span class="nav-text">Auto Generate</span>
-        <span class="nav-badge badge-live" id="navAutoGenBadge" style="display:none">ON</span>
-      </a>
-      <a href="/scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
-        <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
-      </a>
-      <a href="/backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-        <i class="bi bi-clock-history"></i>
-        <span class="nav-text">Backtesting</span>
-        <span class="nav-badge badge-pro">PRO</span>
-      </a>
-      <a href="/ai-insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
-        <i class="bi bi-cpu-fill"></i>
-        <span class="nav-text">AI Insights</span>
-        <span class="nav-badge badge-pro">PRO</span>
-      </a>
-      <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-        <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
-      </a>
-      <a href="/journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
-        <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
-      </a>
+    <!-- Tools -->
+    <div class="nav-section nav-collapsible" data-group="tools">
+      <button class="nav-group-toggle" aria-expanded="true">
+        <span class="nav-label">Tools</span>
+        <i class="bi bi-chevron-down nav-chevron"></i>
+      </button>
+      <div class="nav-group-items">
+        <a href="/briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
+          <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
+        </a>
+        <a href="/signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
+          <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
+        </a>
+        <a href="/auto-generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
+          <i class="bi bi-robot"></i>
+          <span class="nav-text">Auto Generate</span>
+          <span class="nav-badge badge-live" id="navAutoGenBadge" style="display:none">ON</span>
+        </a>
+        <a href="/scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
+          <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
+        </a>
+        <a href="/backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
+          <i class="bi bi-clock-history"></i>
+          <span class="nav-text">Backtesting</span>
+          <span class="nav-badge badge-pro">PRO</span>
+        </a>
+        <a href="/ai-insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
+          <i class="bi bi-cpu-fill"></i>
+          <span class="nav-text">AI Insights</span>
+          <span class="nav-badge badge-pro">PRO</span>
+        </a>
+        <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+          <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
+        </a>
+        <a href="/journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
+          <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
+        </a>
+      </div>
     </div>
 
-    <div class="nav-section">
-      <span class="nav-label">Portfolio</span>
-      <a href="/portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
-        <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
-      </a>
-      <a href="/watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
-        <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
-      </a>
-      <a href="/risk" class="nav-item {% if active == 'risk' %}active{% endif %}">
-        <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
-      </a>
+    <!-- Portfolio -->
+    <div class="nav-section nav-collapsible" data-group="portfolio">
+      <button class="nav-group-toggle" aria-expanded="true">
+        <span class="nav-label">Portfolio</span>
+        <i class="bi bi-chevron-down nav-chevron"></i>
+      </button>
+      <div class="nav-group-items">
+        <a href="/portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
+          <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+        </a>
+        <a href="/watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
+          <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
+        </a>
+        <a href="/risk" class="nav-item {% if active == 'risk' %}active{% endif %}">
+          <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
+        </a>
+      </div>
     </div>
 
-    <div class="nav-section">
-      <span class="nav-label">Analysis</span>
-      <a href="/ta-summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-        <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
-      </a>
-      <a href="/mtf-analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-        <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
-      </a>
-      <a href="/performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
-        <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
-      </a>
-      <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
-        <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
-      </a>
-      <a href="/signals?tab=history" class="nav-item">
-        <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
-      </a>
+    <!-- Analysis -->
+    <div class="nav-section nav-collapsible" data-group="analysis">
+      <button class="nav-group-toggle" aria-expanded="true">
+        <span class="nav-label">Analysis</span>
+        <i class="bi bi-chevron-down nav-chevron"></i>
+      </button>
+      <div class="nav-group-items">
+        <a href="/ta-summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+          <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
+        </a>
+        <a href="/mtf-analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+          <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+        </a>
+        <a href="/performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
+          <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
+        </a>
+        <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
+          <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
+        </a>
+        <a href="/signals?tab=history" class="nav-item">
+          <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
+        </a>
+      </div>
     </div>
 
-    <div class="nav-section" id="adminNav" style="display:none">
-      <span class="nav-label">Admin</span>
-      <a href="/admin" class="nav-item {% if active == 'admin' %}active{% endif %}">
-        <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
-      </a>
-      <a href="/admin/users" class="nav-item">
-        <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
-      </a>
-      <a href="/admin/logs" class="nav-item">
-        <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
-      </a>
+    <!-- Admin (hidden until role check) -->
+    <div class="nav-section nav-collapsible" data-group="admin" id="adminNav" style="display:none">
+      <button class="nav-group-toggle" aria-expanded="true">
+        <span class="nav-label">Admin</span>
+        <i class="bi bi-chevron-down nav-chevron"></i>
+      </button>
+      <div class="nav-group-items">
+        <a href="/admin" class="nav-item {% if active == 'admin' %}active{% endif %}">
+          <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
+        </a>
+        <a href="/admin/users" class="nav-item">
+          <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
+        </a>
+        <a href="/admin/logs" class="nav-item">
+          <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
+        </a>
+      </div>
     </div>
 
   </nav>
+
+  <script>
+  // Collapsible sidebar groups — persisted in localStorage
+  document.addEventListener('DOMContentLoaded', () => {
+    const STORE_KEY = 'sidebar_groups';
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch(e){}
+
+    document.querySelectorAll('.nav-collapsible').forEach(section => {
+      const group   = section.dataset.group;
+      const btn     = section.querySelector('.nav-group-toggle');
+      const items   = section.querySelector('.nav-group-items');
+      if (!btn || !items) return;
+
+      // Restore state: default open unless explicitly saved as closed
+      // Auto-open the group if it contains the active page
+      const hasActive = items.querySelector('.nav-item.active');
+      const isOpen    = hasActive ? true : (saved[group] !== false);
+
+      const apply = (open, animate) => {
+        btn.setAttribute('aria-expanded', open);
+        if (open) {
+          items.style.maxHeight = items.scrollHeight + 'px';
+          items.style.overflow  = 'visible';
+        } else {
+          items.style.maxHeight = '0';
+          items.style.overflow  = 'hidden';
+        }
+        btn.querySelector('.nav-chevron').style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
+      };
+
+      // Set initial state without animation
+      items.style.transition = 'none';
+      apply(isOpen, false);
+      requestAnimationFrame(() => {
+        items.style.transition = 'max-height 0.22s ease, opacity 0.18s ease';
+      });
+
+      btn.addEventListener('click', () => {
+        const open = btn.getAttribute('aria-expanded') === 'true';
+        const next = !open;
+        if (!next) items.style.overflow = 'hidden';
+        items.style.maxHeight = next ? items.scrollHeight + 'px' : '0';
+        btn.setAttribute('aria-expanded', next);
+        btn.querySelector('.nav-chevron').style.transform = next ? 'rotate(0deg)' : 'rotate(-90deg)';
+        saved[group] = next;
+        localStorage.setItem(STORE_KEY, JSON.stringify(saved));
+      });
+    });
+  });
+  </script>
 
   <!-- Footer links -->
   <div class="sidebar-footer">

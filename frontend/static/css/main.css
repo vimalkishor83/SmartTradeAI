@@ -205,6 +205,32 @@ body {
   padding: 2px 0 4px;
 }
 
+/* Collapsible group toggle button */
+.nav-group-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.nav-group-toggle:hover .nav-label { color: var(--text-primary); }
+.nav-chevron {
+  font-size: 10px;
+  color: var(--text-muted);
+  transition: transform 0.22s ease;
+  margin-right: 14px;
+  flex-shrink: 0;
+}
+.nav-group-items {
+  overflow: hidden;
+  transition: max-height 0.22s ease;
+}
+.sidebar.collapsed .nav-chevron,
+.sidebar.collapsed .nav-group-toggle { display: none; }
+
 .nav-label {
   display: block;
   font-size: 9.5px;
