@@ -63,10 +63,19 @@ def run_backtest():
         "multi_factor": "multi_factor",
         "multi":        "multi_factor",
     }
-    raw_strategy = (data.get("strategy") or "multi_factor").lower().replace(" ", "_")
+    raw_strategy    = (data.get("strategy") or "multi_factor").lower().replace(" ", "_")
     engine_strategy = _STRATEGY_MAP.get(raw_strategy, "multi_factor")
 
-    result = backtest_engine.run(df, asset, timeframe, initial_capital, strategy=engine_strategy)
+    # Allow caller to override defaults; clamp to sane ranges
+    commission = max(0.0, min(0.01, float(data.get("commission", 0.001))))
+    slippage   = max(0.0, min(0.01, float(data.get("slippage",   0.0005))))
+
+    result = backtest_engine.run(
+        df, asset, timeframe, initial_capital,
+        strategy=engine_strategy,
+        commission=commission,
+        slippage=slippage,
+    )
 
     if "error" in result:
         bt.status = "failed"

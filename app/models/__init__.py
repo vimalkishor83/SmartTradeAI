@@ -1,8 +1,7 @@
 from app.models.user import User, Role, Subscription
 from app.models.asset import Asset
-from app.models.market_data import MarketData
+# MarketData and TechnicalIndicator removed — data served from API cache, not DB
 from app.models.signal import Signal, SignalHistory
-from app.models.indicator import TechnicalIndicator
 from app.models.prediction import Prediction
 from app.models.watchlist import Watchlist, WatchlistItem
 from app.models.portfolio import Portfolio, PortfolioItem

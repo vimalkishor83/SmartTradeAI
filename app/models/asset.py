@@ -20,7 +20,6 @@ class Asset(db.Model):
     metadata_ = db.Column("metadata", db.JSON, default=dict)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    market_data = db.relationship("MarketData", backref="asset", lazy="dynamic", cascade="all, delete-orphan")
     signals = db.relationship("Signal", backref="asset", lazy="dynamic")
 
     __table_args__ = (db.UniqueConstraint("symbol", "exchange", name="uq_symbol_exchange"),)

@@ -24,9 +24,16 @@ class Backtest(db.Model):
     net_profit_pct = db.Column(db.Float, default=0)
     max_drawdown = db.Column(db.Float, default=0)
     sharpe_ratio = db.Column(db.Float, default=0)
+    sortino_ratio = db.Column(db.Float, default=0)
     profit_factor = db.Column(db.Float, default=0)
     avg_win = db.Column(db.Float, default=0)
     avg_loss = db.Column(db.Float, default=0)
+    avg_bars_held = db.Column(db.Float, default=0)
+    total_commission = db.Column(db.Float, default=0)
+    total_slippage = db.Column(db.Float, default=0)
+    commission_pct = db.Column(db.Float, default=0.1)
+    slippage_pct = db.Column(db.Float, default=0.05)
+    exit_reasons = db.Column(db.JSON, default=dict)
     equity_curve = db.Column(db.JSON, default=list)
     trades_data = db.Column(db.JSON, default=list)
 
@@ -46,7 +53,16 @@ class Backtest(db.Model):
             "win_rate": self.win_rate,
             "net_profit": self.net_profit,
             "max_drawdown": self.max_drawdown,
-            "sharpe_ratio": self.sharpe_ratio,
-            "profit_factor": self.profit_factor,
-            "created_at": self.created_at.isoformat(),
+            "sharpe_ratio":    self.sharpe_ratio,
+            "sortino_ratio":   self.sortino_ratio,
+            "profit_factor":   self.profit_factor,
+            "avg_win":         self.avg_win,
+            "avg_loss":        self.avg_loss,
+            "avg_bars_held":   self.avg_bars_held,
+            "total_commission":self.total_commission,
+            "total_slippage":  self.total_slippage,
+            "commission_pct":  self.commission_pct,
+            "slippage_pct":    self.slippage_pct,
+            "exit_reasons":    self.exit_reasons,
+            "created_at":      self.created_at.isoformat(),
         }

@@ -79,9 +79,16 @@ def _init_db(app):
 def _migrate_columns(app):
     """Add new columns and indexes to existing tables (SQLite safe — skips if already present)."""
     column_migrations = [
-        ("users", "account_size",         "REAL    DEFAULT 100000.0"),
-        ("users", "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
-        ("users", "min_confidence_filter","INTEGER DEFAULT 60"),
+        ("users",     "account_size",         "REAL    DEFAULT 100000.0"),
+        ("users",     "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
+        ("users",     "min_confidence_filter","INTEGER DEFAULT 60"),
+        ("backtests", "sortino_ratio",        "REAL    DEFAULT 0"),
+        ("backtests", "avg_bars_held",        "REAL    DEFAULT 0"),
+        ("backtests", "total_commission",     "REAL    DEFAULT 0"),
+        ("backtests", "total_slippage",       "REAL    DEFAULT 0"),
+        ("backtests", "commission_pct",       "REAL    DEFAULT 0.1"),
+        ("backtests", "slippage_pct",         "REAL    DEFAULT 0.05"),
+        ("backtests", "exit_reasons",         "TEXT    DEFAULT '{}'"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)
