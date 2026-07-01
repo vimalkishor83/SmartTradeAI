@@ -80,7 +80,7 @@ def ta_summary():
     # Respect user's asset selection preferences
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
 
-    tfs = ["5m", "15m", "30m", "1h", "1d"]
+    tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)

@@ -260,7 +260,7 @@ def mtf_matrix():
 
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
 
-    timeframes = ["5m", "15m", "30m", "1h", "4h", "1d"]
+    timeframes = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
 
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":

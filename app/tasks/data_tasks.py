@@ -151,8 +151,8 @@ def prewarm_ta_cache(app):
         from app.api.v1.market_data import _compute_ta_rating
         from app.api.v1.signals import _mtf_rating
 
-        ta_tfs  = ["5m", "15m", "30m", "1h", "1d"]
-        mtf_tfs = ["5m", "15m", "30m", "1h", "4h", "1d"]
+        ta_tfs  = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+        mtf_tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
         assets  = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
 
         # Fetch all data once — covers both TA and MTF (union of timeframes)

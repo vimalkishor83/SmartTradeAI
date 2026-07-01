@@ -107,7 +107,7 @@
 </style>
 
 <script>
-const TA_TFS = ['5m','15m','30m','1h','1d'];
+const TA_TFS = ['5m','15m','30m','1h','2h','4h','1d'];
 let _data = [];
 let _currentTab = 'ratings';
 
@@ -137,7 +137,7 @@ function ratingCell(tf_data) {
 
 function overallRating(tf_obj) {
   // Weighted average: 1d > 1h > 30m > 15m > 5m
-  const weights = {'5m':1,'15m':2,'30m':2,'1h':3,'1d':4};
+  const weights = {'5m':1,'15m':2,'30m':2,'1h':3,'2h':3,'4h':4,'1d':5};
   let wSum = 0, wTotal = 0;
   for (const [tf, w] of Object.entries(weights)) {
     const d = tf_obj?.[tf];
@@ -256,7 +256,7 @@ function renderBoth() {
 function tfLabel(tf) {
   return {
     '1m':'1 Min','5m':'5 Minutes','15m':'15 Minutes',
-    '30m':'30 Minutes','1h':'Hourly','4h':'4 Hours','1d':'Daily'
+    '30m':'30 Minutes','1h':'Hourly','2h':'2 Hours','4h':'4 Hours','1d':'Daily'
   }[tf] || tf;
 }
 

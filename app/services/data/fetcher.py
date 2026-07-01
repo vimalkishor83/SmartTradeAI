@@ -33,7 +33,7 @@ class _OHLCVCache:
         self._lock  = threading.Lock()
 
     # TTL by timeframe — shorter TFs need fresher data
-    _TTL = {"1m":30,"5m":60,"15m":90,"30m":120,"1h":180,"4h":300,"1d":600}
+    _TTL = {"1m":30,"5m":60,"15m":90,"30m":120,"1h":180,"2h":240,"4h":300,"1d":600}
 
     def get(self, key: str) -> pd.DataFrame | None:
         with self._lock:
@@ -59,7 +59,7 @@ _cache = _OHLCVCache()
 # ─────────────────────────────────────────────────────────
 class BinanceFetcher:
     BASE = "https://api.binance.com/api/v3"
-    INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","4h":"4h","1d":"1d"}
+    INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","2h":"2h","4h":"4h","1d":"1d"}
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
         cache_key = f"{symbol}_{timeframe}"
@@ -136,8 +136,8 @@ class YahooFetcher:
         "LT","ITC","AXISBANK","MARUTI",
     }
 
-    TF_INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"60m","4h":"1h","1d":"1d"}
-    TF_PERIOD   = {"1m":"7d","5m":"60d","15m":"60d","30m":"60d","1h":"2y","4h":"2y","1d":"5y"}
+    TF_INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"60m","2h":"90m","4h":"1h","1d":"1d"}
+    TF_PERIOD   = {"1m":"7d","5m":"60d","15m":"60d","30m":"60d","1h":"2y","2h":"2y","4h":"2y","1d":"5y"}
 
     def _yahoo_symbol(self, symbol: str) -> str:
         if symbol in self.SYMBOL_MAP:
