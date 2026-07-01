@@ -722,8 +722,8 @@ def get_analytics():
 
     hist_q    = SignalHistory.query
     total_h   = hist_q.count()
-    wins      = hist_q.filter(SignalHistory.outcome == "hit_target").count()
-    losses    = hist_q.filter(SignalHistory.outcome == "hit_sl").count()
+    wins      = hist_q.filter(SignalHistory.outcome == "win").count()
+    losses    = hist_q.filter(SignalHistory.outcome == "loss").count()
     win_rate  = round(wins / total_h * 100, 1) if total_h else 0.0
 
     avg_rr_row = db.session.query(func.avg(Signal.risk_reward)).scalar()
@@ -739,9 +739,9 @@ def get_analytics():
     by_market = []
     for mkt, total in mkt_rows:
         w = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
-            Asset.market == mkt, SignalHistory.outcome == "hit_target").count()
+            Asset.market == mkt, SignalHistory.outcome == "win").count()
         l = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
-            Asset.market == mkt, SignalHistory.outcome == "hit_sl").count()
+            Asset.market == mkt, SignalHistory.outcome == "loss").count()
         by_market.append({
             "market": mkt, "total": total, "wins": w, "losses": l,
             "win_rate": round(w / total * 100, 1) if total else 0.0,
@@ -783,7 +783,7 @@ def get_analytics():
             SignalHistory.confidence_score < hi,
         )
         total = rows.count()
-        w     = rows.filter(SignalHistory.outcome == "hit_target").count()
+        w     = rows.filter(SignalHistory.outcome == "win").count()
         confidence_buckets.append({
             "range": label, "total": total,
             "win_rate": round(w / total * 100, 1) if total else 0.0,
@@ -806,11 +806,11 @@ def get_analytics():
         day_str = str(row.day)
         w = SignalHistory.query.filter(
             func.date(SignalHistory.closed_at) == row.day,
-            SignalHistory.outcome == "hit_target",
+            SignalHistory.outcome == "win",
         ).count()
         l = SignalHistory.query.filter(
             func.date(SignalHistory.closed_at) == row.day,
-            SignalHistory.outcome == "hit_sl",
+            SignalHistory.outcome == "loss",
         ).count()
         recent_performance.append({"date": day_str, "signals": row.total, "wins": w, "losses": l})
 
@@ -829,7 +829,7 @@ def get_analytics():
         w = (
             SignalHistory.query
             .join(Asset, SignalHistory.asset_id == Asset.id)
-            .filter(Asset.symbol == sym, SignalHistory.outcome == "hit_target")
+            .filter(Asset.symbol == sym, SignalHistory.outcome == "win")
             .count()
         )
         top_assets.append({
