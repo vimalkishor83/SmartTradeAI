@@ -72,7 +72,27 @@ def _init_db(app):
         from app.models.user import UserAssetPreference  # ensure model is registered
         from app.models.journal import JournalEntry       # ensure journal table is created
         db.create_all()
+        _migrate_columns(app)
         _seed_initial_data(app)
+
+
+def _migrate_columns(app):
+    """Add new columns to existing tables without dropping data (SQLite ALTER TABLE)."""
+    migrations = [
+        ("users", "account_size",         "REAL    DEFAULT 100000.0"),
+        ("users", "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
+        ("users", "min_confidence_filter","INTEGER DEFAULT 60"),
+    ]
+    with app.app_context():
+        conn = db.engine.raw_connection()
+        cur  = conn.cursor()
+        for table, column, col_def in migrations:
+            try:
+                cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
+                conn.commit()
+            except Exception:
+                pass  # column already exists — safe to ignore
+        conn.close()
 
 
 def _seed_initial_data(app):
