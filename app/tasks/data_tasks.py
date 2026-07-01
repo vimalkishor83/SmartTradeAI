@@ -6,17 +6,28 @@ logger = logging.getLogger(__name__)
 
 
 def update_tickers(app):
-    """Fetch live prices for crypto assets and broadcast via WebSocket."""
+    """
+    Fallback ticker poll for non-crypto assets (forex, indices, commodities, stocks).
+    Crypto is handled by the Binance WebSocket stream — no polling needed there.
+    Runs every 15s; broadcasts via WebSocket + updates live price cache.
+    """
     with app.app_context():
         from app.models.asset import Asset
         from app.services.data.fetcher import market_fetcher
 
-        crypto_assets = Asset.query.filter_by(market="crypto", is_active=True, data_source="binance").all()
-        for asset in crypto_assets:
+        # Only poll assets NOT covered by the Binance WS stream
+        non_crypto = Asset.query.filter(
+            Asset.is_active == True,
+            Asset.data_source != "binance",
+        ).all()
+
+        for asset in non_crypto:
             try:
                 ticker = market_fetcher.fetch_ticker(asset)
                 if ticker:
                     broadcast_ticker(asset.symbol, ticker)
+                    if ticker.get("price"):
+                        check_signals_for_price(asset.symbol, float(ticker["price"]), app)
             except Exception as e:
                 logger.debug(f"Ticker update failed for {asset.symbol}: {e}")
 
@@ -211,6 +222,279 @@ def prewarm_ta_cache(app):
             "timeframes": mtf_tfs,
         }, timeout=150)
         logger.info("TA/MTF cache pre-warmed")
+
+
+def prewarm_ai_cache(app):
+    """
+    Pre-run AI predictions for all assets × key timeframes every 30 min.
+    Stores to 'ai_summary_all' cache so the AI Ratings grid is always instant.
+    Also pre-trains / refreshes joblib model files so inference is fast.
+    """
+    with app.app_context():
+        from app.models.asset import Asset
+        from app.models.prediction import Prediction
+        from app.services.data.fetcher import market_fetcher
+        from app.services.ai.predictor import ai_predictor
+        from app.extensions import cache, db
+        from datetime import datetime, timedelta
+        from concurrent.futures import ThreadPoolExecutor
+
+        tfs    = ["5m", "15m", "1h", "4h", "1d"]
+        assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+        all_data = market_fetcher.fetch_many(assets, tfs, limit=220)
+
+        cutoff   = datetime.utcnow() - timedelta(minutes=25)
+        asset_ids = [a.id for a in assets]
+        recent   = Prediction.query.filter(
+            Prediction.asset_id.in_(asset_ids),
+            Prediction.timeframe.in_(tfs),
+            Prediction.predicted_at >= cutoff,
+        ).all()
+        pred_map = {(p.asset_id, p.timeframe): p.to_dict() for p in recent}
+
+        def _process(asset):
+            row = {"id": asset.id, "symbol": asset.symbol,
+                   "name": asset.name, "market": asset.market, "tf": {}}
+            for tf in tfs:
+                key = (asset.id, tf)
+                if key in pred_map:
+                    p = pred_map[key]
+                    row["tf"][tf] = {
+                        "direction":    p["predicted_direction"],
+                        "confidence":   round(float(p["confidence"]), 1),
+                        "bullish_prob": round(float(p["bullish_probability"]), 1),
+                        "bearish_prob": round(float(p["bearish_probability"]), 1),
+                    }
+                    continue
+                df = all_data.get(asset.symbol, {}).get(tf)
+                try:
+                    result = ai_predictor.predict(df, asset.symbol, tf)
+                    if df is not None and len(df) >= 100:
+                        pred = Prediction(
+                            asset_id=asset.id, timeframe=tf,
+                            model_name=result["model_name"],
+                            bullish_probability=result["bullish_probability"],
+                            bearish_probability=result["bearish_probability"],
+                            predicted_direction=result["predicted_direction"],
+                            predicted_target=result.get("predicted_target"),
+                            predicted_stop=result.get("predicted_stop"),
+                            confidence=result["confidence"],
+                            valid_until=datetime.utcnow() + timedelta(hours=4),
+                        )
+                        db.session.add(pred)
+                    row["tf"][tf] = {
+                        "direction":    result["predicted_direction"],
+                        "confidence":   round(float(result["confidence"]), 1),
+                        "bullish_prob": round(float(result["bullish_probability"]), 1),
+                        "bearish_prob": round(float(result["bearish_probability"]), 1),
+                    }
+                except Exception as e:
+                    logger.debug(f"AI prewarm failed {asset.symbol}/{tf}: {e}")
+                    row["tf"][tf] = {"direction": "neutral", "confidence": 50.0,
+                                     "bullish_prob": 50.0, "bearish_prob": 50.0}
+            return row
+
+        with ThreadPoolExecutor(max_workers=min(6, len(assets))) as ex:
+            rows = list(ex.map(_process, assets))
+
+        try:
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+        cache.set("ai_summary_all", {"assets": rows, "timeframes": tfs}, timeout=1800)
+        logger.info(f"AI cache pre-warmed for {len(assets)} assets × {len(tfs)} timeframes")
+
+
+def evaluate_expired_predictions(app):
+    """
+    After a prediction's valid_until passes, check if the direction was correct
+    by comparing predicted_direction to actual price movement.
+    Populates actual_direction, was_correct, evaluated_at on the Prediction row.
+    """
+    with app.app_context():
+        from app.models.prediction import Prediction
+        from app.models.asset import Asset
+        from app.services.data.fetcher import market_fetcher
+        from app.extensions import db
+        from datetime import datetime, timedelta
+
+        # Predictions that expired but haven't been evaluated yet
+        now = datetime.utcnow()
+        unevaluated = Prediction.query.filter(
+            Prediction.valid_until <= now,
+            Prediction.was_correct == None,
+            Prediction.predicted_direction != None,
+        ).all()
+
+        if not unevaluated:
+            return
+
+        asset_ids = {p.asset_id for p in unevaluated}
+        assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+        price_cache = {}
+
+        for pred in unevaluated:
+            try:
+                asset = assets_map.get(pred.asset_id)
+                if not asset:
+                    continue
+
+                # Get current price (1h candle close)
+                if asset.id not in price_cache:
+                    df = market_fetcher.fetch(asset, "1h", 3)
+                    price_cache[asset.id] = float(df["close"].iloc[-1]) if df is not None and not df.empty else None
+
+                current_price = price_cache.get(asset.id)
+                if current_price is None:
+                    continue
+
+                # Need a reference price at prediction time — use predicted_target/predicted_stop
+                # as a proxy for entry price around prediction time
+                ref_price = pred.predicted_target or pred.predicted_stop
+                if not ref_price:
+                    # Fallback: compare bullish vs bearish probability shift
+                    pred.was_correct = (
+                        pred.predicted_direction == "neutral"
+                    )
+                    pred.actual_direction = "neutral"
+                    pred.evaluated_at = now
+                    continue
+
+                # Determine actual direction from ref vs current price
+                change_pct = (current_price - ref_price) / ref_price * 100
+                if change_pct > 0.5:
+                    actual = "bullish"
+                elif change_pct < -0.5:
+                    actual = "bearish"
+                else:
+                    actual = "neutral"
+
+                pred.actual_direction = actual
+                pred.was_correct = (pred.predicted_direction == actual) or (
+                    pred.predicted_direction in ("bullish", "bearish") and actual == "neutral"
+                )
+                pred.evaluated_at = now
+
+            except Exception as e:
+                logger.debug(f"Prediction eval failed id={pred.id}: {e}")
+
+        try:
+            db.session.commit()
+            evaluated = sum(1 for p in unevaluated if p.evaluated_at is not None)
+            if evaluated:
+                logger.info(f"Evaluated {evaluated} expired predictions")
+        except Exception:
+            db.session.rollback()
+
+
+def check_signals_for_price(symbol: str, price: float, app):
+    """
+    Real-time TP/SL check triggered by each price update (Binance WS or ticker poll).
+    Closes signals immediately when price crosses TP1 or SL — no waiting for the 5-min job.
+    Broadcasts signal_closed event via WebSocket.
+    """
+    with app.app_context():
+        from app.models.signal import Signal, SignalHistory
+        from app.models.asset import Asset
+        from app.extensions import db
+        from datetime import datetime
+
+        asset = Asset.query.filter_by(symbol=symbol, is_active=True).first()
+        if not asset:
+            return
+
+        active = Signal.query.filter_by(asset_id=asset.id, status="active").all()
+        if not active:
+            return
+
+        closed = []
+        now = datetime.utcnow()
+
+        for signal in active:
+            try:
+                if signal.expires_at and signal.expires_at < now:
+                    signal.status = "expired"
+                    closed.append(signal)
+                    continue
+
+                outcome = _check_outcome(signal, price)
+                if not outcome:
+                    signal.current_price = price
+                    continue
+
+                if signal.signal_type in ("BUY", "HOLD"):
+                    pnl_pct = (price - signal.entry_price) / signal.entry_price * 100
+                else:
+                    pnl_pct = (signal.entry_price - price) / signal.entry_price * 100
+
+                signal.status = outcome
+                signal.current_price = price
+                signal.pnl_pct = round(pnl_pct, 2)
+
+                history_outcome = "win" if outcome == "hit_target" else "loss" if outcome == "hit_sl" else "neutral"
+                duration = int((now - signal.generated_at).total_seconds() / 60) if signal.generated_at else None
+                db.session.add(SignalHistory(
+                    signal_id=signal.id,
+                    asset_id=signal.asset_id,
+                    timeframe=signal.timeframe,
+                    signal_type=signal.signal_type,
+                    entry_price=signal.entry_price,
+                    exit_price=price,
+                    stop_loss=signal.stop_loss,
+                    target1=signal.target1,
+                    confidence_score=signal.confidence_score,
+                    outcome=history_outcome,
+                    pnl_pct=round(pnl_pct, 2),
+                    duration_minutes=duration,
+                    generated_at=signal.generated_at,
+                    closed_at=now,
+                ))
+                closed.append(signal)
+
+            except Exception as e:
+                logger.debug(f"RT signal check failed {signal.id}: {e}")
+
+        if closed:
+            try:
+                db.session.commit()
+                for sig in closed:
+                    try:
+                        from app.websocket.events import broadcast_signal
+                        broadcast_signal({**sig.to_dict(), "event": "signal_closed"})
+                    except Exception:
+                        pass
+            except Exception:
+                db.session.rollback()
+
+
+def retrain_stale_models(app):
+    """
+    Nightly model quality job: delete joblib files older than 24 h so models
+    retrain with the latest data on the next prediction call.
+    Also clears the in-process prediction cache.
+    Runs once per day (wired at 03:00 UTC in register_data_jobs).
+    """
+    with app.app_context():
+        from app.models.asset import Asset
+        from app.services.ai.predictor import ai_predictor, _MODEL_DIR
+        import time
+
+        tfs = ["5m", "15m", "1h", "4h", "1d"]
+        assets = Asset.query.filter_by(is_active=True).all()
+
+        cutoff = time.time() - 86400   # 24 h
+        deleted = 0
+        for a in assets:
+            for tf in tfs:
+                try:
+                    ai_predictor.force_retrain(a.symbol, tf)
+                    deleted += 1
+                except Exception as e:
+                    logger.debug(f"Retrain clear failed {a.symbol}/{tf}: {e}")
+
+        ai_predictor.invalidate_cache()
+        logger.info(f"Model retrain queued for {deleted} symbol/TF combos (will rebuild on next predict call)")
 
 
 def fetch_news(app):
@@ -435,6 +719,7 @@ def nightly_cleanup(app):
         from app.models.economic import EconomicEvent
         from app.models.notification import Notification
         from app.models.signal import Signal, SignalHistory
+        from app.models.api_config import APILog
         from app.extensions import db
         from datetime import datetime, timedelta
 
@@ -479,6 +764,10 @@ def nightly_cleanup(app):
             ).delete(synchronize_session=False)
             stats["old_signals"] = n
 
+            # 8. API logs older than 7 days
+            n = APILog.query.filter(APILog.created_at < week_ago).delete()
+            stats["api_logs"] = n
+
             db.session.commit()
 
             total = sum(stats.values())
@@ -490,15 +779,18 @@ def nightly_cleanup(app):
 
 
 def register_data_jobs(scheduler, app):
-    # Crypto ticker — every 5 seconds
-    scheduler.add_job(update_tickers, "interval", seconds=5,
+    # Non-crypto ticker fallback — every 15 seconds (crypto handled by Binance WS stream)
+    scheduler.add_job(update_tickers, "interval", seconds=15,
                       args=[app], id="update_tickers", replace_existing=True)
     # Signal outcome tracking — every 5 minutes
     scheduler.add_job(close_and_record_signals, "interval", minutes=5,
                       args=[app], id="close_signals", replace_existing=True)
-    # TA/MTF cache pre-warm — every 2 minutes
-    scheduler.add_job(prewarm_ta_cache, "interval", minutes=2,
+    # TA/MTF cache pre-warm — every 5 minutes
+    scheduler.add_job(prewarm_ta_cache, "interval", minutes=5,
                       args=[app], id="prewarm_ta", replace_existing=True)
+    # AI predictions pre-warm — every 30 minutes
+    scheduler.add_job(prewarm_ai_cache, "interval", minutes=30,
+                      args=[app], id="prewarm_ai", replace_existing=True)
     # News feed — every 30 minutes
     scheduler.add_job(fetch_news, "interval", minutes=30,
                       args=[app], id="fetch_news", replace_existing=True)
@@ -508,7 +800,25 @@ def register_data_jobs(scheduler, app):
     # Watchlist price alerts — every 2 minutes
     scheduler.add_job(check_watchlist_alerts, "interval", minutes=2,
                       args=[app], id="watchlist_alerts", replace_existing=True)
+    # Prediction accuracy evaluation — every 30 minutes
+    scheduler.add_job(evaluate_expired_predictions, "interval", minutes=30,
+                      args=[app], id="eval_predictions", replace_existing=True)
     # Nightly database cleanup — runs at 02:00 UTC every day
     scheduler.add_job(nightly_cleanup, "cron", hour=2, minute=0,
                       args=[app], id="nightly_cleanup", replace_existing=True)
-    logger.info("Data jobs registered")
+    # Nightly model retrain (clears stale joblib files) — 03:00 UTC
+    scheduler.add_job(retrain_stale_models, "cron", hour=3, minute=0,
+                      args=[app], id="retrain_models", replace_existing=True)
+
+    # ── Startup pre-warm: run TA + AI shortly after boot ─────────
+    from datetime import datetime, timedelta
+    scheduler.add_job(prewarm_ta_cache, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=15),
+                      args=[app], id="prewarm_ta_startup",
+                      replace_existing=True, misfire_grace_time=60)
+    scheduler.add_job(prewarm_ai_cache, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=30),
+                      args=[app], id="prewarm_ai_startup",
+                      replace_existing=True, misfire_grace_time=120)
+
+    logger.info("Data jobs registered (TA + AI startup pre-warm queued)")

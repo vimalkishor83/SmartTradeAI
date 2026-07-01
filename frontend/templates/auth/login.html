@@ -27,6 +27,16 @@
         </div>
       </div>
 
+      <!-- 2FA step — hidden until password is verified -->
+      <div id="totpStep" style="display:none">
+        <hr style="border-color:var(--border)">
+        <label class="form-label"><i class="bi bi-shield-lock me-1 text-accent"></i> 2FA Code</label>
+        <input type="text" class="form-control font-monospace text-center mb-1" id="totpCode"
+               maxlength="6" placeholder="000000" style="font-size:20px;letter-spacing:6px;max-width:180px"
+               autocomplete="one-time-code" inputmode="numeric">
+        <div class="text-muted" style="font-size:11px;margin-bottom:10px">Enter the 6-digit code from your authenticator app, or an 8-character backup code.</div>
+      </div>
+
       <div id="loginError" class="alert alert-danger py-2 d-none small"></div>
 
       <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="loginBtn">
@@ -93,19 +103,33 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
   spinner.classList.remove('d-none');
   errEl.classList.add('d-none');
 
+  const totpVisible = document.getElementById('totpStep').style.display !== 'none';
+
   try {
+    const body = {
+      email:    document.getElementById('loginEmail').value.trim(),
+      password: document.getElementById('loginPassword').value,
+    };
+    if (totpVisible) {
+      body.totp_code = document.getElementById('totpCode').value.trim();
+    }
+
     const res = await fetch('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email:    document.getElementById('loginEmail').value.trim(),
-        password: document.getElementById('loginPassword').value,
-      }),
+      body: JSON.stringify(body),
     });
 
     const data = await res.json();
 
-    if (res.ok && data.access_token) {
+    if (res.status === 202 && data.totp_required) {
+      // Password OK — show 2FA step
+      document.getElementById('totpStep').style.display = '';
+      document.getElementById('loginBtnText').textContent = 'Verify & Sign In';
+      document.getElementById('totpCode').focus();
+      btn.disabled = false;
+      spinner.classList.add('d-none');
+    } else if ((res.ok || res.status === 200) && data.access_token) {
       localStorage.setItem('access_token',  data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
       window.location.replace('/dashboard');

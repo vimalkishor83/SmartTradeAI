@@ -5,12 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>{% block title %}SmartTrade AI{% endblock %}</title>
   <meta name="description" content="AI-powered trading signals platform" />
-  <link href="/static/vendor/bootstrap.min.css" rel="stylesheet" />
-  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin />
-  <!-- Font preconnect for performance -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin />
+  <link href="/static/vendor/bootstrap.min.css" rel="stylesheet" />
+  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css" />
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#6366f1">
@@ -23,10 +22,10 @@
 <body>
 
 {% if not hide_sidebar %}
-<!-- ═══ SIDEBAR ═══════════════════════════════════════════════ -->
+<!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->
 <aside class="sidebar" id="sidebar">
 
-  <!-- Logo -->
+  <!-- Brand -->
   <div class="sidebar-header">
     <a href="/dashboard" class="brand">
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
@@ -37,7 +36,7 @@
     </button>
   </div>
 
-  <!-- User -->
+  <!-- User profile -->
   <div class="sidebar-user">
     <div class="user-avatar" id="userAvatar">A</div>
     <div class="sidebar-user-info">
@@ -46,238 +45,183 @@
     </div>
   </div>
 
-  <!-- Navigation -->
+  <!-- Flat navigation -->
   <nav class="sidebar-nav" id="sidebarNav">
 
-    <!-- Main (always visible, no collapse) -->
-    <div class="nav-section">
-      <a href="/dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
-        <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
+    <!-- Overview -->
+    <span class="nav-section-label">Overview</span>
+    <a href="/dashboard" data-tooltip="Dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
+      <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
+    </a>
+    <a href="/briefing" data-tooltip="Morning Briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
+      <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
+    </a>
+
+    <div class="nav-section-sep"></div>
+
+    <!-- Markets -->
+    <span class="nav-section-label">Markets</span>
+    <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
+      <i class="bi bi-currency-bitcoin"></i>
+      <span class="nav-text">Crypto</span>
+      <span class="badge-live">LIVE</span>
+    </a>
+    <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
+      <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
+    </a>
+    <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
+      <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
+    </a>
+    <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
+      <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
+    </a>
+    <a href="/markets/index" data-tooltip="Indices" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
+      <i class="bi bi-activity"></i><span class="nav-text">Indices</span>
+    </a>
+
+    <div class="nav-section-sep"></div>
+
+    <!-- Signals & Tools -->
+    <span class="nav-section-label">Signals &amp; Tools</span>
+    <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
+      <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
+    </a>
+    <a href="/auto-generate" data-tooltip="Auto Generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
+      <i class="bi bi-robot"></i>
+      <span class="nav-text">Auto Generate</span>
+      <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
+    </a>
+    <a href="/scanner" data-tooltip="Scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
+      <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
+    </a>
+    <a href="/heatmap" data-tooltip="Market Heatmap" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
+      <i class="bi bi-grid-3x3-gap-fill"></i><span class="nav-text">Market Heatmap</span>
+    </a>
+    <a href="/backtesting" data-tooltip="Backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
+      <i class="bi bi-clock-history"></i>
+      <span class="nav-text">Backtesting</span>
+      <span class="badge-pro">PRO</span>
+    </a>
+    <a href="/ai-insights" data-tooltip="AI Insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
+      <i class="bi bi-cpu-fill"></i>
+      <span class="nav-text">AI Insights</span>
+      <span class="badge-pro">PRO</span>
+    </a>
+
+    <div class="nav-section-sep"></div>
+
+    <!-- Analysis -->
+    <span class="nav-section-label">Analysis</span>
+    <a href="/ta-summary" data-tooltip="TA Summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+      <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
+    </a>
+    <a href="/mtf-analysis" data-tooltip="MTF Analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+      <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+    </a>
+    <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
+      <i class="bi bi-bar-chart-steps"></i><span class="nav-text">Model Performance</span>
+    </a>
+    <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+      <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
+    </a>
+    <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
+      <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
+    </a>
+    <a href="/signals?tab=history" data-tooltip="Signal History" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
+      <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
+    </a>
+
+    <div class="nav-section-sep"></div>
+
+    <!-- Portfolio -->
+    <span class="nav-section-label">Portfolio</span>
+    <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
+      <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+    </a>
+    <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
+      <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
+    </a>
+    <a href="/risk" data-tooltip="Risk Manager" class="nav-item {% if active == 'risk' %}active{% endif %}">
+      <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
+    </a>
+    <a href="/performance" data-tooltip="My Performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
+      <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
+    </a>
+    <a href="/journal" data-tooltip="Trade Journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
+      <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
+    </a>
+
+    <!-- Admin (hidden until role check) -->
+    <div id="adminNav" style="display:none">
+      <div class="nav-section-sep"></div>
+      <span class="nav-section-label">Admin</span>
+      <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
+      </a>
+      <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
+        <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
+      </a>
+      <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
+        <i class="bi bi-plug-fill"></i><span class="nav-text">API Configs</span>
+      </a>
+      <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
+        <i class="bi bi-layers-fill"></i><span class="nav-text">Assets</span>
+      </a>
+      <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
+        <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
       </a>
     </div>
 
-    <!-- Markets -->
-    <div class="nav-section nav-collapsible" data-group="markets">
-      <button class="nav-group-toggle" aria-expanded="true">
-        <span class="nav-label">Markets</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a href="/markets/crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
-          <i class="bi bi-currency-bitcoin"></i>
-          <span class="nav-text">Crypto</span>
-          <span class="nav-badge badge-live">Live</span>
-        </a>
-        <a href="/markets/forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
-          <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
-        </a>
-        <a href="/markets/commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
-          <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
-        </a>
-        <a href="/markets/indian_stock" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-          <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
-        </a>
-        <a href="/markets/index" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-          <i class="bi bi-bar-chart-line-fill"></i><span class="nav-text">Indices</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Tools -->
-    <div class="nav-section nav-collapsible" data-group="tools">
-      <button class="nav-group-toggle" aria-expanded="true">
-        <span class="nav-label">Tools</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a href="/briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
-          <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
-        </a>
-        <a href="/signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-          <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
-        </a>
-        <a href="/auto-generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
-          <i class="bi bi-robot"></i>
-          <span class="nav-text">Auto Generate</span>
-          <span class="nav-badge badge-live" id="navAutoGenBadge" style="display:none">ON</span>
-        </a>
-        <a href="/scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
-          <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
-        </a>
-        <a href="/backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history"></i>
-          <span class="nav-text">Backtesting</span>
-          <span class="nav-badge badge-pro">PRO</span>
-        </a>
-        <a href="/ai-insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
-          <i class="bi bi-cpu-fill"></i>
-          <span class="nav-text">AI Insights</span>
-          <span class="nav-badge badge-pro">PRO</span>
-        </a>
-        <a href="/analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-          <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
-        </a>
-        <a href="/journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
-          <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Portfolio -->
-    <div class="nav-section nav-collapsible" data-group="portfolio">
-      <button class="nav-group-toggle" aria-expanded="true">
-        <span class="nav-label">Portfolio</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a href="/portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
-          <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
-        </a>
-        <a href="/watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
-          <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
-        </a>
-        <a href="/risk" class="nav-item {% if active == 'risk' %}active{% endif %}">
-          <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Analysis -->
-    <div class="nav-section nav-collapsible" data-group="analysis">
-      <button class="nav-group-toggle" aria-expanded="true">
-        <span class="nav-label">Analysis</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a href="/ta-summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-          <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
-        </a>
-        <a href="/mtf-analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-          <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
-        </a>
-        <a href="/performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
-          <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
-        </a>
-        <a href="/news" class="nav-item {% if active == 'news' %}active{% endif %}">
-          <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
-        </a>
-        <a href="/signals?tab=history" class="nav-item">
-          <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- Admin (hidden until role check) -->
-    <div class="nav-section nav-collapsible" data-group="admin" id="adminNav" style="display:none">
-      <button class="nav-group-toggle" aria-expanded="true">
-        <span class="nav-label">Admin</span>
-        <i class="bi bi-chevron-down nav-chevron"></i>
-      </button>
-      <div class="nav-group-items">
-        <a href="/admin" class="nav-item {% if active == 'admin' %}active{% endif %}">
-          <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
-        </a>
-        <a href="/admin/users" class="nav-item">
-          <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
-        </a>
-        <a href="/admin/logs" class="nav-item">
-          <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
-        </a>
-      </div>
-    </div>
+    <!-- Bottom spacer so last items don't disappear behind footer -->
+    <div style="height:8px"></div>
 
   </nav>
 
-  <script>
-  // Collapsible sidebar groups — persisted in localStorage
-  document.addEventListener('DOMContentLoaded', () => {
-    const STORE_KEY = 'sidebar_groups';
-    let saved = {};
-    try { saved = JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch(e){}
-
-    document.querySelectorAll('.nav-collapsible').forEach(section => {
-      const group   = section.dataset.group;
-      const btn     = section.querySelector('.nav-group-toggle');
-      const items   = section.querySelector('.nav-group-items');
-      if (!btn || !items) return;
-
-      // Restore state: default open unless explicitly saved as closed
-      // Auto-open the group if it contains the active page
-      const hasActive = items.querySelector('.nav-item.active');
-      const isOpen    = hasActive ? true : (saved[group] !== false);
-
-      const apply = (open, animate) => {
-        btn.setAttribute('aria-expanded', open);
-        if (open) {
-          items.style.maxHeight = items.scrollHeight + 'px';
-          items.style.overflow  = 'visible';
-        } else {
-          items.style.maxHeight = '0';
-          items.style.overflow  = 'hidden';
-        }
-        btn.querySelector('.nav-chevron').style.transform = open ? 'rotate(0deg)' : 'rotate(-90deg)';
-      };
-
-      // Set initial state without animation
-      items.style.transition = 'none';
-      apply(isOpen, false);
-      requestAnimationFrame(() => {
-        items.style.transition = 'max-height 0.22s ease, opacity 0.18s ease';
-      });
-
-      btn.addEventListener('click', () => {
-        const open = btn.getAttribute('aria-expanded') === 'true';
-        const next = !open;
-        if (!next) items.style.overflow = 'hidden';
-        items.style.maxHeight = next ? items.scrollHeight + 'px' : '0';
-        btn.setAttribute('aria-expanded', next);
-        btn.querySelector('.nav-chevron').style.transform = next ? 'rotate(0deg)' : 'rotate(-90deg)';
-        saved[group] = next;
-        localStorage.setItem(STORE_KEY, JSON.stringify(saved));
-      });
-    });
-  });
-  </script>
-
   <!-- Footer links -->
   <div class="sidebar-footer">
-    <a href="/settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
+    <a href="/help" data-tooltip="Help &amp; FAQ" class="nav-item {% if active == 'help' %}active{% endif %}">
+      <i class="bi bi-question-circle-fill"></i><span class="nav-text">Help &amp; FAQ</span>
+    </a>
+    <a href="/settings" data-tooltip="Settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
       <i class="bi bi-gear-fill"></i><span class="nav-text">Settings</span>
     </a>
-    <a href="#" class="nav-item" id="logoutBtn">
+    <a href="#" data-tooltip="Logout" class="nav-item" id="logoutBtn">
       <i class="bi bi-box-arrow-right"></i><span class="nav-text">Logout</span>
     </a>
   </div>
 
 </aside>
 
-<!-- ═══ MAIN WRAPPER ═══════════════════════════════════════════ -->
+<!-- Mobile sidebar backdrop -->
+<div id="sidebarBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;backdrop-filter:blur(2px)"></div>
+
+<!-- ═══ MAIN WRAPPER ═══════════════════════════════════════════════════════ -->
 <div class="main-wrapper" id="mainWrapper">
 
   <!-- Top Navbar -->
   <nav class="top-navbar">
     <div class="navbar-left">
-      <button class="btn-icon" id="mobileSidebarToggle" title="Menu">
+      <!-- Mobile toggle / desktop collapse trigger -->
+      <button class="btn-icon" id="mobileSidebarToggle" title="Toggle sidebar">
         <i class="bi bi-list"></i>
       </button>
       <div class="breadcrumb-nav">
-        {% block breadcrumb %}<i class="bi bi-grid-1x2 me-1"></i> Dashboard{% endblock %}
+        {% block breadcrumb %}<i class="bi bi-grid-1x2 me-1"></i>Dashboard{% endblock %}
       </div>
     </div>
 
-    <!-- Ticker ribbon -->
-    <div class="ticker-ribbon" id="tickerRibbon">
-      <div class="ticker-track" id="tickerTrack">
-        <span class="ticker-item text-muted">Loading market data...</span>
-      </div>
+    <!-- Command palette trigger (center) -->
+    <div class="cmd-trigger" id="cmdTrigger" role="button" tabindex="0" title="Quick search (Ctrl+K)">
+      <i class="bi bi-search" style="font-size:12px"></i>
+      <span>Search or jump to…</span>
+      <kbd>Ctrl K</kbd>
     </div>
 
     <div class="navbar-right">
-      <!-- Global confidence filter -->
-      <div class="d-none d-md-flex align-items-center gap-1" style="margin-right:4px">
-        <span style="font-size:11px;color:var(--text-muted);white-space:nowrap">Min Conf:</span>
-        <input type="range" id="globalConfFilter" min="50" max="95" step="5" value="60" style="width:80px;accent-color:var(--accent)">
-        <span id="globalConfVal" style="font-size:11px;color:var(--accent);font-weight:700;min-width:28px">60%</span>
+      <!-- WebSocket status -->
+      <div class="ws-status" id="wsStatusBadge" title="Live data connection">
+        <span class="ws-dot" id="wsDot"></span>
+        <span id="wsStatusLabel" class="d-none d-sm-inline">Connecting…</span>
       </div>
 
       <!-- Theme toggle -->
@@ -286,13 +230,13 @@
       </button>
 
       <!-- Notification bell -->
-      <div class="notification-bell" id="notifBell" title="Notifications">
+      <div class="notification-bell" id="notifBell" role="button" tabindex="0" title="Notifications">
         <i class="bi bi-bell-fill" style="font-size:14px"></i>
         <span class="notif-badge" id="notifCount" style="display:none">0</span>
       </div>
 
-      <!-- User -->
-      <div class="user-menu" id="userMenu">
+      <!-- User chip -->
+      <div class="user-menu" id="userMenu" role="button" tabindex="0">
         <div class="user-avatar-sm" id="navUserAvatar">A</div>
         <span id="navUserName" class="d-none d-sm-inline">User</span>
         <i class="bi bi-chevron-down" style="font-size:10px"></i>
@@ -300,11 +244,23 @@
     </div>
   </nav>
 
+  <!-- Ticker strip — thin bar below navbar -->
+  <div class="ticker-strip" id="tickerStrip">
+    <div class="ticker-ribbon">
+      <div class="ticker-track" id="tickerTrack">
+        <span class="ticker-item">
+          <span class="ticker-live-dot"></span>
+          <span class="ticker-symbol text-muted">Loading…</span>
+        </span>
+      </div>
+    </div>
+  </div>
+
   <!-- Notification dropdown -->
   <div class="notif-dropdown" id="notifDropdown" style="display:none">
     <div class="notif-header">
       <span>Notifications</span>
-      <a href="#" id="markAllRead" class="text-muted fs-sm text-decoration-none">Mark all read</a>
+      <a href="#" id="markAllRead" class="fs-sm text-decoration-none">Mark all read</a>
     </div>
     <div id="notifList">
       <p class="p-3 text-muted fs-sm mb-0">No notifications</p>
@@ -312,11 +268,46 @@
   </div>
 
   <!-- Page content -->
-  <main class="page-content">
+  <main class="page-content" id="pageContent">
     {% block content %}{% endblock %}
   </main>
 
 </div><!-- /main-wrapper -->
+
+<!-- ═══ COMMAND PALETTE ═══════════════════════════════════════════════════ -->
+<div class="cmd-overlay" id="cmdOverlay" role="dialog" aria-label="Command Palette">
+  <div class="cmd-palette" id="cmdPalette">
+    <div class="cmd-input-wrap">
+      <i class="bi bi-search"></i>
+      <input type="text" class="cmd-input" id="cmdInput" placeholder="Search pages, assets, signals…" autocomplete="off" spellcheck="false" />
+      <button class="cmd-esc" id="cmdClose">Esc</button>
+    </div>
+    <div class="cmd-results" id="cmdResults">
+      <div class="cmd-group-label">Quick Navigation</div>
+      <a href="/dashboard"        class="cmd-item"><i class="bi bi-grid-1x2-fill"></i><span class="cmd-item-label">Dashboard</span></a>
+      <a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">All Signals</span></a>
+      <a href="/briefing"         class="cmd-item"><i class="bi bi-sunrise"></i><span class="cmd-item-label">Morning Briefing</span></a>
+      <a href="/markets/crypto"   class="cmd-item"><i class="bi bi-currency-bitcoin"></i><span class="cmd-item-label">Crypto Markets</span></a>
+      <a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span></a>
+      <a href="/markets/commodities" class="cmd-item"><i class="bi bi-gem"></i><span class="cmd-item-label">Commodities</span></a>
+      <a href="/markets/indian_stock" class="cmd-item"><i class="bi bi-building"></i><span class="cmd-item-label">Indian Stocks</span></a>
+      <a href="/markets/index"    class="cmd-item"><i class="bi bi-activity"></i><span class="cmd-item-label">Indices</span></a>
+      <a href="/heatmap"          class="cmd-item"><i class="bi bi-grid-3x3-gap-fill"></i><span class="cmd-item-label">Market Heatmap</span></a>
+      <a href="/scanner"          class="cmd-item"><i class="bi bi-radar"></i><span class="cmd-item-label">Scanner</span></a>
+      <a href="/portfolio"        class="cmd-item"><i class="bi bi-pie-chart-fill"></i><span class="cmd-item-label">Portfolio</span></a>
+      <a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>
+      <a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span></a>
+      <a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span></a>
+      <a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span></a>
+      <a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>
+    </div>
+    <div class="cmd-footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+      <span><kbd>↵</kbd> Open</span>
+      <span><kbd>Esc</kbd> Close</span>
+    </div>
+  </div>
+</div>
 
 {% else %}
 {% block auth_content %}{% endblock %}
@@ -331,10 +322,135 @@
 <script src="/static/vendor/socket.io.min.js"></script>
 <script src="/static/js/app.js"></script>
 {% block extra_js %}{% endblock %}
+
 <script>
+// ── Service Worker ─────────────────────────────────────────────────
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/static/sw.js').catch(() => {});
 }
+
+// ── Sidebar collapse / expand ──────────────────────────────────────
+(function () {
+  const sidebar    = document.getElementById('sidebar');
+  const wrapper    = document.getElementById('mainWrapper');
+  const toggleBtn  = document.getElementById('sidebarToggle');
+  const mobileBtn  = document.getElementById('mobileSidebarToggle');
+  const backdrop   = document.getElementById('sidebarBackdrop');
+  if (!sidebar) return;
+
+  const isMobile = () => window.innerWidth < 993;
+
+  function applyCollapsed(collapsed) {
+    sidebar.classList.toggle('collapsed', collapsed);
+    wrapper && wrapper.classList.toggle('expanded', collapsed);
+    if (toggleBtn) {
+      toggleBtn.querySelector('i').className = collapsed
+        ? 'bi bi-layout-sidebar-inset-reverse'
+        : 'bi bi-layout-sidebar-inset';
+    }
+    try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch {}
+  }
+
+  function openMobile() {
+    sidebar.classList.add('mobile-open');
+    backdrop && (backdrop.style.display = 'block');
+  }
+  function closeMobile() {
+    sidebar.classList.remove('mobile-open');
+    backdrop && (backdrop.style.display = 'none');
+  }
+
+  // Restore desktop state
+  if (!isMobile()) {
+    const saved = localStorage.getItem('sidebar_collapsed');
+    if (saved === '1') applyCollapsed(true);
+  }
+
+  toggleBtn && toggleBtn.addEventListener('click', () => {
+    if (isMobile()) { closeMobile(); return; }
+    applyCollapsed(!sidebar.classList.contains('collapsed'));
+  });
+
+  mobileBtn && mobileBtn.addEventListener('click', () => {
+    if (isMobile()) {
+      sidebar.classList.contains('mobile-open') ? closeMobile() : openMobile();
+    } else {
+      applyCollapsed(!sidebar.classList.contains('collapsed'));
+    }
+  });
+
+  backdrop && backdrop.addEventListener('click', closeMobile);
+
+  window.addEventListener('resize', () => {
+    if (!isMobile()) closeMobile();
+  });
+})();
+
+// ── Command Palette ────────────────────────────────────────────────
+(function () {
+  const overlay   = document.getElementById('cmdOverlay');
+  const input     = document.getElementById('cmdInput');
+  const results   = document.getElementById('cmdResults');
+  const closeBtn  = document.getElementById('cmdClose');
+  const trigger   = document.getElementById('cmdTrigger');
+  if (!overlay) return;
+
+  const allItems = Array.from(results.querySelectorAll('.cmd-item'));
+
+  function open() {
+    overlay.classList.add('open');
+    setTimeout(() => input && input.focus(), 50);
+  }
+  function close() {
+    overlay.classList.remove('open');
+    if (input) input.value = '';
+    filterItems('');
+    highlighted = -1;
+  }
+
+  trigger  && trigger.addEventListener('click', open);
+  trigger  && trigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  closeBtn && closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
+
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); open(); }
+    if (e.key === 'Escape' && overlay.classList.contains('open')) close();
+    if (overlay.classList.contains('open')) handleArrow(e);
+  });
+
+  let highlighted = -1;
+  function visibleItems() { return allItems.filter(i => i.style.display !== 'none'); }
+
+  function handleArrow(e) {
+    const vis = visibleItems();
+    if (!vis.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlighted = (highlighted + 1) % vis.length; }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlighted = (highlighted - 1 + vis.length) % vis.length; }
+    else if (e.key === 'Enter' && highlighted >= 0) { vis[highlighted].click(); close(); return; }
+    vis.forEach((item, i) => item.classList.toggle('highlighted', i === highlighted));
+    highlighted >= 0 && vis[highlighted].scrollIntoView({ block: 'nearest' });
+  }
+
+  function filterItems(q) {
+    const query = q.toLowerCase().trim();
+    let hasGroup = false;
+    allItems.forEach(item => {
+      const label = (item.querySelector('.cmd-item-label') || item).textContent.toLowerCase();
+      const show = !query || label.includes(query);
+      item.style.display = show ? '' : 'none';
+      if (show) hasGroup = true;
+    });
+    // Hide group label if nothing visible
+    results.querySelectorAll('.cmd-group-label').forEach(lbl => {
+      lbl.style.display = hasGroup ? '' : 'none';
+    });
+    highlighted = -1;
+    visibleItems().forEach(i => i.classList.remove('highlighted'));
+  }
+
+  input && input.addEventListener('input', e => filterItems(e.target.value));
+})();
 </script>
 </body>
 </html>

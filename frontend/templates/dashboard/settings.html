@@ -60,6 +60,80 @@
   </div>
 </div>
 
+<!-- Two-Factor Authentication -->
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="section-card">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-shield-lock text-accent"></i> Two-Factor Authentication (2FA)</span>
+      </div>
+      <div class="section-card-body">
+
+        <!-- 2FA disabled state -->
+        <div id="twofa_disabled">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="badge bg-danger" style="font-size:12px;padding:6px 12px">DISABLED</span>
+            <span style="font-size:13px;color:var(--text-muted)">Your account is protected by password only. Enable 2FA for stronger security.</span>
+          </div>
+          <button class="btn btn-primary" onclick="setup2FA()">
+            <i class="bi bi-shield-plus me-1"></i> Enable 2FA
+          </button>
+        </div>
+
+        <!-- 2FA enabled state -->
+        <div id="twofa_enabled" style="display:none">
+          <div class="d-flex align-items-center gap-3 mb-3">
+            <span class="badge bg-success" style="font-size:12px;padding:6px 12px">ENABLED</span>
+            <span style="font-size:13px;color:var(--text-secondary)">Your account is protected with TOTP two-factor authentication.</span>
+          </div>
+          <button class="btn btn-outline-danger btn-sm" onclick="show2FADisableModal()">
+            <i class="bi bi-shield-x me-1"></i> Disable 2FA
+          </button>
+        </div>
+
+        <!-- Setup flow (hidden until Enable clicked) -->
+        <div id="twofa_setup" style="display:none;margin-top:20px">
+          <div class="row g-3">
+            <div class="col-md-3 text-center">
+              <img id="twofaQR" src="" alt="QR Code" style="max-width:180px;border-radius:8px;border:1px solid var(--border)" />
+            </div>
+            <div class="col-md-9">
+              <p style="font-size:13px;color:var(--text-muted);margin-bottom:8px">
+                1. Scan this QR code with <strong>Google Authenticator</strong>, <strong>Authy</strong>, or any TOTP app.<br>
+                2. Or manually enter the secret key below.
+              </p>
+              <div class="mb-3">
+                <label class="form-label">Secret Key (manual entry)</label>
+                <div class="input-group">
+                  <input type="text" class="form-control font-monospace" id="twofaSecret" readonly style="font-size:13px;letter-spacing:2px">
+                  <button class="btn btn-outline-secondary" onclick="copySecret()"><i class="bi bi-copy"></i></button>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Enter the 6-digit code from your app to confirm</label>
+                <div class="d-flex gap-2" style="max-width:260px">
+                  <input type="text" class="form-control font-monospace text-center" id="twofaCode" maxlength="6" placeholder="000000" style="font-size:20px;letter-spacing:6px">
+                  <button class="btn btn-primary" onclick="confirm2FA()">Verify</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Backup codes display (shown once after enabling) -->
+        <div id="twofa_backup" style="display:none;margin-top:16px">
+          <div class="p-3 rounded" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+            <strong style="color:var(--green)"><i class="bi bi-key me-1"></i> Save these backup codes</strong>
+            <p style="font-size:12px;color:var(--text-muted);margin:6px 0 10px">If you lose your authenticator device, use one of these codes to sign in. Each code can only be used once.</p>
+            <div id="backupCodesList" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-family:monospace;font-size:13px"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Analysis Assets -->
 <div class="row g-4 mt-1">
   <div class="col-12">
@@ -239,5 +313,54 @@ document.getElementById('pwdForm').addEventListener('submit', async (e) => {
   if (res?.user) { Toast.show('Password updated!', 'success'); e.target.reset(); }
   else Toast.show(res?.error || 'Failed', 'error');
 });
+
+// ── 2FA ────────────────────────────────────────────────────────────────────
+async function load2FAStatus() {
+  const s = await API.get('/auth/2fa/status');
+  if (!s) return;
+  document.getElementById('twofa_disabled').style.display = s.totp_enabled ? 'none' : '';
+  document.getElementById('twofa_enabled').style.display  = s.totp_enabled ? '' : 'none';
+}
+
+async function setup2FA() {
+  const res = await API.post('/auth/2fa/setup', {});
+  if (!res?.secret) { Toast.show('Setup failed', 'error'); return; }
+  document.getElementById('twofaSecret').value = res.secret;
+  if (res.qr_code) document.getElementById('twofaQR').src = res.qr_code;
+  document.getElementById('twofa_setup').style.display = '';
+}
+
+async function confirm2FA() {
+  const code = document.getElementById('twofaCode').value.trim();
+  if (code.length !== 6) { Toast.show('Enter a 6-digit code', 'warning'); return; }
+  const res = await API.post('/auth/2fa/verify', { code });
+  if (res?.backup_codes) {
+    Toast.show('2FA enabled successfully!', 'success');
+    document.getElementById('twofa_setup').style.display = 'none';
+    document.getElementById('twofa_backup').style.display = '';
+    document.getElementById('backupCodesList').innerHTML = res.backup_codes.map(c =>
+      `<div style="background:var(--bg-secondary);padding:6px 10px;border-radius:6px;text-align:center">${c}</div>`
+    ).join('');
+    load2FAStatus();
+  } else {
+    Toast.show(res?.error || 'Invalid code', 'error');
+  }
+}
+
+function copySecret() {
+  navigator.clipboard.writeText(document.getElementById('twofaSecret').value);
+  Toast.show('Secret copied!', 'success');
+}
+
+function show2FADisableModal() {
+  const pwd = prompt('Enter your current password to disable 2FA:');
+  if (!pwd) return;
+  API.post('/auth/2fa/disable', { password: pwd }).then(res => {
+    if (res?.message) { Toast.show('2FA disabled', 'success'); load2FAStatus(); }
+    else Toast.show(res?.error || 'Failed', 'error');
+  });
+}
+
+document.addEventListener('app:ready', load2FAStatus);
 </script>
 {% endblock %}

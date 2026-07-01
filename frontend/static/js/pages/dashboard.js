@@ -34,19 +34,48 @@ async function loadKPIs() {
 
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
 
-  set('kpiBuy',     data.buy_today  ?? 0);
-  set('kpiSell',    data.sell_today ?? 0);
-  set('kpiHold',    data.hold_today ?? 0);
-  set('kpiExit',    data.exit_today ?? 0);
-  set('kpiAlerts',  data.open_alerts ?? 0);
-  set('kpiWinRate', data.win_rate != null ? data.win_rate.toFixed(1) + '%' : '—');
+  // New 4-KPI layout
+  set('kpiWinRate',     data.win_rate != null ? data.win_rate.toFixed(1) + '%' : '—');
+  const buy  = data.buy_today  ?? 0;
+  const sell = data.sell_today ?? 0;
+  const hold = data.hold_today ?? 0;
+  const exit = data.exit_today ?? 0;
+  const total = buy + sell + hold + exit;
+  set('kpiBuy',  buy);
+  set('kpiSell', sell);
+  set('kpiHold', hold);
+  set('kpiExit', exit);
+  set('kpiActiveSignals', total);
 
-  const total = (data.buy_today||0)+(data.sell_today||0)+(data.hold_today||0)+(data.exit_today||0);
+  const avgConf = data.avg_confidence;
+  if (avgConf != null) {
+    set('kpiAvgConf', avgConf.toFixed(1) + '%');
+    set('qsAvgConf',  avgConf.toFixed(1) + '%');
+  }
+
   set('qsTotalToday', total);
-  if (data.avg_confidence != null) set('qsAvgConf', data.avg_confidence.toFixed(1) + '%');
+
+  // Open P&L card — load separately
+  _loadOpenPnlKpi();
 
   _buildDistChart(data);
   _buildTopSignalCard(data.top_signal);
+}
+
+async function _loadOpenPnlKpi() {
+  const data = await API.get('/signals/open-pnl');
+  const el   = document.getElementById('kpiOpenPnl');
+  const chEl = document.getElementById('kpiPnlChange');
+  if (!el) return;
+  if (!data || !Array.isArray(data) || !data.length) {
+    el.textContent = '—';
+    return;
+  }
+  const totalPnl = data.reduce((sum, r) => sum + (r.pnl_pct || 0), 0);
+  const avg = totalPnl / data.length;
+  el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%';
+  el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red');
+  if (chEl) chEl.innerHTML = `<i class="bi bi-circle-fill me-1" style="font-size:6px;color:${avg>=0?'var(--green)':'var(--red)'}"></i>${data.length} open position${data.length !== 1 ? 's' : ''}`;
 }
 
 function _buildDistChart(data) {
@@ -110,7 +139,7 @@ async function loadHeatmap() {
   let items = data.heatmap;
   if (market) items = items.filter(i => i.market === market);
 
-  _buildWinChart(items);
+  _buildWinChart();
 
   grid.innerHTML = items.map(item => {
     const up    = item.change_pct >= 0;
@@ -124,31 +153,29 @@ async function loadHeatmap() {
   }).join('');
 }
 
-function _buildWinChart(items) {
+async function _buildWinChart() {
   const ctx = document.getElementById('winRateChart');
   if (!ctx) return;
   if (_winChart) { _winChart.destroy(); _winChart = null; }
 
-  const markets = {};
-  items.forEach(i => {
-    if (!markets[i.market]) markets[i.market] = [];
-    markets[i.market].push(i.change_pct);
-  });
+  const data = await API.get('/signals/analytics');
+  const byMarket = data?.by_market;
+  if (!byMarket?.length) return;
 
-  const labels = Object.keys(markets).map(m =>
-    m === 'indian_stock' ? 'Stocks' : m === 'index' ? 'Indices' :
-    m.charAt(0).toUpperCase() + m.slice(1));
-  const values = Object.values(markets).map(arr => {
-    const pos = arr.filter(v => v > 0).length;
-    return Math.round((pos / arr.length) * 100);
-  });
+  // Only show markets that have historical signal data
+  const filtered = byMarket.filter(m => m.total > 0);
+  const labels = filtered.map(m =>
+    m.market === 'indian_stock' ? 'Stocks' :
+    m.market === 'index'        ? 'Indices' :
+    m.market.charAt(0).toUpperCase() + m.market.slice(1));
+  const values = filtered.map(m => m.win_rate);
 
   _winChart = new Chart(ctx, {
     type: 'bar',
     data: {
       labels,
       datasets: [{
-        label: '% Up',
+        label: 'Win Rate',
         data: values,
         backgroundColor: values.map(v => v >= 50 ? 'rgba(16,185,129,0.7)' : 'rgba(239,68,68,0.7)'),
         borderRadius: 5, borderSkipped: false,
@@ -156,7 +183,7 @@ function _buildWinChart(items) {
     },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => c.raw + '%' } } },
       scales: {
         y: { min: 0, max: 100, ticks: { callback: v => v+'%', stepSize: 25 }, grid: { color: 'rgba(255,255,255,0.04)' } },
         x: { grid: { display: false } },
@@ -263,7 +290,7 @@ function _renderSignals(signals) {
   }
 
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-5">
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5">
       <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
       No signals found yet. Go to a market page and click "Generate Signal" to create one.
     </td></tr>`;
@@ -274,30 +301,56 @@ function _renderSignals(signals) {
     const rr = parseFloat(s.risk_reward) || 0;
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : rr > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
     const rrText  = rr > 0 ? `${rr.toFixed(1)}x` : '—';
-    const conf = s.confidence_score || 0;
+    const conf    = s.confidence_score || 0;
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const mktLabel = (s.market || '').replace('_', ' ');
     return `<tr>
-      <td><a href="/asset/${s.asset_id}" style="color:var(--text-primary);text-decoration:none;font-weight:700" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">${s.asset}</a></td>
-      <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
-      <td><span class="badge-tag">${s.timeframe}</span></td>
-      <td>${signalBadge(s.signal_type)}</td>
-      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price, s.market)}</td>
-      <td class="text-red">${formatPrice(s.stop_loss, s.market)}</td>
-      <td class="text-green">${formatPrice(s.target1, s.market)}</td>
-      <td class="text-green">${formatPrice(s.target2, s.market)}</td>
-      <td><span style="font-weight:700;color:${rrColor}">${rrText}</span></td>
       <td>
-        <div style="min-width:90px">
-          <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
-          <div style="color:#94a3b8;font-size:11px;margin-top:3px">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
+        <div class="asset-cell">
+          <a href="/asset/${s.asset_id}" class="asset-cell-name" style="text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">${s.asset}</a>
+          <span class="asset-cell-sub"><span class="badge-tag">${mktLabel}</span></span>
         </div>
       </td>
-      <td id="conf_${s.id}" style="font-size:11px;color:var(--text-muted);white-space:nowrap">…</td>
-      <td style="color:#7a8fa8;font-size:11px;white-space:nowrap">${shortTime(s.generated_at)}</td>
+      <td><span class="badge-tag">${s.timeframe}</span></td>
+      <td>${signalBadge(s.signal_type)}</td>
+      <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
+      <td style="min-width:160px">
+        <div class="confidence-wrap">
+          <div style="font-size:12px;font-weight:700;color:${confClr}">${conf.toFixed(0)}% <span style="color:var(--text-muted);font-weight:400;font-size:11px">${s.confidence_label || ''}</span></div>
+          <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
+          <div class="signal-levels">
+            <span class="sl">SL ${formatPrice(s.stop_loss, s.market)}</span>
+            <span class="tgt">T1 ${formatPrice(s.target1, s.market)}</span>
+            ${s.target2 ? `<span class="tgt">T2 ${formatPrice(s.target2, s.market)}</span>` : ''}
+          </div>
+          <div id="dsbd_${s.id}"></div>
+          <div id="dsprog_${s.id}"></div>
+        </div>
+      </td>
+      <td style="font-weight:700;color:${rrColor}">${rrText}</td>
+      <td>
+        <div class="text-muted fs-xs" style="white-space:nowrap">${shortTime(s.generated_at)}</div>
+        <div id="dspk_${s.id}" style="line-height:0;margin-top:4px"></div>
+        <div id="conf_${s.id}" style="font-size:10px;color:var(--text-muted);margin-top:3px"></div>
+      </td>
     </tr>`;
   }).join('');
 
-  // Lazy-load confluence for each signal (non-blocking)
+  // Lazy-load sparklines, score breakdowns, and P&L progress bars (non-blocking)
+  filtered.forEach(s => {
+    if (s.asset_id) {
+      const el = document.getElementById(`dspk_${s.id}`);
+      if (el && typeof Sparkline !== 'undefined') Sparkline.load(el, s.asset_id, s.timeframe || '1h');
+    }
+    if (typeof ScoreBreakdown !== 'undefined') {
+      const sbdEl = document.getElementById(`dsbd_${s.id}`);
+      if (sbdEl) ScoreBreakdown.render(sbdEl, s);
+    }
+    if (typeof SignalProgress !== 'undefined') {
+      const progEl = document.getElementById(`dsprog_${s.id}`);
+      if (progEl) SignalProgress.render(progEl, s);
+    }
+  });
   _loadConfluenceCells(filtered);
   _loadConfluenceWidget(filtered);
 }
@@ -392,6 +445,64 @@ async function _loadConfluenceWidget(signals) {
   }).join('');
 }
 
+/* ── Live P&L Ticker Strip ────────────────────── */
+let _openPositions = [];    // [{signal_id, asset, asset_id, timeframe, signal_type, entry_price}]
+
+async function loadLivePnlStrip() {
+  try {
+    const data = await API.get('/signals/open-pnl');
+    if (!data || !Array.isArray(data) || !data.length) {
+      document.getElementById('livePnlStrip').style.display = 'none';
+      return;
+    }
+    _openPositions = data;
+    document.getElementById('livePnlStrip').style.display = 'block';
+    _renderPnlStrip(data);
+  } catch (e) {
+    document.getElementById('livePnlStrip').style.display = 'none';
+  }
+}
+
+function _renderPnlStrip(positions) {
+  const wrap = document.getElementById('pnlTickerItems');
+  if (!wrap) return;
+  wrap.innerHTML = positions.map(p => {
+    const pnl    = p.pnl_pct;
+    const pnlStr = pnl != null
+      ? `<span style="font-weight:800;color:${pnl >= 0 ? 'var(--green)' : 'var(--red)'}">
+           ${pnl >= 0 ? '▲' : '▼'}${Math.abs(pnl).toFixed(2)}%</span>`
+      : '<span style="color:var(--text-muted)">—</span>';
+    return `<div id="pnlstrip_${p.signal_id || p.asset_id}" style="display:flex;align-items:center;gap:5px;white-space:nowrap;flex-shrink:0">
+      <span style="font-size:12px;font-weight:700">${p.asset}</span>
+      <span class="badge-tag" style="font-size:9px">${p.timeframe}</span>
+      ${pnlStr}
+    </div>`;
+  }).join('');
+}
+
+function _patchPnlStrip(tick) {
+  // Update P&L for any open position matching this symbol
+  _openPositions.forEach(p => {
+    if (p.asset !== tick.symbol) return;
+    const price = tick.price;
+    let pnl = null;
+    if (p.entry_price && price) {
+      pnl = p.signal_type === 'SELL' || p.signal_type === 'EXIT'
+        ? (p.entry_price - price) / p.entry_price * 100
+        : (price - p.entry_price) / p.entry_price * 100;
+      p.pnl_pct = parseFloat(pnl.toFixed(2));
+    }
+    const itemEl = document.getElementById(`pnlstrip_${p.signal_id || p.asset_id}`);
+    if (itemEl) {
+      const span = itemEl.querySelector('span[style*="font-weight:800"]') || itemEl.lastElementChild;
+      if (pnl !== null && span) {
+        span.style.color = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+        span.textContent = `${pnl >= 0 ? '▲' : '▼'}${Math.abs(pnl).toFixed(2)}%`;
+      }
+    }
+  });
+}
+
 /* ── Load Everything ──────────────────────────── */
 function loadAll() {
   Promise.all([loadKPIs(), loadHeatmap(), loadSentiment(), loadSignals(1)]);
@@ -401,13 +512,18 @@ function loadAll() {
 document.addEventListener('app:ready', () => {
   _chartDefaults();
   loadAll();
+  loadLivePnlStrip();
 
-  document.getElementById('refreshAll')?.addEventListener('click', loadAll);
+  document.getElementById('refreshAll')?.addEventListener('click', () => { loadAll(); loadLivePnlStrip(); });
   document.getElementById('globalTimeframe')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalMarketFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalTypeFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('heatmapMarket')?.addEventListener('change', loadHeatmap);
   document.getElementById('signalSearch')?.addEventListener('input', () => _renderSignals(_signalData));
 
+  // React to live WebSocket price updates — patch the P&L strip in-place
+  document.addEventListener('price:update', e => { if (e.detail) _patchPnlStrip(e.detail); });
+
   setInterval(loadAll, 90000);
+  setInterval(loadLivePnlStrip, 60000);
 });

@@ -9,5 +9,5 @@ from app.models.notification import Notification
 from app.models.backtest import Backtest
 from app.models.news import News
 from app.models.economic import EconomicEvent
-from app.models.api_config import APIConfig
+from app.models.api_config import APIConfig, APILog
 from app.models.audit import AuditLog, SystemLog

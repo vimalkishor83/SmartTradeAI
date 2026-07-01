@@ -1,0 +1,253 @@
+{% extends "partials/base.html" %}
+{% block title %}Manage Assets — SmartTrade AI{% endblock %}
+{% set active = 'admin_assets' %}
+{% block breadcrumb %}<i class="bi bi-layers-fill me-2"></i> Admin / Assets{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Manage Assets</h1>
+    <p class="page-subtitle">Add, filter, and remove trading assets from the platform</p>
+  </div>
+  <button class="btn btn-outline-light btn-sm" onclick="loadAssets()">
+    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+  </button>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue">
+      <div class="kpi-icon"><i class="bi bi-layers-fill" style="color:var(--blue)"></i></div>
+      <div class="kpi-label">Total Assets</div>
+      <div class="kpi-value" id="kpiTotal">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card" style="border-top:3px solid #f59e0b">
+      <div class="kpi-icon"><i class="bi bi-currency-bitcoin" style="color:#f59e0b"></i></div>
+      <div class="kpi-label">Crypto</div>
+      <div class="kpi-value" id="kpiCrypto">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card" style="border-top:3px solid #3b82f6">
+      <div class="kpi-icon"><i class="bi bi-currency-exchange" style="color:#3b82f6"></i></div>
+      <div class="kpi-label">Forex</div>
+      <div class="kpi-value" id="kpiForex">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card" style="border-top:3px solid #8b5cf6">
+      <div class="kpi-icon"><i class="bi bi-gem" style="color:#8b5cf6"></i></div>
+      <div class="kpi-label">Other</div>
+      <div class="kpi-value" id="kpiOther">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Asset Table -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-list-ul text-accent"></i> All Assets</span>
+    <div class="d-flex gap-2 align-items-center">
+      <input type="text" id="assetSearch" placeholder="Search symbol or name…"
+        class="form-control form-control-sm" style="width:220px" oninput="applyFilter()">
+      <select id="assetMarketFilter" class="form-select form-select-sm" style="width:160px" onchange="applyFilter()">
+        <option value="">All Markets</option>
+        <option value="crypto">Crypto</option>
+        <option value="forex">Forex</option>
+        <option value="commodity">Commodity</option>
+        <option value="indian_stock">Indian Stocks</option>
+        <option value="index">Indices</option>
+      </select>
+      <span class="text-muted small" id="assetCount"></span>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>Symbol</th>
+          <th>Name</th>
+          <th>Market</th>
+          <th>Exchange</th>
+          <th>Source</th>
+          <th>Added</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="assetBody">
+        <tr><td colspan="7" class="text-center py-4 text-muted">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Search & Add -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-search text-accent"></i> Search &amp; Add New Asset</span>
+    <span class="text-muted small">Powered by Yahoo Finance</span>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="d-flex gap-2 mb-3">
+      <input type="text" id="assetSearchInput" placeholder="e.g. nifty bank, nasdaq, gold, reliance…"
+        class="form-control" style="max-width:420px">
+      <button class="btn btn-accent" onclick="searchAssets()"><i class="bi bi-search me-1"></i>Search</button>
+    </div>
+    <div id="assetSearchMsg" class="text-muted small mb-2"></div>
+    <div id="assetSearchResults" style="display:none" class="table-responsive">
+      <table class="smart-table">
+        <thead>
+          <tr><th>Symbol</th><th>Name</th><th>Exchange</th><th>Type</th><th>Add as Market</th><th></th></tr>
+        </thead>
+        <tbody id="assetSearchBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const MK_COLORS = { crypto:'#f59e0b', forex:'#3b82f6', commodity:'#10b981', indian_stock:'#8b5cf6', index:'#06b6d4', gold:'#fbbf24', silver:'#94a3b8' };
+let _allAssets = [];
+
+async function loadAssets() {
+  const data = await API.get('/assets/');
+  if (!data) return;
+  _allAssets = data.assets || [];
+  updateKpis();
+  applyFilter();
+}
+
+function updateKpis() {
+  document.getElementById('kpiTotal').textContent  = _allAssets.length;
+  document.getElementById('kpiCrypto').textContent = _allAssets.filter(a => a.market === 'crypto').length;
+  document.getElementById('kpiForex').textContent  = _allAssets.filter(a => a.market === 'forex').length;
+  document.getElementById('kpiOther').textContent  = _allAssets.filter(a => !['crypto','forex'].includes(a.market)).length;
+}
+
+function applyFilter() {
+  const q  = (document.getElementById('assetSearch').value || '').toLowerCase();
+  const mk = document.getElementById('assetMarketFilter').value;
+  const filtered = _allAssets.filter(a =>
+    (!mk || a.market === mk) &&
+    (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q))
+  );
+  renderTable(filtered);
+}
+
+function renderTable(assets) {
+  document.getElementById('assetCount').textContent = `${assets.length} asset${assets.length !== 1 ? 's' : ''}`;
+  const body = document.getElementById('assetBody');
+  if (!assets.length) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">No assets found</td></tr>';
+    return;
+  }
+  body.innerHTML = assets.map(a => {
+    const col = MK_COLORS[a.market] || '#94a3b8';
+    const mkt = (a.market || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    const dt  = a.created_at ? a.created_at.slice(0, 10) : '—';
+    return `<tr id="arow_${a.id}">
+      <td><code style="color:var(--accent)">${a.symbol}</code></td>
+      <td>${a.name || '—'}</td>
+      <td><span style="font-size:11px;font-weight:600;color:${col}">${mkt}</span></td>
+      <td style="font-size:12px">${a.exchange || '—'}</td>
+      <td style="font-size:12px">${a.data_source || '—'}</td>
+      <td style="font-size:12px">${dt}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeAsset(${a.id},'${a.symbol}')">
+          <i class="bi bi-trash3"></i>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function removeAsset(id, symbol) {
+  if (!confirm(`Remove "${symbol}" from the platform?\n\nHistorical signals are preserved.`)) return;
+  const ok = await API.delete(`/assets/${id}`);
+  if (ok) {
+    Toast.show(`${symbol} removed`, 'success');
+    _allAssets = _allAssets.filter(a => a.id !== id);
+    updateKpis();
+    applyFilter();
+  } else {
+    Toast.show('Failed to remove asset', 'error');
+  }
+}
+
+// ── Search & Add ─────────────────────────────────────────────────
+document.addEventListener('app:ready', () => {
+  loadAssets();
+  document.getElementById('assetSearchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') searchAssets();
+  });
+});
+
+async function searchAssets() {
+  const q = document.getElementById('assetSearchInput').value.trim();
+  if (q.length < 2) return;
+  const msg  = document.getElementById('assetSearchMsg');
+  const wrap = document.getElementById('assetSearchResults');
+  msg.textContent = 'Searching…';
+  wrap.style.display = 'none';
+  const data = await API.get('/assets/search', { q });
+  if (!data) { msg.textContent = 'Search failed.'; return; }
+  if (!data.results?.length) { msg.textContent = 'No results found.'; return; }
+  msg.textContent = `${data.results.length} result${data.results.length !== 1 ? 's' : ''} found`;
+  wrap.style.display = 'block';
+  const guessMkt = r => {
+    const exch = (r.exchange || '').toUpperCase();
+    const sym  = (r.symbol || '').toUpperCase();
+    const typ  = (r.type || '').toUpperCase();
+    if (['NSE','BSE','NS','BO'].some(e => exch.includes(e)) || sym.endsWith('.NS') || sym.endsWith('.BO')) return 'indian_stock';
+    if (typ === 'INDEX' || sym.includes('^')) return 'index';
+    if (['EUR','GBP','JPY','AUD','USD','CHF','CAD'].some(c => sym.startsWith(c) || sym.endsWith(c)) && typ === 'CURRENCY') return 'forex';
+    if (['CCC','CRYPTO'].some(e => exch.includes(e)) || typ === 'CRYPTOCURRENCY') return 'crypto';
+    if (['GC','SI','CL','GOLD','SILVER','OIL'].some(k => sym.includes(k))) return 'commodity';
+    return 'index';
+  };
+  const mkOpts = (def) => ['crypto','forex','commodity','indian_stock','index'].map(m =>
+    `<option value="${m}" ${m===def?'selected':''}>${m.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
+  document.getElementById('assetSearchBody').innerHTML = data.results.map(r => {
+    const sid = r.symbol.replace(/[^a-z0-9]/gi,'_');
+    return `<tr id="row_${sid}">
+      <td><code style="color:var(--accent)">${r.symbol}</code></td>
+      <td>${r.name}</td>
+      <td style="font-size:12px">${r.exchange || '—'}</td>
+      <td style="font-size:12px">${r.type || '—'}</td>
+      <td><select id="mkt_${sid}" class="form-select form-select-sm" style="width:160px">${mkOpts(guessMkt(r))}</select></td>
+      <td>
+        <button onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange||''}')"
+          style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
+          <i class="bi bi-plus-lg me-1"></i>Add
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+async function addAsset(symbol, name, exchange) {
+  const sid    = symbol.replace(/[^a-z0-9]/gi,'_');
+  const market = document.getElementById('mkt_' + sid)?.value || 'index';
+  const token  = localStorage.getItem('access_token');
+  const res    = await fetch('/api/v1/assets/add-from-search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ symbol, name, exchange, market })
+  });
+  const data = await res.json();
+  if (res.ok) {
+    Toast.show(`${symbol} added as ${market}`, 'success');
+    const row = document.getElementById('row_' + sid);
+    if (row) row.innerHTML = `<td colspan="6" class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>${symbol}</strong> added as <em>${market}</em></td>`;
+    loadAssets();
+  } else {
+    Toast.show(data.error || 'Failed to add asset', 'error');
+  }
+}
+</script>
+{% endblock %}

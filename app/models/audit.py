@@ -23,9 +23,10 @@ class AuditLog(db.Model):
             "id": self.id,
             "user": self.user.username if self.user else "system",
             "action": self.action,
-            "resource": self.resource,
-            "status": self.status,
-            "ip_address": self.ip_address,
+            "resource": self.resource or "—",
+            "resource_id": self.resource_id or "",
+            "status": self.status or "success",
+            "ip_address": self.ip_address or "—",
             "created_at": self.created_at.isoformat(),
         }
 

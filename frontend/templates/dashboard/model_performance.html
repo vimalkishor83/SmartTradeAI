@@ -1,0 +1,352 @@
+{% extends "partials/base.html" %}
+{% block title %}Model Performance — SmartTrade AI{% endblock %}
+{% set active = 'model_perf' %}
+{% block breadcrumb %}<i class="bi bi-bar-chart-steps me-2"></i> Model Performance{% endblock %}
+
+{% block extra_css %}
+<style>
+.stat-card {
+  border-radius:14px; padding:22px 24px;
+  border:1px solid var(--border); background:var(--bg-secondary);
+}
+.stat-val { font-size:2rem; font-weight:800; line-height:1; }
+.stat-lbl { font-size:11px; font-weight:700; letter-spacing:.8px; text-transform:uppercase; color:var(--text-muted); margin-top:6px; }
+.stat-sub { font-size:12px; color:var(--text-muted); margin-top:2px; }
+
+.acc-high { color:#10b981; }
+.acc-med  { color:#f59e0b; }
+.acc-low  { color:#ef4444; }
+
+.perf-table { width:100%; border-collapse:collapse; font-size:13px; }
+.perf-table th {
+  padding:10px 14px; text-align:left;
+  font-size:10px; font-weight:800; letter-spacing:.8px; text-transform:uppercase;
+  color:var(--text-muted); border-bottom:1px solid var(--border); white-space:nowrap;
+}
+.perf-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+.perf-table tbody tr:hover { background:rgba(99,102,241,0.06); }
+.perf-table tbody tr:last-child td { border-bottom:none; }
+
+.acc-bar-wrap { display:flex; align-items:center; gap:8px; min-width:140px; }
+.acc-bar-bg { flex:1; height:6px; background:var(--border); border-radius:3px; overflow:hidden; }
+.acc-bar-fill { height:100%; border-radius:3px; transition:width .6s ease; }
+.fill-high { background:#10b981; }
+.fill-med  { background:#f59e0b; }
+.fill-low  { background:#ef4444; }
+
+.tf-pill {
+  display:inline-block; padding:3px 10px; border-radius:6px;
+  font-size:11px; font-weight:700; letter-spacing:.4px;
+  background:rgba(99,102,241,0.15); color:var(--accent);
+}
+
+.trend-canvas-wrap { position:relative; height:180px; }
+
+.empty-state { padding:60px 20px; text-align:center; color:var(--text-muted); font-size:14px; }
+.empty-state i { font-size:2.5rem; display:block; margin-bottom:14px; opacity:.4; }
+
+.badge-model {
+  display:inline-block; padding:2px 9px; border-radius:5px; font-size:10.5px; font-weight:700;
+  letter-spacing:.3px; background:rgba(99,102,241,0.14); color:var(--accent);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Model Performance</h1>
+    <p class="page-subtitle">Prediction accuracy tracking — evaluated against actual price movement after expiry</p>
+  </div>
+  <button class="btn btn-sm btn-outline-secondary" onclick="loadPerf()">
+    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+  </button>
+</div>
+
+<!-- Summary stat cards -->
+<div class="row g-3 mb-4" id="statCards">
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-val" id="statTotal">—</div>
+      <div class="stat-lbl">Predictions Evaluated</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-val" id="statAcc">—</div>
+      <div class="stat-lbl">Overall Accuracy</div>
+      <div class="stat-sub" id="statAccSub"></div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-val" id="statCorrect">—</div>
+      <div class="stat-lbl">Correct Predictions</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="stat-card">
+      <div class="stat-val" id="statBest">—</div>
+      <div class="stat-lbl">Best Timeframe</div>
+      <div class="stat-sub" id="statBestSub"></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <!-- Accuracy trend chart -->
+  <div class="col-12 col-xl-7">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="fw-700">30-Day Accuracy Trend</span>
+        <span class="badge-model" id="trendSampleCount"></span>
+      </div>
+      <div class="card-body">
+        <div class="trend-canvas-wrap">
+          <canvas id="trendChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- By timeframe -->
+  <div class="col-12 col-xl-5">
+    <div class="card h-100">
+      <div class="card-header fw-700">Accuracy by Timeframe</div>
+      <div class="card-body p-0">
+        <table class="perf-table" id="tfTable">
+          <thead><tr>
+            <th>Timeframe</th>
+            <th>Accuracy</th>
+            <th style="text-align:right">Samples</th>
+          </tr></thead>
+          <tbody id="tfBody">
+            <tr><td colspan="3" class="empty-state"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- By model -->
+  <div class="col-12 col-md-4">
+    <div class="card h-100">
+      <div class="card-header fw-700">Accuracy by Model</div>
+      <div class="card-body p-0">
+        <table class="perf-table" id="modelTable">
+          <thead><tr>
+            <th>Model</th>
+            <th>Accuracy</th>
+            <th style="text-align:right">n</th>
+          </tr></thead>
+          <tbody id="modelBody">
+            <tr><td colspan="3" class="empty-state"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- By asset -->
+  <div class="col-12 col-md-8">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center justify-content-between">
+        <span class="fw-700">Per-Asset Accuracy</span>
+        <input type="text" id="assetSearch" class="form-control form-control-sm" placeholder="Filter…" style="width:140px" oninput="filterAssets(this.value)">
+      </div>
+      <div class="card-body p-0" style="max-height:420px;overflow-y:auto">
+        <table class="perf-table" id="assetTable">
+          <thead><tr>
+            <th>Asset</th>
+            <th>Market</th>
+            <th>Accuracy</th>
+            <th style="text-align:right">Samples</th>
+          </tr></thead>
+          <tbody id="assetBody">
+            <tr><td colspan="4" class="empty-state"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+let _allAssets = [];
+let _trendChart = null;
+
+const TF_ORDER = ['5m','15m','30m','1h','2h','4h','1d'];
+
+function accClass(acc) {
+  if (acc >= 60) return 'acc-high';
+  if (acc >= 45) return 'acc-med';
+  return 'acc-low';
+}
+function fillClass(acc) {
+  if (acc >= 60) return 'fill-high';
+  if (acc >= 45) return 'fill-med';
+  return 'fill-low';
+}
+
+function accBar(acc) {
+  return `<div class="acc-bar-wrap">
+    <div class="acc-bar-bg"><div class="acc-bar-fill ${fillClass(acc)}" style="width:${acc}%"></div></div>
+    <span class="${accClass(acc)} fw-700" style="font-size:12px;min-width:38px">${acc}%</span>
+  </div>`;
+}
+
+async function loadPerf() {
+  try {
+    const data = await API.get('/predictions/model-performance');
+    renderStats(data);
+    renderTrend(data.trend || []);
+    renderTfTable(data.by_timeframe || {});
+    renderModelTable(data.by_model || {});
+    _allAssets = data.by_asset || [];
+    renderAssetTable(_allAssets);
+  } catch (e) {
+    Toast.show('Failed to load model performance', 'danger');
+  }
+}
+
+function renderStats(d) {
+  const o = d.overall || {};
+  const total = o.total || 0;
+
+  const el = id => document.getElementById(id);
+
+  el('statTotal').textContent   = total.toLocaleString();
+  el('statCorrect').textContent = (o.correct || 0).toLocaleString();
+
+  const acc = o.accuracy || 0;
+  el('statAcc').innerHTML = `<span class="${accClass(acc)}">${acc}%</span>`;
+  el('statAccSub').textContent = `${o.correct || 0} of ${total} correct`;
+
+  // Best timeframe
+  const tfs = d.by_timeframe || {};
+  let bestTf = '—', bestAcc = 0;
+  for (const [tf, s] of Object.entries(tfs)) {
+    if (s.total >= 5 && s.accuracy > bestAcc) { bestAcc = s.accuracy; bestTf = tf; }
+  }
+  el('statBest').innerHTML = `<span class="${accClass(bestAcc)}">${bestTf}</span>`;
+  el('statBestSub').textContent = bestAcc ? `${bestAcc}% accuracy` : '';
+}
+
+function renderTrend(trend) {
+  const labels = trend.map(t => t.date.slice(5));     // MM-DD
+  const data   = trend.map(t => t.accuracy);
+  const counts = trend.map(t => t.total);
+
+  const ctx = document.getElementById('trendChart');
+  if (!ctx) return;
+
+  const totalSamples = trend.reduce((s, t) => s + t.total, 0);
+  document.getElementById('trendSampleCount').textContent =
+    totalSamples ? `${totalSamples} samples` : '';
+
+  if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
+
+  if (!trend.length) {
+    ctx.parentElement.innerHTML = '<div class="empty-state"><i class="bi bi-graph-up-arrow"></i>No evaluated predictions yet — accuracy will populate as predictions expire.</div>';
+    return;
+  }
+
+  _trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Accuracy %',
+        data,
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.12)',
+        borderWidth: 2,
+        pointRadius: 3,
+        tension: 0.35,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            afterLabel: (ctx) => `Samples: ${counts[ctx.dataIndex]}`
+          }
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        y: {
+          min: 0, max: 100,
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' }
+        }
+      }
+    }
+  });
+}
+
+function renderTfTable(by_tf) {
+  const body = document.getElementById('tfBody');
+  const tfs = TF_ORDER.filter(tf => by_tf[tf]);
+  if (!tfs.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-bar-chart"></i>No evaluated predictions yet</td></tr>';
+    return;
+  }
+  body.innerHTML = tfs.map(tf => {
+    const s = by_tf[tf];
+    return `<tr>
+      <td><span class="tf-pill">${tf}</span></td>
+      <td>${accBar(s.accuracy)}</td>
+      <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderModelTable(by_model) {
+  const body = document.getElementById('modelBody');
+  const models = Object.entries(by_model).sort((a,b) => b[1].accuracy - a[1].accuracy);
+  if (!models.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-cpu"></i>No data yet</td></tr>';
+    return;
+  }
+  body.innerHTML = models.map(([m, s]) => `<tr>
+    <td><span class="badge-model">${m}</span></td>
+    <td>${accBar(s.accuracy)}</td>
+    <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+  </tr>`).join('');
+}
+
+function renderAssetTable(assets) {
+  const body = document.getElementById('assetBody');
+  if (!assets.length) {
+    body.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="bi bi-currency-bitcoin"></i>No asset data yet</td></tr>';
+    return;
+  }
+  body.innerHTML = assets.map(a => `<tr>
+    <td><strong style="font-size:13px">${a.symbol}</strong><br><span style="font-size:11px;color:var(--text-muted)">${a.name}</span></td>
+    <td><span style="font-size:11px;color:var(--text-muted);text-transform:capitalize">${(a.market||'').replace('_',' ')}</span></td>
+    <td>${accBar(a.accuracy)}</td>
+    <td style="text-align:right;color:var(--text-muted)">${a.total}</td>
+  </tr>`).join('');
+}
+
+function filterAssets(q) {
+  const filtered = q.trim()
+    ? _allAssets.filter(a => a.symbol.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase()))
+    : _allAssets;
+  renderAssetTable(filtered);
+}
+
+loadPerf();
+</script>
+{% endblock %}

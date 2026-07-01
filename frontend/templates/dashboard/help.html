@@ -1,0 +1,383 @@
+{% extends "partials/base.html" %}
+{% block title %}Help & FAQ — SmartTrade AI{% endblock %}
+{% block breadcrumb %}<i class="bi bi-question-circle me-1"></i> Help & FAQ{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <h1 class="page-title">Help & FAQ</h1>
+  <p class="text-muted mb-0">Platform guide, feature reference, and architecture changelog</p>
+</div>
+
+<!-- Quick jump -->
+<div id="helpJumpNav" class="card mb-4">
+  <div class="card-body py-3">
+    <div class="d-flex flex-wrap gap-2">
+      <a href="#getting-started" class="btn btn-sm btn-outline-secondary">Getting Started</a>
+      <a href="#signals"         class="btn btn-sm btn-outline-secondary">Signals</a>
+      <a href="#ai-insights"     class="btn btn-sm btn-outline-secondary">AI Insights</a>
+      <a href="#ta-summary"      class="btn btn-sm btn-outline-secondary">TA Summary</a>
+      <a href="#mtf"             class="btn btn-sm btn-outline-secondary">MTF Analysis</a>
+      <a href="#scanner"         class="btn btn-sm btn-outline-secondary">Scanner</a>
+      <a href="#backtesting"     class="btn btn-sm btn-outline-secondary">Backtesting</a>
+      <a href="#risk"            class="btn btn-sm btn-outline-secondary">Risk Manager</a>
+      <a href="#journal"         class="btn btn-sm btn-outline-secondary">Trade Journal</a>
+      <a href="#briefing"        class="btn btn-sm btn-outline-secondary">Morning Briefing</a>
+      <a href="#portfolio"       class="btn btn-sm btn-outline-secondary">Portfolio</a>
+      <a href="#watchlist"       class="btn btn-sm btn-outline-secondary">Watchlist</a>
+      <a href="#settings"        class="btn btn-sm btn-outline-secondary">Settings</a>
+      <a href="#changelog"       class="btn btn-sm btn-outline-secondary">Changelog</a>
+      <a href="#faq"             class="btn btn-sm btn-outline-secondary">FAQ</a>
+    </div>
+  </div>
+</div>
+
+<!-- Getting Started -->
+<div class="card mb-4" id="getting-started">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-play-circle me-2 text-accent"></i>Getting Started</h5></div>
+  <div class="card-body">
+    <ol class="mb-0">
+      <li class="mb-2"><strong>Login</strong> with your account credentials (default admin: <code>admin / Admin@123</code> — change immediately in Settings).</li>
+      <li class="mb-2"><strong>Set minimum confidence</strong> in the top navbar slider (default 60%). Signals below this threshold are hidden across all pages.</li>
+      <li class="mb-2"><strong>Pick a market</strong> from the left sidebar: Crypto, Forex, Commodities, Indian Stocks, or Indices.</li>
+      <li class="mb-2"><strong>View live signals</strong> on the market page or the unified <a href="/signals">All Signals</a> page.</li>
+      <li class="mb-2"><strong>Use Auto Generate</strong> to run the signal engine on-demand for any asset and timeframe.</li>
+      <li>Explore advanced tools: AI Insights, Backtesting, Risk Manager, TA Summary, MTF Analysis.</li>
+    </ol>
+  </div>
+</div>
+
+<!-- Signals -->
+<div class="card mb-4" id="signals">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Signals</h5></div>
+  <div class="card-body">
+    <h6>How signals are generated</h6>
+    <p>The signal engine runs a <strong>7-stage pipeline</strong> for every asset + timeframe combination:</p>
+    <ol>
+      <li><strong>Session Gate</strong> — rejects signals outside the market's active trading hours (e.g. forex during Asian session overlap, stocks outside exchange hours).</li>
+      <li><strong>Volatility Gate</strong> — rejects if ATR% is below 0.1% (dead market) or above 6% (chaotic market). Labels regimes: <em>dead / normal / elevated / chaotic</em>.</li>
+      <li><strong>Multi-Timeframe Gate</strong> — checks the next higher timeframe trend. Signals opposing the higher-TF direction are blocked.</li>
+      <li><strong>Momentum Gate</strong> — validates RSI is not overbought/oversold at entry; MACD histogram must confirm direction.</li>
+      <li><strong>Volume Gate</strong> — current bar volume must be ≥ 80% of the recent average (rejects low-liquidity setups).</li>
+      <li><strong>Confidence Scoring</strong> — multiplicative model combining trend strength, MTF alignment, and volume confirmation → final score 0–100.</li>
+      <li><strong>Signal Packaging</strong> — structure-aware stop-loss (swing high/low + ATR fallback), two profit targets (T1 = 1.5R, T2 = 2.5R).</li>
+    </ol>
+    <h6 class="mt-3">Signal cards</h6>
+    <ul class="mb-0">
+      <li><strong>BUY / SELL badge</strong>: direction of the trade.</li>
+      <li><strong>Confidence %</strong>: 60–100. Higher = stronger multi-factor agreement.</li>
+      <li><strong>Entry / SL / T1 / T2</strong>: price levels computed at generation time.</li>
+      <li><strong>Volatility regime</strong>: normal / elevated / chaotic label.</li>
+      <li><strong>Lockout</strong>: once a signal fires, that asset+TF is locked out for a cooldown period (1m=5min, 1h=2h, 4h=8h) to prevent signal spam.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- AI Insights -->
+<div class="card mb-4" id="ai-insights">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-cpu-fill me-2 text-accent"></i>AI Insights</h5></div>
+  <div class="card-body">
+    <p>AI Insights runs a machine-learning ensemble (Random Forest + XGBoost + LightGBM) trained on 28 features derived from price action, momentum, volatility, and volume.</p>
+    <h6>How to use</h6>
+    <ol>
+      <li>Select an asset from the dropdown.</li>
+      <li>Tick one or more <strong>timeframes</strong> (1m, 5m, 15m, 30m, 1h, 4h, 1d).</li>
+      <li>Click <strong>Run AI Analysis</strong>.</li>
+      <li>The right panel shows a <strong>Confluence Summary</strong> (agreement across selected TFs) and per-TF prediction cards.</li>
+    </ol>
+    <h6>Understanding results</h6>
+    <ul class="mb-0">
+      <li><strong>Bull Probability</strong>: likelihood of a price increase in the next few bars (0–100%).</li>
+      <li><strong>Bias</strong>: BULLISH / BEARISH / NEUTRAL (threshold ±60%).</li>
+      <li><strong>Confidence</strong>: model agreement score — higher means the three models broadly agree.</li>
+      <li><strong>Confluence</strong>: when ≥2 timeframes show the same bias, it is highlighted as a high-conviction setup.</li>
+      <li>Models are retrained automatically when the cached model is older than 24 hours. A heuristic fallback (momentum indicators) is used if training data is insufficient.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- TA Summary -->
+<div class="card mb-4" id="ta-summary">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-speedometer2 me-2 text-info"></i>TA Summary</h5></div>
+  <div class="card-body">
+    <p>Technical Analysis Summary provides a quick snapshot of indicator consensus across <strong>7 timeframes</strong> (1m → 1d) for any asset.</p>
+    <ul class="mb-0">
+      <li><strong>Oscillators</strong>: RSI, Stochastic, CCI, MACD — each rated BUY / NEUTRAL / SELL.</li>
+      <li><strong>Moving Averages</strong>: EMA-9/21/50/200, SMA-20/50 — trend direction vs current price.</li>
+      <li><strong>Overall score</strong>: weighted vote of all indicators → STRONG BUY / BUY / NEUTRAL / SELL / STRONG SELL.</li>
+      <li>Results for each TF are computed independently; disagreement across TFs is normal and informative.</li>
+    </ul>
+    <p class="mt-2 mb-0 text-muted"><small>TA Summary and AI Insights use different logic — TA Summary is rule-based (fixed indicator thresholds); AI Insights is ML-based (learns from historical patterns). Getting different results is expected and useful.</small></p>
+  </div>
+</div>
+
+<!-- MTF Analysis -->
+<div class="card mb-4" id="mtf">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-table me-2 text-success"></i>MTF Analysis</h5></div>
+  <div class="card-body">
+    <p>Multi-Timeframe Analysis shows the alignment of trend and momentum indicators across all timeframes in a single grid.</p>
+    <ul class="mb-0">
+      <li>Each cell shows the <strong>trend direction</strong> for that asset × timeframe.</li>
+      <li><strong>Green row</strong>: all or most TFs agree bullish — high-confidence long setup.</li>
+      <li><strong>Red row</strong>: bearish alignment.</li>
+      <li><strong>Mixed</strong>: conflicting — avoid or wait for resolution.</li>
+      <li>The signal engine's MTF Gate uses this same data to filter signals on execution.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Scanner -->
+<div class="card mb-4" id="scanner">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-radar me-2 text-warning"></i>Scanner</h5></div>
+  <div class="card-body">
+    <p>The Scanner sweeps all tracked assets on a selected timeframe and ranks them by signal confidence.</p>
+    <ul class="mb-0">
+      <li>Filter by market type, minimum confidence, and direction (BUY / SELL / both).</li>
+      <li>Results refresh automatically when new signals are generated.</li>
+      <li>Click any row to navigate to the asset's market page for details.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Backtesting -->
+<div class="card mb-4" id="backtesting">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history me-2 text-accent"></i>Backtesting <span class="badge bg-warning text-dark ms-1" style="font-size:10px">PRO</span></h5></div>
+  <div class="card-body">
+    <p>Backtesting replays the signal engine on historical data and measures realistic performance.</p>
+    <h6>Parameters</h6>
+    <ul>
+      <li><strong>Asset + Timeframe</strong>: any tracked asset.</li>
+      <li><strong>Start / End date</strong>: history window.</li>
+      <li><strong>Commission</strong> (default 0.1%): deducted on every entry and exit.</li>
+      <li><strong>Slippage</strong> (default 0.05%): fill-price penalty (BUY fills higher, SELL lower).</li>
+      <li><strong>Min Confidence</strong>: only trades from signals above this threshold are taken.</li>
+    </ul>
+    <h6>Trade mechanics</h6>
+    <ul>
+      <li><strong>Partial exit at T1</strong>: 50% position closed at first target; stop-loss moved to breakeven.</li>
+      <li><strong>Full exit at T2</strong>: remaining 50% closed at second target.</li>
+      <li><strong>Max hold limit</strong>: position forced-closed after N bars if neither target nor stop is hit (1m=30, 1h=10, 4h=6, 1d=5 bars).</li>
+      <li><strong>Volatility-scaled sizing</strong>: position size reduced in elevated/high ATR regimes (75% / 50% of normal).</li>
+    </ul>
+    <h6>Metrics</h6>
+    <ul class="mb-0">
+      <li><strong>Win Rate %</strong>, <strong>Profit Factor</strong>, <strong>Max Drawdown %</strong></li>
+      <li><strong>Sharpe Ratio</strong> (annualised), <strong>Sortino Ratio</strong> (downside-only)</li>
+      <li><strong>Total Commission</strong> and <strong>Total Slippage</strong> paid — shows realistic drag</li>
+      <li><strong>Avg Bars Held</strong>, <strong>Exit Reasons</strong> breakdown (SL / T1 / T2 / timeout)</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Risk Manager -->
+<div class="card mb-4" id="risk">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-shield-check me-2 text-success"></i>Risk Manager</h5></div>
+  <div class="card-body">
+    <p>Calculates recommended position size for a trade based on your account and risk tolerance.</p>
+    <h6>Standard calculator</h6>
+    <ul>
+      <li>Inputs: Account Size, Risk %, Entry Price, Stop-Loss Price, Lot Size.</li>
+      <li>Output: units to trade, monetary risk, R:R ratio.</li>
+    </ul>
+    <h6>Volatility-adjusted calculator</h6>
+    <p>When ATR is provided, the calculator automatically applies a <strong>volatility scalar</strong>:</p>
+    <ul class="mb-0">
+      <li><strong>Normal regime</strong> (ATR ≤ 60th percentile): 100% of calculated size.</li>
+      <li><strong>Elevated regime</strong> (60–80th percentile): 75% of size.</li>
+      <li><strong>High regime</strong> (&gt;80th percentile): 50% of size.</li>
+      <li>ATR percentile is calculated from the ATR history values you supply.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Trade Journal -->
+<div class="card mb-4" id="journal">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-journal-bookmark-fill me-2 text-info"></i>Trade Journal</h5></div>
+  <div class="card-body">
+    <p>Log and review your actual trades with notes, emotions, and outcomes.</p>
+    <ul class="mb-0">
+      <li>Record entry/exit prices, P&amp;L, trade setup notes, and emotional state.</li>
+      <li>Filter by date range, asset, or outcome (win / loss / breakeven).</li>
+      <li>Journal entries feed into <a href="/performance">My Performance</a> for statistics.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Morning Briefing -->
+<div class="card mb-4" id="briefing">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-sunrise me-2 text-warning"></i>Morning Briefing</h5></div>
+  <div class="card-body">
+    <p>A daily summary page generated each morning with:</p>
+    <ul class="mb-0">
+      <li>Top signals from the last 24 hours across all markets.</li>
+      <li>Market sentiment overview (bullish / bearish / mixed).</li>
+      <li>Key economic events for the day.</li>
+      <li>Watchlist movers — assets on your watchlist with notable price changes.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Portfolio & Watchlist -->
+<div class="card mb-4" id="portfolio">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-pie-chart-fill me-2 text-accent"></i>Portfolio & Watchlist</h5></div>
+  <div class="card-body">
+    <h6>Portfolio</h6>
+    <p>Track your open and closed positions, total P&amp;L, and allocation breakdown by market.</p>
+    <h6 id="watchlist">Watchlist</h6>
+    <p class="mb-0">Pin assets for quick access. Watchlisted assets appear in the Morning Briefing movers section. Free accounts: up to 5 assets. Premium: up to 50.</p>
+  </div>
+</div>
+
+<!-- Settings -->
+<div class="card mb-4" id="settings">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-gear-fill me-2 text-secondary"></i>Settings</h5></div>
+  <div class="card-body">
+    <ul class="mb-0">
+      <li><strong>Min Confidence Filter</strong>: signals below this are hidden sitewide (also adjustable from the navbar slider).</li>
+      <li><strong>Account Size &amp; Risk %</strong>: used as defaults in the Risk Manager calculator.</li>
+      <li><strong>Theme</strong>: Dark / Light — also toggleable from the navbar moon icon.</li>
+      <li><strong>API Keys</strong>: Binance and other data-source keys (for live data feed).</li>
+      <li><strong>Notification Preferences</strong>: email and push notification settings.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- Changelog -->
+<div class="card mb-4" id="changelog">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-journal-code me-2 text-success"></i>Architecture Changelog</h5></div>
+  <div class="card-body">
+
+    <h6 class="text-success">P0 — Signal Engine Overhaul <small class="text-muted fw-normal">(2026-07)</small></h6>
+    <ul>
+      <li>Replaced single-indicator signal logic with a <strong>7-stage gated pipeline</strong> (session → volatility → MTF → momentum → volume → confidence → packaging).</li>
+      <li>Session gate blocks signal generation outside each market's active hours (UTC).</li>
+      <li>Volatility gate rejects dead (&lt;0.1% ATR) and chaotic (&gt;6% ATR) markets.</li>
+      <li>Structure-aware stop-loss using recent swing high/low; ATR fallback if swing not found.</li>
+      <li>Per-TF signal lockout cooldowns to eliminate signal spam.</li>
+      <li><strong>DB indexes</strong> added on signals, signal_history, notifications, audit_logs, system_logs, journal_entries.</li>
+      <li><strong>Nightly cleanup job</strong> (02:00 UTC): prunes system logs &gt;7 days, signal history &gt;60 days, closed signals &gt;30 days.</li>
+    </ul>
+
+    <h6 class="text-info mt-3">P1 — Market Data Infrastructure <small class="text-muted fw-normal">(2026-07)</small></h6>
+    <ul>
+      <li><strong>Central Market Data Collector</strong>: single background job (30s interval) fetches OHLCV for all assets into a shared in-memory cache. All signal generation reads from cache — no direct API calls during signal processing.</li>
+      <li><strong>Dropped DB tables</strong>: <code>market_data</code> and <code>technical_indicators</code> removed. Data was never used from DB; served from API cache directly. Reduces DB size and write load.</li>
+      <li><strong>Retry decorator</strong>: 3 attempts with 1.5× exponential backoff on all external API calls.</li>
+      <li><strong>Circuit breakers</strong>: Binance and Yahoo fetchers open after 5 consecutive failures; probe recovery after 120s. Prevents cascade failures.</li>
+      <li>Default OHLCV candle limit reduced 300 → <strong>220</strong> (covers all indicators with margin).</li>
+    </ul>
+
+    <h6 class="text-warning mt-3">P2 — AI & Risk Improvements <small class="text-muted fw-normal">(2026-07)</small></h6>
+    <ul>
+      <li><strong>AI model persistence</strong>: trained models saved to <code>data/models/</code> via joblib. 24h TTL before retraining. Eliminates cold-start retraining on every restart.</li>
+      <li>Expanded feature set: 28 features including lagged returns, RSI delta, MACD histogram cross, ATR ratio, Bollinger Band position, OBV change, body/wick ratios.</li>
+      <li><strong>Volatility-adjusted position sizing</strong>: ATR percentile determines a volatility scalar (1.0 / 0.75 / 0.50) applied to all position size calculations.</li>
+      <li>Circuit breakers and retry logic extended to Yahoo Finance fetcher.</li>
+    </ul>
+
+    <h6 class="text-danger mt-3">P3 — Realistic Backtesting <small class="text-muted fw-normal">(2026-07)</small></h6>
+    <ul>
+      <li>Commission (default <strong>0.1%</strong>) and slippage (default <strong>0.05%</strong>) deducted on every entry and exit.</li>
+      <li>Partial exit mechanic: 50% closed at T1, stop moved to breakeven, 50% runs to T2.</li>
+      <li>Max-hold-bars timeout per timeframe to avoid indefinitely open positions.</li>
+      <li><strong>Sortino Ratio</strong> added (downside-only volatility penalty, more relevant to traders than Sharpe).</li>
+      <li>Exit reason tracking: SL / T1 / T2 / reversal / timeout counts per backtest run.</li>
+      <li>Commission and slippage totals reported so you can see realistic cost drag.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- FAQ -->
+<div class="card mb-4" id="faq">
+  <div class="card-header"><h5 class="mb-0"><i class="bi bi-patch-question-fill me-2 text-accent"></i>FAQ</h5></div>
+  <div class="card-body">
+
+    <div class="mb-3">
+      <strong>Why is the AI Insights result different from the TA Summary?</strong>
+      <p class="mb-0 mt-1 text-muted">They use different logic. TA Summary applies fixed indicator thresholds (rules-based). AI Insights learns patterns from historical data using ML models. Disagreement between the two is normal and can be useful — it often signals a transitioning market.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>Why are no signals showing for a market?</strong>
+      <p class="mb-0 mt-1 text-muted">The most common reasons: (1) the market is outside active trading hours (session gate), (2) volatility is too low or too high (volatility gate), (3) all signals are below your minimum confidence filter. Try lowering the confidence slider in the navbar.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>Why did a signal get blocked that looked good visually?</strong>
+      <p class="mb-0 mt-1 text-muted">The MTF gate may have rejected it — the higher timeframe trend was opposing the signal direction. This prevents counter-trend trades that historically have lower win rates.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>How often are signals generated?</strong>
+      <p class="mb-0 mt-1 text-muted">Automatically on a schedule: every 2 min (1m TF), every 6 min (5m), every 16 min (15m), every 32 min (30m), every 65 min (1h), etc. You can also trigger on-demand via Auto Generate.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>My backtest shows 0 trades. Why?</strong>
+      <p class="mb-0 mt-1 text-muted">The confidence filter is applied during backtesting. If your minimum confidence is set high (e.g. 90%) and there were no signals above that threshold in the date range, no trades are taken. Lower the confidence or widen the date range.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>What is the lockout period?</strong>
+      <p class="mb-0 mt-1 text-muted">After a signal fires for an asset + timeframe, that combination is locked out for a cooldown period (1m=5min, 1h=2h, 4h=8h). This prevents the engine from spamming the same signal repeatedly on every run cycle.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>How is stop-loss calculated?</strong>
+      <p class="mb-0 mt-1 text-muted">The engine first looks for a recent swing low (for BUY) or swing high (for SELL) within the last 10 bars. If found, that level is used with a small ATR buffer. If not found, a pure ATR-based stop is calculated.</p>
+    </div>
+
+    <div class="mb-3">
+      <strong>Does the platform store OHLCV price history in the database?</strong>
+      <p class="mb-0 mt-1 text-muted">No. OHLCV data is fetched from Binance and Yahoo Finance and held in an in-memory cache. Nothing is written to the database. The old <code>market_data</code> and <code>technical_indicators</code> tables have been removed to reduce DB size.</p>
+    </div>
+
+    <div class="mb-0">
+      <strong>How do I report a bug or request a feature?</strong>
+      <p class="mb-0 mt-1 text-muted">Contact the admin or use the Admin Panel → System Logs to review recent errors. For feature requests, note that new features are currently implemented backend-first.</p>
+    </div>
+
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+  const nav    = document.getElementById('helpJumpNav');
+  const navbar = document.querySelector('.top-navbar');
+
+  const clone = nav.cloneNode(true);
+  clone.id = 'helpJumpNavFixed';
+  clone.style.cssText = [
+    'display:none',
+    'position:fixed',
+    'left:0','right:0',
+    'z-index:500',
+    'margin:0',
+    'border-radius:0',
+    'border-top:none','border-left:none','border-right:none',
+    'box-shadow:0 2px 10px rgba(0,0,0,.55)'
+  ].join(';');
+  document.body.appendChild(clone);
+
+  function update() {
+    const sidebar = document.getElementById('sidebar');
+    const navbarBottom = navbar ? navbar.getBoundingClientRect().bottom : 60;
+    const rect = nav.getBoundingClientRect();
+    const sidebarW = sidebar ? sidebar.offsetWidth : 240;
+    if (rect.top < navbarBottom) {
+      clone.style.top  = navbarBottom + 'px';
+      clone.style.left = sidebarW + 'px';
+      clone.style.display = 'block';
+    } else {
+      clone.style.display = 'none';
+    }
+  }
+
+  const scroller = document.querySelector('.page-content') || window;
+  scroller.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('scroll', update, { passive: true });
+})();
+</script>
+{% endblock %}

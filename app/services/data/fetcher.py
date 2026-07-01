@@ -289,54 +289,78 @@ class YahooFetcher:
         interval = self.TF_INTERVAL.get(timeframe, "1d")
         period   = self.TF_PERIOD.get(timeframe, "1y")
 
+        def _normalise(df):
+            """Flatten any MultiIndex columns → lowercase single-level."""
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            df.columns = [c.lower() for c in df.columns]
+            needed = [c for c in ["open", "high", "low", "close", "volume"] if c in df.columns]
+            df = df[needed].dropna().tail(limit)
+            if "volume" not in df.columns:
+                df["volume"] = 0.0
+            return df
+
         try:
             raw = yf.download(
-                " ".join(to_fetch_yf),
+                to_fetch_yf,          # list, not space-joined string
                 period=period,
                 interval=interval,
                 progress=False,
                 auto_adjust=True,
-                threads=True,   # yfinance internal threading for batch
-                group_by="ticker",
+                threads=True,
             )
             if raw is None or raw.empty:
                 return result
 
-            # Build reverse map: yahoo symbol → our symbol
             rev = {yf_sym: our_sym for our_sym, yf_sym in zip(to_fetch_sym, to_fetch_yf)}
 
-            # Single-ticker download has flat columns; multi-ticker has MultiIndex
             if len(to_fetch_yf) == 1:
-                yf_sym = to_fetch_yf[0]
-                our    = rev[yf_sym]
-                df = raw.copy()
-                if isinstance(df.columns, pd.MultiIndex):
-                    df.columns = df.columns.get_level_values(0)
-                df.columns = [c.lower() for c in df.columns]
-                needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
-                df = df[needed].dropna().tail(limit)
-                if "volume" not in df.columns:
-                    df["volume"] = 0.0
-                _cache.set(f"{our}_{timeframe}", df)
-                result[our] = df
+                # Single ticker — flat or single-level MultiIndex
+                our = rev[to_fetch_yf[0]]
+                df  = _normalise(raw.copy())
+                if not df.empty and "close" in df.columns:
+                    _cache.set(f"{our}_{timeframe}", df)
+                    result[our] = df
             else:
+                # Multi-ticker — yfinance returns (field, ticker) MultiIndex
+                # level 0 = field (Close, Open…), level 1 = ticker symbol
+                if not isinstance(raw.columns, pd.MultiIndex):
+                    return result
+                tickers_in_raw = raw.columns.get_level_values(1).unique()
                 for yf_sym in to_fetch_yf:
                     our = rev[yf_sym]
                     try:
-                        df = raw[yf_sym].copy() if yf_sym in raw.columns.get_level_values(0) else pd.DataFrame()
-                        if df.empty:
+                        if yf_sym not in tickers_in_raw:
                             continue
-                        df.columns = [c.lower() for c in df.columns]
-                        needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
-                        df = df[needed].dropna().tail(limit)
-                        if "volume" not in df.columns:
-                            df["volume"] = 0.0
+                        # xs selects all fields for this ticker, gives flat DataFrame
+                        df = raw.xs(yf_sym, axis=1, level=1).copy()
+                        df = _normalise(df)
+                        if df.empty or "close" not in df.columns:
+                            continue
                         _cache.set(f"{our}_{timeframe}", df)
                         result[our] = df
                     except Exception:
                         pass
         except Exception as e:
             logger.debug(f"Yahoo batch error {timeframe}: {e}")
+
+        # Per-symbol fallback: retry any symbol that the batch missed
+        missed = [sym for sym in to_fetch_sym if sym not in result]
+        if missed:
+            def _single_fetch(sym):
+                try:
+                    df = self.fetch_ohlcv(sym, timeframe, limit)
+                    if df is not None and not df.empty and "close" in df.columns:
+                        return sym, df
+                except Exception:
+                    pass
+                return sym, None
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(max_workers=min(6, len(missed))) as ex:
+                for sym, df in ex.map(_single_fetch, missed):
+                    if df is not None:
+                        _cache.set(f"{sym}_{timeframe}", df)
+                        result[sym] = df
 
         return result
 

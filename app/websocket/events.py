@@ -55,6 +55,33 @@ def subscribe_signals(data):
     emit("subscribed", {"market": market})
 
 
+@socketio.on("subscribe_all_tickers")
+def subscribe_all_tickers():
+    """Client subscribes to all ticker updates at once (for ribbon/dashboard)."""
+    join_room("ticker_all")
+    emit("subscribed", {"room": "ticker_all"})
+
+
+@socketio.on("unsubscribe_all_tickers")
+def unsubscribe_all_tickers():
+    leave_room("ticker_all")
+
+
+@socketio.on("subscribe_notifications")
+def subscribe_notifications():
+    """Client subscribes to its own notification room (keyed by session)."""
+    token = request.args.get("token")
+    if not token:
+        return
+    try:
+        from flask_jwt_extended import decode_token
+        data = decode_token(token)
+        user_id = data["sub"]
+        join_room(f"user_{user_id}")
+    except Exception:
+        pass
+
+
 def broadcast_signal(signal_dict):
     market = signal_dict.get("market", "all")
     socketio.emit("new_signal", signal_dict, room=f"signals_{market}")
@@ -62,4 +89,11 @@ def broadcast_signal(signal_dict):
 
 
 def broadcast_ticker(symbol: str, ticker_data: dict):
+    """Broadcast to per-symbol room AND the catch-all ticker_all room."""
     socketio.emit("ticker_update", ticker_data, room=f"ticker_{symbol}")
+    socketio.emit("ticker_update", ticker_data, room="ticker_all")
+
+
+def broadcast_notification(user_id: int, title: str, message: str):
+    socketio.emit("notification", {"title": title, "message": message},
+                  room=f"user_{user_id}")

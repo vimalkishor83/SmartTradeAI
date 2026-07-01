@@ -14,6 +14,45 @@
   </button>
 </div>
 
+<!-- ═══ Asset Search & Add ════════════════════════════════════ -->
+<div class="card mb-4" style="background:var(--card-bg);border:1px solid var(--border)">
+  <div class="card-header" style="background:var(--card-bg);border-bottom:1px solid var(--border)">
+    <div class="d-flex align-items-center justify-content-between">
+      <h6 class="mb-0" style="color:var(--text-primary)"><i class="bi bi-search me-2 text-accent"></i>Search & Add Asset / Index</h6>
+      <a href="/admin/assets" class="btn btn-sm btn-outline-light"><i class="bi bi-list-ul me-1"></i>Manage Assets</a>
+    </div>
+    <div class="row g-2 mt-2">
+      <div class="col">
+        <input type="text" id="assetSearchInput" class="form-control"
+          style="background:var(--input-bg,var(--bg-secondary));border:1px solid var(--border);color:var(--text-primary)"
+          placeholder="e.g. nifty bank, midcap, nasdaq, gold, reliance…" autocomplete="off">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-accent" onclick="searchAssets()" style="font-weight:600"><i class="bi bi-search me-1"></i>Search</button>
+      </div>
+    </div>
+  </div>
+  <div class="card-body p-0">
+    <div id="assetSearchResults" style="display:none">
+      <table class="table table-sm table-hover mb-0" style="color:var(--text-primary)">
+        <thead style="background:var(--bg-secondary);color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+          <tr>
+            <th class="px-3 py-2">Symbol</th>
+            <th class="py-2">Name</th>
+            <th class="py-2">Exchange</th>
+            <th class="py-2">Type</th>
+            <th class="py-2">Add as Market</th>
+            <th class="py-2"></th>
+          </tr>
+        </thead>
+        <tbody id="assetSearchBody"></tbody>
+      </table>
+    </div>
+    <div id="assetSearchMsg" class="text-muted px-3 py-2" style="font-size:13px"></div>
+  </div>
+</div>
+
+
 <!-- System Health KPIs -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
@@ -98,12 +137,14 @@
     </div>
   </div>
   <div class="col-lg-5">
-    <div class="section-card h-100">
+    <div class="section-card h-100" id="apiSummaryCard">
       <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-key text-accent"></i> API Configurations</span>
-        <a href="#" class="btn btn-sm btn-outline-light" data-bs-toggle="modal" data-bs-target="#apiConfigModal">Add</a>
+        <span class="section-card-title"><i class="bi bi-plug-fill text-accent"></i> API Status</span>
+        <a href="/admin/api-configs" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>Manage</a>
       </div>
-      <div id="apiConfigList"><div class="p-3 text-muted small">Loading...</div></div>
+      <div id="apiSummaryBody" class="p-3">
+        <div class="text-muted small">Loading…</div>
+      </div>
     </div>
   </div>
 </div>
@@ -112,7 +153,12 @@
 <div class="section-card">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Audit Log</span>
-    <a href="/admin/logs" class="btn btn-sm btn-outline-light">View All</a>
+    <div class="d-flex gap-2">
+      <button onclick="clearAuditLogs()" class="btn btn-sm" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px">
+        <i class="bi bi-trash3 me-1"></i>Clear Log
+      </button>
+      <a href="/admin/logs" class="btn btn-sm btn-outline-light">View All</a>
+    </div>
   </div>
   <div class="table-responsive">
     <table class="smart-table">
@@ -176,34 +222,164 @@ async function toggleUser(id, active) {
 
 async function loadApiConfigs() {
   const data = await API.get('/admin/api-configs');
-  if (!data) return;
-  document.getElementById('apiConfigList').innerHTML = data.configs.map(c => `
-    <div class="p-3 border-bottom d-flex justify-content-between align-items-center" style="border-color:var(--border)!important">
-      <div>
-        <div class="fw-semibold">${c.name}</div>
-        <div class="text-muted small">${c.provider} • ${c.market || 'all'}</div>
+  const body = document.getElementById('apiSummaryBody');
+  if (!data || !data.configs) {
+    body.innerHTML = '<div class="text-muted small">Could not load.</div>'; return;
+  }
+  const configs = data.configs;
+  if (!configs.length) {
+    body.innerHTML = `<div class="text-muted small">No configurations yet.
+      <a href="/admin/api-configs" class="text-accent ms-1">Add one →</a></div>`; return;
+  }
+  const active  = configs.filter(c => c.status === 'active').length;
+  const paused  = configs.filter(c => c.status === 'paused').length;
+  const errored = configs.filter(c => c.status === 'error').length;
+  body.innerHTML = `
+    <div class="row g-2 mb-3">
+      <div class="col-4 text-center">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--text-primary)">${configs.length}</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Total</div>
       </div>
-      <span class="badge ${c.is_active ? 'bg-success' : 'bg-secondary'}">${c.is_active ? 'Active' : 'Off'}</span>
-    </div>`).join('') || '<div class="p-3 text-muted small">No API configs</div>';
+      <div class="col-4 text-center">
+        <div style="font-size:1.4rem;font-weight:700;color:var(--green)">${active}</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Active</div>
+      </div>
+      <div class="col-4 text-center">
+        <div style="font-size:1.4rem;font-weight:700;color:${errored > 0 ? 'var(--red)' : 'var(--text-muted)'}">${paused + errored}</div>
+        <div style="font-size:10px;color:var(--text-muted);text-transform:uppercase">Paused/Err</div>
+      </div>
+    </div>
+    ${configs.slice(0, 4).map(c => `
+      <div class="d-flex align-items-center gap-2 py-2" style="border-top:1px solid var(--border)">
+        <span style="width:7px;height:7px;border-radius:50%;background:${c.status==='active'?'var(--green)':c.status==='error'?'var(--red)':'var(--text-muted)'};flex-shrink:0"></span>
+        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
+        <span class="text-muted" style="font-size:11px">${c.market||''}</span>
+      </div>`).join('')}
+    ${configs.length > 4 ? `<div class="text-muted small mt-2">+${configs.length - 4} more — <a href="/admin/api-configs" class="text-accent">view all</a></div>` : ''}
+  `;
 }
 
 async function loadAuditLogs() {
   const data = await API.get('/admin/audit-logs', { per_page: 10 });
   if (!data) return;
-  document.getElementById('auditBody').innerHTML = data.logs.map(l => `
+  const body = document.getElementById('auditBody');
+  if (!data.logs?.length) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No audit logs yet</td></tr>';
+    return;
+  }
+  body.innerHTML = data.logs.map(l => `
     <tr>
-      <td>${l.user}</td>
-      <td><code style="font-size:11px">${l.action}</code></td>
-      <td class="text-muted">${l.resource || '—'}</td>
-      <td class="text-muted small">${l.ip_address || '—'}</td>
-      <td><span class="badge ${l.status === 'success' ? 'bg-success' : 'bg-danger'}">${l.status}</span></td>
-      <td class="text-muted small">${formatTime(l.created_at)}</td>
+      <td style="font-weight:500">${l.user}</td>
+      <td><span style="color:var(--accent);font-size:12px;font-family:monospace">${l.action}</span></td>
+      <td style="font-size:12px">${l.resource || '—'}</td>
+      <td style="font-size:12px">${l.ip_address || '—'}</td>
+      <td><span class="badge ${l.status === 'success' ? 'bg-success' : l.status === 'failed' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:10px">${l.status}</span></td>
+      <td style="font-size:12px;white-space:nowrap">${formatTime(l.created_at)}</td>
     </tr>`).join('');
+}
+
+async function clearAuditLogs() {
+  if (!confirm('Clear all audit logs from the database?\n\nThis cannot be undone.')) return;
+  const token = localStorage.getItem('access_token');
+  try {
+    const res  = await fetch('/api/v1/admin/audit-logs', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const data = await res.json();
+    if (res.ok) {
+      document.getElementById('auditBody').innerHTML =
+        '<tr><td colspan="6" class="text-center py-3" style="color:var(--text-muted)">No audit logs yet</td></tr>';
+    } else {
+      alert(data.error || 'Failed to clear logs');
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
 }
 
 document.addEventListener('app:ready', () => {
   loadAdminDashboard();
   setInterval(loadAdminDashboard, 30000);
 });
+
+// ── Asset search ────────────────────────────────────────────────
+document.getElementById('assetSearchInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') searchAssets();
+});
+
+async function searchAssets() {
+  const q = document.getElementById('assetSearchInput').value.trim();
+  if (q.length < 2) return;
+  const msg  = document.getElementById('assetSearchMsg');
+  const wrap = document.getElementById('assetSearchResults');
+  const body = document.getElementById('assetSearchBody');
+  msg.textContent  = 'Searching…';
+  wrap.style.display = 'none';
+  body.innerHTML   = '';
+  try {
+    const token = localStorage.getItem('access_token');
+    const res   = await fetch(`/api/v1/assets/search?q=${encodeURIComponent(q)}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const data = await res.json();
+    const results = data.results || [];
+    if (!results.length) { msg.textContent = 'No results found. Try a different keyword.'; return; }
+    msg.textContent = '';
+    const markets = ['crypto','forex','commodity','indian_stock','index'];
+    results.forEach(r => {
+      // guess default market from exchange/type
+      let defaultMkt = 'index';
+      const t = (r.type || '').toLowerCase();
+      const ex = (r.exchange || '').toLowerCase();
+      if (t === 'cryptocurrency') defaultMkt = 'crypto';
+      else if (t === 'currency') defaultMkt = 'forex';
+      else if (ex === 'nse' || ex === 'bse') defaultMkt = 'indian_stock';
+      else if (t === 'future' || r.symbol.includes('GC') || r.symbol.includes('CL')) defaultMkt = 'commodity';
+
+      const opts = markets.map(m =>
+        `<option value="${m}" ${m === defaultMkt ? 'selected' : ''}>${m}</option>`
+      ).join('');
+
+      body.insertAdjacentHTML('beforeend', `
+        <tr id="row_${r.symbol.replace(/[^a-z0-9]/gi,'_')}" style="border-color:var(--border)">
+          <td class="px-3"><code style="color:var(--accent)">${r.symbol}</code></td>
+          <td style="max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</td>
+          <td><span class="text-muted">${r.exchange}</span></td>
+          <td><span class="badge bg-secondary">${r.type}</span></td>
+          <td><select class="form-select form-select-sm" id="mkt_${r.symbol.replace(/[^a-z0-9]/gi,'_')}"
+            style="width:130px;background:var(--bg-secondary);border-color:var(--border);color:var(--text-primary)">${opts}</select></td>
+          <td>
+            <button class="btn btn-sm btn-success" onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange}')">
+              <i class="bi bi-plus-lg"></i> Add
+            </button>
+          </td>
+        </tr>`);
+    });
+    wrap.style.display = 'block';
+  } catch(e) {
+    msg.textContent = 'Search failed: ' + e.message;
+  }
+}
+
+async function addAsset(symbol, name, exchange) {
+  const safeId = symbol.replace(/[^a-z0-9]/gi,'_');
+  const market = document.getElementById('mkt_' + safeId)?.value || 'index';
+  const token  = localStorage.getItem('access_token');
+  try {
+    const res  = await fetch('/api/v1/assets/add-from-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ symbol, name, exchange, market })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const row = document.getElementById('row_' + safeId);
+      if (row) row.innerHTML = `<td colspan="6" class="text-success px-3"><i class="bi bi-check-circle-fill me-1"></i><strong>${symbol}</strong> added as <em>${market}</em></td>`;
+    } else {
+      alert(data.error || 'Failed to add asset');
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
 </script>
 {% endblock %}

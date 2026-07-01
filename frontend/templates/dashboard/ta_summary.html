@@ -33,6 +33,12 @@
     </a>
   </li>
   <li class="nav-item">
+    <a class="nav-link" id="tabAiBtn" href="#" onclick="showTab('ai');return false">
+      <i class="bi bi-cpu-fill me-1"></i>AI Ratings
+      <span class="badge ms-1" style="background:rgba(99,102,241,0.2);color:var(--accent);font-size:9px;padding:2px 5px;border-radius:4px;vertical-align:middle">ML</span>
+    </a>
+  </li>
+  <li class="nav-item">
     <a class="nav-link" id="tabQuotesBtn" href="#" onclick="showTab('quotes');return false">
       <i class="bi bi-currency-dollar me-1"></i>Live Quotes
     </a>
@@ -62,7 +68,31 @@
   </div>
 </div>
 
-<!-- ── TAB 2: Live Quotes ──────────────────────────────────── -->
+<!-- ── TAB 2: AI Ratings ───────────────────────────────────── -->
+<div id="tabAi" style="display:none">
+  <!-- Legend -->
+  <div class="d-flex gap-3 mb-3 flex-wrap align-items-center justify-content-between">
+    <div class="d-flex gap-3 flex-wrap align-items-center">
+      <span style="font-size:11px;color:var(--text-muted)">Signal:</span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#10b981"></span><span style="font-size:12px;color:var(--text-secondary)">Bullish</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#ef4444"></span><span style="font-size:12px;color:var(--text-secondary)">Bearish</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#64748b"></span><span style="font-size:12px;color:var(--text-secondary)">Neutral</span></span>
+      <span style="font-size:11px;color:var(--text-muted);margin-left:8px">Ensemble ML (RF + XGBoost + LightGBM + LSTM) · Click cell for details</span>
+    </div>
+    <span style="font-size:11px;color:var(--text-muted)" id="aiLastUpdated">—</span>
+  </div>
+
+  <div class="section-card">
+    <div class="table-responsive" id="aiRatingsWrap">
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span>Select this tab to load AI predictions...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB 3: Live Quotes ──────────────────────────────────── -->
 <div id="tabQuotes" style="display:none">
   <div class="section-card">
     <div class="table-responsive" id="quotesWrap">
@@ -95,6 +125,14 @@
 .ta-sell        { background:rgba(252,165,165,0.15); color:#fca5a5; border:1px solid rgba(252,165,165,0.3); }
 .ta-strong-sell { background:rgba(239,68,68,0.2);    color:#ef4444; border:1px solid rgba(239,68,68,0.4); }
 .ta-loading     { background:rgba(255,255,255,0.04); color:var(--text-muted); border:1px solid var(--border); font-weight:400; font-size:11px; }
+
+/* AI Ratings */
+.ai-cell        { gap:5px; min-width:108px; font-size:11.5px; letter-spacing:.4px; cursor:default; }
+.ai-cell:hover  { opacity:.85; }
+.ai-bull        { background:rgba(16,185,129,0.18); color:#10b981; border:1px solid rgba(16,185,129,0.4); }
+.ai-bear        { background:rgba(239,68,68,0.18);  color:#ef4444; border:1px solid rgba(239,68,68,0.4); }
+.ai-neut        { background:rgba(100,116,139,0.15);color:#94a3b8; border:1px solid rgba(100,116,139,0.3); }
+.ai-conf        { font-size:10px; font-weight:400; opacity:.8; margin-left:2px; }
 .asset-row-header td {
   background: rgba(255,255,255,0.03);
   padding: 5px 12px !important;
@@ -107,17 +145,23 @@
 </style>
 
 <script>
-const TA_TFS = ['5m','15m','30m','1h','2h','4h','1d'];
-let _data = [];
+const TA_TFS    = ['5m','15m','30m','1h','2h','4h','1d'];
+const AI_TFS    = ['5m','15m','1h','4h','1d'];
+let _data       = [];
+let _aiData     = [];
+let _aiLoaded   = false;
 let _currentTab = 'ratings';
 
 function showTab(tab) {
   _currentTab = tab;
   document.getElementById('tabRatings').style.display = tab === 'ratings' ? 'block' : 'none';
+  document.getElementById('tabAi').style.display      = tab === 'ai'      ? 'block' : 'none';
   document.getElementById('tabQuotes').style.display  = tab === 'quotes'  ? 'block' : 'none';
   document.getElementById('tabRatingsBtn').classList.toggle('active', tab === 'ratings');
-  document.getElementById('tabQuotesBtn').classList.toggle('active', tab === 'quotes');
-  if (_data.length) renderBoth();
+  document.getElementById('tabAiBtn').classList.toggle('active',      tab === 'ai');
+  document.getElementById('tabQuotesBtn').classList.toggle('active',  tab === 'quotes');
+  if (tab === 'ai' && !_aiLoaded) loadAiData(true);
+  if (tab !== 'ai' && _data.length) renderBoth();
 }
 
 const LABEL_MAP = {
@@ -307,12 +351,139 @@ async function loadData(showSpinner = true) {
   }
 }
 
+// ── AI Ratings ─────────────────────────────────────────────────
+
+function aiCell(d, assetId, tf) {
+  if (!d) return `<span class="ta-cell ta-loading">—</span>`;
+  const dir  = (d.direction || '').toUpperCase();
+  const conf = d.confidence ?? 0;
+  let cls, label;
+  if (dir === 'BULLISH')      { cls = 'ai-bull'; label = 'BULL'; }
+  else if (dir === 'BEARISH') { cls = 'ai-bear'; label = 'BEAR'; }
+  else                        { cls = 'ai-neut'; label = 'NEUT'; }
+  const tip = `Bullish: ${d.bullish_prob}%  Bearish: ${d.bearish_prob}%  Conf: ${conf}%`;
+  return `<span class="ta-cell ai-cell ${cls}" title="${tip}"
+    onclick="window.location='/ai-insights?asset=${assetId}&tf=${tf}'" style="cursor:pointer">
+    ${label} <span class="ai-conf">${conf}%</span>
+  </span>`;
+}
+
+function aiOverall(tf_obj) {
+  const weights = {'5m':1,'15m':2,'1h':4,'4h':5,'1d':6};
+  let bullW = 0, bearW = 0, total = 0;
+  for (const [tf, w] of Object.entries(weights)) {
+    const d = tf_obj?.[tf];
+    if (!d) continue;
+    const dir = (d.direction || '').toUpperCase();
+    if (dir === 'BULLISH') bullW += w * (d.confidence / 100);
+    else if (dir === 'BEARISH') bearW += w * (d.confidence / 100);
+    total += w;
+  }
+  if (!total) return null;
+  const bullScore = bullW / total;
+  const bearScore = bearW / total;
+  const conf = Math.round(Math.max(bullScore, bearScore) * 100);
+  if (bullScore > bearScore + 0.1) return { dir: 'BULLISH', cls: 'ai-bull', conf };
+  if (bearScore > bullScore + 0.1) return { dir: 'BEARISH', cls: 'ai-bear', conf };
+  return { dir: 'NEUTRAL', cls: 'ai-neut', conf };
+}
+
+function renderAiRatings() {
+  const wrap = document.getElementById('aiRatingsWrap');
+  if (!_aiData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No predictions available</div>'; return; }
+
+  const byMarket = {};
+  _aiData.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
+
+  const tfHeaders = AI_TFS.map(tf => `<th style="text-align:center;min-width:112px">${tfLabel(tf)}</th>`).join('');
+  let html = `<table class="smart-table" style="min-width:700px">
+    <thead><tr>
+      <th style="min-width:145px;position:sticky;left:0;background:var(--bg-card);z-index:2">Asset</th>
+      ${tfHeaders}
+      <th style="text-align:center;min-width:120px">Overall</th>
+    </tr></thead><tbody>`;
+
+  for (const [mkt, assets] of Object.entries(byMarket)) {
+    html += `<tr class="asset-row-header"><td colspan="${AI_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    assets.forEach(a => {
+      const overall = aiOverall(a.tf);
+      html += `<tr>
+        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+        </td>
+        ${AI_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${aiCell(a.tf[tf], a.id, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px">
+          ${overall
+            ? `<span class="ta-cell ai-cell ${overall.cls}" style="font-size:13px">
+                ${overall.dir} <span class="ai-conf">${overall.conf}%</span>
+               </span>`
+            : '<span class="ta-cell ta-loading">—</span>'}
+        </td>
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+let _aiLoadStart = 0;
+
+async function loadAiData(showSpinner = true) {
+  const market = document.getElementById('mktFilter').value;
+  if (showSpinner) {
+    _aiLoadStart = Date.now();
+    document.getElementById('aiRatingsWrap').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span id="aiLoadMsg">Running ML models...</span>
+        <div style="font-size:11px;margin-top:6px;color:var(--text-muted)" id="aiLoadHint">Ensemble: RF + XGBoost + LightGBM + LSTM</div>
+        <div style="margin:16px auto 0;max-width:220px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+          <div id="aiLoadBar" style="height:3px;width:0%;background:var(--accent);border-radius:2px;transition:width 1s linear"></div>
+        </div>
+      </div>`;
+    let pct = 0;
+    const timer = setInterval(() => {
+      pct = Math.min(pct + (pct < 60 ? 4 : pct < 85 ? 1.5 : 0.4), 95);
+      const bar = document.getElementById('aiLoadBar');
+      const msg = document.getElementById('aiLoadMsg');
+      if (bar) bar.style.width = pct + '%';
+      if (msg) msg.textContent = pct < 40 ? 'Running ML models...' : pct < 70 ? 'Computing probabilities...' : 'Finalising predictions...';
+      if (pct >= 95) clearInterval(timer);
+    }, 900);
+
+    const data = await API.get('/market-data/ai-summary', { market });
+    clearInterval(timer);
+    if (!data?.assets) return;
+    _aiData   = data.assets;
+    _aiLoaded = true;
+    renderAiRatings();
+    const elapsed = ((Date.now() - _aiLoadStart) / 1000).toFixed(1);
+    document.getElementById('aiLastUpdated').textContent = `Updated (${elapsed}s)`;
+  } else {
+    const data = await API.get('/market-data/ai-summary', { market });
+    if (!data?.assets) return;
+    _aiData = data.assets;
+    if (_currentTab === 'ai') renderAiRatings();
+  }
+}
+
 document.addEventListener('app:ready', () => {
   loadData(true);
-  document.getElementById('refreshBtn').addEventListener('click', () => loadData(true));
-  document.getElementById('mktFilter').addEventListener('change', () => loadData(true));
-  // Silent background refresh every 2 min
-  setInterval(() => loadData(false), 120000);
+  document.getElementById('refreshBtn').addEventListener('click', () => {
+    if (_currentTab === 'ai') { _aiLoaded = false; loadAiData(true); }
+    else loadData(true);
+  });
+  document.getElementById('mktFilter').addEventListener('change', () => {
+    _aiLoaded = false;
+    if (_currentTab === 'ai') loadAiData(true);
+    else loadData(true);
+  });
+  setInterval(() => {
+    if (_currentTab === 'ai') loadAiData(false);
+    else loadData(false);
+  }, 120000);
 });
 </script>
 {% endblock %}

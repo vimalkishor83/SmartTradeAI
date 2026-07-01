@@ -98,6 +98,7 @@ const Auth = {
     this.user = data;
     this.updateUI();
     this.applyTheme(data.theme);
+    if (data.push_enabled) _initPushSubscription();
     return true;
   },
 
@@ -123,7 +124,20 @@ const Auth = {
     }
     if (u.role === 'admin') {
       const adminNav = document.getElementById('adminNav');
-      if (adminNav) adminNav.style.display = 'block';
+      if (adminNav) {
+        adminNav.style.display = 'block';
+        // If admin is the saved/active group, open it now (it was hidden when sidebar init ran)
+        const savedGroup = localStorage.getItem('sidebar_open_group');
+        if (savedGroup === 'admin') {
+          const items   = adminNav.querySelector('.nav-group-items');
+          const btn     = adminNav.querySelector('.nav-group-toggle');
+          const chevron = btn && btn.querySelector('.nav-chevron');
+          if (items) { items.style.transition = 'none'; items.style.maxHeight = items.scrollHeight + 'px'; requestAnimationFrame(() => { items.style.transition = ''; }); }
+          if (btn) btn.setAttribute('aria-expanded', 'true');
+          if (chevron) chevron.style.transform = 'rotate(90deg)';
+          adminNav.classList.add('active-group');
+        }
+      }
     }
   },
 
@@ -168,9 +182,9 @@ const Notifications = {
     if (listEl && data.notifications?.length) {
       listEl.innerHTML = data.notifications.map(n => `
         <div class="notif-item ${n.is_read ? '' : 'unread'}">
-          <div class="fw-semibold" style="font-size:13px">${n.title}</div>
-          <div class="text-muted" style="font-size:12px">${n.message}</div>
-          <div class="text-muted mt-1" style="font-size:11px">${formatTime(n.created_at)}</div>
+          <div class="fw-semibold" style="font-size:13px;color:#fff">${n.title}</div>
+          <div style="font-size:12px;color:#fff">${n.message}</div>
+          <div class="mt-1" style="font-size:11px;color:#fff">${formatTime(n.created_at)}</div>
         </div>`).join('');
     }
   },
@@ -180,8 +194,47 @@ const Notifications = {
   },
 };
 
+// ─── Live Price Cache (populated by WebSocket) ───────────────
+const LivePrices = {
+  _cache: {},   // { symbol: { price, change_pct, change, high, low, volume } }
+  _listeners: [],  // callbacks registered by page components
+
+  update(tick) {
+    this._cache[tick.symbol] = tick;
+    this._listeners.forEach(fn => { try { fn(tick); } catch(e) {} });
+  },
+
+  get(symbol) { return this._cache[symbol] || null; },
+
+  onUpdate(fn) { this._listeners.push(fn); },
+
+  // Seed from REST endpoint (fast initial paint before WS connects)
+  async seed() {
+    const data = await API.get('/market-data/live-prices');
+    if (data?.prices) {
+      Object.values(data.prices).forEach(t => { this._cache[t.symbol] = t; });
+    }
+  },
+};
+
 // ─── Ticker Ribbon ────────────────────────────
 const Ticker = {
+  _items: {},
+
+  _renderHtml() {
+    const items = Object.values(this._items);
+    if (!items.length) return null;
+    return items.map(item => {
+      const cls   = item.change_pct >= 0 ? 'up' : 'down';
+      const arrow = item.change_pct >= 0 ? '▲' : '▼';
+      return `<span class="ticker-item" data-symbol="${item.symbol}">
+        <span class="ticker-symbol">${item.symbol}</span>
+        <span class="ticker-price"> ${formatPrice(item.price)}</span>
+        <span class="ticker-change ${cls}"> ${arrow}${Math.abs(item.change_pct).toFixed(2)}%</span>
+      </span>`;
+    }).join('');
+  },
+
   async load() {
     const track = document.getElementById('tickerTrack');
     if (!track) return;
@@ -190,16 +243,26 @@ const Ticker = {
       track.textContent = 'Market data loading...';
       return;
     }
-    const html = data.heatmap.map(item => {
-      const cls   = item.change_pct >= 0 ? 'up' : 'down';
-      const arrow = item.change_pct >= 0 ? '▲' : '▼';
-      return `<span class="ticker-item">
-        <span class="ticker-symbol">${item.symbol}</span>
-        <span class="ticker-price"> ${formatPrice(item.price)}</span>
-        <span class="ticker-change ${cls}"> ${arrow}${Math.abs(item.change_pct).toFixed(2)}%</span>
-      </span>`;
-    }).join('');
-    track.innerHTML = html + html;
+    data.heatmap.forEach(item => { this._items[item.symbol] = item; });
+    const html = this._renderHtml();
+    if (html) track.innerHTML = html + html;
+  },
+
+  // Called by WebSocket on each live price update
+  patchItem(tick) {
+    if (!this._items[tick.symbol]) return;  // only update symbols already in ribbon
+    this._items[tick.symbol] = { ...this._items[tick.symbol], ...tick };
+    const track = document.getElementById('tickerTrack');
+    if (!track) return;
+    // Update the specific ticker item DOM (no full re-render — avoids scroll reset)
+    track.querySelectorAll(`[data-symbol="${tick.symbol}"]`).forEach(el => {
+      const cls   = tick.change_pct >= 0 ? 'up' : 'down';
+      const arrow = tick.change_pct >= 0 ? '▲' : '▼';
+      el.querySelector('.ticker-price').textContent  = ' ' + formatPrice(tick.price);
+      const chgEl = el.querySelector('.ticker-change');
+      chgEl.textContent = ` ${arrow}${Math.abs(tick.change_pct).toFixed(2)}%`;
+      chgEl.className   = `ticker-change ${cls}`;
+    });
   },
 };
 
@@ -256,7 +319,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const savedTheme = localStorage.getItem('theme') || 'dark';
   document.documentElement.setAttribute('data-theme', savedTheme);
 
-  // Theme toggle button
+  // Theme toggle button — persists to server + localStorage
   const themeToggle = document.getElementById('themeToggle');
   if (themeToggle) {
     themeToggle.innerHTML = savedTheme === 'dark' ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
@@ -266,6 +329,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.documentElement.setAttribute('data-theme', next);
       localStorage.setItem('theme', next);
       themeToggle.innerHTML = next === 'dark' ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
+      // Persist to server (best-effort, fire-and-forget)
+      API.put('/auth/me', { theme: next }).catch(() => {});
     });
   }
 
@@ -336,23 +401,231 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load shared navbar data
   Notifications.load();
   Ticker.load();
-  setInterval(() => Ticker.load(), 30000);   // auto-refresh ticker ribbon every 30s
-  setInterval(() => Notifications.load(), 60000); // refresh notification count every 60s
+  LivePrices.seed();  // bootstrap price cache before WS connects
+  setInterval(() => Notifications.load(), 60000);
 
   // Fire ready event for page-specific scripts
   document.dispatchEvent(new Event('app:ready'));
 
-  // WebSocket (optional — won't break if socket.io not connected)
+  // ── WebSocket ──────────────────────────────────────────────────
   const token = localStorage.getItem('access_token');
   if (token && typeof io !== 'undefined') {
     try {
-      const socket = io({ query: { token }, transports: ['websocket', 'polling'] });
-      socket.on('connect_error', () => {});  // suppress console errors
+      const socket = io({ query: { token }, transports: ['websocket', 'polling'],
+                          reconnection: true, reconnectionDelay: 2000,
+                          reconnectionDelayMax: 30000, reconnectionAttempts: Infinity });
+
+      // WebSocket status indicator
+      const _wsDot   = document.getElementById('wsDot');
+      const _wsLabel = document.getElementById('wsStatusLabel');
+      let _wsStaleSince = null;
+      let _wsStaleTimer = null;
+
+      function _wsSetStatus(state) {
+        if (!_wsDot) return;
+        _wsDot.className = 'ws-dot ' + state;
+        _wsLabel.textContent = state === 'live' ? 'Live' : state === 'delayed' ? 'Delayed' : 'Offline';
+      }
+
+      socket.on('connect', () => {
+        _wsSetStatus('live');
+        _wsStaleSince = null;
+        clearTimeout(_wsStaleTimer);
+        socket.emit('subscribe_all_tickers');
+        socket.emit('subscribe_signals', { market: 'all' });
+        socket.emit('subscribe_notifications');
+      });
+
+      socket.on('disconnect', () => {
+        _wsSetStatus('offline');
+        _wsStaleSince = Date.now();
+      });
+
+      socket.on('connect_error', () => {
+        _wsSetStatus('offline');
+      });
+
+      socket.on('reconnect_attempt', () => {
+        _wsSetStatus('delayed');
+      });
+
+      // Live price → update ribbon + notify page listeners
+      socket.on('ticker_update', tick => {
+        if (!tick?.symbol) return;
+        LivePrices.update(tick);
+        Ticker.patchItem(tick);
+        // Dispatch DOM event so page components can react
+        document.dispatchEvent(new CustomEvent('price:update', { detail: tick }));
+      });
+
       socket.on('new_signal', signal => {
-        Toast.show(`${signal.signal_type} signal: ${signal.asset} — ${signal.confidence_score?.toFixed(0)}% confidence`, 'info');
+        Toast.show(
+          `${signal.signal_type} signal: ${signal.asset} — ${signal.confidence_score?.toFixed(0)}% confidence`,
+          'info', 6000
+        );
         Notifications.load();
       });
+
+      socket.on('notification', n => {
+        Toast.show(n.title + ': ' + n.message, 'info', 7000);
+        Notifications.load();
+      });
+
       window._socket = socket;
     } catch (e) { /* websocket optional */ }
   }
 });
+
+// ─── ScoreBreakdown ───────────────────────────────────────────────────────────
+// Renders a 5-component confidence breakdown inside any container element.
+// Usage: ScoreBreakdown.render(containerEl, signalObj)
+const ScoreBreakdown = (() => {
+  const COMPONENTS = [
+    { key: 'trend_score',    label: 'Trend',    color: '#4f8ef7' },
+    { key: 'momentum_score', label: 'Momentum', color: '#a78bfa' },
+    { key: 'volume_score',   label: 'Volume',   color: '#22d3ee' },
+    { key: 'pattern_score',  label: 'Pattern',  color: '#f59e0b' },
+    { key: 'ai_score',       label: 'AI',       color: '#22c55e' },
+  ];
+
+  function render(el, sig) {
+    if (!el || !sig) return;
+    const hasBreakdown = COMPONENTS.some(c => sig[c.key] != null && sig[c.key] > 0);
+    if (!hasBreakdown) { el.innerHTML = ''; return; }
+    el.innerHTML = `<div class="score-breakdown">${
+      COMPONENTS.map(c => {
+        const val = Math.min(100, Math.max(0, (sig[c.key] || 0)));
+        return `<div class="score-breakdown-row">
+          <span class="score-breakdown-label">${c.label}</span>
+          <div class="score-breakdown-track">
+            <div class="score-breakdown-fill" style="width:${val}%;background:${c.color}"></div>
+          </div>
+          <span class="score-breakdown-val">${val.toFixed(0)}</span>
+        </div>`;
+      }).join('')
+    }</div>`;
+  }
+
+  return { render };
+})();
+
+// ─── SignalProgress ───────────────────────────────────────────────────────────
+// Renders a live P&L progress bar (entry → target / entry → SL).
+// Usage: SignalProgress.render(containerEl, signalObj)
+const SignalProgress = (() => {
+  function render(el, sig) {
+    if (!el) return;
+    const entry   = parseFloat(sig.entry_price);
+    const target  = parseFloat(sig.target1);
+    const sl      = parseFloat(sig.stop_loss);
+    const current = parseFloat(sig.current_price || entry);
+    if (!entry || !target || !sl) { el.innerHTML = ''; return; }
+
+    const isBuy   = sig.signal_type === 'BUY';
+    const range   = Math.abs(target - entry);
+    if (range === 0) { el.innerHTML = ''; return; }
+
+    const progress = isBuy
+      ? Math.max(-100, Math.min(150, ((current - entry) / range) * 100))
+      : Math.max(-100, Math.min(150, ((entry - current) / range) * 100));
+
+    const isProfit  = progress >= 0;
+    const pct       = Math.min(100, Math.max(0, Math.abs(progress)));
+    const pnlLabel  = sig.pnl_pct != null ? `${sig.pnl_pct > 0 ? '+' : ''}${sig.pnl_pct.toFixed(2)}%` : '';
+
+    el.innerHTML = `<div class="signal-progress-wrap">
+      <div class="signal-progress-track">
+        <div class="signal-progress-fill ${isProfit ? 'profit' : 'loss'}" style="width:${pct}%"></div>
+      </div>
+      <div class="signal-progress-label">
+        <span>SL ${_fmt(sl)}</span>
+        <span>${pnlLabel}</span>
+        <span>T1 ${_fmt(target)}</span>
+      </div>
+    </div>`;
+  }
+
+  function _fmt(n) {
+    const v = parseFloat(n);
+    return isNaN(v) ? '—' : v >= 1000 ? v.toLocaleString(undefined,{maximumFractionDigits:2})
+                         : v >= 1    ? v.toFixed(4)
+                         : v.toFixed(6);
+  }
+
+  return { render };
+})();
+
+// ─── Web Push Subscription ───────────────────────────────────────────────────
+async function _initPushSubscription() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    if (existing) return; // already subscribed
+
+    const resp = await fetch('/api/v1/auth/push/vapid-key');
+    const { vapid_public_key } = await resp.json();
+    if (!vapid_public_key) return;
+
+    const keyBytes = Uint8Array.from(
+      atob(vapid_public_key.replace(/-/g, '+').replace(/_/g, '/')),
+      c => c.charCodeAt(0)
+    );
+
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: keyBytes,
+    });
+
+    await API.post('/auth/push/subscribe', { subscription: sub.toJSON() });
+  } catch (err) {
+    console.debug('Push subscription skipped:', err.message);
+  }
+}
+
+// ─── Sparkline ────────────────────────────────────────────────────────────────
+// Lightweight SVG sparkline. Use:
+//   Sparkline.render(containerEl, closes, isPositive)   — sync, from array
+//   Sparkline.load(containerEl, assetId, timeframe)     — async, fetches OHLCV
+const Sparkline = (() => {
+  const _cache = {};   // assetId+tf → closes array
+
+  function _svg(closes, positive) {
+    if (!closes || closes.length < 2) return '<span style="color:var(--text-muted);font-size:10px">—</span>';
+    const W = 68, H = 28, pad = 2;
+    const min = Math.min(...closes), max = Math.max(...closes);
+    const range = max - min || 1;
+    const pts = closes.map((v, i) => {
+      const x = pad + (i / (closes.length - 1)) * (W - pad * 2);
+      const y = H - pad - ((v - min) / range) * (H - pad * 2);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const color = positive ? '#10b981' : '#ef4444';
+    return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">
+      <polyline fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"
+                points="${pts}"/>
+    </svg>`;
+  }
+
+  function render(el, closes, positive) {
+    if (!el) return;
+    el.innerHTML = _svg(closes, positive);
+  }
+
+  async function load(el, assetId, timeframe) {
+    if (!el || !assetId) return;
+    const key = `${assetId}_${timeframe}`;
+    if (_cache[key]) { render(el, _cache[key].closes, _cache[key].pos); return; }
+    el.innerHTML = '<span style="color:var(--text-muted);font-size:8px">···</span>';
+    try {
+      const data = await API.get(`/market-data/${assetId}/ohlcv`, { timeframe, limit: 24 });
+      if (!data?.data?.length) return;
+      const closes = data.data.map(c => c.c);
+      const pos = closes[closes.length - 1] >= closes[0];
+      _cache[key] = { closes, pos };
+      render(el, closes, pos);
+    } catch (e) { el.innerHTML = ''; }
+  }
+
+  return { render, load };
+})();

@@ -1,0 +1,888 @@
+{% extends "partials/base.html" %}
+{% block title %}API Configurations — SmartTrade AI{% endblock %}
+{% set active = 'admin_api_configs' %}
+{% block breadcrumb %}<i class="bi bi-speedometer2 me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> API Configurations{% endblock %}
+
+{% block content %}
+<div class="page-header mb-4">
+  <div>
+    <h1 class="page-title">API Configurations</h1>
+    <p class="text-muted mb-0">Manage data providers and broker connections per market</p>
+  </div>
+  <button class="btn btn-accent" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+</div>
+
+<!-- Summary KPIs -->
+<div class="row g-3 mb-4" id="apiKpis">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue">
+      <div class="kpi-icon"><i class="bi bi-plug-fill" style="color:var(--blue)"></i></div>
+      <div class="kpi-label">Total APIs</div>
+      <div class="kpi-value" id="kpiTotal">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i></div>
+      <div class="kpi-label">Active</div>
+      <div class="kpi-value" id="kpiActive">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card" style="border-top:3px solid var(--warning)">
+      <div class="kpi-icon"><i class="bi bi-pause-circle-fill" style="color:var(--warning)"></i></div>
+      <div class="kpi-label">Paused</div>
+      <div class="kpi-value" id="kpiPaused">—</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="kpi-card" style="border-top:3px solid var(--red)">
+      <div class="kpi-icon"><i class="bi bi-exclamation-triangle-fill" style="color:var(--red)"></i></div>
+      <div class="kpi-label">Error</div>
+      <div class="kpi-value" id="kpiError">—</div>
+    </div>
+  </div>
+</div>
+
+<!-- Market Tabs -->
+<div class="card mb-0">
+  <div class="card-header p-0" style="border-bottom:1px solid var(--border)">
+    <ul class="nav nav-tabs border-0" id="marketTabs" style="flex-wrap:nowrap;overflow-x:auto">
+      <li class="nav-item"><button class="nav-link active" data-market="all"     onclick="switchTab(this,'all')">All</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="crypto"        onclick="switchTab(this,'crypto')"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="indian_stock"  onclick="switchTab(this,'indian_stock')"><i class="bi bi-building me-1"></i>Indian Stocks</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="us_stock"      onclick="switchTab(this,'us_stock')"><i class="bi bi-flag-fill me-1"></i>US Stocks</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="forex"         onclick="switchTab(this,'forex')"><i class="bi bi-currency-exchange me-1"></i>Forex</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="commodity"     onclick="switchTab(this,'commodity')"><i class="bi bi-gem me-1"></i>Commodity</button></li>
+      <li class="nav-item"><button class="nav-link"        data-market="index"         onclick="switchTab(this,'index')"><i class="bi bi-bar-chart-fill me-1"></i>Indices</button></li>
+    </ul>
+  </div>
+  <div class="card-body p-0">
+    <div id="configTableWrap">
+      <div class="p-4 text-center text-muted">Loading configurations…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     ENTERPRISE API CONFIG OVERLAY  (single overlay, no Bootstrap modal)
+════════════════════════════════════════════════════════════════════════ -->
+
+<!-- Backdrop -->
+<div id="cfgBackdrop" class="cfg-backdrop" onclick="closeCfgModal()"></div>
+
+<!-- Main Add/Edit Panel -->
+<div id="cfgPanel" class="cfg-panel" role="dialog" aria-modal="true">
+  <!-- Sticky Header -->
+  <div class="cfg-header">
+    <div>
+      <div class="cfg-header-title" id="cfgPanelTitle">Add API Configuration</div>
+      <div class="cfg-header-sub" id="cfgPanelSub">Fill in the details below and test before saving</div>
+    </div>
+    <button class="cfg-close" onclick="closeCfgModal()" title="Close">
+      <i class="bi bi-x-lg"></i>
+    </button>
+  </div>
+
+  <!-- Scrollable Body -->
+  <div class="cfg-body">
+    <input type="hidden" id="cfgId">
+
+    <!-- Provider Hint Banner -->
+    <div id="providerHint" class="cfg-hint" style="display:none"></div>
+
+    <!-- ── Section 1: Basic Info ── -->
+    <div class="cfg-section">
+      <div class="cfg-section-title"><i class="bi bi-info-circle me-2"></i>Basic Information</div>
+      <div class="cfg-grid-3">
+        <div class="cfg-field">
+          <label>📈 Market <span class="req">*</span></label>
+          <select id="cfgMarket" class="cfg-input" onchange="onMarketChange()">
+            <option value="">— Select Market —</option>
+            <option value="crypto">Crypto</option>
+            <option value="indian_stock">Indian Stocks</option>
+            <option value="us_stock">US Stocks</option>
+            <option value="forex">Forex</option>
+            <option value="commodity">Commodity</option>
+            <option value="index">Indices</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label>🏦 Provider <span class="req">*</span></label>
+          <select id="cfgProvider" class="cfg-input" onchange="onProviderChange()">
+            <option value="">— Select Provider —</option>
+          </select>
+        </div>
+        <div class="cfg-field">
+          <label>🏷️ Configuration Name <span class="req">*</span></label>
+          <input id="cfgName" class="cfg-input" placeholder="e.g. Binance Main">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 2: Connection ── -->
+    <div class="cfg-section">
+      <div class="cfg-section-title"><i class="bi bi-hdd-network me-2"></i>Connection</div>
+      <div class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>🌐 Base URL</label>
+          <input id="cfgBaseUrl" class="cfg-input font-monospace" placeholder="https://api.example.com">
+        </div>
+        <div class="cfg-field">
+          <label>🔌 WebSocket URL</label>
+          <input id="cfgWsUrl" class="cfg-input font-monospace" placeholder="wss://stream.example.com">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 3: Authentication ── -->
+    <div class="cfg-section">
+      <div class="cfg-section-title"><i class="bi bi-shield-lock me-2"></i>Authentication</div>
+      <div class="cfg-field mb-3" style="max-width:260px">
+        <label>🔐 Auth Type</label>
+        <select id="cfgAuthType" class="cfg-input" onchange="onAuthTypeChange()">
+          <option value="api_key">API Key + Secret</option>
+          <option value="token">Bearer Token</option>
+          <option value="oauth">OAuth</option>
+          <option value="none">None (Public API)</option>
+        </select>
+      </div>
+      <div id="credApiKey" class="cfg-grid-2">
+        <div class="cfg-field">
+          <label>🔑 API Key</label>
+          <input id="cfgApiKey" class="cfg-input font-monospace" placeholder="Leave blank to keep existing" autocomplete="off">
+        </div>
+        <div class="cfg-field">
+          <label>🔒 API Secret</label>
+          <input id="cfgApiSecret" type="password" class="cfg-input font-monospace" placeholder="Leave blank to keep existing" autocomplete="new-password">
+        </div>
+      </div>
+      <div id="credToken" class="cfg-grid-2" style="display:none">
+        <div class="cfg-field">
+          <label>🎫 Access Token</label>
+          <input id="cfgAccessToken" class="cfg-input font-monospace" placeholder="Bearer access token" autocomplete="off">
+        </div>
+        <div class="cfg-field">
+          <label>🔄 Refresh Token</label>
+          <input id="cfgRefreshToken" class="cfg-input font-monospace" placeholder="Refresh token (optional)" autocomplete="off">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 4: Performance ── -->
+    <div class="cfg-section">
+      <div class="cfg-section-title"><i class="bi bi-speedometer2 me-2"></i>Performance</div>
+      <div class="cfg-grid-3">
+        <div class="cfg-field">
+          <label>⚡ Rate Limit <span class="cfg-unit">req/min</span></label>
+          <input id="cfgRateLimit" type="number" class="cfg-input" value="60" min="1">
+        </div>
+        <div class="cfg-field">
+          <label>🔁 Refresh Interval <span class="cfg-unit">seconds</span></label>
+          <input id="cfgRefreshInterval" type="number" class="cfg-input" value="60" min="10">
+        </div>
+        <div class="cfg-field">
+          <label>🎯 Priority <span class="cfg-unit">0–100</span></label>
+          <input id="cfgPriority" type="number" class="cfg-input" value="0" min="0" max="100">
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Section 5: Options ── -->
+    <div class="cfg-section" style="border-bottom:none">
+      <div class="cfg-section-title"><i class="bi bi-toggles me-2"></i>Options</div>
+      <div class="cfg-switches">
+        <label class="cfg-switch-item">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="cfgIsActive" checked>
+          </div>
+          <div>
+            <div class="cfg-sw-label">Active on Save</div>
+            <div class="cfg-sw-desc">Start polling immediately after saving</div>
+          </div>
+        </label>
+        <label class="cfg-switch-item">
+          <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="cfgIsDefault">
+          </div>
+          <div>
+            <div class="cfg-sw-label">Default Provider</div>
+            <div class="cfg-sw-desc">Use this API as the primary source for its market</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- ── Inline Test Connection Result ── -->
+    <div id="cfgTestResult" style="display:none" class="cfg-section" style="border-bottom:none">
+      <div class="cfg-section-title"><i class="bi bi-wifi me-2"></i>Connection Test Result</div>
+      <div id="cfgTestResultBody"></div>
+    </div>
+  </div>
+
+  <!-- Sticky Footer -->
+  <div class="cfg-footer">
+    <button class="cfg-btn cfg-btn-cancel" onclick="closeCfgModal()">
+      <i class="bi bi-x me-1"></i>Cancel
+    </button>
+    <div class="d-flex gap-2">
+      <button class="cfg-btn cfg-btn-test" id="cfgTestBtn" onclick="testFromModal()">
+        <i class="bi bi-wifi me-1"></i>Test Connection
+      </button>
+      <button class="cfg-btn cfg-btn-save" onclick="saveConfig()">
+        <i class="bi bi-check-lg me-1"></i>Save Configuration
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Logs Modal (keeps Bootstrap for simplicity) ══════════════════════════ -->
+<div class="modal fade" id="logsModal" tabindex="-1" style="z-index:99999">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="logsModalTitle">API Logs</h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" id="logsModalBody">
+        <div class="text-center py-3 text-muted">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+/* ── Enterprise Config Panel ─────────────────────────────────────── */
+
+/* Backdrop: full-screen dark blur */
+.cfg-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  z-index: 9000;
+  animation: cfgFadeIn .22s ease;
+}
+.cfg-backdrop.open { display: block; }
+
+/* Panel */
+.cfg-panel {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.96);
+  width: min(1060px, 96vw);
+  max-height: 88vh;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.8);
+  z-index: 9010;
+  overflow: hidden;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .22s ease, transform .22s ease;
+}
+.cfg-panel.open {
+  display: flex;
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+/* Sticky header */
+.cfg-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem 1rem;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cfg-header-title { font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
+.cfg-header-sub   { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.cfg-close {
+  background: none; border: none; color: var(--text-muted); font-size: 1.1rem;
+  padding: .3rem .5rem; border-radius: 6px; cursor: pointer; transition: all .15s;
+  flex-shrink: 0;
+}
+.cfg-close:hover { background: rgba(255,255,255,.1); color: var(--text-primary); }
+
+/* Scrollable body */
+.cfg-body {
+  overflow-y: auto;
+  flex: 1;
+  padding: 0;
+}
+.cfg-body::-webkit-scrollbar { width: 5px; }
+.cfg-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Sections */
+.cfg-section {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+.cfg-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--accent);
+  margin-bottom: 1rem;
+}
+
+/* Grids */
+.cfg-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.cfg-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
+@media(max-width:680px) {
+  .cfg-grid-2, .cfg-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* Fields */
+.cfg-field { display: flex; flex-direction: column; gap: .35rem; }
+.cfg-field label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.cfg-unit { font-weight:400; text-transform:none; letter-spacing:0; opacity:.7; }
+.req { color: var(--red); }
+
+/* Inputs */
+.cfg-input {
+  width: 100%;
+  padding: .6rem .85rem;
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 7px;
+  color: var(--text-primary) !important;
+  font-size: 13px;
+  transition: border-color .15s, box-shadow .15s;
+  outline: none;
+  appearance: auto;
+}
+.cfg-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,.18);
+}
+.cfg-input::placeholder { color: var(--text-muted) !important; opacity: .7; }
+.cfg-input option { background: var(--card-bg); color: var(--text-primary); }
+
+/* Hint banner */
+.cfg-hint {
+  margin: 0 1.5rem 0;
+  padding: .6rem 1rem;
+  background: rgba(99,102,241,.1);
+  border: 1px solid rgba(99,102,241,.3);
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+/* Switches */
+.cfg-switches { display: flex; gap: 2rem; flex-wrap: wrap; }
+.cfg-switch-item {
+  display: flex; align-items: flex-start; gap: .75rem; cursor: pointer;
+  padding: .75rem 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  flex: 1; min-width: 200px;
+  transition: border-color .15s;
+}
+.cfg-switch-item:hover { border-color: var(--accent); }
+.cfg-sw-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.cfg-sw-desc  { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+/* Sticky footer */
+.cfg-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  gap: .75rem;
+}
+.cfg-btn {
+  padding: .55rem 1.25rem;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all .15s;
+  display: flex; align-items: center; gap: .4rem;
+}
+.cfg-btn-cancel { background: var(--bg-secondary); color: var(--text-muted); border: 1px solid var(--border); }
+.cfg-btn-cancel:hover { color: var(--text-primary); border-color: var(--text-muted); }
+.cfg-btn-test   { background: transparent; color: var(--blue); border: 1px solid var(--blue); }
+.cfg-btn-test:hover   { background: rgba(59,130,246,.12); }
+.cfg-btn-test.testing { opacity: .7; pointer-events: none; }
+.cfg-btn-save   { background: var(--accent); color: #fff; border: 1px solid transparent; }
+.cfg-btn-save:hover   { opacity: .88; }
+
+/* Test result cards */
+.test-result-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: .75rem; margin-top: .75rem;
+}
+.test-check {
+  display: flex; align-items: center; gap: .6rem;
+  padding: .65rem .9rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.test-check.ok   { border-left: 3px solid var(--green); }
+.test-check.fail { border-left: 3px solid var(--red);   }
+.test-check.info { border-left: 3px solid var(--accent); }
+.test-success-banner {
+  display:flex; align-items:center; gap:1rem; justify-content:space-between;
+  padding: .9rem 1.1rem;
+  background: rgba(34,197,94,.1);
+  border: 1px solid rgba(34,197,94,.3);
+  border-radius: 8px;
+  margin-bottom: .75rem;
+}
+.test-fail-banner {
+  padding: .9rem 1.1rem;
+  background: rgba(239,68,68,.1);
+  border: 1px solid rgba(239,68,68,.3);
+  border-radius: 8px;
+  margin-bottom: .75rem;
+  font-size: 13px;
+}
+
+@keyframes cfgFadeIn { from { opacity:0 } to { opacity:1 } }</style>
+
+<!-- Keep logs modal dark -->
+<style>
+#logsModal .modal-content { background:var(--card-bg)!important;border:1px solid var(--border)!important;color:var(--text-primary)!important; }
+#logsModal .modal-header  { background:var(--bg-secondary)!important;border-color:var(--border)!important; }
+
+/* Config table */
+.api-row { border-bottom:1px solid var(--border);transition:background .15s; }
+.api-row:hover { background:rgba(255,255,255,.03); }
+.api-row:last-child { border-bottom:none; }
+.status-dot { width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0 }
+
+/* Tabs */
+#configTableWrap { background:var(--card-bg)!important; }
+.nav-tabs { background:var(--bg-secondary) }
+.nav-tabs .nav-link { color:var(--text-muted);border:none;border-bottom:2px solid transparent;border-radius:0;padding:.6rem 1rem;white-space:nowrap }
+.nav-tabs .nav-link.active { color:var(--accent);border-bottom-color:var(--accent);background:transparent }
+.market-section-header { padding:.5rem 1rem;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);background:var(--bg-secondary);border-bottom:1px solid var(--border) }
+
+/* Empty state */
+#configTableWrap .text-center { color:var(--text-muted)!important; }
+
+/* Alert hint */
+#providerHint { color:var(--text-primary)!important; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const PROVIDERS = {};
+const PROVIDER_DEFAULTS = {};
+let allConfigs = [];
+let currentTab = 'all';
+
+const MARKET_LABELS = {
+  crypto:'Crypto', indian_stock:'Indian Stocks', us_stock:'US Stocks',
+  forex:'Forex', commodity:'Commodity', index:'Indices', other:'Other'
+};
+const STATUS_COLOR = { active:'bg-success', paused:'bg-warning text-dark', error:'bg-danger', unknown:'bg-secondary' };
+const CONN_DOT = { ok:'var(--green)', error:'var(--red)', unknown:'var(--text-muted)' };
+
+async function init() {
+  // Load provider metadata
+  const pd = await API.get('/admin/api-configs/providers');
+  if (pd) { Object.assign(PROVIDERS, pd.providers); Object.assign(PROVIDER_DEFAULTS, pd.defaults); }
+  await loadConfigs();
+}
+
+async function loadConfigs() {
+  const data = await API.get('/admin/api-configs');
+  if (!data) return;
+  allConfigs = data.configs || [];
+  updateKPIs(allConfigs);
+  renderTable(currentTab);
+}
+
+function updateKPIs(configs) {
+  document.getElementById('kpiTotal').textContent  = configs.length;
+  document.getElementById('kpiActive').textContent = configs.filter(c => c.status === 'active').length;
+  document.getElementById('kpiPaused').textContent = configs.filter(c => c.status === 'paused').length;
+  document.getElementById('kpiError').textContent  = configs.filter(c => c.status === 'error').length;
+}
+
+function switchTab(btn, market) {
+  document.querySelectorAll('#marketTabs .nav-link').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTab = market;
+  renderTable(market);
+}
+
+function renderTable(market) {
+  const filtered = market === 'all' ? allConfigs : allConfigs.filter(c => c.market === market);
+  const wrap = document.getElementById('configTableWrap');
+
+  if (!filtered.length) {
+    wrap.innerHTML = `<div class="p-5 text-center text-muted">
+      <i class="bi bi-plug" style="font-size:2rem;opacity:.3"></i>
+      <p class="mt-2">No configurations for this market yet.</p>
+      <button class="btn btn-accent btn-sm" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+    </div>`;
+    return;
+  }
+
+  // Group by market for "all" tab
+  if (market === 'all') {
+    const groups = {};
+    filtered.forEach(c => { const m = c.market || 'other'; (groups[m] = groups[m]||[]).push(c); });
+    wrap.innerHTML = Object.entries(groups).map(([m, cfgs]) =>
+      `<div class="market-section-header">${MARKET_LABELS[m]||m}</div>` + cfgs.map(configRow).join('')
+    ).join('');
+  } else {
+    wrap.innerHTML = filtered.map(configRow).join('');
+  }
+}
+
+function configRow(c) {
+  const dot   = `<span class="status-dot me-1" style="background:${CONN_DOT[c.connection_status]||'var(--text-muted)'}"></span>`;
+  const badge = `<span class="badge ${STATUS_COLOR[c.status]||'bg-secondary'}" style="font-size:10px">${c.status}</span>`;
+  const def   = c.is_default ? '<span class="badge bg-accent ms-1" style="font-size:10px;background:var(--accent)!important">DEFAULT</span>' : '';
+  const lastSync = c.last_sync ? `<span title="Last sync">${timeAgo(c.last_sync)}</span>` : '<span class="text-muted">Never</span>';
+  const latency  = c.last_latency_ms ? `<span class="text-muted ms-1">${c.last_latency_ms}ms</span>` : '';
+  const errBadge = c.error_count > 0 ? `<span class="badge bg-danger ms-1" style="font-size:10px">${c.error_count} err</span>` : '';
+  const key_icon = c.has_key ? '<i class="bi bi-key-fill text-warning" title="API Key set"></i>' : '';
+
+  return `<div class="api-row px-3 py-3 d-flex align-items-center gap-3" style="flex-wrap:wrap">
+    <!-- Identity -->
+    <div style="min-width:200px;flex:1">
+      <div class="d-flex align-items-center gap-2">
+        ${dot}<strong>${c.name}</strong>${def}${errBadge}
+      </div>
+      <div class="text-muted mt-1" style="font-size:11px">
+        <span class="me-2"><i class="bi bi-plugin me-1"></i>${c.provider||'—'}</span>
+        <span class="me-2"><i class="bi bi-globe me-1"></i>${MARKET_LABELS[c.market]||c.market||'—'}</span>
+        ${key_icon}
+      </div>
+    </div>
+    <!-- Status -->
+    <div style="min-width:120px">
+      ${badge}
+      <div class="text-muted mt-1" style="font-size:11px">${lastSync}${latency}</div>
+    </div>
+    <!-- Meta -->
+    <div class="text-muted d-none d-md-block" style="font-size:11px;min-width:130px">
+      <div><i class="bi bi-clock me-1"></i>${c.refresh_interval}s interval</div>
+      <div><i class="bi bi-speedometer me-1"></i>${c.rate_limit} req/min</div>
+      ${c.websocket_url ? '<div><i class="bi bi-broadcast me-1 text-success"></i>WebSocket</div>' : ''}
+    </div>
+    <!-- Dates -->
+    <div class="text-muted d-none d-lg-block" style="font-size:11px;min-width:110px">
+      <div>Created: ${c.created_at?.slice(0,10)||'—'}</div>
+      <div>Updated: ${c.updated_at?.slice(0,10)||'—'}</div>
+    </div>
+    <!-- Actions -->
+    <div class="d-flex gap-1 flex-wrap">
+      <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openEditModal(${c.id})"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-outline-info"  title="Test Connection" onclick="testConfig(${c.id},'${c.name}')"><i class="bi bi-wifi"></i></button>
+      ${c.status === 'paused'
+        ? `<button class="btn btn-sm btn-outline-success" title="Resume" onclick="doAction(${c.id},'resume')"><i class="bi bi-play-fill"></i></button>`
+        : `<button class="btn btn-sm btn-outline-warning" title="Pause"  onclick="doAction(${c.id},'pause')"><i class="bi bi-pause-fill"></i></button>`
+      }
+      ${!c.is_default ? `<button class="btn btn-sm btn-outline-secondary" title="Set as Default" onclick="doAction(${c.id},'set-default')"><i class="bi bi-star"></i></button>` : `<button class="btn btn-sm btn-warning" title="Default" disabled><i class="bi bi-star-fill"></i></button>`}
+      <button class="btn btn-sm btn-outline-secondary" title="Duplicate" onclick="doAction(${c.id},'duplicate')"><i class="bi bi-copy"></i></button>
+      <button class="btn btn-sm btn-outline-secondary" title="View Logs"  onclick="viewLogs(${c.id},'${c.name}')"><i class="bi bi-list-ul"></i></button>
+      <button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id},'${c.name}')"><i class="bi bi-trash"></i></button>
+    </div>
+  </div>`;
+}
+
+// ── Custom overlay open/close ───────────────────────────────────
+function openCfgPanel() {
+  document.getElementById('cfgBackdrop').classList.add('open');
+  // small tick so CSS transition fires after display:flex
+  requestAnimationFrame(() => document.getElementById('cfgPanel').classList.add('open'));
+  document.body.style.overflow = 'hidden';
+}
+function closeCfgModal() {
+  document.getElementById('cfgPanel').classList.remove('open');
+  document.getElementById('cfgBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+  hideTestResult();
+}
+// Close on Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCfgModal(); });
+
+function hideTestResult() {
+  document.getElementById('cfgTestResult').style.display = 'none';
+  document.getElementById('cfgTestResultBody').innerHTML = '';
+}
+
+// ── Open Add Modal ─────────────────────────────────────────────
+function openAddModal() {
+  resetModal();
+  document.getElementById('cfgPanelTitle').textContent = 'Add API Configuration';
+  document.getElementById('cfgPanelSub').textContent   = 'Fill in the details below and test before saving';
+  openCfgPanel();
+}
+
+// ── Open Edit Modal ────────────────────────────────────────────
+function openEditModal(id) {
+  resetModal();
+  const c = allConfigs.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('cfgPanelTitle').textContent = 'Edit Configuration';
+  document.getElementById('cfgPanelSub').textContent   = c.name;
+  document.getElementById('cfgId').value              = c.id;
+  document.getElementById('cfgName').value            = c.name;
+  document.getElementById('cfgMarket').value          = c.market || '';
+  document.getElementById('cfgBaseUrl').value         = c.base_url || '';
+  document.getElementById('cfgWsUrl').value           = c.websocket_url || '';
+  document.getElementById('cfgAuthType').value        = c.auth_type || 'api_key';
+  document.getElementById('cfgRateLimit').value       = c.rate_limit || 60;
+  document.getElementById('cfgRefreshInterval').value = c.refresh_interval || 60;
+  document.getElementById('cfgPriority').value        = c.priority || 0;
+  document.getElementById('cfgIsDefault').checked     = c.is_default;
+  document.getElementById('cfgIsActive').checked      = c.is_active;
+  onMarketChange(c.provider);
+  onAuthTypeChange();
+  openCfgPanel();
+}
+
+function resetModal() {
+  ['cfgId','cfgName','cfgBaseUrl','cfgWsUrl','cfgApiKey','cfgApiSecret','cfgAccessToken','cfgRefreshToken'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  document.getElementById('cfgMarket').value          = '';
+  document.getElementById('cfgProvider').innerHTML    = '<option value="">— Select Provider —</option>';
+  document.getElementById('cfgAuthType').value        = 'api_key';
+  document.getElementById('cfgRateLimit').value       = 60;
+  document.getElementById('cfgRefreshInterval').value = 60;
+  document.getElementById('cfgPriority').value        = 0;
+  document.getElementById('cfgIsDefault').checked     = false;
+  document.getElementById('cfgIsActive').checked      = true;
+  document.getElementById('providerHint').style.display = 'none';
+  hideTestResult();
+  onAuthTypeChange();
+}
+
+function onMarketChange(selectProvider) {
+  const market = document.getElementById('cfgMarket').value;
+  const psel   = document.getElementById('cfgProvider');
+  const list   = PROVIDERS[market] || ['custom'];
+  psel.innerHTML = '<option value="">— Select Provider —</option>' +
+    list.map(p => `<option value="${p}">${providerLabel(p)}</option>`).join('');
+  if (selectProvider) psel.value = selectProvider;
+}
+
+function onProviderChange() {
+  const p    = document.getElementById('cfgProvider').value;
+  const defs = PROVIDER_DEFAULTS[p];
+  if (defs) {
+    if (defs.base_url && !document.getElementById('cfgBaseUrl').value) document.getElementById('cfgBaseUrl').value = defs.base_url;
+    if (defs.websocket_url)  document.getElementById('cfgWsUrl').value = defs.websocket_url;
+    const hint = document.getElementById('providerHint');
+    hint.innerHTML = `<i class="bi bi-info-circle me-1 text-accent"></i>Pre-filled defaults for <strong>${providerLabel(p)}</strong>. You can override any field.`;
+    hint.style.display = 'block';
+  }
+  // Auto-name
+  if (!document.getElementById('cfgName').value && p) {
+    const market = document.getElementById('cfgMarket').value;
+    document.getElementById('cfgName').value = providerLabel(p) + (market ? ` (${MARKET_LABELS[market]||market})` : '');
+  }
+}
+
+function onAuthTypeChange() {
+  const t = document.getElementById('cfgAuthType').value;
+  document.getElementById('credApiKey').style.display  = (t === 'api_key' || t === 'oauth') ? '' : 'none';
+  document.getElementById('credToken').style.display   = (t === 'token' || t === 'oauth')   ? '' : 'none';
+}
+
+async function saveConfig() {
+  const id = document.getElementById('cfgId').value;
+  const payload = {
+    name:             document.getElementById('cfgName').value.trim(),
+    provider:         document.getElementById('cfgProvider').value,
+    market:           document.getElementById('cfgMarket').value,
+    base_url:         document.getElementById('cfgBaseUrl').value.trim(),
+    websocket_url:    document.getElementById('cfgWsUrl').value.trim(),
+    auth_type:        document.getElementById('cfgAuthType').value,
+    api_key:          document.getElementById('cfgApiKey').value.trim(),
+    api_secret:       document.getElementById('cfgApiSecret').value.trim(),
+    access_token:     document.getElementById('cfgAccessToken').value.trim(),
+    refresh_token:    document.getElementById('cfgRefreshToken').value.trim(),
+    rate_limit:       parseInt(document.getElementById('cfgRateLimit').value)||60,
+    refresh_interval: parseInt(document.getElementById('cfgRefreshInterval').value)||60,
+    priority:         parseInt(document.getElementById('cfgPriority').value)||0,
+    is_default:       document.getElementById('cfgIsDefault').checked,
+    is_active:        document.getElementById('cfgIsActive').checked,
+  };
+  if (!payload.name || !payload.provider || !payload.market) {
+    Toast.show('Name, provider and market are required', 'error'); return;
+  }
+  const res = id ? await API.put(`/admin/api-configs/${id}`, payload)
+                 : await API.post('/admin/api-configs', payload);
+  if (res && !res.error) {
+    closeCfgModal();
+    Toast.show(id ? 'Configuration updated' : 'Configuration added', 'success');
+    loadConfigs();
+  } else {
+    Toast.show(res?.error || 'Save failed', 'error');
+  }
+}
+
+async function doAction(id, action) {
+  if (action === 'set-default' && !confirm('Set this as the default provider for its market?')) return;
+  const res = await API.post(`/admin/api-configs/${id}/${action}`);
+  if (res) { Toast.show(res.message || 'Done', 'success'); loadConfigs(); }
+}
+
+async function deleteConfig(id, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const res = await API.delete(`/admin/api-configs/${id}`);
+  if (res !== null) { Toast.show(`"${name}" deleted`, 'success'); loadConfigs(); }
+}
+
+async function testConfig(id, name) {
+  // Open the cfg panel for the given config, then trigger test inline
+  const c = allConfigs.find(x => x.id === id);
+  if (c) {
+    openEditModal(id);
+    // short delay so panel renders before scrolling
+    setTimeout(() => testFromModal(), 200);
+  }
+}
+
+async function testFromModal() {
+  const id = document.getElementById('cfgId').value;
+  if (!id) { Toast.show('Save the configuration first, then test', 'warning'); return; }
+
+  const resultBox  = document.getElementById('cfgTestResult');
+  const resultBody = document.getElementById('cfgTestResultBody');
+  resultBox.style.display = 'block';
+
+  // Progress steps
+  const steps = ['Resolving host…', 'Opening connection…', 'Authenticating…', 'Fetching market data…'];
+  let step = 0;
+  resultBody.innerHTML = `<div class="test-progress" id="testProgress">
+    <div class="spinner-border spinner-border-sm text-accent me-2"></div>
+    <span id="testStep">${steps[0]}</span>
+  </div>`;
+  resultBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+  const ticker = setInterval(() => {
+    step = Math.min(step + 1, steps.length - 1);
+    const el = document.getElementById('testStep');
+    if (el) el.textContent = steps[step];
+  }, 700);
+
+  const res = await API.post(`/admin/api-configs/${id}/test`);
+  clearInterval(ticker);
+
+  if (!res) {
+    resultBody.innerHTML = `<div class="test-fail-banner"><i class="bi bi-x-circle-fill me-2"></i>Request failed — check network or server</div>`;
+    return;
+  }
+  resultBody.innerHTML = renderTestResult(res);
+  loadConfigs();
+}
+
+function renderTestResult(r) {
+  const check = (label, ok, detail='') =>
+    `<div class="test-check ${ok ? 'ok' : 'fail'}">
+      <i class="bi bi-${ok ? 'check-circle-fill' : 'x-circle-fill'}"></i>
+      <span class="test-check-label">${label}</span>
+      <span class="test-check-detail">${detail}</span>
+    </div>`;
+
+  const banner = r.success
+    ? `<div class="test-success-banner"><i class="bi bi-check-circle-fill me-2"></i>Connection Successful${r.latency_ms ? ` — ${r.latency_ms}ms` : ''}</div>`
+    : `<div class="test-fail-banner"><i class="bi bi-x-circle-fill me-2"></i>Connection Failed${r.error ? ': ' + r.error : ''}</div>`;
+
+  return `${banner}
+    <div class="test-checks mt-3">
+      ${check('Server Reachable',     r.reachable,        r.reachable ? 'OK' : (r.error||'Failed'))}
+      ${check('Authentication',       r.auth_ok,          r.auth_ok   ? 'Valid' : 'Failed')}
+      ${check('Market Data',          r.market_data_ok,   r.market_data_ok ? 'Available' : 'Unavailable')}
+      ${check('Latency',              r.latency_ms != null, r.latency_ms ? r.latency_ms + 'ms' : '—')}
+      ${r.server_time ? check('Server Time', true, new Date(r.server_time).toUTCString()) : ''}
+    </div>`;
+}
+
+async function viewLogs(id, name) {
+  const modal = new bootstrap.Modal(document.getElementById('logsModal'));
+  document.getElementById('logsModalTitle').textContent = `Logs — ${name}`;
+  document.getElementById('logsModalBody').innerHTML = '<div class="text-center py-3 text-muted">Loading…</div>';
+  modal.show();
+  const data = await API.get(`/admin/api-configs/${id}/logs`);
+  if (!data || !data.logs.length) {
+    document.getElementById('logsModalBody').innerHTML = '<p class="p-3 text-muted">No logs found.</p>';
+    return;
+  }
+  document.getElementById('logsModalBody').innerHTML = `
+    <table class="table table-sm mb-0" style="color:var(--text-primary)">
+      <thead style="background:var(--bg-secondary);font-size:11px">
+        <tr><th class="px-3">Action</th><th>Status</th><th>Latency</th><th>Error</th><th>Time</th></tr>
+      </thead>
+      <tbody>${data.logs.map(l => `
+        <tr>
+          <td class="px-3"><code style="font-size:11px">${l.action}</code></td>
+          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${l.status}</span></td>
+          <td class="text-muted small">${l.response_time_ms ? l.response_time_ms+'ms' : '—'}</td>
+          <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.error_message||'—'}</td>
+          <td class="text-muted small">${timeAgo(l.created_at)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function providerLabel(p) {
+  const labels = {
+    binance:'Binance',bybit:'Bybit',okx:'OKX',kucoin:'KuCoin',
+    delta_exchange:'Delta Exchange',coindcx:'CoinDCX',bitget:'Bitget',
+    angel_one:'Angel One',zerodha:'Zerodha Kite',upstox:'Upstox',
+    fyers:'Fyers',groww:'Groww',dhan:'Dhan',icici_direct:'ICICI Direct',kotak:'Kotak Securities',
+    alpaca:'Alpaca',interactive_brokers:'Interactive Brokers',tradier:'Tradier',td_ameritrade:'TD Ameritrade',
+    oanda:'OANDA',yahoo:'Yahoo Finance',alpha_vantage:'Alpha Vantage',
+    twelve_data:'Twelve Data',finnhub:'Finnhub',polygon:'Polygon.io',
+    tiingo:'Tiingo',iex_cloud:'IEX Cloud',custom:'Custom API',
+  };
+  return labels[p] || p;
+}
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  if (diff < 60)   return diff + 's ago';
+  if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+  if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
+  return new Date(iso).toLocaleDateString();
+}
+
+// Extend API helper with delete
+if (!API.delete) {
+  API.delete = async function(path) {
+    try {
+      const token = localStorage.getItem('access_token');
+      const res   = await fetch('/api/v1' + path, {
+        method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+      });
+      return res.ok ? {} : null;
+    } catch { return null; }
+  };
+}
+
+document.addEventListener('app:ready', init);
+</script>
+{% endblock %}

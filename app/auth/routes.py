@@ -68,6 +68,38 @@ def login():
     if not user.is_active:
         return jsonify({"error": "Account is disabled"}), 403
 
+    # ── 2FA check ──────────────────────────────────────────────────────────────
+    if user.totp_enabled and user.totp_secret:
+        totp_code = data.get("totp_code", "").strip()
+        if not totp_code:
+            # Signal to frontend: credentials OK but 2FA required
+            return jsonify({
+                "totp_required": True,
+                "message": "2FA code required",
+                "partial_token": create_access_token(
+                    identity=str(user.id),
+                    additional_claims={"totp_pending": True},
+                    expires_delta=__import__("datetime").timedelta(minutes=5),
+                ),
+            }), 202
+
+        import pyotp, json as _json
+        totp = pyotp.TOTP(user.totp_secret)
+        # Check TOTP code
+        if not totp.verify(totp_code, valid_window=1):
+            # Check backup codes
+            backup_ok = False
+            from app.extensions import bcrypt as _bcrypt
+            backup_codes = _json.loads(user.totp_backup_codes or "[]")
+            for i, hashed in enumerate(backup_codes):
+                if _bcrypt.check_password_hash(hashed, totp_code):
+                    backup_codes.pop(i)
+                    user.totp_backup_codes = _json.dumps(backup_codes)
+                    backup_ok = True
+                    break
+            if not backup_ok:
+                return jsonify({"error": "Invalid 2FA code"}), 401
+
     user.last_login = datetime.utcnow()
     db.session.commit()
 
@@ -191,3 +223,143 @@ def _audit(user_id, action, resource, resource_id):
         db.session.commit()
     except Exception:
         pass
+
+
+# ── 2FA Management Endpoints ───────────────────────────────────────────────────
+
+@auth_bp.route("/2fa/setup", methods=["POST"])
+@login_required
+def setup_2fa():
+    """Generate a new TOTP secret and return QR code URI for the authenticator app."""
+    import pyotp, io, base64
+    user = get_current_user()
+
+    secret = pyotp.random_base32()
+    totp   = pyotp.TOTP(secret)
+    uri    = totp.provisioning_uri(name=user.email, issuer_name="SmartTradeAI")
+
+    try:
+        import qrcode as _qr
+        qr = _qr.make(uri)
+        buf = io.BytesIO()
+        qr.save(buf, format="PNG")
+        qr_b64 = "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+    except Exception:
+        qr_b64 = None
+
+    # Store secret temporarily (not yet enabled — confirmed on verify)
+    user.totp_secret  = secret
+    user.totp_enabled = False
+    db.session.commit()
+
+    return jsonify({
+        "secret":      secret,
+        "otpauth_uri": uri,
+        "qr_code":     qr_b64,
+        "message":     "Scan the QR code with Google Authenticator or Authy, then verify.",
+    }), 200
+
+
+@auth_bp.route("/2fa/verify", methods=["POST"])
+@login_required
+def verify_2fa():
+    """Confirm the TOTP code entered by user — enables 2FA and returns backup codes."""
+    import pyotp, json as _json, secrets as _sec
+    from app.extensions import bcrypt as _bcrypt
+
+    user = get_current_user()
+    data = request.get_json() or {}
+    code = data.get("code", "").strip()
+
+    if not user.totp_secret:
+        return jsonify({"error": "Run /2fa/setup first"}), 400
+
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        return jsonify({"error": "Invalid code — check your authenticator app time sync"}), 400
+
+    # Generate 8 one-time backup codes
+    raw_codes    = [_sec.token_hex(4).upper() for _ in range(8)]
+    hashed_codes = [_bcrypt.generate_password_hash(c).decode() for c in raw_codes]
+
+    user.totp_enabled      = True
+    user.totp_backup_codes = _json.dumps(hashed_codes)
+    db.session.commit()
+
+    _audit(user.id, "2fa_enabled", "user", str(user.id))
+    return jsonify({
+        "message":      "2FA enabled successfully",
+        "backup_codes": raw_codes,  # Show once — user must save these
+    }), 200
+
+
+@auth_bp.route("/2fa/disable", methods=["POST"])
+@login_required
+def disable_2fa():
+    """Disable 2FA — requires current password confirmation."""
+    import pyotp
+    user = get_current_user()
+    data = request.get_json() or {}
+
+    if not user.check_password(data.get("password", "")):
+        return jsonify({"error": "Password incorrect"}), 403
+
+    # Optionally also accept TOTP code if user still has access
+    if user.totp_enabled and user.totp_secret and data.get("totp_code"):
+        totp = pyotp.TOTP(user.totp_secret)
+        if not totp.verify(data["totp_code"], valid_window=1):
+            return jsonify({"error": "Invalid 2FA code"}), 400
+
+    user.totp_enabled      = False
+    user.totp_secret       = None
+    user.totp_backup_codes = None
+    db.session.commit()
+
+    _audit(user.id, "2fa_disabled", "user", str(user.id))
+    return jsonify({"message": "2FA disabled"}), 200
+
+
+@auth_bp.route("/push/vapid-key", methods=["GET"])
+def push_vapid_key():
+    """Return the VAPID public key so the browser can subscribe."""
+    from flask import current_app
+    key = current_app.config.get("VAPID_PUBLIC_KEY", "")
+    return jsonify({"vapid_public_key": key}), 200
+
+
+@auth_bp.route("/push/subscribe", methods=["POST"])
+@login_required
+def push_subscribe():
+    """Save a browser PushSubscription for the current user."""
+    import json as _json
+    user = get_current_user()
+    data = request.get_json() or {}
+    subscription = data.get("subscription")
+    if not subscription:
+        return jsonify({"error": "subscription required"}), 400
+    user.push_subscription = _json.dumps(subscription) if isinstance(subscription, dict) else subscription
+    user.push_enabled = True
+    db.session.commit()
+    return jsonify({"message": "Push subscription saved"}), 200
+
+
+@auth_bp.route("/push/unsubscribe", methods=["POST"])
+@login_required
+def push_unsubscribe():
+    """Remove push subscription for the current user."""
+    user = get_current_user()
+    user.push_subscription = None
+    user.push_enabled = False
+    db.session.commit()
+    return jsonify({"message": "Push subscription removed"}), 200
+
+
+@auth_bp.route("/2fa/status", methods=["GET"])
+@login_required
+def status_2fa():
+    """Return whether 2FA is enabled for current user."""
+    user = get_current_user()
+    return jsonify({
+        "totp_enabled": user.totp_enabled,
+        "has_backup_codes": bool(user.totp_backup_codes),
+    }), 200

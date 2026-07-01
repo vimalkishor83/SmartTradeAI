@@ -76,6 +76,16 @@ def ai_insights():
     return render_template("dashboard/ai_insights.html")
 
 
+@views_bp.route("/model-performance")
+def model_performance():
+    return render_template("dashboard/model_performance.html")
+
+
+@views_bp.route("/heatmap")
+def heatmap():
+    return render_template("dashboard/heatmap.html")
+
+
 @views_bp.route("/risk")
 def risk():
     return render_template("dashboard/risk.html")
@@ -131,7 +141,22 @@ def admin_logs():
     return render_template("admin/logs.html")
 
 
+@views_bp.route("/admin/api-configs")
+def admin_api_configs():
+    return render_template("admin/api_configs.html")
+
+
+@views_bp.route("/admin/assets")
+def admin_assets():
+    return render_template("admin/assets.html")
+
+
 @views_bp.route("/asset/<int:asset_id>")
 def asset_detail(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     return render_template("asset/detail.html", asset=asset, asset_id=asset_id)
+
+
+@views_bp.route("/help")
+def help_page():
+    return render_template("dashboard/help.html", active="help")

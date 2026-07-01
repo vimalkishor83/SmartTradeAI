@@ -5,6 +5,7 @@ from app.auth.decorators import login_required
 from app.services.data.fetcher import market_fetcher
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.sentiment.engine import calculate_sentiment
+from sqlalchemy.orm import joinedload
 import pandas as pd
 
 market_data_bp = Blueprint("market_data", __name__)
@@ -41,7 +42,8 @@ def get_indicators(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     timeframe = request.args.get("timeframe", "1h")
 
-    df = market_fetcher.fetch(asset, timeframe, 220)
+    limit = 500 if timeframe == "1d" else 220
+    df = market_fetcher.fetch(asset, timeframe, limit)
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503
 
@@ -71,20 +73,26 @@ def ta_summary():
     from app.models.user import UserAssetPreference
     user   = get_current_user()
     market = request.args.get("market") or "all"
-    ck     = f"ta_summary_{user.id}_{market}"
-    cached = cache.get(ck)
-    if cached:
-        return jsonify(cached), 200
 
-    # Respect user's asset selection preferences
+    # ── Serve from pre-warmed global cache (near-instant) ────────
+    global_cache = cache.get("ta_summary_all")
+    if global_cache:
+        prefs = {p.asset_id: p.enabled
+                 for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+        assets = global_cache["assets"]
+        if market != "all":
+            assets = [a for a in assets if a.get("market") == market]
+        if prefs:
+            assets = [a for a in assets if prefs.get(a["id"], True)]
+        return jsonify({"assets": assets, "timeframes": global_cache["timeframes"]}), 200
+
+    # ── Cold path: compute on-demand (first boot before scheduler runs) ──
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-
     tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    # If user has saved preferences, filter; otherwise use all
     assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
 
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
@@ -100,27 +108,20 @@ def ta_summary():
         df_price = dfs.get("1h")
         if df_price is not None and len(df_price) >= 2:
             try:
-                last  = df_price.iloc[-1]
-                prev  = df_price.iloc[-2]
-                price = float(last["close"])
-                chg   = price - float(prev["close"])
-                row["price"]      = price
-                row["open"]       = float(last["open"])
-                row["high"]       = float(last["high"])
-                row["low"]        = float(last["low"])
-                row["change"]     = round(chg, 6)
-                row["change_pct"] = round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0
-                row["volume"]     = float(last.get("volume", 0))
-                ts = df_price.index[-1]
-                row["time"] = ts.strftime("%H:%M") if hasattr(ts, "strftime") else str(ts)
+                last  = df_price.iloc[-1];  prev = df_price.iloc[-2]
+                price = float(last["close"]); chg = price - float(prev["close"])
+                row.update({"price": price, "open": float(last["open"]),
+                            "high": float(last["high"]), "low": float(last["low"]),
+                            "change": round(chg, 6),
+                            "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
+                            "volume": float(last.get("volume", 0)),
+                            "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else ""})
             except Exception:
                 pass
         for tf in tfs:
             try:
                 df = dfs.get(tf)
-                if df is None or len(df) < 52:
-                    row["tf"][tf] = None
-                    continue
+                if df is None or len(df) < 52: row["tf"][tf] = None; continue
                 ind = calculate_all_indicators(df)
                 row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
             except Exception:
@@ -132,7 +133,8 @@ def ta_summary():
         result = list(ex.map(_process_asset, assets))
 
     payload = {"assets": result, "timeframes": tfs}
-    cache.set(ck, payload, timeout=120)
+    # Store as global cache so next request is instant
+    cache.set("ta_summary_all", {"assets": result, "timeframes": tfs}, timeout=150)
     return jsonify(payload), 200
 
 
@@ -206,6 +208,132 @@ def _compute_ta_rating(ind, close):
     return {"rating": label, "buy": buy, "sell": sell, "neutral": neutral, "score": round(score, 2)}
 
 
+@market_data_bp.route("/ai-summary", methods=["GET"])
+@login_required
+@limiter.limit("10 per minute;60 per hour")
+def ai_summary():
+    """Batch AI predictions for all assets × key timeframes — powers the AI Ratings grid."""
+    from app.auth.decorators import get_current_user
+    from app.models.prediction import Prediction
+    from app.models.user import UserAssetPreference
+    from app.services.ai.predictor import ai_predictor
+    from datetime import datetime, timedelta
+    from concurrent.futures import ThreadPoolExecutor
+
+    user   = get_current_user()
+    market = request.args.get("market") or "all"
+
+    # ── Serve from pre-warmed global cache (near-instant) ────────
+    global_ai = cache.get("ai_summary_all")
+    if global_ai:
+        prefs = {p.asset_id: p.enabled
+                 for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+        assets = global_ai["assets"]
+        if market != "all":
+            assets = [a for a in assets if a.get("market") == market]
+        if prefs:
+            assets = [a for a in assets if prefs.get(a["id"], True)]
+        return jsonify({"assets": assets, "timeframes": global_ai["timeframes"]}), 200
+
+    tfs      = ["5m", "15m", "1h", "4h", "1d"]
+    prefs    = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    asset_q  = Asset.query.filter_by(is_active=True)
+    if market != "all":
+        asset_q = asset_q.filter_by(market=market)
+    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
+    assets     = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+
+    cache_cutoff = datetime.utcnow() - timedelta(minutes=30)
+
+    # Pull all recent cached predictions in one query
+    asset_ids = [a.id for a in assets]
+    recent_preds = Prediction.query.filter(
+        Prediction.asset_id.in_(asset_ids),
+        Prediction.timeframe.in_(tfs),
+        Prediction.predicted_at >= cache_cutoff,
+    ).all()
+
+    pred_map = {}
+    for p in recent_preds:
+        pred_map[(p.asset_id, p.timeframe)] = p.to_dict()
+
+    all_data = market_fetcher.fetch_many(assets, tfs, limit=220)
+
+    def _process(asset):
+        row = {"id": asset.id, "symbol": asset.symbol, "name": asset.name, "market": asset.market, "tf": {}}
+        for tf in tfs:
+            key = (asset.id, tf)
+            if key in pred_map:
+                p = pred_map[key]
+                # Values already stored as 0–100 in DB
+                row["tf"][tf] = {
+                    "direction":    p["predicted_direction"],
+                    "confidence":   round(float(p["confidence"]),          1),
+                    "bullish_prob": round(float(p["bullish_probability"]),  1),
+                    "bearish_prob": round(float(p["bearish_probability"]),  1),
+                }
+                continue
+            df = all_data.get(asset.symbol, {}).get(tf)
+            try:
+                # predictor handles None / short df internally, returns neutral default
+                result = ai_predictor.predict(df, asset.symbol, tf)
+                # Only persist to DB if we had real data (avoid saving default neutral)
+                if df is not None and len(df) >= 100:
+                    pred = Prediction(
+                        asset_id=asset.id, timeframe=tf,
+                        model_name=result["model_name"],
+                        bullish_probability=result["bullish_probability"],
+                        bearish_probability=result["bearish_probability"],
+                        predicted_direction=result["predicted_direction"],
+                        predicted_target=result.get("predicted_target"),
+                        predicted_stop=result.get("predicted_stop"),
+                        confidence=result["confidence"],
+                        valid_until=datetime.utcnow() + timedelta(hours=4),
+                    )
+                    db.session.add(pred)
+                # Values from predictor are already 0–100
+                row["tf"][tf] = {
+                    "direction":    result["predicted_direction"],
+                    "confidence":   round(float(result["confidence"]),         1),
+                    "bullish_prob": round(float(result["bullish_probability"]), 1),
+                    "bearish_prob": round(float(result["bearish_probability"]), 1),
+                }
+            except Exception:
+                row["tf"][tf] = {"direction": "neutral", "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
+        return row
+
+    with ThreadPoolExecutor(max_workers=min(6, len(assets))) as ex:
+        result = list(ex.map(_process, assets))
+
+    try:
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    payload = {"assets": result, "timeframes": tfs}
+    cache.set("ai_summary_all", payload, timeout=150)
+    return jsonify(payload), 200
+
+
+@market_data_bp.route("/live-prices", methods=["GET"])
+@login_required
+@limiter.exempt
+def live_prices():
+    """Return cached live prices from Binance WebSocket stream (crypto only).
+    Falls back to REST fetch_ticker for assets not in stream cache."""
+    from app.services.data.binance_stream import get_all_live_prices
+    cached = get_all_live_prices()
+    # Supplement with any assets not yet in stream cache
+    if not cached:
+        assets = Asset.query.filter_by(market="crypto", is_active=True,
+                                       data_source="binance").all()
+        for a in assets:
+            t = market_fetcher.fetch_ticker(a)
+            if t:
+                cached[a.symbol] = t
+    return jsonify({"prices": cached}), 200
+
+
 @market_data_bp.route("/heatmap", methods=["GET"])
 @login_required
 @limiter.exempt
@@ -225,6 +353,7 @@ def get_heatmap():
                 prev   = float(df["close"].iloc[-2])
                 change = (price - prev) / prev * 100 if prev else 0
                 heatmap.append({
+                    "asset_id":   asset.id,
                     "symbol":     asset.symbol,
                     "name":       asset.name,
                     "market":     asset.market,

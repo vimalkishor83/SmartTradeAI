@@ -33,16 +33,29 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Strategy</label>
-          <select class="form-select" id="btStrategy">
-            <option value="Default Multi-Indicator">Multi-Indicator (Default)</option>
+          <select class="form-select" id="btStrategy" onchange="onStrategyChange()">
+            <option value="__live__" selected>Live Signal Engine ★ (Recommended)</option>
+            <option value="Default Multi-Indicator">Multi-Indicator</option>
             <option value="EMA Crossover">EMA Crossover</option>
             <option value="RSI + MACD">RSI + MACD</option>
             <option value="SuperTrend">SuperTrend</option>
           </select>
+          <div id="liveEngineNote" class="mt-2 p-2 rounded" style="background:rgba(79,142,247,0.08);border:1px solid rgba(79,142,247,0.2);font-size:12px;color:#94a3b8">
+            <i class="bi bi-cpu text-accent me-1"></i> Uses the same engine generating your live signals — results directly reflect live performance.
+          </div>
         </div>
-        <div class="mb-3">
+        <div id="capitalRow" class="mb-3" style="display:none">
           <label class="form-label">Initial Capital (₹)</label>
           <input type="number" class="form-control" id="btCapital" value="100000" />
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Lookback (days)</label>
+          <select class="form-select" id="btDays">
+            <option value="30">30 days</option>
+            <option value="60" selected>60 days</option>
+            <option value="90">90 days</option>
+            <option value="180">180 days</option>
+          </select>
         </div>
         <button class="btn btn-primary w-100" id="runBt">
           <i class="bi bi-play-circle me-1"></i> Run Backtest
@@ -103,6 +116,12 @@
 <script>
 let equityChart;
 
+function onStrategyChange() {
+  const isLive = document.getElementById('btStrategy').value === '__live__';
+  document.getElementById('liveEngineNote').style.display = isLive ? '' : 'none';
+  document.getElementById('capitalRow').style.display    = isLive ? 'none' : '';
+}
+
 async function loadHistory() {
   const data = await API.get('/backtesting/');
   if (!data?.backtests?.length) return;
@@ -119,40 +138,70 @@ async function loadHistory() {
 async function loadBacktestDetails(id) {
   const data = await API.get(`/backtesting/${id}`);
   if (!data) return;
-  showResults(data);
+  showResults(data, false);
 }
 
 document.getElementById('runBt').addEventListener('click', async () => {
-  const btn = document.getElementById('runBt');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
+  const btn     = document.getElementById('runBt');
+  const isLive  = document.getElementById('btStrategy').value === '__live__';
+  const symbol  = document.getElementById('btSymbol').value.trim().toUpperCase();
+  const tf      = document.getElementById('btTf').value;
+  const days    = parseInt(document.getElementById('btDays').value);
 
-  const res = await API.post('/backtesting/run', {
-    symbol: document.getElementById('btSymbol').value,
-    timeframe: document.getElementById('btTf').value,
-    strategy: document.getElementById('btStrategy').value,
-    initial_capital: parseFloat(document.getElementById('btCapital').value),
-  });
+  if (!symbol) { Toast.show('Please enter an asset symbol', 'warning'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running…';
+
+  let res;
+  if (isLive) {
+    // Use the walk-forward engine — same engine as live signals
+    res = await API.get('/signals/backtest', { symbol, timeframe: tf, days });
+    if (res) res._isLive = true;
+  } else {
+    res = await API.post('/backtesting/run', {
+      symbol,
+      timeframe: tf,
+      strategy: document.getElementById('btStrategy').value,
+      initial_capital: parseFloat(document.getElementById('btCapital').value),
+    });
+    if (res) { loadHistory(); }
+  }
 
   btn.disabled = false;
   btn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Run Backtest';
 
-  if (res?.error) { Toast.show(res.error, 'error'); return; }
-  showResults(res);
-  loadHistory();
+  if (!res || res?.error) { Toast.show(res?.error || res?.message || 'Backtest failed', 'error'); return; }
+  showResults(res, isLive);
 });
 
-function showResults(data) {
+function showResults(data, isLive) {
   document.getElementById('btPlaceholder').style.display = 'none';
   document.getElementById('btResults').style.display = 'block';
 
+  // Normalize fields — live engine uses different keys
+  const totalTrades  = data.total_trades || data.trades || 0;
+  const winRate      = isLive ? (data.win_rate * 100 || 0).toFixed(1) : (data.win_rate || 0);
+  const trueWinRate  = isLive ? ((data.true_win_rate || 0) * 100).toFixed(1) : null;
+  const profitFactor = parseFloat(data.profit_factor || 0);
+  const avgR         = isLive ? parseFloat(data.avg_r || 0) : null;
+  const maxDD        = data.max_drawdown || 0;
+  const sharpe       = data.sharpe_ratio || '—';
+  const netPct       = data.net_profit_pct || 0;
+
   const kpis = [
-    { label: 'Total Trades', value: data.total_trades, cls: '' },
-    { label: 'Win Rate', value: `${data.win_rate}%`, cls: data.win_rate >= 50 ? 'text-green' : 'text-red' },
-    { label: 'Net Profit', value: `${data.net_profit_pct >= 0 ? '+' : ''}${data.net_profit_pct}%`, cls: data.net_profit >= 0 ? 'text-green' : 'text-red' },
-    { label: 'Max Drawdown', value: `${data.max_drawdown}%`, cls: 'text-red' },
-    { label: 'Sharpe Ratio', value: data.sharpe_ratio, cls: data.sharpe_ratio >= 1 ? 'text-green' : '' },
-    { label: 'Profit Factor', value: data.profit_factor, cls: data.profit_factor >= 1.5 ? 'text-green' : 'text-yellow' },
+    { label: 'Total Trades',  value: totalTrades, cls: '' },
+    { label: isLive ? 'True Win Rate' : 'Win Rate',
+      value: `${winRate}%`,
+      cls: parseFloat(winRate) >= 50 ? 'text-green' : 'text-red',
+      sub: isLive && trueWinRate ? `Raw: ${((data.raw_win_rate||0)*100).toFixed(1)}%` : null },
+    { label: 'Profit Factor', value: profitFactor.toFixed(2), cls: profitFactor >= 1.5 ? 'text-green' : profitFactor >= 1 ? 'text-yellow' : 'text-red' },
+    { label: isLive ? 'Avg R' : 'Net Profit',
+      value: isLive ? (avgR >= 0 ? '+' : '') + avgR.toFixed(3) + 'R' : `${netPct >= 0 ? '+' : ''}${netPct}%`,
+      cls: (isLive ? avgR : netPct) >= 0 ? 'text-green' : 'text-red' },
+    { label: 'Max Drawdown',  value: `${Math.abs(maxDD).toFixed(1)}%`, cls: 'text-red' },
+    { label: 'Sharpe Ratio',  value: typeof sharpe === 'number' ? sharpe.toFixed(2) : sharpe,
+      cls: parseFloat(sharpe) >= 1 ? 'text-green' : '' },
   ];
 
   document.getElementById('btKpis').innerHTML = kpis.map(k => `
@@ -160,25 +209,36 @@ function showResults(data) {
       <div class="kpi-card">
         <div class="kpi-label">${k.label}</div>
         <div class="kpi-value ${k.cls}">${k.value}</div>
+        ${k.sub ? `<div class="fs-xs text-muted">${k.sub}</div>` : ''}
       </div>
     </div>`).join('');
 
-  // Equity Chart
+  // Equity / Cumulative R chart
   const ctx = document.getElementById('equityChart').getContext('2d');
   if (equityChart) equityChart.destroy();
+
+  const datasets = [];
+  if (isLive && data.trades_data?.length) {
+    // Build cumulative R curve from walk-forward trades
+    let cumR = 0;
+    const rCurve = data.trades_data.map(t => { cumR += (t.r || 0); return parseFloat(cumR.toFixed(3)); });
+    datasets.push({ label: 'Cumulative R', data: rCurve, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
+    // Zero benchmark
+    datasets.push({ label: 'Breakeven', data: rCurve.map(() => 0), borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0 });
+  } else if (data.equity_curve?.length) {
+    const equity = data.equity_curve;
+    // Buy-and-hold benchmark: scale from first to last equity value linearly
+    const bah = equity.map((_, i) => equity[0] + (equity[equity.length - 1] - equity[0]) * (i / (equity.length - 1)));
+    datasets.push({ label: 'Strategy', data: equity, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
+    datasets.push({ label: 'Buy & Hold', data: bah, borderColor: 'rgba(148,163,184,0.4)', borderWidth: 1, borderDash: [5,5], fill: false, pointRadius: 0 });
+  }
+
   equityChart = new Chart(ctx, {
     type: 'line',
-    data: {
-      labels: data.equity_curve?.map((_, i) => i),
-      datasets: [{
-        label: 'Equity', data: data.equity_curve,
-        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.08)',
-        borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0,
-      }],
-    },
+    data: { labels: datasets[0]?.data?.map((_, i) => i) || [], datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
+      plugins: { legend: { display: datasets.length > 1, labels: { color: '#94a3b8', boxWidth: 14, font: { size: 11 } } } },
       scales: {
         x: { display: false },
         y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } },
@@ -186,16 +246,19 @@ function showResults(data) {
     },
   });
 
-  // Trades
-  document.getElementById('btTrades').innerHTML = (data.trades_data || []).slice(0, 50).map((t, i) => `
+  // Trades table
+  const trades = data.trades_data || [];
+  document.getElementById('btTrades').innerHTML = trades.slice(0, 100).map((t, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td>${signalBadge(t.type)}</td>
+      <td>${signalBadge(t.type || t.direction || 'BUY')}</td>
       <td>${formatPrice(t.entry)}</td>
-      <td>${formatPrice(t.exit)}</td>
-      <td class="${t.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct?.toFixed(2)}%</td>
-      <td><span class="badge ${t.outcome === 'win' ? 'bg-success' : 'bg-danger'}">${t.outcome}</span></td>
-      <td class="text-muted small">${t.date?.slice(0, 10) || '—'}</td>
+      <td>${formatPrice(t.exit || t.exit_price)}</td>
+      <td class="${(t.pnl_pct ?? t.r ?? 0) >= 0 ? 'text-green' : 'text-red'}">
+        ${isLive && t.r != null ? (t.r >= 0 ? '+' : '') + t.r.toFixed(2) + 'R' : ((t.pnl_pct >= 0 ? '+' : '') + (t.pnl_pct?.toFixed(2) || '—') + '%')}
+      </td>
+      <td><span class="badge ${t.outcome === 'win' ? 'bg-success' : t.outcome === 'expired' ? 'bg-secondary' : 'bg-danger'}">${t.outcome || '—'}</span></td>
+      <td class="text-muted small">${(t.date || t.entry_time || '')?.slice(0, 10) || '—'}</td>
     </tr>`).join('');
 }
 

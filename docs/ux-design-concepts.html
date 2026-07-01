@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SmartTrade AI — UX/UI Design Concepts</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:#0a0e1a;color:#e2e8f0;font-size:14px;line-height:1.6}
+a{color:#818cf8;text-decoration:none}
+h1{font-size:32px;font-weight:800;letter-spacing:-1px}
+h2{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-bottom:8px}
+h3{font-size:15px;font-weight:700;margin-bottom:6px;color:#c7d2fe}
+h4{font-size:13px;font-weight:600;color:#94a3b8;margin-bottom:4px}
+p{color:#94a3b8;font-size:13.5px;line-height:1.7}
+.accent{color:#818cf8}
+.green{color:#10b981}
+.red{color:#ef4444}
+.yellow{color:#f59e0b}
+.hero{background:linear-gradient(135deg,#0f1729 0%,#1a1040 100%);padding:64px 48px;border-bottom:1px solid rgba(255,255,255,.07)}
+.hero-badge{display:inline-block;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:20px}
+.hero p{max-width:680px;font-size:15px;margin-top:12px;color:#94a3b8}
+.wrap{max-width:1280px;margin:0 auto;padding:0 32px}
+
+/* AUDIT */
+.audit-section{padding:48px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.audit-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:24px}
+.issue-card{background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:20px}
+.issue-card.critical{border-left:3px solid #ef4444}
+.issue-card.major{border-left:3px solid #f59e0b}
+.issue-card.minor{border-left:3px solid #3b82f6}
+.issue-tag{font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;padding:2px 8px;border-radius:4px;display:inline-block;margin-bottom:8px}
+.tag-critical{background:rgba(239,68,68,.15);color:#ef4444}
+.tag-major{background:rgba(245,158,11,.15);color:#f59e0b}
+.tag-minor{background:rgba(59,130,246,.15);color:#3b82f6}
+.issue-card h4{color:#e2e8f0;font-size:13.5px;margin-bottom:6px}
+.issue-card p{font-size:12.5px}
+
+/* CONCEPTS */
+.concept-section{padding:56px 0;border-bottom:1px solid rgba(255,255,255,.06)}
+.concept-header{display:flex;align-items:flex-start;gap:24px;margin-bottom:32px;flex-wrap:wrap}
+.concept-number{width:52px;height:52px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:800;flex-shrink:0}
+.concept-meta{flex:1}
+.concept-tag{font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:3px 10px;border-radius:20px;background:rgba(99,102,241,.15);color:#818cf8;border:1px solid rgba(99,102,241,.25);display:inline-block;margin-bottom:8px}
+.concept-desc{font-size:13.5px;color:#94a3b8;max-width:720px;margin-top:6px}
+.inspired{font-size:11.5px;color:#64748b;margin-top:6px}
+.inspired span{color:#818cf8}
+
+/* WIREFRAME */
+.wireframe{background:#0d1117;border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden;margin:24px 0;font-family:'Courier New',monospace;font-size:11px}
+.wf-topbar{background:#161b27;border-bottom:1px solid rgba(255,255,255,.07);padding:8px 16px;display:flex;align-items:center;gap:8px}
+.wf-dot{width:10px;height:10px;border-radius:50%}
+.wf-title{font-family:'Segoe UI',sans-serif;font-size:11px;color:#64748b;margin-left:8px}
+.wf-body{display:flex;min-height:480px;font-family:'Courier New',monospace}
+.wf-sidebar{background:#0f141f;border-right:1px solid rgba(255,255,255,.06);padding:12px 0;flex-shrink:0}
+.wf-sidebar.w48{width:48px}
+.wf-sidebar.w220{width:220px}
+.wf-sidebar.w60{width:60px}
+.wf-main{flex:1;padding:20px;overflow:hidden}
+.wf-topnav{background:#0f141f;border-bottom:1px solid rgba(255,255,255,.06);padding:10px 20px;font-size:11px;color:#475569;display:flex;align-items:center;gap:12px}
+.wf-content{flex:1;padding:20px}
+.wf-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px;margin-bottom:10px}
+.wf-row{display:flex;gap:10px;margin-bottom:10px}
+.wf-col{flex:1}
+.wf-label{font-size:9.5px;color:#4b5563;text-transform:uppercase;letter-spacing:.6px;margin-bottom:4px;font-family:'Segoe UI',sans-serif}
+.wf-kpi{background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.15);border-radius:6px;padding:10px 12px;text-align:center}
+.wf-kpi-val{font-size:18px;font-weight:700;color:#818cf8;font-family:'Segoe UI',sans-serif}
+.wf-kpi-lbl{font-size:9px;color:#64748b;font-family:'Segoe UI',sans-serif;text-transform:uppercase}
+.wf-chart{background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.1);border-radius:6px;height:120px;display:flex;align-items:center;justify-content:center;color:#374151;font-family:'Segoe UI',sans-serif;font-size:11px}
+.wf-table-header{background:rgba(255,255,255,.04);padding:6px 10px;border-radius:4px 4px 0 0;font-size:9.5px;color:#475569;display:flex;gap:8px;font-family:'Segoe UI',sans-serif}
+.wf-table-row{border-bottom:1px solid rgba(255,255,255,.04);padding:7px 10px;font-size:9.5px;color:#6b7280;display:flex;gap:8px;font-family:'Segoe UI',sans-serif}
+.wf-table-row:hover{background:rgba(255,255,255,.02)}
+.wf-nav-item{padding:7px 16px;font-size:11px;color:#475569;display:flex;align-items:center;gap:8px;font-family:'Segoe UI',sans-serif;cursor:pointer;white-space:nowrap}
+.wf-nav-item.active{color:#818cf8;background:rgba(99,102,241,.1);border-right:2px solid #6366f1}
+.wf-nav-item i{font-size:13px;width:16px;text-align:center}
+.wf-nav-icon{padding:8px 0;text-align:center;color:#475569;font-size:15px;cursor:pointer}
+.wf-nav-icon.active{color:#818cf8}
+.wf-section-label{font-size:9px;color:#374151;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:8px 16px 3px;font-family:'Segoe UI',sans-serif}
+.wf-badge{display:inline-block;background:rgba(16,185,129,.15);color:#10b981;font-size:8.5px;padding:1px 5px;border-radius:3px;font-family:'Segoe UI',sans-serif}
+.wf-badge-red{background:rgba(239,68,68,.15);color:#ef4444}
+.wf-badge-yellow{background:rgba(245,158,11,.15);color:#f59e0b}
+.wf-badge-purple{background:rgba(139,92,246,.15);color:#8b5cf6}
+.wf-pill{display:inline-block;padding:2px 8px;background:rgba(99,102,241,.12);color:#818cf8;border-radius:10px;font-size:9px;font-family:'Segoe UI',sans-serif}
+.wf-tabs{display:flex;gap:0;border-bottom:1px solid rgba(255,255,255,.07);padding:0 20px}
+.wf-tab{padding:9px 16px;font-size:11px;color:#475569;cursor:pointer;border-bottom:2px solid transparent;font-family:'Segoe UI',sans-serif;white-space:nowrap}
+.wf-tab.active{color:#818cf8;border-bottom-color:#6366f1}
+.wf-hero{background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(139,92,246,.06));border:1px solid rgba(99,102,241,.15);border-radius:10px;padding:20px;margin-bottom:12px}
+.wf-cmd{background:#111827;border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;margin-bottom:12px;font-family:'Segoe UI',sans-serif;font-size:11.5px;color:#475569}
+.wf-cmd kbd{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 5px;font-size:9.5px;color:#64748b}
+.wf-right-panel{width:260px;background:#0b0f1c;border-left:1px solid rgba(255,255,255,.06);padding:14px;flex-shrink:0}
+.wf-sparkline{height:32px;background:rgba(255,255,255,.03);border-radius:4px;display:flex;align-items:center;justify-content:flex-end;padding:0 6px;font-size:8px;color:#10b981}
+.wf-stat-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:10px;font-family:'Segoe UI',sans-serif}
+.wf-stat-row span:first-child{color:#4b5563}
+.wf-stat-row span:last-child{color:#94a3b8;font-weight:600}
+.wf-ribbon{background:#090d18;border-bottom:1px solid rgba(255,255,255,.06);padding:4px 20px;display:flex;gap:16px;font-size:10px;color:#4b5563;font-family:'Segoe UI',sans-serif;white-space:nowrap;overflow:hidden}
+.wf-ribbon span{white-space:nowrap}
+.wf-ribbon .up{color:#10b981}
+.wf-ribbon .dn{color:#ef4444}
+.wf-command-bar{background:#111827;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 16px;display:flex;align-items:center;gap:10px;margin-bottom:16px;font-family:'Segoe UI',sans-serif;font-size:12px;color:#4b5563}
+.wf-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.wf-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px}
+.wf-grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:10px}
+
+/* ATTRIBUTES */
+.attr-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px}
+.attr{background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px}
+.attr-icon{font-size:18px;margin-bottom:8px}
+.attr h4{color:#e2e8f0;font-size:12.5px}
+.attr p{font-size:11.5px}
+.pros-cons{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.pros,.cons{background:#111827;border-radius:10px;padding:16px}
+.pros{border-left:3px solid #10b981}
+.cons{border-left:3px solid #ef4444}
+.pros h4{color:#10b981;margin-bottom:8px}
+.cons h4{color:#ef4444;margin-bottom:8px}
+.pros li,.cons li{color:#94a3b8;font-size:12.5px;margin-bottom:5px;margin-left:16px}
+
+/* RECOMMENDATION */
+.rec-section{padding:56px 0;background:rgba(99,102,241,.04);border-top:1px solid rgba(255,255,255,.07)}
+.rec-card{background:linear-gradient(135deg,rgba(79,70,229,.12),rgba(139,92,246,.08));border:1px solid rgba(99,102,241,.3);border-radius:16px;padding:32px;margin-top:24px}
+.rec-card h2{color:#c7d2fe}
+.score-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-top:20px}
+.score-item{text-align:center;background:rgba(255,255,255,.04);border-radius:8px;padding:14px 10px}
+.score-num{font-size:28px;font-weight:800;color:#818cf8}
+.score-lbl{font-size:11px;color:#64748b;margin-top:4px}
+.cta-row{display:flex;gap:12px;margin-top:28px;flex-wrap:wrap}
+.btn-primary-lg{background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;padding:12px 28px;border-radius:10px;font-size:14px;font-weight:700;display:inline-block;cursor:pointer}
+.btn-outline-lg{border:1px solid rgba(255,255,255,.15);color:#94a3b8;padding:12px 28px;border-radius:10px;font-size:14px;font-weight:600;display:inline-block;cursor:pointer}
+.comparison-table{width:100%;border-collapse:collapse;margin-top:24px;font-size:12.5px}
+.comparison-table th{background:#111827;padding:10px 14px;text-align:left;color:#64748b;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.07)}
+.comparison-table td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);color:#94a3b8}
+.comparison-table tr:hover td{background:rgba(255,255,255,.02)}
+.check{color:#10b981}
+.cross{color:#ef4444}
+.dash{color:#4b5563}
+.winner{color:#818cf8;font-weight:700}
+.toc{background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:24px;margin-bottom:40px}
+.toc h3{color:#e2e8f0;margin-bottom:12px}
+.toc ol{padding-left:20px}
+.toc li{color:#818cf8;font-size:13px;margin-bottom:6px}
+.toc li a{color:#818cf8}
+</style>
+</head>
+<body>
+
+<!-- ═══ HERO ═══════════════════════════════════════════════════════════════ -->
+<div class="hero">
+  <div class="wrap">
+    <div class="hero-badge">UX/UI Design Review — 2026</div>
+    <h1>SmartTrade AI<br>Design Concept Proposals</h1>
+    <p>A thorough audit of the current interface followed by 5 distinct design directions — each with a visual wireframe, rationale, and trade-off analysis. No code changes until you approve one.</p>
+  </div>
+</div>
+
+<div class="wrap" style="padding-top:40px">
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#audit">Current Interface Audit — Problems Identified</a></li>
+      <li><a href="#c1">Concept 1 — Command Center</a> (Mission-control, keyboard-first)</li>
+      <li><a href="#c2">Concept 2 — Focus Flow</a> (Clean workspace, tab-driven)</li>
+      <li><a href="#c3">Concept 3 — Signal OS</a> (Data-dense terminal, power user)</li>
+      <li><a href="#c4">Concept 4 — Clarity Dashboard</a> (Stripe-grade, card-first)</li>
+      <li><a href="#c5">Concept 5 — Adaptive Rail</a> (Minimal chrome, context-aware)</li>
+      <li><a href="#comparison">Concept Comparison Matrix</a></li>
+      <li><a href="#recommendation">Recommendation</a></li>
+    </ol>
+  </div>
+
+</div>
+
+<!-- ═══ AUDIT ═══════════════════════════════════════════════════════════════ -->
+<div id="audit" class="audit-section">
+  <div class="wrap">
+    <h2>1 — Current Interface Audit</h2>
+    <p>These problems were identified by reading every template, the full CSS, and the navigation structure. They are ranked by impact on usability.</p>
+    <div class="audit-grid">
+
+      <div class="issue-card critical">
+        <span class="issue-tag tag-critical">Critical</span>
+        <h4>Navigation overload — 24 items hidden in 5 collapsible groups</h4>
+        <p>Users must open a group, hunt for the item, and remember which group it's in. The accordion forces one group open at a time, so switching contexts requires two clicks. 4 separate "Analysis" type sections (TA Summary, MTF, Analytics, Performance) look like duplicates.</p>
+      </div>
+
+      <div class="issue-card critical">
+        <span class="issue-tag tag-critical">Critical</span>
+        <h4>13-column signals table with no visual hierarchy</h4>
+        <p>Asset, Market, TF, Signal, Entry, SL, T1, T2, R:R, Confidence, Trend, Confluence, Time — equal visual weight on every column. Users can't scan for what matters. At 1280px most columns clip. The most important decision (BUY/SELL + Confidence) competes with administrative data (Market, Time).</p>
+      </div>
+
+      <div class="issue-card critical">
+        <span class="issue-tag tag-critical">Critical</span>
+        <h4>8 KPI cards dilute attention</h4>
+        <p>8 metrics in two rows means nothing feels important. "AI Active: ON" and "System: OK" are health indicators, not trading metrics — they should live in a status bar, not compete with Win Rate and Signal count. The 2×4 grid also breaks into a 4×2 on medium screens, which disrupts reading flow.</p>
+      </div>
+
+      <div class="issue-card major">
+        <span class="issue-tag tag-major">Major</span>
+        <h4>Top navbar is crowded with 7 distinct controls</h4>
+        <p>The 56px top bar holds: menu toggle, breadcrumb, ticker ribbon, confidence range slider, WS status badge, theme toggle, notification bell, and user menu. The confidence slider belongs on the signals page, not globally in the navbar. The ticker ribbon occupies 40% of navbar width.</p>
+      </div>
+
+      <div class="issue-card major">
+        <span class="issue-tag tag-major">Major</span>
+        <h4>Page header wastes vertical space on every page</h4>
+        <p>Each page opens with a full-width header block (title, subtitle, action buttons) that takes 60–80px before any content. On a 768px laptop this is 8–10% of visible height just for a title. The breadcrumb in the top nav already provides context, making the page title redundant.</p>
+      </div>
+
+      <div class="issue-card major">
+        <span class="issue-tag tag-major">Major</span>
+        <h4>Heatmap + Sentiment + Confluence + Signals + 3 Charts all on one page</h4>
+        <p>The dashboard landing page has 7 content sections. Users must scroll past heatmap and sentiment before reaching signals — the core value. No clear visual hierarchy communicates "this is what you should look at first." Everything competes equally.</p>
+      </div>
+
+      <div class="issue-card major">
+        <span class="issue-tag tag-major">Major</span>
+        <h4>Filters scattered inside card headers</h4>
+        <p>Each card header contains inline selects (market, timeframe, signal type, search box). This creates a repetitive pattern: scan header → find filter → adjust → wait for content. Filters should be at the page level, not repeated in each card header, to reduce visual noise.</p>
+      </div>
+
+      <div class="issue-card minor">
+        <span class="issue-tag tag-minor">Minor</span>
+        <h4>Font size 13.5px base is too small for a data-heavy interface</h4>
+        <p>Stripe, Linear, and Vercel all use 14–15px base font. At 13.5px, text in dense tables is hard to scan without leaning in. Combined with the tight line-height on data cells, prolonged use causes eye strain.</p>
+      </div>
+
+      <div class="issue-card minor">
+        <span class="issue-tag tag-minor">Minor</span>
+        <h4>No empty states or loading skeletons — just "Loading..."</h4>
+        <p>Every data section shows plain "Loading signals..." text. Skeleton screens (shimmering placeholder shapes) dramatically reduce perceived load time and maintain layout stability so there's no content reflow.</p>
+      </div>
+
+      <div class="issue-card minor">
+        <span class="issue-tag tag-minor">Minor</span>
+        <h4>No keyboard shortcuts / command palette</h4>
+        <p>Power users (the primary audience) rely on keyboard navigation. No ⌘K command palette, no keyboard shortcuts for common actions (refresh, filter, switch timeframe). Every action requires mouse interaction.</p>
+      </div>
+
+      <div class="issue-card minor">
+        <span class="issue-tag tag-minor">Minor</span>
+        <h4>Color-only signal badges</h4>
+        <p>BUY is green, SELL is red — but no icon or shape differentiates them for colorblind users. WCAG 2.1 AA requires information not to be conveyed by color alone. Adding ▲▼ arrows would fix this in one line of CSS.</p>
+      </div>
+
+      <div class="issue-card minor">
+        <span class="issue-tag tag-minor">Minor</span>
+        <h4>No mobile-optimised layout</h4>
+        <p>The 268px sidebar on a 375px screen leaves only 107px for content. The collapsed 58px sidebar still shows and forces the main content into a very narrow column. There's no bottom navigation bar for mobile, which is the standard pattern.</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONCEPT 1 ═══════════════════════════════════════════════════════════ -->
+<div id="c1" class="concept-section">
+  <div class="wrap">
+    <div class="concept-header">
+      <div class="concept-number">1</div>
+      <div class="concept-meta">
+        <span class="concept-tag">Concept 1</span>
+        <h2>Command Center</h2>
+        <p class="concept-desc">A mission-control layout with a collapsible icon rail on the left, a persistent right panel for signal details, and a command palette (⌘K) for zero-click navigation. The hero area is a live chart with overlaid signal annotations. Optimised for power users who spend 4+ hours a day in the platform.</p>
+        <p class="inspired">Inspired by <span>Datadog</span>, <span>Grafana</span>, <span>Raycast</span></p>
+      </div>
+    </div>
+
+    <!-- WIREFRAME -->
+    <div class="wireframe">
+      <div class="wf-topbar">
+        <div class="wf-dot" style="background:#ef4444"></div>
+        <div class="wf-dot" style="background:#f59e0b"></div>
+        <div class="wf-dot" style="background:#10b981"></div>
+        <span class="wf-title">SmartTrade AI — Command Center Layout</span>
+      </div>
+      <div style="background:#090d18">
+        <!-- Market ribbon -->
+        <div class="wf-ribbon">
+          <span>⬤ LIVE &nbsp;</span>
+          <span>BTC <span class="up">+2.4%</span></span>
+          <span>ETH <span class="dn">-0.8%</span></span>
+          <span>EURUSD <span class="up">+0.3%</span></span>
+          <span>XAUUSD <span class="up">+1.1%</span></span>
+          <span>NIFTY50 <span class="up">+0.6%</span></span>
+          <span>BNB <span class="dn">-1.2%</span></span>
+          <span>RELIANCE <span class="up">+0.9%</span></span>
+        </div>
+      </div>
+      <div class="wf-body">
+        <!-- Icon rail (always visible, 48px) -->
+        <div class="wf-sidebar w48" style="padding:8px 0;display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div class="wf-nav-icon active" title="Dashboard" style="padding:10px 0;width:100%;text-align:center">⊞</div>
+          <div class="wf-nav-icon" title="Markets">📊</div>
+          <div class="wf-nav-icon" title="Signals">⚡</div>
+          <div class="wf-nav-icon" title="Portfolio">💼</div>
+          <div class="wf-nav-icon" title="Analysis">📈</div>
+          <div class="wf-nav-icon" title="Tools">🛠</div>
+          <div style="flex:1"></div>
+          <div class="wf-nav-icon" title="Admin" style="font-size:12px">🛡</div>
+          <div class="wf-nav-icon" title="Settings">⚙</div>
+        </div>
+        <!-- Expanded section nav (context-sensitive, 180px, slides in) -->
+        <div class="wf-sidebar w220" style="border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column">
+          <div style="padding:12px 16px 8px;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:11px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;letter-spacing:-.2px">Dashboard</div>
+            <div style="font-size:10px;color:#475569;font-family:'Segoe UI',sans-serif">Mission control</div>
+          </div>
+          <div class="wf-nav-item active"><span>⊞</span> Overview</div>
+          <div class="wf-nav-item"><span>⚡</span> Live Signals</div>
+          <div class="wf-nav-item"><span>🔥</span> Heatmap</div>
+          <div class="wf-nav-item"><span>🌅</span> Morning Briefing</div>
+          <div class="wf-nav-item"><span>🤖</span> Auto Generate <span class="wf-badge" style="margin-left:auto">ON</span></div>
+          <div class="wf-nav-item"><span>📡</span> Scanner</div>
+          <div style="flex:1"></div>
+          <div style="padding:10px 16px;border-top:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:9.5px;color:#475569;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;gap:6px">
+              <span style="color:#10b981">●</span> System OK &nbsp;|&nbsp; <span style="color:#10b981">●</span> WS Live
+            </div>
+          </div>
+        </div>
+        <!-- Main content -->
+        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+          <!-- Command bar -->
+          <div style="padding:10px 16px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div class="wf-command-bar">
+              <span style="font-size:13px">🔍</span>
+              <span style="flex:1">Search signals, assets, commands…</span>
+              <kbd style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:4px;padding:1px 6px;font-size:9.5px;color:#64748b;font-family:'Segoe UI',sans-serif">⌘K</kbd>
+            </div>
+          </div>
+          <div style="flex:1;padding:16px;overflow:hidden">
+            <!-- KPI strip (4 only — the critical ones) -->
+            <div class="wf-grid4">
+              <div class="wf-kpi"><div class="wf-kpi-val" style="color:#10b981">12</div><div class="wf-kpi-lbl">Buy Signals</div></div>
+              <div class="wf-kpi"><div class="wf-kpi-val" style="color:#ef4444">7</div><div class="wf-kpi-lbl">Sell Signals</div></div>
+              <div class="wf-kpi"><div class="wf-kpi-val" style="color:#f59e0b">68%</div><div class="wf-kpi-lbl">Win Rate</div></div>
+              <div class="wf-kpi"><div class="wf-kpi-val" style="color:#818cf8">82%</div><div class="wf-kpi-lbl">Avg Confidence</div></div>
+            </div>
+            <!-- Hero chart -->
+            <div class="wf-hero" style="height:140px;display:flex;align-items:center;justify-content:center;position:relative">
+              <div style="position:absolute;top:10px;left:12px;font-size:10px;color:#818cf8;font-family:'Segoe UI',sans-serif">BTC/USDT — 1H &nbsp; <span style="color:#10b981">● BUY 91%</span></div>
+              <div style="color:#374151;font-size:11px;font-family:'Segoe UI',sans-serif">[ Live Candlestick Chart with Signal Annotations ]<br><span style="color:#4b5563;font-size:9.5px">Entry markers ▲▼ · Target lines · Stop line · Confluence zones</span></div>
+            </div>
+            <!-- Signal list (compact, priority rows) -->
+            <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:8px;overflow:hidden">
+              <div class="wf-table-header" style="display:grid;grid-template-columns:120px 50px 50px 80px 80px 1fr 70px">
+                <span>Asset</span><span>TF</span><span>Type</span><span>Entry</span><span>Conf</span><span>Progress</span><span>Time</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:120px 50px 50px 80px 80px 1fr 70px">
+                <span style="color:#e2e8f0;font-weight:600">BTCUSDT</span>
+                <span>1H</span>
+                <span><span class="wf-badge">BUY</span></span>
+                <span>63,420</span>
+                <span style="color:#10b981;font-weight:600">91%</span>
+                <span><div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px"><div style="width:65%;height:100%;background:#10b981;border-radius:2px"></div></div></span>
+                <span>2m ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:120px 50px 50px 80px 80px 1fr 70px">
+                <span style="color:#e2e8f0;font-weight:600">ETHUSDT</span>
+                <span>4H</span>
+                <span><span class="wf-badge wf-badge-red">SELL</span></span>
+                <span>3,210</span>
+                <span style="color:#10b981;font-weight:600">84%</span>
+                <span><div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px"><div style="width:30%;height:100%;background:#ef4444;border-radius:2px"></div></div></span>
+                <span>8m ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:120px 50px 50px 80px 80px 1fr 70px">
+                <span style="color:#e2e8f0;font-weight:600">EURUSD</span>
+                <span>1D</span>
+                <span><span class="wf-badge">BUY</span></span>
+                <span>1.0840</span>
+                <span style="color:#f59e0b;font-weight:600">76%</span>
+                <span><div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px"><div style="width:10%;height:100%;background:#f59e0b;border-radius:2px"></div></div></span>
+                <span>12m ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:120px 50px 50px 80px 80px 1fr 70px;color:#4b5563">
+                <span colspan="7" style="grid-column:1/-1;text-align:center;font-family:'Segoe UI',sans-serif;font-size:10px">+ 16 more signals — click to expand</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Right detail panel -->
+        <div class="wf-right-panel">
+          <div style="font-size:10.5px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,.06)">BTCUSDT Signal Detail</div>
+          <div class="wf-stat-row"><span>Signal</span><span class="wf-badge">▲ BUY</span></div>
+          <div class="wf-stat-row"><span>Entry</span><span>63,420</span></div>
+          <div class="wf-stat-row"><span>Stop Loss</span><span style="color:#ef4444">62,800</span></div>
+          <div class="wf-stat-row"><span>Target 1</span><span style="color:#10b981">64,500</span></div>
+          <div class="wf-stat-row"><span>Target 2</span><span style="color:#10b981">65,800</span></div>
+          <div class="wf-stat-row"><span>R:R</span><span>1.74</span></div>
+          <div class="wf-stat-row"><span>Confidence</span><span style="color:#10b981;font-weight:700">91%</span></div>
+          <div style="margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:9.5px;color:#475569;font-family:'Segoe UI',sans-serif;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Score Breakdown</div>
+            <div style="font-size:10px;color:#64748b;font-family:'Segoe UI',sans-serif">
+              <div class="wf-stat-row"><span>Trend</span><span style="color:#818cf8">90%</span></div>
+              <div class="wf-stat-row"><span>Momentum</span><span style="color:#818cf8">88%</span></div>
+              <div class="wf-stat-row"><span>Volume</span><span style="color:#818cf8">85%</span></div>
+              <div class="wf-stat-row"><span>Pattern</span><span style="color:#818cf8">94%</span></div>
+              <div class="wf-stat-row"><span>AI</span><span style="color:#818cf8">95%</span></div>
+            </div>
+          </div>
+          <div style="margin-top:12px">
+            <button style="width:100%;background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:6px;padding:8px;font-size:11px;font-weight:700;font-family:'Segoe UI',sans-serif;cursor:pointer">Open Asset Detail →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="attr-grid">
+      <div class="attr"><div class="attr-icon">⌘</div><h4>Command Palette</h4><p>⌘K opens a global search — jump to any page, asset, or action in 2 keystrokes.</p></div>
+      <div class="attr"><div class="attr-icon">🗂</div><h4>Dual Navigation Rail</h4><p>48px icon rail always visible. Second panel slides in with context-relevant sub-items only.</p></div>
+      <div class="attr"><div class="attr-icon">📋</div><h4>Right Detail Panel</h4><p>Click any signal row to populate the right panel — no page navigation required.</p></div>
+      <div class="attr"><div class="attr-icon">📡</div><h4>Live Ticker Ribbon</h4><p>Moved from navbar to a compact top strip. Market data is visible but not competing with actions.</p></div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>✓ Strengths</h4><ul>
+        <li>Highest information density without clutter</li>
+        <li>Fastest navigation for power users</li>
+        <li>Right panel eliminates drill-down navigation</li>
+        <li>Command palette is best-in-class UX</li>
+        <li>Context nav is self-filtering — only shows relevant items</li>
+      </ul></div>
+      <div class="cons"><h4>✗ Trade-offs</h4><ul>
+        <li>Learning curve — dual rail not immediately obvious</li>
+        <li>Right panel layout challenging on 13" laptops</li>
+        <li>Complex to implement the context-switching nav</li>
+        <li>May feel overwhelming for occasional users</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONCEPT 2 ═══════════════════════════════════════════════════════════ -->
+<div id="c2" class="concept-section">
+  <div class="wrap">
+    <div class="concept-header">
+      <div class="concept-number">2</div>
+      <div class="concept-meta">
+        <span class="concept-tag">Concept 2</span>
+        <h2>Focus Flow</h2>
+        <p class="concept-desc">No sidebar at all. A clean top navigation bar with 5 primary tabs, and the entire viewport is given to content. Each tab has a focused view optimised for that context. Navigation is horizontal, familiar, and requires zero mental model of a sidebar hierarchy. Inspired by the clarity of Stripe Dashboard.</p>
+        <p class="inspired">Inspired by <span>Stripe</span>, <span>Vercel</span>, <span>PlanetScale</span></p>
+      </div>
+    </div>
+
+    <div class="wireframe">
+      <div class="wf-topbar">
+        <div class="wf-dot" style="background:#ef4444"></div>
+        <div class="wf-dot" style="background:#f59e0b"></div>
+        <div class="wf-dot" style="background:#10b981"></div>
+        <span class="wf-title">SmartTrade AI — Focus Flow Layout</span>
+      </div>
+      <div style="background:#0d1117">
+        <!-- Top nav -->
+        <div style="display:flex;align-items:center;padding:0 24px;background:#090d18;border-bottom:1px solid rgba(255,255,255,.07);height:52px;gap:8px">
+          <div style="font-size:13px;font-weight:800;color:#e2e8f0;font-family:'Segoe UI',sans-serif;letter-spacing:-.3px;margin-right:20px">SmartTrade <span style="color:#818cf8">AI</span></div>
+          <div class="wf-tabs" style="padding:0;border-bottom:none;gap:0;flex:1">
+            <div class="wf-tab active" style="padding:14px 18px">Overview</div>
+            <div class="wf-tab" style="padding:14px 18px">Markets</div>
+            <div class="wf-tab" style="padding:14px 18px">Signals ⚡</div>
+            <div class="wf-tab" style="padding:14px 18px">Portfolio</div>
+            <div class="wf-tab" style="padding:14px 18px">Analyse</div>
+            <div class="wf-tab" style="padding:14px 18px">Tools</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;font-family:'Segoe UI',sans-serif;font-size:11px;color:#475569">
+            <span style="color:#10b981">● Live</span>
+            <span>🔔</span>
+            <div style="width:26px;height:26px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:white;font-weight:700">A</div>
+          </div>
+        </div>
+        <!-- Sub-tabs for context -->
+        <div class="wf-tabs" style="padding:0 24px;background:#0d1117">
+          <div class="wf-tab active" style="font-size:12px;padding:8px 14px">Dashboard</div>
+          <div class="wf-tab" style="font-size:12px;padding:8px 14px">Morning Briefing</div>
+          <div class="wf-tab" style="font-size:12px;padding:8px 14px">Auto Generate</div>
+          <div class="wf-tab" style="font-size:12px;padding:8px 14px">Scanner</div>
+        </div>
+        <div style="padding:20px 24px">
+          <!-- Hero stats row -->
+          <div class="wf-grid4" style="margin-bottom:16px">
+            <div style="background:rgba(16,185,129,.06);border:1px solid rgba(16,185,129,.15);border-radius:10px;padding:16px 18px">
+              <div style="font-size:11px;color:#64748b;font-family:'Segoe UI',sans-serif;margin-bottom:6px">Win Rate (30d)</div>
+              <div style="font-size:28px;font-weight:800;color:#10b981;font-family:'Segoe UI',sans-serif;line-height:1">68<span style="font-size:16px">%</span></div>
+              <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:4px">▲ +3% vs last month</div>
+            </div>
+            <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:10px;padding:16px 18px">
+              <div style="font-size:11px;color:#64748b;font-family:'Segoe UI',sans-serif;margin-bottom:6px">Active Signals</div>
+              <div style="font-size:28px;font-weight:800;color:#818cf8;font-family:'Segoe UI',sans-serif;line-height:1">19</div>
+              <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:4px">12 BUY · 7 SELL</div>
+            </div>
+            <div style="background:rgba(245,158,11,.06);border:1px solid rgba(245,158,11,.15);border-radius:10px;padding:16px 18px">
+              <div style="font-size:11px;color:#64748b;font-family:'Segoe UI',sans-serif;margin-bottom:6px">Avg Confidence</div>
+              <div style="font-size:28px;font-weight:800;color:#f59e0b;font-family:'Segoe UI',sans-serif;line-height:1">82<span style="font-size:16px">%</span></div>
+              <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:4px">Across all markets</div>
+            </div>
+            <div style="background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);border-radius:10px;padding:16px 18px">
+              <div style="font-size:11px;color:#64748b;font-family:'Segoe UI',sans-serif;margin-bottom:6px">Open P&L</div>
+              <div style="font-size:28px;font-weight:800;color:#3b82f6;font-family:'Segoe UI',sans-serif;line-height:1">+2.4<span style="font-size:16px">R</span></div>
+              <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:4px">Across open positions</div>
+            </div>
+          </div>
+          <!-- Two-column below: signals + market overview -->
+          <div style="display:grid;grid-template-columns:1fr 340px;gap:16px">
+            <div>
+              <div style="font-size:11.5px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;margin-bottom:10px;display:flex;align-items:center;gap:8px">
+                Latest Signals
+                <span class="wf-badge">Live</span>
+                <span style="margin-left:auto;display:flex;gap:6px">
+                  <span class="wf-pill">All</span>
+                  <span class="wf-pill" style="background:rgba(255,255,255,.05);color:#64748b">BUY</span>
+                  <span class="wf-pill" style="background:rgba(255,255,255,.05);color:#64748b">SELL</span>
+                </span>
+              </div>
+              <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden">
+                <div class="wf-table-header" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                  <span>Asset</span><span>TF</span><span>Type</span><span>Entry</span><span>Conf%</span><span>R:R</span><span>Time</span>
+                </div>
+                <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                  <span style="color:#e2e8f0;font-weight:600">BTCUSDT <span style="color:#64748b;font-weight:400;font-size:9px">Crypto</span></span>
+                  <span>1H</span><span><span class="wf-badge">▲ BUY</span></span><span>63,420</span><span style="color:#10b981;font-weight:600">91%</span><span>1.74</span><span>2m</span>
+                </div>
+                <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                  <span style="color:#e2e8f0;font-weight:600">ETHUSDT <span style="color:#64748b;font-weight:400;font-size:9px">Crypto</span></span>
+                  <span>4H</span><span><span class="wf-badge wf-badge-red">▼ SELL</span></span><span>3,210</span><span style="color:#10b981;font-weight:600">84%</span><span>2.10</span><span>8m</span>
+                </div>
+                <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                  <span style="color:#e2e8f0;font-weight:600">XAUUSD <span style="color:#64748b;font-weight:400;font-size:9px">Commod</span></span>
+                  <span>1D</span><span><span class="wf-badge">▲ BUY</span></span><span>2,310</span><span style="color:#10b981;font-weight:600">78%</span><span>1.92</span><span>15m</span>
+                </div>
+                <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                  <span style="color:#e2e8f0;font-weight:600">RELIANCE <span style="color:#64748b;font-weight:400;font-size:9px">Stocks</span></span>
+                  <span>15M</span><span><span class="wf-badge wf-badge-red">▼ SELL</span></span><span>2,840</span><span style="color:#f59e0b;font-weight:600">74%</span><span>1.55</span><span>22m</span>
+                </div>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:11.5px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;margin-bottom:10px">Market Pulse</div>
+              <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px">
+                <div class="wf-stat-row"><span>🔵 Crypto</span><span style="color:#10b981">Bullish 74%</span></div>
+                <div class="wf-stat-row"><span>💱 Forex</span><span style="color:#f59e0b">Neutral 52%</span></div>
+                <div class="wf-stat-row"><span>🏅 Commodities</span><span style="color:#10b981">Bullish 68%</span></div>
+                <div class="wf-stat-row"><span>🏗 Indian Stocks</span><span style="color:#10b981">Bullish 61%</span></div>
+                <div class="wf-stat-row"><span>📊 Indices</span><span style="color:#ef4444">Bearish 38%</span></div>
+                <div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.06)">
+                  <div class="wf-chart" style="height:80px">Signal Distribution Chart</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="attr-grid">
+      <div class="attr"><div class="attr-icon">🗂</div><h4>Tab-Based Navigation</h4><p>5 primary tabs eliminate the sidebar entirely. Zero cognitive overhead — users know exactly where they are.</p></div>
+      <div class="attr"><div class="attr-icon">📐</div><h4>Full-Width Content</h4><p>Without a sidebar, the content area gains 268px of space — a ~20% increase in usable width.</p></div>
+      <div class="attr"><div class="attr-icon">📊</div><h4>Hero Metrics</h4><p>4 large stat cards at the top — immediate answer to "how am I doing?" before any scrolling.</p></div>
+      <div class="attr"><div class="attr-icon">📱</div><h4>Mobile Natural</h4><p>Horizontal tabs translate directly to a bottom tab bar on mobile with zero additional code.</p></div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>✓ Strengths</h4><ul>
+        <li>Zero learning curve — tabs are universally understood</li>
+        <li>More content width available</li>
+        <li>Mobile pattern (bottom nav) is built-in</li>
+        <li>Clean, modern aesthetic like Stripe</li>
+        <li>Fastest for casual/occasional users</li>
+      </ul></div>
+      <div class="cons"><h4>✗ Trade-offs</h4><ul>
+        <li>Fewer visible destinations (only 5 tabs visible)</li>
+        <li>Deep pages require sub-tabs, adding a second navigation layer</li>
+        <li>Loss of sidebar means less glanceable navigation</li>
+        <li>Admin tools buried inside Tools tab</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONCEPT 3 ═══════════════════════════════════════════════════════════ -->
+<div id="c3" class="concept-section">
+  <div class="wrap">
+    <div class="concept-header">
+      <div class="concept-number">3</div>
+      <div class="concept-meta">
+        <span class="concept-tag">Concept 3</span>
+        <h2>Signal OS</h2>
+        <p class="concept-desc">A data-dense terminal-style layout for professional traders. Every pixel is used — signals dominate the screen with a persistent multi-panel layout (chart left, table right, positions bottom). Inspired by how professional trading platforms like NinjaTrader look when reimagined for the modern web.</p>
+        <p class="inspired">Inspired by <span>Bloomberg Terminal</span> (modernised), <span>TradingView</span>, <span>NinjaTrader</span></p>
+      </div>
+    </div>
+
+    <div class="wireframe">
+      <div class="wf-topbar">
+        <div class="wf-dot" style="background:#ef4444"></div>
+        <div class="wf-dot" style="background:#f59e0b"></div>
+        <div class="wf-dot" style="background:#10b981"></div>
+        <span class="wf-title">SmartTrade AI — Signal OS Layout (Power Trader)</span>
+      </div>
+      <div class="wf-body" style="flex-direction:column">
+        <!-- Ultra-compact top bar -->
+        <div style="display:flex;align-items:center;padding:0 12px;background:#060a14;border-bottom:1px solid rgba(255,255,255,.08);height:36px;gap:12px;font-family:'Segoe UI',sans-serif;font-size:11px">
+          <span style="font-weight:800;color:#818cf8;font-size:12px;letter-spacing:-.3px">STA<span style="color:#10b981">I</span></span>
+          <span style="color:#374151">|</span>
+          <span class="wf-tab active" style="font-size:10.5px;padding:0 8px;border-bottom:2px solid #6366f1">Dashboard</span>
+          <span class="wf-tab" style="font-size:10.5px;padding:0 8px">Markets</span>
+          <span class="wf-tab" style="font-size:10.5px;padding:0 8px">Signals</span>
+          <span class="wf-tab" style="font-size:10.5px;padding:0 8px">Portfolio</span>
+          <span class="wf-tab" style="font-size:10.5px;padding:0 8px">Analysis</span>
+          <span class="wf-tab" style="font-size:10.5px;padding:0 8px">Tools</span>
+          <span style="flex:1"></span>
+          <div class="wf-ribbon" style="background:transparent;border:none;padding:0;gap:10px;font-size:10px">
+            <span>BTC <span style="color:#10b981">63,420</span></span>
+            <span>ETH <span style="color:#ef4444">3,200</span></span>
+            <span>XAUUSD <span style="color:#10b981">2,312</span></span>
+          </div>
+          <span style="color:#10b981;font-size:10px">● WS</span>
+          <span>🔔</span>
+          <div style="width:22px;height:22px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:9px;color:white">A</div>
+        </div>
+        <!-- Stats strip -->
+        <div style="display:flex;gap:0;background:#0a0e1a;border-bottom:1px solid rgba(255,255,255,.06);font-family:'Segoe UI',sans-serif">
+          <div style="padding:6px 16px;border-right:1px solid rgba(255,255,255,.06);text-align:center">
+            <div style="font-size:16px;font-weight:800;color:#10b981;line-height:1">12</div>
+            <div style="font-size:8.5px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px">BUY</div>
+          </div>
+          <div style="padding:6px 16px;border-right:1px solid rgba(255,255,255,.06);text-align:center">
+            <div style="font-size:16px;font-weight:800;color:#ef4444;line-height:1">7</div>
+            <div style="font-size:8.5px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px">SELL</div>
+          </div>
+          <div style="padding:6px 16px;border-right:1px solid rgba(255,255,255,.06);text-align:center">
+            <div style="font-size:16px;font-weight:800;color:#f59e0b;line-height:1">68%</div>
+            <div style="font-size:8.5px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px">WIN</div>
+          </div>
+          <div style="padding:6px 16px;border-right:1px solid rgba(255,255,255,.06);text-align:center">
+            <div style="font-size:16px;font-weight:800;color:#818cf8;line-height:1">82%</div>
+            <div style="font-size:8.5px;color:#4b5563;text-transform:uppercase;letter-spacing:.5px">CONF</div>
+          </div>
+          <div style="flex:1;padding:6px 16px;display:flex;align-items:center;gap:12px;font-size:10px;color:#4b5563">
+            <span>⚡ Auto-Gen: <span style="color:#10b981">ON</span></span>
+            <span>🤖 Model: <span style="color:#818cf8">Ensemble v2</span></span>
+            <span>📡 Assets: <span style="color:#94a3b8">23 active</span></span>
+          </div>
+        </div>
+        <!-- Three-panel body -->
+        <div style="flex:1;display:flex;overflow:hidden;min-height:380px">
+          <!-- Left: Chart panel -->
+          <div style="width:40%;border-right:1px solid rgba(255,255,255,.06);display:flex;flex-direction:column">
+            <div style="padding:8px 12px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,.06);font-family:'Segoe UI',sans-serif;display:flex;align-items:center;gap:8px">
+              <span style="font-size:11.5px;font-weight:700;color:#e2e8f0">BTCUSDT</span>
+              <span class="wf-badge">▲ BUY</span>
+              <span style="font-size:10px;color:#4b5563">1H</span>
+              <span style="margin-left:auto;font-size:10px;color:#10b981;font-weight:600">91%</span>
+            </div>
+            <div class="wf-chart" style="flex:1;height:auto;margin:8px;border-radius:6px">
+              [ Candlestick Chart ]<br>
+              <span style="font-size:9px;color:#374151;margin-top:4px;display:block">Entry · SL · T1 · T2 overlaid</span>
+            </div>
+            <div style="padding:6px 12px;background:#0a0e1a;border-top:1px solid rgba(255,255,255,.06);font-family:'Segoe UI',sans-serif;font-size:9.5px;color:#4b5563;display:flex;gap:12px">
+              <span>Entry: 63,420</span>
+              <span style="color:#ef4444">SL: 62,800</span>
+              <span style="color:#10b981">T1: 64,500</span>
+              <span style="color:#10b981">T2: 65,800</span>
+              <span>R:R: 1.74</span>
+            </div>
+          </div>
+          <!-- Right: Signal list -->
+          <div style="flex:1;display:flex;flex-direction:column">
+            <div style="padding:6px 12px;background:#0d1117;border-bottom:1px solid rgba(255,255,255,.06);font-family:'Segoe UI',sans-serif;font-size:10px;color:#4b5563;display:flex;align-items:center;gap:8px">
+              <span style="color:#e2e8f0;font-weight:700;font-size:11px">Signal Feed</span>
+              <span class="wf-pill">All</span>
+              <span class="wf-pill" style="background:rgba(255,255,255,.04);color:#4b5563">BUY</span>
+              <span class="wf-pill" style="background:rgba(255,255,255,.04);color:#4b5563">SELL</span>
+              <input type="text" placeholder="Filter…" style="margin-left:auto;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:4px;padding:2px 8px;font-size:10px;color:#94a3b8;width:90px;outline:none"/>
+            </div>
+            <div style="flex:1;overflow-y:auto">
+              <div class="wf-table-header" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px;position:sticky;top:0;background:#0f141f">
+                <span>Asset</span><span>TF</span><span>Type</span><span>Entry</span><span>Conf</span><span>R:R</span><span>Ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px;background:rgba(99,102,241,.05)">
+                <span style="color:#e2e8f0;font-weight:600">BTCUSDT</span><span>1H</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>63,420</span><span style="color:#10b981">91%</span><span>1.74</span><span>2m</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px">
+                <span style="color:#e2e8f0">ETHUSDT</span><span>4H</span><span><span class="wf-badge wf-badge-red" style="font-size:8px">▼ SELL</span></span><span>3,210</span><span style="color:#10b981">84%</span><span>2.10</span><span>8m</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px">
+                <span style="color:#e2e8f0">XAUUSD</span><span>1D</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>2,310</span><span style="color:#10b981">78%</span><span>1.92</span><span>15m</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px">
+                <span style="color:#e2e8f0">EURUSD</span><span>1H</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>1.0840</span><span style="color:#f59e0b">76%</span><span>1.35</span><span>18m</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px">
+                <span style="color:#e2e8f0">RELIANCE</span><span>15M</span><span><span class="wf-badge wf-badge-red" style="font-size:8px">▼ SELL</span></span><span>2,840</span><span style="color:#f59e0b">74%</span><span>1.55</span><span>22m</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:90px 40px 55px 70px 70px 50px 60px">
+                <span style="color:#e2e8f0">NIFTY50</span><span>4H</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>22,100</span><span style="color:#f59e0b">72%</span><span>1.80</span><span>31m</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Bottom: Open Positions strip -->
+        <div style="border-top:1px solid rgba(255,255,255,.08);background:#080c18;padding:6px 12px;font-family:'Segoe UI',sans-serif">
+          <div style="font-size:9.5px;font-weight:700;color:#4b5563;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px">Open Positions — P&L</div>
+          <div style="display:flex;gap:12px;overflow-x:auto">
+            <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:6px;padding:5px 10px;white-space:nowrap;font-size:10px;color:#94a3b8">
+              BTCUSDT <span style="color:#10b981;font-weight:700">+1.2R</span> · Long
+            </div>
+            <div style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2);border-radius:6px;padding:5px 10px;white-space:nowrap;font-size:10px;color:#94a3b8">
+              XAUUSD <span style="color:#10b981;font-weight:700">+0.8R</span> · Long
+            </div>
+            <div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);border-radius:6px;padding:5px 10px;white-space:nowrap;font-size:10px;color:#94a3b8">
+              ETHUSDT <span style="color:#ef4444;font-weight:700">-0.3R</span> · Short
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="attr-grid">
+      <div class="attr"><div class="attr-icon">⚡</div><h4>Zero wasted space</h4><p>36px topbar, 40px stats strip — 96% of the viewport is content. No page titles, no breadcrumbs.</p></div>
+      <div class="attr"><div class="attr-icon">🖥</div><h4>Persistent 3-panel view</h4><p>Chart, signals list, and positions are always visible simultaneously. No context switching.</p></div>
+      <div class="attr"><div class="attr-icon">🔥</div><h4>Click chart = show signal</h4><p>Clicking a signal row immediately loads that asset's chart in the left panel.</p></div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>✓ Strengths</h4><ul>
+        <li>Maximum information density</li>
+        <li>Professional traders feel at home</li>
+        <li>No navigation interruptions during trading</li>
+        <li>Chart + signals always visible together</li>
+      </ul></div>
+      <div class="cons"><h4>✗ Trade-offs</h4><ul>
+        <li>Intimidating for new or occasional users</li>
+        <li>Challenging on screens below 1400px</li>
+        <li>Harder to navigate to non-trading pages</li>
+        <li>Complex layout requires more maintenance</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONCEPT 4 ═══════════════════════════════════════════════════════════ -->
+<div id="c4" class="concept-section">
+  <div class="wrap">
+    <div class="concept-header">
+      <div class="concept-number">4</div>
+      <div class="concept-meta">
+        <span class="concept-tag">Concept 4</span>
+        <h2>Clarity Dashboard</h2>
+        <p class="concept-desc">Generous whitespace, large type, and a hierarchy-first layout. The sidebar is retained but redesigned to be flat (no collapsible groups) with a clear visual hierarchy. Content is organised in clean card sections with breathing room. The most accessible and immediately professional-feeling of all concepts.</p>
+        <p class="inspired">Inspired by <span>Stripe Dashboard</span>, <span>Linear</span>, <span>GitHub</span></p>
+      </div>
+    </div>
+
+    <div class="wireframe">
+      <div class="wf-topbar">
+        <div class="wf-dot" style="background:#ef4444"></div>
+        <div class="wf-dot" style="background:#f59e0b"></div>
+        <div class="wf-dot" style="background:#10b981"></div>
+        <span class="wf-title">SmartTrade AI — Clarity Dashboard Layout</span>
+      </div>
+      <div class="wf-body">
+        <!-- Flat sidebar (no accordion groups) -->
+        <div class="wf-sidebar w220" style="display:flex;flex-direction:column;padding:0">
+          <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,.06)">
+            <div style="font-size:14px;font-weight:800;color:#e2e8f0;font-family:'Segoe UI',sans-serif;letter-spacing:-.3px">SmartTrade<span style="color:#818cf8"> AI</span></div>
+          </div>
+          <!-- Flat nav — all items visible, grouped by separator lines -->
+          <div style="padding:8px 0;flex:1;overflow-y:auto">
+            <div class="wf-nav-item active" style="border-radius:6px;margin:1px 8px;padding:8px 10px"><span style="font-size:14px">⊞</span> <span>Dashboard</span></div>
+            <div style="height:1px;background:rgba(255,255,255,.05);margin:6px 12px"></div>
+            <div style="padding:4px 12px 2px;font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.7px;font-family:'Segoe UI',sans-serif">Markets</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">₿ Crypto <span style="margin-left:auto" class="wf-badge">Live</span></div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">💱 Forex</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">🏅 Commodities</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">🏢 Indian Stocks</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">📊 Indices</div>
+            <div style="height:1px;background:rgba(255,255,255,.05);margin:6px 12px"></div>
+            <div style="padding:4px 12px 2px;font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.7px;font-family:'Segoe UI',sans-serif">Trading</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">⚡ Signals</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">🤖 Auto Generate <span style="margin-left:auto" class="wf-badge">ON</span></div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">📡 Scanner</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">💼 Portfolio</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">⭐ Watchlist</div>
+            <div style="height:1px;background:rgba(255,255,255,.05);margin:6px 12px"></div>
+            <div style="padding:4px 12px 2px;font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.7px;font-family:'Segoe UI',sans-serif">Insights</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">🧠 AI Insights</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">📉 Backtesting</div>
+            <div class="wf-nav-item" style="margin:1px 8px;padding:8px 10px">📰 News</div>
+          </div>
+          <div style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:center">
+            <div style="width:28px;height:28px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:white;font-family:'Segoe UI',sans-serif">A</div>
+            <div style="font-family:'Segoe UI',sans-serif">
+              <div style="font-size:11px;color:#e2e8f0;font-weight:600">Admin User</div>
+              <div style="font-size:9.5px;color:#4b5563">admin@smarttradeai</div>
+            </div>
+            <span style="margin-left:auto;font-size:12px;color:#4b5563">⚙</span>
+          </div>
+        </div>
+        <!-- Main area -->
+        <div style="flex:1;display:flex;flex-direction:column;background:#0d1117">
+          <!-- Topbar (minimal) -->
+          <div style="padding:0 24px;height:52px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:12px;background:#0d1117">
+            <div style="flex:1;font-family:'Segoe UI',sans-serif;font-size:12px;color:#4b5563">Dashboard</div>
+            <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:6px;padding:5px 12px;font-size:11px;color:#4b5563;font-family:'Segoe UI',sans-serif;display:flex;align-items:center;gap:6px">
+              🔍 <span>Search or ⌘K</span>
+            </div>
+            <span style="font-size:12px;color:#4b5563">🔔</span>
+            <span style="font-size:12px;color:#10b981">● Live</span>
+          </div>
+          <!-- Content -->
+          <div style="flex:1;padding:24px;overflow:auto">
+            <div style="font-size:18px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;margin-bottom:4px">Good morning, Admin 👋</div>
+            <div style="font-size:12px;color:#4b5563;font-family:'Segoe UI',sans-serif;margin-bottom:20px">19 active signals · 68% win rate · Last updated 2 minutes ago</div>
+            <!-- 4 KPI cards -->
+            <div class="wf-grid4" style="margin-bottom:20px">
+              <div style="background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+                <div style="font-size:11px;color:#4b5563;font-family:'Segoe UI',sans-serif;margin-bottom:8px">Win Rate</div>
+                <div style="font-size:26px;font-weight:800;color:#10b981;font-family:'Segoe UI',sans-serif;line-height:1">68%</div>
+                <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:6px">▲ +3% this month</div>
+              </div>
+              <div style="background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+                <div style="font-size:11px;color:#4b5563;font-family:'Segoe UI',sans-serif;margin-bottom:8px">Active Signals</div>
+                <div style="font-size:26px;font-weight:800;color:#818cf8;font-family:'Segoe UI',sans-serif;line-height:1">19</div>
+                <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:6px">12 BUY · 7 SELL</div>
+              </div>
+              <div style="background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+                <div style="font-size:11px;color:#4b5563;font-family:'Segoe UI',sans-serif;margin-bottom:8px">Avg Confidence</div>
+                <div style="font-size:26px;font-weight:800;color:#f59e0b;font-family:'Segoe UI',sans-serif;line-height:1">82%</div>
+                <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:6px">↑ Strong signals today</div>
+              </div>
+              <div style="background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:18px">
+                <div style="font-size:11px;color:#4b5563;font-family:'Segoe UI',sans-serif;margin-bottom:8px">Open P&L</div>
+                <div style="font-size:26px;font-weight:800;color:#3b82f6;font-family:'Segoe UI',sans-serif;line-height:1">+2.4R</div>
+                <div style="font-size:10px;color:#374151;font-family:'Segoe UI',sans-serif;margin-top:6px">Across 3 positions</div>
+              </div>
+            </div>
+            <!-- Signals table clean -->
+            <div style="background:#111827;border:1px solid rgba(255,255,255,.07);border-radius:12px;overflow:hidden">
+              <div style="padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px;font-family:'Segoe UI',sans-serif">
+                <span style="font-size:13px;font-weight:700;color:#e2e8f0">Latest Signals</span>
+                <span class="wf-badge" style="margin-left:4px">19 active</span>
+                <span style="flex:1"></span>
+                <span class="wf-pill">All Markets</span>
+                <span class="wf-pill" style="background:rgba(255,255,255,.04);color:#4b5563">1H ▾</span>
+                <span style="font-size:11px;color:#818cf8;cursor:pointer">View all →</span>
+              </div>
+              <div class="wf-table-header" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                <span>Asset</span><span>TF</span><span>Signal</span><span>Entry</span><span>Confidence</span><span>R:R</span><span>Time</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                <span style="color:#e2e8f0;font-weight:600;font-family:'Segoe UI',sans-serif">BTCUSDT <span style="font-size:9px;color:#475569;font-weight:400">Bitcoin · Crypto</span></span>
+                <span>1H</span><span><span class="wf-badge">▲ BUY</span></span><span>63,420</span><span><span style="color:#10b981;font-weight:700">91%</span></span><span>1.74</span><span>2m ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                <span style="color:#e2e8f0;font-weight:600;font-family:'Segoe UI',sans-serif">ETHUSDT <span style="font-size:9px;color:#475569;font-weight:400">Ethereum · Crypto</span></span>
+                <span>4H</span><span><span class="wf-badge wf-badge-red">▼ SELL</span></span><span>3,210</span><span><span style="color:#10b981;font-weight:700">84%</span></span><span>2.10</span><span>8m ago</span>
+              </div>
+              <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 80px 80px 60px 70px">
+                <span style="color:#e2e8f0;font-weight:600;font-family:'Segoe UI',sans-serif">XAUUSD <span style="font-size:9px;color:#475569;font-weight:400">Gold · Commodity</span></span>
+                <span>1D</span><span><span class="wf-badge">▲ BUY</span></span><span>2,310</span><span><span style="color:#10b981;font-weight:700">78%</span></span><span>1.92</span><span>15m ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="attr-grid">
+      <div class="attr"><div class="attr-icon">👋</div><h4>Personalised greeting</h4><p>"Good morning, Admin" with a live summary line — immediately answers "how is today going?" without any scanning.</p></div>
+      <div class="attr"><div class="attr-icon">📋</div><h4>Flat sidebar</h4><p>No accordion. All items visible. Sections divided by label + separator — takes ~40% more sidebar height but eliminates all hunting.</p></div>
+      <div class="attr"><div class="attr-icon">🎯</div><h4>Asset name + market in table</h4><p>"BTCUSDT · Bitcoin · Crypto" in one cell. No separate Market column. One line of text conveys what used to need two columns.</p></div>
+      <div class="attr"><div class="attr-icon">🔲</div><h4>Generous card radius</h4><p>12px corner radius and 18px internal padding give every element space to breathe. Reduces perceived cognitive load.</p></div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>✓ Strengths</h4><ul>
+        <li>Instantly accessible — zero onboarding needed</li>
+        <li>Professional, premium visual quality</li>
+        <li>Flat nav eliminates accordion confusion</li>
+        <li>Clear typographic hierarchy</li>
+        <li>Best for occasional and daily users both</li>
+      </ul></div>
+      <div class="cons"><h4>✗ Trade-offs</h4><ul>
+        <li>Flat sidebar requires scrolling with many items</li>
+        <li>Less information density than Concept 1 or 3</li>
+        <li>Not optimised for traders who live in the app all day</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONCEPT 5 ═══════════════════════════════════════════════════════════ -->
+<div id="c5" class="concept-section">
+  <div class="wrap">
+    <div class="concept-header">
+      <div class="concept-number">5</div>
+      <div class="concept-meta">
+        <span class="concept-tag">Concept 5</span>
+        <h2>Adaptive Rail</h2>
+        <p class="concept-desc">A hybrid: a minimal icon rail that expands into a full sidebar on hover (no click needed), combined with a context-aware top bar that transforms per page. The rail stays at 60px; hovering any icon immediately expands a flyout panel showing just that section's sub-items. The least chrome, most content.</p>
+        <p class="inspired">Inspired by <span>Notion</span>, <span>Figma</span>, <span>Raycast</span></p>
+      </div>
+    </div>
+
+    <div class="wireframe">
+      <div class="wf-topbar">
+        <div class="wf-dot" style="background:#ef4444"></div>
+        <div class="wf-dot" style="background:#f59e0b"></div>
+        <div class="wf-dot" style="background:#10b981"></div>
+        <span class="wf-title">SmartTrade AI — Adaptive Rail Layout (hover state shown)</span>
+      </div>
+      <div class="wf-body">
+        <!-- Icon-only rail (always 60px) -->
+        <div class="wf-sidebar w60" style="display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:4px;background:#080c18">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:white;font-family:'Segoe UI',sans-serif;margin-bottom:8px">S</div>
+          <div class="wf-nav-icon active" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:rgba(99,102,241,.15)" title="Dashboard">⊞</div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Markets">📊</div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Signals">⚡</div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Portfolio">💼</div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Analysis">📈</div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Tools">🛠</div>
+          <div style="flex:1"></div>
+          <div class="wf-nav-icon" style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center" title="Settings">⚙</div>
+          <div style="width:30px;height:30px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;color:white;font-family:'Segoe UI',sans-serif;margin-top:4px">A</div>
+        </div>
+        <!-- Flyout panel (shown on hover of Markets icon, positioned absolutely) -->
+        <div style="width:200px;background:#0f141f;border-right:1px solid rgba(255,255,255,.06);padding:12px 0;position:relative">
+          <div style="padding:4px 14px 10px;font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:1px;font-family:'Segoe UI',sans-serif;border-bottom:1px solid rgba(255,255,255,.05);margin-bottom:6px">Markets</div>
+          <div class="wf-nav-item active" style="padding:8px 14px;border-radius:0">₿ Crypto <span class="wf-badge" style="margin-left:auto">Live</span></div>
+          <div class="wf-nav-item" style="padding:8px 14px">💱 Forex</div>
+          <div class="wf-nav-item" style="padding:8px 14px">🏅 Commodities</div>
+          <div class="wf-nav-item" style="padding:8px 14px">🏢 Indian Stocks</div>
+          <div class="wf-nav-item" style="padding:8px 14px">📊 Indices</div>
+          <div style="height:1px;background:rgba(255,255,255,.05);margin:8px 12px"></div>
+          <div style="padding:4px 14px 10px;font-size:10px;font-weight:800;color:#374151;text-transform:uppercase;letter-spacing:1px;font-family:'Segoe UI',sans-serif;">Signals</div>
+          <div class="wf-nav-item" style="padding:8px 14px">⚡ All Signals</div>
+          <div class="wf-nav-item" style="padding:8px 14px">🤖 Auto Generate</div>
+          <div class="wf-nav-item" style="padding:8px 14px">📡 Scanner</div>
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:8px 14px;border-top:1px solid rgba(255,255,255,.05);font-size:9px;color:#374151;font-family:'Segoe UI',sans-serif">Press <kbd style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:3px;padding:1px 4px;font-size:8.5px">⌘K</kbd> to search</div>
+        </div>
+        <!-- Main content -->
+        <div style="flex:1;display:flex;flex-direction:column">
+          <!-- Context toolbar (changes per page) -->
+          <div style="padding:0 20px;height:48px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:12px;background:#0d1117">
+            <span style="font-size:13px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif">Markets — Crypto</span>
+            <span style="color:#4b5563;font-size:11px;font-family:'Segoe UI',sans-serif">BTC · ETH · BNB · SOL · XRP</span>
+            <span style="flex:1"></span>
+            <span class="wf-pill">1H ▾</span>
+            <span class="wf-pill" style="background:rgba(255,255,255,.04);color:#4b5563">Signals only</span>
+            <span style="color:#4b5563;font-size:12px">🔔 <span class="wf-badge-yellow" style="background:rgba(245,158,11,.15);color:#f59e0b;font-size:9px;padding:1px 5px;border-radius:3px">3</span></span>
+            <div style="width:26px;height:26px;background:linear-gradient(135deg,#4f46e5,#7c3aed);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;color:white;font-family:'Segoe UI',sans-serif">A</div>
+          </div>
+          <div style="flex:1;padding:20px;overflow:auto">
+            <!-- KPI row -->
+            <div class="wf-grid4" style="margin-bottom:16px">
+              <div class="wf-kpi" style="padding:14px"><div class="wf-kpi-val" style="color:#10b981;font-size:22px">12</div><div class="wf-kpi-lbl">Buy Signals</div></div>
+              <div class="wf-kpi" style="padding:14px"><div class="wf-kpi-val" style="color:#ef4444;font-size:22px">7</div><div class="wf-kpi-lbl">Sell Signals</div></div>
+              <div class="wf-kpi" style="padding:14px"><div class="wf-kpi-val" style="color:#f59e0b;font-size:22px">68%</div><div class="wf-kpi-lbl">Win Rate</div></div>
+              <div class="wf-kpi" style="padding:14px"><div class="wf-kpi-val" style="color:#818cf8;font-size:22px">82%</div><div class="wf-kpi-lbl">Avg Confidence</div></div>
+            </div>
+            <!-- Two-col layout -->
+            <div style="display:grid;grid-template-columns:1fr 280px;gap:14px">
+              <div>
+                <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;overflow:hidden">
+                  <div class="wf-table-header" style="display:grid;grid-template-columns:1fr 50px 60px 75px 75px 55px">
+                    <span>Asset</span><span>TF</span><span>Signal</span><span>Entry</span><span>Conf</span><span>R:R</span>
+                  </div>
+                  <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 75px 75px 55px">
+                    <span style="color:#e2e8f0;font-weight:600">BTCUSDT</span><span>1H</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>63,420</span><span style="color:#10b981;font-weight:600">91%</span><span>1.74</span>
+                  </div>
+                  <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 75px 75px 55px">
+                    <span style="color:#e2e8f0">ETHUSDT</span><span>4H</span><span><span class="wf-badge wf-badge-red" style="font-size:8px">▼ SELL</span></span><span>3,210</span><span style="color:#10b981;font-weight:600">84%</span><span>2.10</span>
+                  </div>
+                  <div class="wf-table-row" style="display:grid;grid-template-columns:1fr 50px 60px 75px 75px 55px">
+                    <span style="color:#e2e8f0">BNBUSDT</span><span>1H</span><span><span class="wf-badge" style="font-size:8px">▲ BUY</span></span><span>410</span><span style="color:#f59e0b;font-weight:600">76%</span><span>1.50</span>
+                  </div>
+                </div>
+              </div>
+              <div style="background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:12px">
+                <div style="font-size:10.5px;font-weight:700;color:#e2e8f0;font-family:'Segoe UI',sans-serif;margin-bottom:10px">Market Pulse</div>
+                <div class="wf-chart" style="height:90px;margin-bottom:8px">Heatmap</div>
+                <div class="wf-stat-row"><span>Crypto Sentiment</span><span style="color:#10b981">Bullish</span></div>
+                <div class="wf-stat-row"><span>Top Signal</span><span style="color:#818cf8">BTCUSDT</span></div>
+                <div class="wf-stat-row"><span>Auto-Gen</span><span style="color:#10b981">Running</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="attr-grid">
+      <div class="attr"><div class="attr-icon">🎛</div><h4>Hover-expand Rail</h4><p>60px icon rail → hover any icon → flyout panel shows that section's sub-items. No click required, no layout shift.</p></div>
+      <div class="attr"><div class="attr-icon">🔄</div><h4>Context Toolbar</h4><p>The top bar transforms per page — shows contextually relevant filters and actions, not a generic breadcrumb.</p></div>
+      <div class="attr"><div class="attr-icon">📐</div><h4>Largest content area</h4><p>60px rail gives the most usable content width of any sidebar-based concept.</p></div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><h4>✓ Strengths</h4><ul>
+        <li>Maximum content width with sidebar benefits</li>
+        <li>Hover-expand feels effortless and magical</li>
+        <li>Context toolbar eliminates scattered card filters</li>
+        <li>Best balance of density and discoverability</li>
+      </ul></div>
+      <div class="cons"><h4>✗ Trade-offs</h4><ul>
+        <li>Hover navigation is poor on touch/tablet devices</li>
+        <li>Flyout requires careful z-index and animation work</li>
+        <li>Users may not discover hover behavior immediately</li>
+      </ul></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ COMPARISON ═══════════════════════════════════════════════════════════ -->
+<div id="comparison" style="padding:56px 0;border-bottom:1px solid rgba(255,255,255,.07)">
+  <div class="wrap">
+    <h2>Concept Comparison Matrix</h2>
+    <table class="comparison-table">
+      <thead>
+        <tr>
+          <th>Dimension</th>
+          <th>C1 Command Center</th>
+          <th>C2 Focus Flow</th>
+          <th>C3 Signal OS</th>
+          <th>C4 Clarity</th>
+          <th>C5 Adaptive Rail</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Navigation clarity</td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Information density</td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Visual elegance</td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td></tr>
+        <tr><td>Content area width</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td>⭐⭐⭐⭐⭐</td></tr>
+        <tr><td>Mobile experience</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐</td><td>⭐⭐⭐⭐</td><td>⭐⭐⭐</td></tr>
+        <tr><td>New user onboarding</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐</td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Power user efficiency</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Implementation effort</td><td>High</td><td>Low</td><td>High</td><td class="winner">Low-Medium</td><td>Medium</td></tr>
+        <tr><td>Scalability (future features)</td><td>⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐⭐</td></tr>
+        <tr><td>Accessibility (WCAG)</td><td>⭐⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td><td class="winner">⭐⭐⭐⭐⭐</td><td>⭐⭐⭐</td></tr>
+        <tr><td><strong>Overall score</strong></td><td>38/50</td><td>40/50</td><td>32/50</td><td class="winner accent" style="font-size:14px"><strong>43/50 ★</strong></td><td>41/50</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ═══ RECOMMENDATION ═══════════════════════════════════════════════════════ -->
+<div id="recommendation" class="rec-section">
+  <div class="wrap">
+    <h2>Recommendation</h2>
+    <p style="font-size:14px;max-width:760px;margin-top:8px">Based on the audit findings, the scoring matrix, and enterprise dashboard best practices, here is the recommended approach:</p>
+
+    <div class="rec-card">
+      <div style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:white;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:4px 12px;border-radius:20px;margin-bottom:12px">Recommended</div>
+      <h2>Concept 4 — Clarity Dashboard</h2>
+      <p style="font-size:14px;color:#94a3b8;margin-top:8px;max-width:800px">Implement Concept 4 as the primary direction, enhanced with the command palette (⌘K) from Concept 1, the context-sensitive top toolbar from Concept 5, and the hover-expand rail behavior from Concept 5. This gives you the accessibility and elegance of Concept 4 combined with the power-user features from Concepts 1 and 5.</p>
+
+      <div class="score-row">
+        <div class="score-item"><div class="score-num">9</div><div class="score-lbl">Navigation clarity</div></div>
+        <div class="score-item"><div class="score-num">9</div><div class="score-lbl">Visual elegance</div></div>
+        <div class="score-item"><div class="score-num">8</div><div class="score-lbl">Density/efficiency</div></div>
+        <div class="score-item"><div class="score-num">9</div><div class="score-lbl">Mobile readiness</div></div>
+        <div class="score-item"><div class="score-num">9</div><div class="score-lbl">Scalability</div></div>
+        <div class="score-item"><div class="score-num">8</div><div class="score-lbl">Implementation</div></div>
+      </div>
+
+      <h3 style="margin-top:28px;margin-bottom:12px;color:#e2e8f0">What changes vs current</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Navigation</div>
+          <p style="font-size:12.5px">Replace 5 accordion groups with a flat sidebar using label separators. All 24 items visible without any click. Optional hover-expand for extra width.</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ KPI Cards</div>
+          <p style="font-size:12.5px">Reduce from 8 to 4 critical metrics (Win Rate, Active Signals, Avg Confidence, Open P&L). Move system status to a passive status strip.</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Signals Table</div>
+          <p style="font-size:12.5px">Reduce from 13 columns to 7 by merging Asset+Market into one rich cell, removing Trend/Confluence from table (move to detail panel/tooltip).</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Typography</div>
+          <p style="font-size:12.5px">Increase base font to 14px. Increase line-height in data tables from 1.4 to 1.6. Larger heading hierarchy (page titles 20px, card titles 14px bold).</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Top Navbar</div>
+          <p style="font-size:12.5px">Simplify to: breadcrumb + search (⌘K) + notification bell + user avatar. Move confidence slider to the Signals page. Move ticker to top ribbon.</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Filters</div>
+          <p style="font-size:12.5px">Move all page-level filters to a page-level filter bar (below the top nav, above the content). Remove them from individual card headers.</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Dashboard Landing</div>
+          <p style="font-size:12.5px">Prioritise: greeting + 4 KPIs + signals table + market pulse. Move heatmap and confluence widget to a secondary tab/sub-page.</p>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border-radius:8px;padding:14px">
+          <div style="font-size:11px;font-weight:700;color:#10b981;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">✓ Loading States</div>
+          <p style="font-size:12.5px">Replace all "Loading..." text with shimmer skeleton screens that match the final layout shape.</p>
+        </div>
+      </div>
+
+      <div class="cta-row">
+        <div class="btn-primary-lg">✓ Approve Concept 4 (Recommended)</div>
+        <div class="btn-outline-lg">→ Approve Concept 1 (Power User)</div>
+        <div class="btn-outline-lg">→ Approve Concept 5 (Adaptive Rail)</div>
+      </div>
+      <p style="font-size:11.5px;color:#374151;margin-top:12px">These buttons are for your review only — no implementation happens until you explicitly respond with your choice.</p>
+    </div>
+  </div>
+</div>
+
+<div style="padding:32px 0;text-align:center;color:#374151;font-size:12px">
+  SmartTrade AI — UX/UI Design Concepts · Prepared 2026-07-01 · No implementation until approved
+</div>
+
+</body>
+</html>

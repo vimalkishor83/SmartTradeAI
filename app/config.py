@@ -44,6 +44,11 @@ class Config:
     # Telegram
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 
+    # Web Push (VAPID)
+    VAPID_PUBLIC_KEY    = os.environ.get("VAPID_PUBLIC_KEY", "")
+    VAPID_PRIVATE_KEY   = os.environ.get("VAPID_PRIVATE_KEY", "")
+    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@smarttradeai.com")
+
     # Scheduler
     SCHEDULER_TIMEZONE = "Asia/Kolkata"
 
@@ -59,7 +64,8 @@ class DevelopmentConfig(Config):
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", "sqlite:///smarttrade_dev.db"
     )
-    CACHE_TYPE = "SimpleCache"
+    # Use Redis if REDIS_URL is set and reachable; otherwise fall back to in-memory
+    CACHE_TYPE = "RedisCache" if os.environ.get("REDIS_URL") else "SimpleCache"
 
 
 class ProductionConfig(Config):

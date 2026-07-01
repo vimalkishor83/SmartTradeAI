@@ -138,7 +138,7 @@ def calculate_ichimoku(high, low, close):
 
 def calculate_all_indicators(df: pd.DataFrame) -> dict:
     """Calculate all indicators for a given OHLCV dataframe."""
-    if len(df) < 52:
+    if len(df) < 30:
         return {}
 
     close = df["close"]
@@ -146,12 +146,13 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
     low = df["low"]
     volume = df["volume"] if "volume" in df.columns else pd.Series(0, index=df.index)
 
-    ema20 = calculate_ema(close, 20)
-    ema50 = calculate_ema(close, 50)
-    ema100 = calculate_ema(close, 100)
-    ema200 = calculate_ema(close, 200) if len(df) >= 200 else ema100
-    sma20 = calculate_sma(close, 20)
-    sma50 = calculate_sma(close, 50)
+    n = len(df)
+    ema20  = calculate_ema(close, 20)  if n >= 20  else close
+    ema50  = calculate_ema(close, 50)  if n >= 50  else ema20
+    ema100 = calculate_ema(close, 100) if n >= 100 else ema50
+    ema200 = calculate_ema(close, 200) if n >= 200 else ema100
+    sma20  = calculate_sma(close, 20)  if n >= 20  else close
+    sma50  = calculate_sma(close, 50)  if n >= 50  else sma20
 
     macd_line, macd_signal, macd_hist = calculate_macd(close)
     bb_upper, bb_mid, bb_lower, bb_width = calculate_bollinger_bands(close)

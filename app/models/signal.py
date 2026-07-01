@@ -1,5 +1,6 @@
 from datetime import datetime
 from app.extensions import db
+from sqlalchemy.orm import relationship
 
 
 class Signal(db.Model):
@@ -80,6 +81,11 @@ class Signal(db.Model):
             "risk_reward": self.risk_reward,
             "confidence_score": self.confidence_score,
             "confidence_label": self.confidence_label,
+            "trend_score":      self.trend_score,
+            "momentum_score":   self.momentum_score,
+            "volume_score":     self.volume_score,
+            "pattern_score":    self.pattern_score,
+            "ai_score":         self.ai_score,
             "status": self.status,
             "current_price": self.current_price,
             "pnl_pct": self.pnl_pct,
@@ -95,7 +101,8 @@ class SignalHistory(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     signal_id = db.Column(db.Integer, db.ForeignKey("signals.id"))
-    asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"))
+    asset_id  = db.Column(db.Integer, db.ForeignKey("assets.id"))
+    asset     = relationship("Asset", lazy="select")
     timeframe = db.Column(db.String(10))
     signal_type = db.Column(db.String(10))
     entry_price = db.Column(db.Float)

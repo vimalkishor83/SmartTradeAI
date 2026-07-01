@@ -2,7 +2,7 @@ import logging
 import os
 from flask import Flask
 from app.config import get_config
-from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, scheduler
+from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler
 
 
 def create_app(config_class=None):
@@ -20,12 +20,14 @@ def create_app(config_class=None):
     _init_db(app)
     _init_scheduler(app)
     _configure_logging(app)
+    _start_streams(app)
 
     return app
 
 
 def _init_extensions(app):
     db.init_app(app)
+    migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
     socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
@@ -71,24 +73,56 @@ def _init_db(app):
     with app.app_context():
         from app.models.user import UserAssetPreference  # ensure model is registered
         from app.models.journal import JournalEntry       # ensure journal table is created
-        db.create_all()
-        _migrate_columns(app)
+
+        migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
+        if os.path.isdir(migrations_dir):
+            # Flask-Migrate is initialised — run pending Alembic upgrades
+            try:
+                from flask_migrate import upgrade as _upgrade
+                _upgrade(directory=migrations_dir)
+            except Exception as e:
+                logging.getLogger(__name__).warning(f"flask-migrate upgrade failed, falling back: {e}")
+                db.create_all()
+                _migrate_columns(app)
+        else:
+            # No migrations dir yet — create tables + apply ad-hoc column additions
+            db.create_all()
+            _migrate_columns(app)
+
         _seed_initial_data(app)
 
 
 def _migrate_columns(app):
     """Add new columns and indexes to existing tables (SQLite safe — skips if already present)."""
     column_migrations = [
-        ("users",     "account_size",         "REAL    DEFAULT 100000.0"),
-        ("users",     "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
-        ("users",     "min_confidence_filter","INTEGER DEFAULT 60"),
-        ("backtests", "sortino_ratio",        "REAL    DEFAULT 0"),
-        ("backtests", "avg_bars_held",        "REAL    DEFAULT 0"),
-        ("backtests", "total_commission",     "REAL    DEFAULT 0"),
-        ("backtests", "total_slippage",       "REAL    DEFAULT 0"),
-        ("backtests", "commission_pct",       "REAL    DEFAULT 0.1"),
-        ("backtests", "slippage_pct",         "REAL    DEFAULT 0.05"),
-        ("backtests", "exit_reasons",         "TEXT    DEFAULT '{}'"),
+        ("users",      "account_size",         "REAL    DEFAULT 100000.0"),
+        ("users",      "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
+        ("users",      "min_confidence_filter","INTEGER DEFAULT 60"),
+        ("backtests",  "sortino_ratio",        "REAL    DEFAULT 0"),
+        ("backtests",  "avg_bars_held",        "REAL    DEFAULT 0"),
+        ("backtests",  "total_commission",     "REAL    DEFAULT 0"),
+        ("backtests",  "total_slippage",       "REAL    DEFAULT 0"),
+        ("backtests",  "commission_pct",       "REAL    DEFAULT 0.1"),
+        ("backtests",  "slippage_pct",         "REAL    DEFAULT 0.05"),
+        ("backtests",  "exit_reasons",         "TEXT    DEFAULT '{}'"),
+        # 2FA columns
+        ("users",      "totp_secret",          "TEXT"),
+        ("users",      "totp_enabled",         "INTEGER DEFAULT 0"),
+        ("users",      "totp_backup_codes",    "TEXT"),
+        # Web Push
+        ("users",      "push_subscription",    "TEXT"),
+        # APIConfig new columns
+        ("api_configs","access_token",         "TEXT"),
+        ("api_configs","refresh_token",        "TEXT"),
+        ("api_configs","websocket_url",        "TEXT"),
+        ("api_configs","auth_type",            "TEXT    DEFAULT 'api_key'"),
+        ("api_configs","is_default",           "INTEGER DEFAULT 0"),
+        ("api_configs","status",               "TEXT    DEFAULT 'active'"),
+        ("api_configs","connection_status",    "TEXT    DEFAULT 'unknown'"),
+        ("api_configs","priority",             "INTEGER DEFAULT 0"),
+        ("api_configs","refresh_interval",     "INTEGER DEFAULT 60"),
+        ("api_configs","last_sync",            "DATETIME"),
+        ("api_configs","last_latency_ms",      "INTEGER"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)
@@ -103,6 +137,7 @@ def _migrate_columns(app):
         ("audit_logs",     "idx_audit_logs_created",    "created_at"),
         ("system_logs",    "idx_sys_logs_level_time",   "level, created_at"),
         ("journal_entries","idx_journal_user_date",     "user_id, trade_date"),
+        ("api_logs",       "idx_api_logs_config_time",  "api_config_id, created_at"),
     ]
 
     with app.app_context():
@@ -122,6 +157,18 @@ def _migrate_columns(app):
                 conn.commit()
             except Exception:
                 pass  # index already exists or table not yet created
+
+        # Backfill NULL values in new api_configs columns for existing rows
+        try:
+            cur.execute("UPDATE api_configs SET status='active' WHERE status IS NULL")
+            cur.execute("UPDATE api_configs SET connection_status='unknown' WHERE connection_status IS NULL")
+            cur.execute("UPDATE api_configs SET auth_type='api_key' WHERE auth_type IS NULL")
+            cur.execute("UPDATE api_configs SET is_default=0 WHERE is_default IS NULL")
+            cur.execute("UPDATE api_configs SET priority=0 WHERE priority IS NULL")
+            cur.execute("UPDATE api_configs SET refresh_interval=60 WHERE refresh_interval IS NULL")
+            conn.commit()
+        except Exception:
+            pass
 
         # Drop OHLCV and indicator tables — data is served from the API cache,
         # not stored in the DB.  We drop them here once (safe — they are never
@@ -247,6 +294,33 @@ def _seed_initial_data(app):
     except Exception:
         pass
 
+    # Seed default API configurations if none exist
+    from app.models.api_config import APIConfig
+    if not APIConfig.query.first():
+        defaults = [
+            APIConfig(name="Binance (Crypto)", provider="binance", market="crypto",
+                      base_url="https://api.binance.com", websocket_url="wss://stream.binance.com:9443",
+                      auth_type="api_key", status="active", is_active=True, is_default=True,
+                      rate_limit=1200, refresh_interval=45, priority=10),
+            APIConfig(name="Yahoo Finance (Forex)", provider="yahoo", market="forex",
+                      base_url="https://query1.finance.yahoo.com", auth_type="none",
+                      status="active", is_active=True, is_default=True,
+                      rate_limit=100, refresh_interval=180, priority=10),
+            APIConfig(name="Yahoo Finance (Commodity)", provider="yahoo", market="commodity",
+                      base_url="https://query1.finance.yahoo.com", auth_type="none",
+                      status="active", is_active=True, is_default=True,
+                      rate_limit=100, refresh_interval=180, priority=10),
+            APIConfig(name="Yahoo Finance (Indices)", provider="yahoo", market="index",
+                      base_url="https://query1.finance.yahoo.com", auth_type="none",
+                      status="active", is_active=True, is_default=True,
+                      rate_limit=100, refresh_interval=180, priority=10),
+            APIConfig(name="Yahoo Finance (Indian Stocks)", provider="yahoo", market="indian_stock",
+                      base_url="https://query1.finance.yahoo.com", auth_type="none",
+                      status="active", is_active=True, is_default=True,
+                      rate_limit=100, refresh_interval=300, priority=10),
+        ]
+        db.session.add_all(defaults)
+
     db.session.commit()
 
 
@@ -257,13 +331,60 @@ def _init_scheduler(app):
     from app.services.data.collector import register_collector_job
 
     with app.app_context():
-        register_collector_job(scheduler, app)   # must register first — warms cache early
+        register_collector_job(scheduler, app)
         register_signal_jobs(scheduler, app)
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)
 
     if not scheduler.running:
         scheduler.start()
+
+    # Auto-resume auto-generate if it was running before server restart
+    _resume_auto_generate(app)
+
+
+def _resume_auto_generate(app):
+    """If ag_state.json says running=True, re-register the scheduler job."""
+    try:
+        from app.api.v1.signals import _ag_load, _AG_STATE, _AG_JOB_ID, _run_auto_generate
+        saved = _ag_load()
+        if not saved or not saved.get("running"):
+            return
+        # Restore settings into live state
+        raw_tfs = saved.get("timeframes") or saved.get("timeframe", "1h")
+        timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
+        _AG_STATE.update({
+            "running":            True,
+            "asset_ids":          saved.get("asset_ids", []),
+            "timeframes":         timeframes,
+            "signal_filter":      saved.get("signal_filter", "all"),
+            "min_confidence":     float(saved.get("min_confidence", 0)),
+            "max_per_run":        int(saved.get("max_per_run", 0)),
+            "interval_minutes":   int(saved.get("interval_minutes", 5)),
+            "telegram_on_signal": bool(saved.get("telegram_on_signal", True)),
+        })
+        interval = _AG_STATE["interval_minutes"]
+        from datetime import datetime
+        if interval > 0:
+            try:
+                scheduler.remove_job(_AG_JOB_ID)
+            except Exception:
+                pass
+            scheduler.add_job(
+                _run_auto_generate,
+                "interval",
+                args=[app],
+                id=_AG_JOB_ID,
+                minutes=interval,
+                replace_existing=True,
+                next_run_time=datetime.utcnow(),
+            )
+        n_assets = len(_AG_STATE["asset_ids"]) or "all"
+        logging.getLogger(__name__).info(
+            f"Auto Generate resumed: {n_assets} assets × {timeframes} every {interval}min"
+        )
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Auto Generate resume failed: {e}")
 
 
 def _configure_logging(app):
@@ -272,34 +393,44 @@ def _configure_logging(app):
 
     log_file = os.path.join(log_dir, "app.log")
 
-    # File handler — all INFO+ logs go here
+    # File handler — INFO+ goes to file only
     file_handler = logging.FileHandler(log_file)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter(
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     ))
 
-    # Console handler — WARNING+ only (errors you must see)
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(logging.WARNING)
-    console_handler.setFormatter(logging.Formatter(
-        "[%(levelname)s] %(name)s: %(message)s"
-    ))
-
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.handlers.clear()
     root.addHandler(file_handler)
-    root.addHandler(console_handler)
 
     app.logger.setLevel(logging.INFO)
 
-    # Silence noisy third-party loggers even in file
-    logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
-    logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
-    logging.getLogger("werkzeug").setLevel(logging.WARNING)
-    logging.getLogger("yfinance").setLevel(logging.WARNING)
-    logging.getLogger("peewee").setLevel(logging.WARNING)
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
+    # Silence noisy third-party loggers
+    for name in (
+        "werkzeug",
+        "apscheduler.executors.default",
+        "apscheduler.scheduler",
+        "apscheduler.jobstores.default",
+        "yfinance",
+        "peewee",
+        "urllib3",
+        "requests",
+        "charset_normalizer",
+        "socketio",
+        "engineio",
+    ):
+        logging.getLogger(name).setLevel(logging.ERROR)
 
-    print(f"SmartTrade AI - logs -> {log_file}")
+    # Kill werkzeug request-line output entirely
+    logging.getLogger("werkzeug").disabled = True
+
+
+def _start_streams(app):
+    """Start Binance WebSocket price stream in background (crypto live prices)."""
+    try:
+        from app.services.data.binance_stream import binance_stream
+        binance_stream.start(app)
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Binance stream start failed: {e}")

@@ -60,6 +60,14 @@ class User(db.Model):
     risk_per_trade_pct = db.Column(db.Float, default=1.0)
     min_confidence_filter = db.Column(db.Integer, default=60)
 
+    # Two-Factor Authentication
+    totp_secret       = db.Column(db.String(64), nullable=True)
+    totp_enabled      = db.Column(db.Boolean, default=False)
+    totp_backup_codes = db.Column(db.Text, nullable=True)  # JSON list of hashed backup codes
+
+    # Web Push subscription (JSON from browser PushSubscription.toJSON())
+    push_subscription = db.Column(db.Text, nullable=True)
+
     last_login = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -92,6 +100,7 @@ class User(db.Model):
             "account_size": self.account_size or 100000.0,
             "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,
             "min_confidence_filter": self.min_confidence_filter if self.min_confidence_filter is not None else 60,
+            "totp_enabled": self.totp_enabled,
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat(),
         }

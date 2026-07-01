@@ -1,0 +1,724 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartTradeAI — Enterprise Product Review</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --bg2: #1a1d27;
+    --bg3: #222636;
+    --border: #2e3348;
+    --text: #e2e8f0;
+    --muted: #8892a4;
+    --accent: #4f8ef7;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #f59e0b;
+    --purple: #a78bfa;
+    --cyan: #22d3ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+
+  /* Layout */
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+
+  /* Header */
+  .report-header { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-bottom: 32px; }
+  .report-header h1 { font-size: 26px; font-weight: 700; color: var(--accent); margin-bottom: 6px; }
+  .report-header .meta { display: flex; gap: 24px; flex-wrap: wrap; margin-top: 12px; }
+  .report-header .meta span { color: var(--muted); font-size: 13px; }
+  .report-header .meta span b { color: var(--text); }
+  .exec-summary { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); line-height: 1.7; }
+
+  /* Section */
+  .section { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 24px; overflow: hidden; }
+  .section-header { padding: 16px 20px; background: var(--bg3); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+  .section-header:hover { background: #272b3d; }
+  .section-num { background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; min-width: 28px; text-align: center; }
+  .section-header h2 { font-size: 15px; font-weight: 600; flex: 1; }
+  .section-header .toggle { color: var(--muted); font-size: 18px; transition: transform 0.2s; }
+  .section-header.collapsed .toggle { transform: rotate(-90deg); }
+  .section-body { padding: 20px; display: block; }
+  .section-body.hidden { display: none; }
+
+  /* Problem items */
+  .problem { background: var(--bg); border-left: 3px solid var(--red); border-radius: 0 6px 6px 0; padding: 12px 16px; margin-bottom: 12px; }
+  .problem-title { font-weight: 600; color: var(--text); margin-bottom: 4px; font-size: 13px; }
+  .problem-body { color: var(--muted); font-size: 13px; line-height: 1.6; }
+
+  /* Scores table */
+  .scores-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 13px; }
+  .scores-table th { text-align: left; padding: 8px 12px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+  .scores-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .score-bar { display: flex; align-items: center; gap: 8px; }
+  .score-bar-track { flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; max-width: 120px; }
+  .score-bar-fill { height: 6px; border-radius: 3px; }
+  .score-val { font-weight: 700; min-width: 24px; }
+
+  /* Overall scorecard */
+  .scorecard { overflow-x: auto; margin-top: 8px; }
+  .scorecard table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 700px; }
+  .scorecard th { padding: 10px 8px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); font-weight: 600; text-align: center; }
+  .scorecard td { padding: 8px; border: 1px solid var(--border); text-align: center; }
+  .scorecard td:first-child { text-align: left; font-weight: 500; color: var(--text); }
+  .scorecard tr:last-child td { font-weight: 700; background: var(--bg3); }
+
+  /* Priority roadmap */
+  .priority-section { margin-bottom: 28px; }
+  .priority-label { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 6px; font-weight: 700; font-size: 13px; margin-bottom: 16px; }
+  .p1 { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); }
+  .p2 { background: rgba(245,158,11,0.15); color: var(--yellow); border: 1px solid rgba(245,158,11,0.3); }
+  .p3 { background: rgba(79,142,247,0.15); color: var(--accent); border: 1px solid rgba(79,142,247,0.3); }
+
+  .roadmap-item { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; }
+  .roadmap-item h4 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text); }
+  .roadmap-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
+  .tag-low { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag-medium { background: rgba(245,158,11,0.15); color: var(--yellow); }
+  .tag-high { background: rgba(239,68,68,0.15); color: var(--red); }
+  .tag-be { background: rgba(79,142,247,0.1); color: var(--accent); }
+  .tag-fe { background: rgba(167,139,250,0.1); color: var(--purple); }
+  .tag-db { background: rgba(34,211,238,0.1); color: var(--cyan); }
+  .roadmap-field { font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .roadmap-field b { color: var(--text); }
+
+  /* Innovation */
+  .innovation { background: linear-gradient(135deg, rgba(79,142,247,0.06), rgba(167,139,250,0.06)); border: 1px solid rgba(79,142,247,0.2); border-radius: 8px; padding: 16px 18px; margin-bottom: 12px; }
+  .innovation h4 { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 8px; }
+  .innovation p { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+  /* Final assessment */
+  .assessment-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 24px; margin-top: 8px; }
+  .assessment-card p { color: var(--muted); margin-bottom: 10px; line-height: 1.7; font-size: 13px; }
+  .gap-list { list-style: none; padding: 0; margin: 12px 0; }
+  .gap-list li { padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--muted); display: flex; gap: 10px; }
+  .gap-list li::before { content: "→"; color: var(--accent); }
+
+  /* Utility */
+  .text-muted { color: var(--muted); }
+  .mt-8 { margin-top: 8px; }
+  .mb-0 { margin-bottom: 0; }
+
+  @media (max-width: 600px) {
+    .container { padding: 16px; }
+    .report-header { padding: 20px; }
+    .report-header .meta { gap: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="report-header">
+    <h1>SmartTradeAI — Enterprise Product Review</h1>
+    <div class="meta">
+      <span><b>Review Date:</b> 2026-07-01</span>
+      <span><b>Reviewer:</b> Enterprise Product Review Board</span>
+      <span><b>Version:</b> Pre-Production</span>
+      <span><b>Sections:</b> 15 areas reviewed, 47 gaps identified</span>
+    </div>
+    <div class="exec-summary">
+      SmartTradeAI is a technically capable, feature-rich AI trading signal platform with 33 screens, 60+ API endpoints, 18 data models, real-time WebSocket, backtesting, ML predictions, and multi-market support. However, there is a significant gap between <strong>feature completeness</strong> and <strong>enterprise readiness</strong>. It is currently a developer-built MVP that has not yet reached production grade. The review below identifies 47 distinct gaps across UX, security, performance, accessibility, and reliability that must be addressed before deployment in a regulated, multi-user enterprise environment.
+    </div>
+  </div>
+
+  <!-- SECTION 1 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">01</span>
+      <h2>Navigation &amp; Information Architecture</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">1.1 — Navigation Overload</div><div class="problem-body">Twenty navigation items in a single sidebar with no grouping beyond a collapsible "Admin" section. On a 768px screen the sidebar becomes unusable. Enterprise users navigating by keyboard will tab through every item on every page load.</div></div>
+      <div class="problem"><div class="problem-title">1.2 — No Global Search</div><div class="problem-body">There is no way to search across signals, assets, journal entries, or backtests from a single input. A power user managing 50+ assets across 5 markets has no fast path. Enterprise tools like Bloomberg, Salesforce, and Jira all treat global search as a P0 feature.</div></div>
+      <div class="problem"><div class="problem-title">1.3 — No Breadcrumbs</div><div class="problem-body">Sub-pages (e.g., /admin/assets, /asset/42) give no contextual trail. Users who deep-link from a Telegram alert have no orientation.</div></div>
+      <div class="problem"><div class="problem-title">1.4 — Generic Page Titles</div><div class="problem-body">Browser tab titles are not differentiated by page. All tabs show "SmartTradeAI." A user with 5 tabs open cannot distinguish them.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>UI Design</td><td><div class="score-bar"><span class="score-val">6</span><div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#f59e0b"></div></div></div></td><td></td><td class="text-muted">Clean dark theme but no hierarchy or visual weight system</td></tr>
+        <tr><td>User Experience</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Navigation requires too many clicks; no shortcuts</td></tr>
+        <tr><td>Accessibility</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No skip-to-content, no ARIA landmarks, sidebar keyboard navigation untested</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No global search, no breadcrumbs, no command palette</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 2 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">02</span>
+      <h2>Dashboard</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">2.1 — KPI Cards Have No Trend Indicators</div><div class="problem-body">Win rate shows as a number with no arrow, no sparkline, no delta from yesterday. An enterprise trader needs temporal context on every KPI.</div></div>
+      <div class="problem"><div class="problem-title">2.2 — Dashboard Is Not Configurable</div><div class="problem-body">Every user sees the same layout. A scalp trader wants 1m/5m signals. A swing trader wants 4h/1d. No pinnable widgets, no drag-to-reorder. Enterprise dashboards (Grafana, Datadog, Salesforce) are configurable by design.</div></div>
+      <div class="problem"><div class="problem-title">2.3 — Signal Table Has No Column Sorting</div><div class="problem-body">The active signals table has no clickable column headers. Users cannot sort by confidence, P&L, or age. Every data table in an enterprise product must support column-level sort.</div></div>
+      <div class="problem"><div class="problem-title">2.4 — No "Last Updated" Timestamp</div><div class="problem-body">No indicator of when data was last refreshed. Safety-critical in a trading context where stale data can lead to bad decisions.</div></div>
+      <div class="problem"><div class="problem-title">2.5 — Heatmap Has No Click-Through</div><div class="problem-body">Heatmap cells are not clickable to open the asset detail page. Dead-end interaction — every heatmap in every enterprise tool is a navigation element.</div></div>
+      <div class="problem"><div class="problem-title">2.6 — No Real-Time Connection Indicator</div><div class="problem-body">No visual indicator that WebSocket is connected and prices are live. If the socket drops, users see stale prices with no warning.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>UI Design</td><td><div class="score-bar"><span class="score-val">6</span><div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#f59e0b"></div></div></div></td><td></td><td class="text-muted">Functional but static; no data visualization depth</td></tr>
+        <tr><td>User Experience</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Not configurable; no sort; no contextual navigation</td></tr>
+        <tr><td>Performance</td><td><div class="score-bar"><span class="score-val">6</span><div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#f59e0b"></div></div></div></td><td></td><td class="text-muted">Multiple parallel fetches; no progressive loading</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No personalization, no trend indicators, no real-time status</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 3 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">03</span>
+      <h2>Signals Module</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">3.1 — No Live P&L Progress on Active Signals</div><div class="problem-body">Current price is shown but no visual distance-to-target or distance-to-stop. A trader with 20 active signals cannot tell at a glance which are closest to resolution.</div></div>
+      <div class="problem"><div class="problem-title">3.2 — Confidence Score Has No Explainability</div><div class="problem-body">The breakdown scores (trend, momentum, volume, pattern, AI) exist in the model but are hidden. A professional trader will not trust a black-box number. EU AI Act and MiFID II increasingly require algorithmic transparency.</div></div>
+      <div class="problem"><div class="problem-title">3.3 — No Signal Replay / Forensic Snapshot</div><div class="problem-body">There is no way to see what the indicators looked like when the signal was generated. A user cannot review why a losing trade was signaled. Required for institutional audit trails.</div></div>
+      <div class="problem"><div class="problem-title">3.4 — CSV Export Has No Date Range Filter</div><div class="problem-body">The export endpoint exports all signals. On a system running for 12 months this will timeout or produce an unusable file.</div></div>
+      <div class="problem"><div class="problem-title">3.5 — No Bulk Actions</div><div class="problem-body">A user cannot select 10 signals and dismiss, archive, or export only those rows. Enterprise data tables require bulk action capability.</div></div>
+      <div class="problem"><div class="problem-title">3.6 — Analytics Has No Drill-Down</div><div class="problem-body">Clicking a bar in the win-rate chart does nothing. A user should be able to click "Forex — 38% win rate" and see the individual signals that drove that number. Analytics without drill-down is a read-only report with no actionability.</div></div>
+      <div class="problem"><div class="problem-title">3.7 — Auto-Generate Has No Failure Alerting</div><div class="problem-body">If auto-generate runs 10 consecutive times with 0 signals (API failure, engine error), there is no alert. Silent failure in an autonomous financial signal system is a production safety issue.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>UI Design</td><td><div class="score-bar"><span class="score-val">6</span><div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#f59e0b"></div></div></div></td><td></td><td class="text-muted">Grid is clean but lacks visual depth and hierarchy</td></tr>
+        <tr><td>User Experience</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No grouping, no P&L progress, no explainability</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No bulk actions, no date-filtered export, no forensic audit</td></tr>
+        <tr><td>Scalability</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Bulk export will timeout at scale</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 4 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">04</span>
+      <h2>Backtesting</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">4.1 — CRITICAL: Backtest Strategy ≠ Live Signal Engine</div><div class="problem-body">The backtesting UI runs RSI/MACD/EMA strategies. The live engine runs a proprietary multi-factor system. A backtest on "MACD strategy" tells the user nothing about the signals they are actually receiving. This is the most critical credibility gap in the entire product. The walk-forward runner (app/services/backtest/runner.py) already uses the real engine — the UI page must be wired to it.</div></div>
+      <div class="problem"><div class="problem-title">4.2 — No Parameter Sweep / Optimization</div><div class="problem-body">A professional quant needs to test a range of parameters (e.g., ATR multiplier 1.0–2.5 in 0.1 steps) and see results as a comparison table. Current implementation runs one fixed configuration per test.</div></div>
+      <div class="problem"><div class="problem-title">4.3 — No Side-by-Side Comparison</div><div class="problem-body">A user cannot run two backtests side-by-side (BTC 1h vs BTC 4h). Each result is isolated. Enterprise tools (QuantConnect, Amibroker) all support multi-run comparison.</div></div>
+      <div class="problem"><div class="problem-title">4.4 — Equity Curve Has No Benchmark Overlay</div><div class="problem-body">The equity curve shows strategy performance with no buy-and-hold benchmark comparison. Without context, 40% drawdown could appear acceptable or catastrophic.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>User Experience</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Disconnected from live engine; no sweep; no templates</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val" style="color:var(--red)">3</span><div class="score-bar-track"><div class="score-bar-fill" style="width:30%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Critical disconnect between backtest and live signal engine</td></tr>
+        <tr><td>Maintainability</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Two separate backtesting codepaths will diverge over time</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">05</span>
+      <h2>Portfolio Management</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">5.1 — No Historical P&L Tracking</div><div class="problem-body">The portfolio shows current P&L but has no time-series of portfolio value. A user cannot see how their portfolio performed last week vs last month.</div></div>
+      <div class="problem"><div class="problem-title">5.2 — No Market Allocation View</div><div class="problem-body">No pie chart or allocation breakdown showing "40% crypto, 35% forex, 25% commodities." Day-1 requirement for any portfolio management tool.</div></div>
+      <div class="problem"><div class="problem-title">5.3 — No Signal-to-Position Linking</div><div class="problem-body">A BUY signal for BTC and a portfolio position in BTC are entirely disconnected records. There is no "convert signal to position" workflow — requires 5 clicks across 3 pages.</div></div>
+      <div class="problem"><div class="problem-title">5.4 — No Drawdown or VaR Metrics</div><div class="problem-body">No drawdown, no Value at Risk, no max adverse excursion. Enterprise minimum requirements for a risk-aware trading platform.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>UI Design</td><td><div class="score-bar"><span class="score-val">6</span><div class="score-bar-track"><div class="score-bar-fill" style="width:60%;background:#f59e0b"></div></div></div></td><td></td><td class="text-muted">Clean table; missing allocation visualizations</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Missing allocation, correlation, VaR, drawdown</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 6 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">06</span>
+      <h2>Trade Journal</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">6.1 — Screenshot Field Is Dead Infrastructure</div><div class="problem-body">screenshot_url exists in the model but there is no UI to upload or link a chart screenshot. Professional traders annotate every trade with a chart. The field is non-functional.</div></div>
+      <div class="problem"><div class="problem-title">6.2 — Stats Have No Date Range Filter</div><div class="problem-body">Journal stats show all-time data only. A trader reviewing "last month's performance" cannot scope the stats to a date range.</div></div>
+      <div class="problem"><div class="problem-title">6.3 — No Streak Tracking</div><div class="problem-body">No win streak / loss streak indicator. Behavioral finance research shows streak awareness reduces revenge trading — directly supporting the journal's emotional health theme.</div></div>
+      <div class="problem"><div class="problem-title">6.4 — No Journaling Prompts</div><div class="problem-body">The entry form is blank. Enterprise-grade journals (TraderVue, Edgewonk) provide structured prompts: "What was your thesis?", "Did you follow your rules?" These improve data quality and self-reflection.</div></div>
+    </div>
+  </div>
+
+  <!-- SECTION 7 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">07</span>
+      <h2>Market Scanner</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">7.1 — Filters Are Not Composable</div><div class="problem-body">Users cannot combine filters: "strong_buy AND volume_spike AND RSI &lt; 30." Each filter is a standalone button. Real scanners (TradingView, TC2000) support full boolean AND/OR/NOT logic.</div></div>
+      <div class="problem"><div class="problem-title">7.2 — No Scan Scheduling or Alerts</div><div class="problem-body">There is no way to save a scan and receive an alert when new assets match. This is the primary value of a scanner — it should run continuously and alert, not require manual execution every session.</div></div>
+      <div class="problem"><div class="problem-title">7.3 — Results Have No Action Buttons</div><div class="problem-body">Scan results show matching assets with no "add to watchlist," "view signal," or "generate signal" options. The page is a dead end.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>User Experience</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Non-composable filters; no scheduling; dead-end results</td></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val" style="color:var(--red)">3</span><div class="score-bar-track"><div class="score-bar-fill" style="width:30%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Manual-only; no alert capability defeats the purpose</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 8 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">08</span>
+      <h2>Authentication &amp; Security</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">8.1 — No Two-Factor Authentication</div><div class="problem-body">No 2FA (TOTP/SMS/OTP). For a platform influencing financial decisions and holding API keys, this is not optional. SOC 2, PCI-DSS, and ISO 27001 all require MFA for financial applications.</div></div>
+      <div class="problem"><div class="problem-title">8.2 — No Session Management UI</div><div class="problem-body">Users cannot see active sessions (device, IP, last activity) or revoke them. Standard security feature in every enterprise platform (Google, GitHub, Salesforce).</div></div>
+      <div class="problem"><div class="problem-title">8.3 — No CSRF Protection Documentation</div><div class="problem-body">JWT token storage method (HttpOnly cookie vs localStorage) determines CSRF/XSS exposure. A financial platform requires documented security architecture, not implicit assumptions.</div></div>
+      <div class="problem"><div class="problem-title">8.4 — No Password Strength Indicator</div><div class="problem-body">Registration has a password field with no visible strength indicator or minimum complexity feedback during input. Users discover weak password rejection only on submission.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>Enterprise Readiness</td><td><div class="score-bar"><span class="score-val" style="color:var(--red)">3</span><div class="score-bar-track"><div class="score-bar-fill" style="width:30%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">No 2FA; no session management; no CSRF documentation</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 9 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">09</span>
+      <h2>Performance &amp; Scalability</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">9.1 — Schema Migrations in App Factory</div><div class="problem-body">Column-add migrations run as ad hoc ALTER TABLE statements in __init__.py at every startup. This is not idempotent, cannot be rolled back, and will corrupt a production PostgreSQL database if two servers start simultaneously. A production incident waiting to happen.</div></div>
+      <div class="problem"><div class="problem-title">9.2 — TA Summary Is 350 API Calls Per Cold Request</div><div class="problem-body">With 50 assets × 7 timeframes, a cold-cache TA summary is 350 API calls. Cold-cache performance on this endpoint will be measured in tens of seconds.</div></div>
+      <div class="problem"><div class="problem-title">9.3 — Background Jobs Have No Dead Letter Queue</div><div class="problem-body">If _run_auto_generate throws an unhandled exception, the job logs an error and continues silently. No retry backoff, no circuit breaker. A bad API config will generate errors indefinitely.</div></div>
+      <div class="problem"><div class="problem-title">9.4 — No CDN or Static Asset Cache-Busting</div><div class="problem-body">Static JS/CSS files have no version hash. A deployment that changes app.js will not be picked up by users with browser caching until the cache expires.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>Performance</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Caching exists but cold-cache paths are slow</td></tr>
+        <tr><td>Scalability</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Single-process; no job queue; no CDN</td></tr>
+        <tr><td>Maintainability</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Migrations in app factory will cause production issues</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 10 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">10</span>
+      <h2>Accessibility</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">10.1 — Color as Sole Differentiator</div><div class="problem-body">BUY=green, SELL=red — the only visual differentiator. ~8% of men are red-green colorblind. No icons or text labels accompany color in the signal grid. WCAG 1.4.1 violation.</div></div>
+      <div class="problem"><div class="problem-title">10.2 — Charts Are Not Accessible</div><div class="problem-body">All charts (doughnut, bar, candlestick) are canvas elements with no accessible data table fallback. Invisible to screen readers.</div></div>
+      <div class="problem"><div class="problem-title">10.3 — No Keyboard Shortcut System</div><div class="problem-body">No keyboard shortcuts anywhere. Enterprise power users — traders especially — operate primarily by keyboard. Even basic shortcuts (R to refresh, N for new) would materially improve efficiency.</div></div>
+      <div class="problem"><div class="problem-title">10.4 — No ARIA Labels on Icon Buttons</div><div class="problem-body">Icon-only buttons (refresh, delete, add) have no aria-label. A screen reader user cannot determine the button's purpose.</div></div>
+      <div class="problem"><div class="problem-title">10.5 — Touch Targets Under 44px</div><div class="problem-body">Several action buttons in tables (edit, delete, info) are smaller than the 44×44px minimum touch target recommended by WCAG and Apple HIG. Effectively untappable on mobile.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>Accessibility</td><td><div class="score-bar"><span class="score-val" style="color:var(--red)">3</span><div class="score-bar-track"><div class="score-bar-fill" style="width:30%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Color-only differentiation, no ARIA, no keyboard shortcuts, inaccessible charts</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 11 -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num">11</span>
+      <h2>Design System Consistency</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="problem"><div class="problem-title">11.1 — 100+ Inline style="" Overrides</div><div class="problem-body">The fix for white table text was applied as style="color:#fff" on every individual &lt;td&gt;. One CSS rule (.smart-table td { color:#fff }) would replace all of them. This is accumulated technical debt that will cause regressions as new tables are added.</div></div>
+      <div class="problem"><div class="problem-title">11.2 — No Design Token System</div><div class="problem-body">Font sizes set ad hoc (some fs-6, some small, some inline font-size:12px). Spacing set by feel rather than a consistent 4px/8px grid. A UI color change requires hunting through 33 HTML files.</div></div>
+      <div class="problem"><div class="problem-title">11.3 — Emoji Used as UI Elements</div><div class="problem-body">🟢, 🔴, 🏆, ✅ used as UI components. Emoji render inconsistently across operating systems, break at small sizes, and are invisible in PDF exports. Signals consumer-grade product quality.</div></div>
+      <div class="problem"><div class="problem-title">11.4 — No Component Library</div><div class="problem-body">Each page re-invents button styles, card layouts, and table patterns. This guarantees inconsistency as the product grows. No Storybook or documented component catalog exists.</div></div>
+      <table class="scores-table">
+        <tr><th>Dimension</th><th>Score</th><th></th><th>Rationale</th></tr>
+        <tr><td>UI Design</td><td><div class="score-bar"><span class="score-val">5</span><div class="score-bar-track"><div class="score-bar-fill" style="width:50%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Dark theme is cohesive; execution details are inconsistent</td></tr>
+        <tr><td>Maintainability</td><td><div class="score-bar"><span class="score-val">4</span><div class="score-bar-track"><div class="score-bar-fill" style="width:40%;background:#ef4444"></div></div></div></td><td></td><td class="text-muted">Inline styles, no design tokens, no component library</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- OVERALL SCORECARD -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num" style="background:var(--purple)">★</span>
+      <h2>Overall Scorecard</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="scorecard">
+        <table>
+          <thead>
+            <tr><th>Section</th><th>UI</th><th>UX</th><th>Perf</th><th>A11y</th><th>Enterprise</th><th>Scale</th><th>Maintain</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Navigation &amp; IA</td><td>6</td><td>5</td><td>7</td><td>4</td><td>4</td><td>7</td><td>6</td></tr>
+            <tr><td>Dashboard</td><td>6</td><td>5</td><td>6</td><td>4</td><td>4</td><td>6</td><td>6</td></tr>
+            <tr><td>Signals</td><td>6</td><td>5</td><td>6</td><td>4</td><td>4</td><td>5</td><td>6</td></tr>
+            <tr><td>Backtesting</td><td>6</td><td>4</td><td>6</td><td>5</td><td>3</td><td>5</td><td>5</td></tr>
+            <tr><td>Portfolio</td><td>6</td><td>5</td><td>7</td><td>5</td><td>4</td><td>6</td><td>6</td></tr>
+            <tr><td>Trade Journal</td><td>6</td><td>5</td><td>7</td><td>5</td><td>5</td><td>6</td><td>7</td></tr>
+            <tr><td>Scanner</td><td>5</td><td>4</td><td>6</td><td>4</td><td>3</td><td>4</td><td>5</td></tr>
+            <tr><td>Risk Calculator</td><td>6</td><td>5</td><td>8</td><td>5</td><td>4</td><td>7</td><td>7</td></tr>
+            <tr><td>Admin</td><td>6</td><td>5</td><td>6</td><td>4</td><td>4</td><td>5</td><td>5</td></tr>
+            <tr><td>Notifications</td><td>6</td><td>5</td><td>7</td><td>5</td><td>4</td><td>6</td><td>6</td></tr>
+            <tr><td>Auth / Security</td><td>5</td><td>5</td><td>7</td><td>5</td><td>3</td><td>6</td><td>5</td></tr>
+            <tr><td>Performance</td><td>—</td><td>—</td><td>5</td><td>—</td><td>4</td><td>4</td><td>5</td></tr>
+            <tr><td>Accessibility</td><td>4</td><td>4</td><td>—</td><td>3</td><td>4</td><td>—</td><td>5</td></tr>
+            <tr><td>Design System</td><td>5</td><td>5</td><td>—</td><td>4</td><td>4</td><td>—</td><td>4</td></tr>
+            <tr><td>Responsiveness</td><td>5</td><td>4</td><td>—</td><td>4</td><td>4</td><td>—</td><td>5</td></tr>
+            <tr style="background:rgba(79,142,247,0.1)"><td><b>Average</b></td><td><b>5.6</b></td><td><b>4.8</b></td><td><b>6.4</b></td><td><b>4.3</b></td><td><b>3.9</b></td><td><b>5.6</b></td><td><b>5.5</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="text-muted mt-8" style="font-size:13px;margin-top:12px;">
+        The lowest scoring dimension is <strong style="color:var(--red)">Enterprise Readiness (3.9/10)</strong>. The second lowest is <strong style="color:var(--red)">Accessibility (4.3/10)</strong>. These are the two axes that determine Fortune 500 deployment eligibility.
+      </p>
+    </div>
+  </div>
+
+  <!-- PRIORITY 1 -->
+  <h2 style="font-size:18px;margin:32px 0 16px;color:var(--text)">Prioritized Improvement Roadmap</h2>
+
+  <div class="priority-section">
+    <div class="priority-label p1">● PRIORITY 1 — Critical (Required Before Production)</div>
+
+    <div class="roadmap-item">
+      <h4>P1-1 — Two-Factor Authentication (2FA)</h4>
+      <div class="roadmap-field"><b>Why:</b> Platform handles API keys, Telegram tokens, and financial data. A single compromised admin password gives full system access. No enterprise will deploy a financial tool without MFA.</div>
+      <div class="roadmap-field"><b>Business value:</b> Enables regulated-industry deployment. Satisfies SOC 2, ISO 27001, and enterprise security review checklists.</div>
+      <div class="roadmap-field"><b>Risk:</b> Recovery flow (lost authenticator) must prevent social-engineering bypass.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-fe">Frontend</span>
+        <span class="tag tag-db">Database</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-2 — Proper Database Migration System (Alembic / Flask-Migrate)</h4>
+      <div class="roadmap-field"><b>Why:</b> Ad hoc ALTER TABLE statements in __init__.py at every startup are not idempotent and will corrupt PostgreSQL in a multi-server deployment (migration race condition).</div>
+      <div class="roadmap-field"><b>Business value:</b> Zero-downtime deployments. Rollback capability. Required by any enterprise DevOps pipeline.</div>
+      <div class="roadmap-field"><b>Risk:</b> First migration must be carefully generated against the existing schema to avoid data loss.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-db">Database</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-3 — Unify Backtesting UI with the Live Signal Engine</h4>
+      <div class="roadmap-field"><b>Why:</b> The backtesting UI runs RSI/MACD/EMA strategies. The live engine is a proprietary multi-factor system. These are different. A user "validating the system" via backtest gets results that are completely disconnected from what they are actually trading. The walk-forward runner already exists — the UI just needs to call it.</div>
+      <div class="roadmap-field"><b>Business value:</b> Core credibility. Enables the platform to make defensible statistical claims about performance.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-fe">Frontend</span>
+        <span class="tag tag-be">Backend (minor)</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-4 — Fix Inline style="" Table Colors via CSS Rule</h4>
+      <div class="roadmap-field"><b>Why:</b> 100+ individual inline color overrides accumulated from fix sessions. A new table added without the style will be invisible. One CSS rule (.smart-table td { color:#fff }) replaces all of them.</div>
+      <div class="roadmap-field"><b>Business value:</b> Maintainability. Prevents recurrence of the bug that required the overrides in the first place.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-fe">Frontend (CSS)</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-5 — WebSocket Connection Status Indicator + Auto-Reconnect</h4>
+      <div class="roadmap-field"><b>Why:</b> If the Binance WebSocket disconnects, live prices silently go stale. A trader seeing an old price for 20 minutes could make a catastrophically wrong decision. Safety-critical gap.</div>
+      <div class="roadmap-field"><b>Business value:</b> User trust. Prevents financial decisions on stale data.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-fe">Frontend</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-6 — Confidence Score Explainability (Score Breakdown)</h4>
+      <div class="roadmap-field"><b>Why:</b> The model stores trend_score, momentum_score, volume_score, pattern_score, ai_score on every signal. Not showing these is a deliberate omission preventing user trust. EU AI Act and MiFID II increasingly require algorithmic transparency in financial tools.</div>
+      <div class="roadmap-field"><b>Business value:</b> User trust. Regulatory compliance posture. Data already exists — purely a frontend change.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-7 — Implement Web Push Notifications</h4>
+      <div class="roadmap-field"><b>Why:</b> push_enabled exists in the User model but is entirely unimplemented. A user who enables push notifications and never receives them will lose trust in all notifications including Telegram alerts. Dead UI state is worse than absent UI state.</div>
+      <div class="roadmap-field"><b>Business value:</b> Highest-engagement notification channel. Reaches users with browser backgrounded. Increases signal action rate.</div>
+      <div class="roadmap-field"><b>Risk:</b> Requires HTTPS in production. Permission prompt timing is critical UX.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-fe">Frontend (ServiceWorker)</span>
+        <span class="tag tag-db">Database</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P1-8 — Auto-Generate Silent Failure Alerting</h4>
+      <div class="roadmap-field"><b>Why:</b> If auto-generate runs N consecutive times with zero signals (API down, engine error), the user and admin have no visibility. Silent failure in an autonomous financial signal system is unacceptable in production.</div>
+      <div class="roadmap-field"><b>Business value:</b> Operational reliability. Prevents users assuming the system is working when it is not.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-be">Backend only</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRIORITY 2 -->
+  <div class="priority-section">
+    <div class="priority-label p2">● PRIORITY 2 — High Value</div>
+
+    <div class="roadmap-item">
+      <h4>P2-1 — Global Search / Command Palette (Ctrl+K)</h4>
+      <div class="roadmap-field"><b>Why:</b> With 20+ pages and hundreds of assets, no fast-path navigation exists. This pattern (Linear, Vercel, GitHub, Notion, Figma) is now an enterprise UX standard. Reaches any page or asset in 2 keystrokes.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-2 — Dashboard Widget Personalization</h4>
+      <div class="roadmap-field"><b>Why:</b> A 1m scalper and a weekly swing trader have diametrically opposed information needs. Configurable dashboards are a table-stakes feature for enterprise analytics platforms.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-high">High complexity</span>
+        <span class="tag tag-fe">Frontend (significant)</span>
+        <span class="tag tag-be">Backend (minor)</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-3 — Signal P&L Progress Bar (Live Distance-to-Target)</h4>
+      <div class="roadmap-field"><b>Why:</b> A visual progress bar showing current price as a percentage of the entry-to-target range lets traders assess 20 active signals in one glance. Data already available — frontend only change.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-4 — Scanner: Composable Filters + Save + Alert</h4>
+      <div class="roadmap-field"><b>Why:</b> A manual filter button that users click every session is utility software. Real scanners run continuously and push alerts — that is the retention mechanism that brings users back to the platform.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-high">High complexity</span>
+        <span class="tag tag-be">Backend (new model + job)</span>
+        <span class="tag tag-fe">Frontend (filter builder)</span>
+        <span class="tag tag-db">Database</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-5 — Portfolio Historical Equity Curve</h4>
+      <div class="roadmap-field"><b>Why:</b> "How has my portfolio performed over the last 30 days?" is the most fundamental question in portfolio management. Users comparing this platform to Webull, IBKR, or TradingView will immediately notice the absence of this feature.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend (new model + daily job)</span>
+        <span class="tag tag-fe">Frontend (chart)</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-6 — User Session Management</h4>
+      <div class="roadmap-field"><b>Why:</b> Users cannot see or revoke active sessions. GDPR Article 15 right of access and enterprise security policies require this. Standard on every platform users will compare this to.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-fe">Frontend (settings)</span>
+        <span class="tag tag-db">Database</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-7 — Signal-to-Position One-Click Workflow</h4>
+      <div class="roadmap-field"><b>Why:</b> Converting a signal to a portfolio position is a 5-click, 3-page workflow. An "Add to Portfolio" button on signal cards that pre-fills entry, SL, and target1 is a 1-click change with high adoption impact.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-8 — Backtest Side-by-Side Comparison View</h4>
+      <div class="roadmap-field"><b>Why:</b> The insight "4h produces 48% win rate vs 1h at 35%" requires opening two pages and doing mental comparison. A pinned comparison table would make this a 10-second decision.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-9 — Keyboard Shortcuts System</h4>
+      <div class="roadmap-field"><b>Why:</b> Active traders operate under time pressure. The complete absence of keyboard shortcuts signals the platform was not designed for professional traders. Even 6 core shortcuts (R, N, J, S, W, ESC) measurably improve power-user efficiency.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-low">Low complexity</span>
+        <span class="tag tag-fe">Frontend only</span>
+      </div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P2-10 — GDPR Data Export &amp; Right to Erasure</h4>
+      <div class="roadmap-field"><b>Why:</b> GDPR Article 20 (data portability) and Article 17 (erasure) require user data export and deletion. Deploying without this in the EU is a legal violation. Required for enterprise procurement sign-off in any regulated market.</div>
+      <div class="roadmap-meta">
+        <span class="tag tag-medium">Medium complexity</span>
+        <span class="tag tag-be">Backend</span>
+        <span class="tag tag-fe">Frontend (settings)</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRIORITY 3 -->
+  <div class="priority-section">
+    <div class="priority-label p3">● PRIORITY 3 — Nice to Have (Polish &amp; Differentiation)</div>
+
+    <div class="roadmap-item">
+      <h4>P3-1 — Interactive Chart with Signal Overlay</h4>
+      <div class="roadmap-field"><b>Why:</b> The TradingView widget is view-only. Users cannot draw trend lines or overlay signal entry/SL/target lines. This keeps users opening TradingView in a separate tab — splitting attention and reducing platform stickiness.</div>
+      <div class="roadmap-meta"><span class="tag tag-high">High complexity</span><span class="tag tag-fe">Frontend</span></div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P3-2 — AI-Generated Morning Briefing Narrative</h4>
+      <div class="roadmap-field"><b>Why:</b> The briefing page shows structured data. A plain-English AI narrative ("BTC consolidating near resistance, 3 high-confidence buy setups today, NFP at 13:30 UTC — caution advised") transforms the platform from data display into intelligent assistant. Bloomberg Brief is the reference.</div>
+      <div class="roadmap-meta"><span class="tag tag-medium">Medium complexity</span><span class="tag tag-be">Backend (LLM API call)</span><span class="tag tag-fe">Frontend</span></div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P3-3 — 30-Day Rolling Win Rate Trend Chart</h4>
+      <div class="roadmap-field"><b>Why:</b> Today's win rate is meaningless without context. A rolling 30-day trend chart shows whether the system is improving, plateauing, or degrading. All data already exists in SignalHistory — purely a visualization addition.</div>
+      <div class="roadmap-meta"><span class="tag tag-low">Low complexity</span><span class="tag tag-be">Backend (minor)</span><span class="tag tag-fe">Frontend</span></div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P3-4 — Light Mode / Dark Mode Toggle</h4>
+      <div class="roadmap-field"><b>Why:</b> The platform is dark-mode only. The theme field already exists on the User model. CSS custom properties can support both modes with a single class toggle. Widens appeal to institutional users in bright office environments.</div>
+      <div class="roadmap-meta"><span class="tag tag-low">Low complexity</span><span class="tag tag-fe">Frontend (CSS refactor)</span></div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P3-5 — Replace UI Emoji with Consistent Icon Set</h4>
+      <div class="roadmap-field"><b>Why:</b> Emoji (🟢, 🔴, 🏆) render inconsistently across OS versions, break at small sizes, and are invisible in PDF exports. Replacing with Bootstrap Icons gives consistent rendering and a professional appearance.</div>
+      <div class="roadmap-meta"><span class="tag tag-low">Low complexity</span><span class="tag tag-fe">Frontend (templates + JS)</span></div>
+    </div>
+
+    <div class="roadmap-item">
+      <h4>P3-6 — Micro-Animations for State Changes</h4>
+      <div class="roadmap-field"><b>Why:</b> Status changes (active → hit_target), KPI number refreshes, and notification arrival all happen instantaneously. Subtle CSS transitions make state changes perceptible and give the product a polished, responsive feel comparable to Robinhood or eToro.</div>
+      <div class="roadmap-meta"><span class="tag tag-low">Low complexity</span><span class="tag tag-fe">Frontend (CSS + minor JS)</span></div>
+    </div>
+  </div>
+
+  <!-- INNOVATION -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num" style="background:var(--purple)">✦</span>
+      <h2>Innovative Enterprise Features — Beyond Stated Requirements</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+
+      <div class="innovation">
+        <h4>Innovation 1 — Signal Lineage &amp; Forensic Reproducibility Engine</h4>
+        <p>Every signal stores a complete snapshot of indicator values, candle data, and engine parameters at generation time. A dedicated "Signal Forensics" view reconstructs the exact market state — candlestick chart with the signal bar highlighted, all indicator values, and per-component scoring rationale. Institutional trading firms require full audit trails for every algorithmic decision. Making this navigable transforms the platform from a signal generator into an auditable decision-support system — a requirement for any regulated entity operating under MiFID II or equivalent.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 2 — Adaptive Confidence Calibration (Personalized Thresholds)</h4>
+        <p>Track each user's journal entries and automatically calibrate a personalized confidence threshold per timeframe and market. If a user's journal shows they perform best on 4h signals above 75% confidence, the system surfaces that insight and optionally auto-applies it. Over time the platform learns the user's "edge profile." The journal data and confidence score data already exist — connecting them creates a feedback loop that improves performance over time. No other retail trading platform does this. It is a genuine competitive moat.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 3 — Multi-Asset Correlation &amp; Portfolio Risk Heat Map</h4>
+        <p>A real-time correlation matrix showing how all portfolio and watchlist assets move relative to each other (Pearson correlation, rolling 30-day returns). Cells above 0.8 correlation are flagged red (concentration risk); cells below -0.3 are flagged green (hedging opportunity). Virtually every institutional risk management system has a correlation matrix as a core view. Retail traders chronically over-concentrate in correlated assets — this prevents that mistake. The OHLCV data needed to compute it is already being fetched.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 4 — Signal Strategy A/B Testing Framework</h4>
+        <p>Run two engine parameter sets simultaneously — Version A on 50% of assets, Version B on the other 50%. Track win rates separately. After N signals, declare a winner with statistical significance and auto-apply. The R:R optimization done in this session was performed manually: backtest → change → re-backtest. This process should be continuous and automated. The walk-forward backtest infrastructure already exists — this extends it from a diagnostic tool into a continuous improvement engine, the way quantitative hedge funds operate.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 5 — Economic Event Pre-Trade Freeze Zones</h4>
+        <p>Automatically suppress or flag signals generated within ±30 minutes of high-impact economic events (NFP, CPI, FOMC, RBA decisions). Display a "High Impact Event Zone" banner on affected signals and optionally auto-pause auto-generate during these windows. The economic calendar is already fetched from Forex Factory. The most common cause of algorithmic signal failure in practice is a high-impact news event that makes all technical analysis irrelevant for 15–60 minutes. Connecting these two existing data sources is a low-complexity, high-value trader protection feature.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 6 — Signal Quality Score (Post-Hoc Reputation System)</h4>
+        <p>After each signal closes, compute a quality score from: how quickly it resolved, the R:R achieved vs projected, whether direction was correct, and whether it occurred during an event window. A signal that hit target in 2 hours at R:R 2.1 is qualitatively superior to one that barely closed in 6 days at R:R 1.01 — both count as "wins" today. Quality scores, displayed on signal cards, tell professional users which signals to prioritize among those above the confidence threshold. Over time, parameters that generated high-quality signals receive higher weight in the engine.</p>
+      </div>
+
+      <div class="innovation">
+        <h4>Innovation 7 — Multi-Tenant White-Label Architecture</h4>
+        <p>A tenant layer above the current user/role system. Each tenant (a brokerage, prop firm, or signals provider) gets isolated data, custom branding, their own asset universe, API configurations, and engine parameters. The technical groundwork (roles, subscriptions, asset preferences) is already present. Adding tenant_id to user-scoped models and a tenant-aware JWT claim is the incremental step. This multiplies revenue potential by N tenants without N separate deployments — the highest-leverage architecture decision available at this stage.</p>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FINAL ASSESSMENT -->
+  <div class="section">
+    <div class="section-header" onclick="toggle(this)">
+      <span class="section-num" style="background:var(--green)">✓</span>
+      <h2>Final Assessment</h2>
+      <span class="toggle">▾</span>
+    </div>
+    <div class="section-body">
+      <div class="assessment-card">
+        <p>SmartTradeAI has the <strong>feature breadth of an enterprise product</strong> and the <strong>code quality of a well-built MVP</strong>. The core infrastructure — multi-market signals, backtesting, portfolio tracking, AI predictions, WebSocket prices, scheduled jobs, and role-based access — is genuinely impressive for its stage. The gap to enterprise deployment is not about missing features.</p>
+        <p>The gap is about:</p>
+        <ul class="gap-list">
+          <li><strong>Trust infrastructure</strong> — 2FA, session management, signal forensics, score explainability</li>
+          <li><strong>Operational reliability</strong> — proper migrations, job failure alerting, WebSocket reconnection</li>
+          <li><strong>Design system consistency</strong> — design tokens, component library, CSS discipline</li>
+          <li><strong>Regulatory readiness</strong> — GDPR data export/deletion, AI Act transparency requirements</li>
+          <li><strong>Performance under load</strong> — tested at 1 user, not at 50 concurrent with 500 assets</li>
+        </ul>
+        <p style="margin-top:12px;">A focused six-week engineering sprint addressing all Priority 1 items and the top six Priority 2 items would produce a product that can survive a Fortune 500 security review. The innovative features (Adaptive Calibration, Economic Event Freeze Zones, Signal Lineage Engine) represent the roadmap that will make this product <em>defensible against competition</em> once the enterprise fundamentals are in place.</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function toggle(header) {
+  header.classList.toggle('collapsed');
+  header.nextElementSibling.classList.toggle('hidden');
+}
+
+// Color score cells in scorecard
+document.querySelectorAll('.scorecard td').forEach(td => {
+  const v = parseInt(td.textContent);
+  if (isNaN(v)) return;
+  if (v <= 3) td.style.color = '#ef4444';
+  else if (v <= 5) td.style.color = '#f59e0b';
+  else if (v <= 7) td.style.color = '#22c55e';
+  else td.style.color = '#4f8ef7';
+});
+</script>
+</body>
+</html>

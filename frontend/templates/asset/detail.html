@@ -25,25 +25,32 @@
   .tf-btn:hover { border-color: var(--accent); color: var(--accent); }
   .tf-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-  .indicator-group { margin-bottom: 1.5rem; }
+  .indicator-group { margin-bottom: 1.25rem; }
   .indicator-group-label {
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: .08em;
+    letter-spacing: .1em;
     text-transform: uppercase;
     color: var(--text-muted);
-    margin-bottom: .5rem;
+    margin-bottom: .4rem;
+    padding: 4px 0 6px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 5px;
   }
   .indicator-card {
     background: var(--surface-2, #1e293b);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
+    border-radius: 6px;
+    padding: 9px 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
+    transition: background .15s;
   }
+  .indicator-card:hover { background: #263244; }
   .indicator-name { font-size: 12px; color: var(--text-secondary); }
   .indicator-value { font-size: 13px; font-weight: 700; }
 
@@ -72,9 +79,12 @@
     background: #0f172a;
     border-radius: 0 0 8px 8px;
     position: relative;
+    width: 100%;
+    display: block;
+    overflow: hidden;
   }
-  #tvChart { width: 100%; height: 420px; }
-  #tvVolume { width: 100%; height: 120px; }
+  #tvChart  { width: 100%; height: 420px; display: block; }
+  #tvVolume { width: 100%; height: 100px; display: block; }
 
   .tab-nav .nav-link {
     font-size: 13px;
@@ -86,7 +96,7 @@
     background: transparent;
   }
   .tab-nav .nav-link.active {
-    color: var(--accent);
+    color: #ffffff;
     border-bottom-color: var(--accent);
   }
 
@@ -262,33 +272,33 @@
         </div>
         <div id="quickStats">
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs">Market</span>
+            <span class="fs-xs">Market</span>
             <span class="fs-xs fw-600">{{ asset.market | replace('_',' ') | title }}</span>
           </div>
           {% if asset.exchange %}
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs">Exchange</span>
+            <span class="fs-xs">Exchange</span>
             <span class="fs-xs fw-600">{{ asset.exchange }}</span>
           </div>
           {% endif %}
           {% if asset.base_currency %}
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs">Base</span>
+            <span class="fs-xs">Base</span>
             <span class="fs-xs fw-600">{{ asset.base_currency }}</span>
           </div>
           {% endif %}
           {% if asset.quote_currency %}
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs">Quote</span>
+            <span class="fs-xs">Quote</span>
             <span class="fs-xs fw-600">{{ asset.quote_currency }}</span>
           </div>
           {% endif %}
           <div class="d-flex justify-content-between py-2" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs">Data Source</span>
+            <span class="fs-xs">Data Source</span>
             <span class="fs-xs fw-600">{{ asset.data_source or '—' }}</span>
           </div>
           <div class="d-flex justify-content-between py-2">
-            <span class="text-muted fs-xs">Status</span>
+            <span class="fs-xs">Status</span>
             <span class="fs-xs fw-600 {% if asset.is_active %}text-green{% else %}text-red{% endif %}">
               {{ 'Active' if asset.is_active else 'Inactive' }}
             </span>
@@ -380,7 +390,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 /* ── Constants ────────────────────────────────────────── */
 const ASSET_ID   = {{ asset_id }};
@@ -421,7 +431,7 @@ function setIndTF(tf) {
 
 /* ── Live price ───────────────────────────────────────── */
 async function loadLivePrice() {
-  const data = await API.get(`/market-data/${ASSET_ID}/ticker`);
+  const data = await API.get(`/assets/${ASSET_ID}/ticker`);
   if (!data) return;
 
   const price  = parseFloat(data.last_price || data.price || 0);
@@ -454,107 +464,80 @@ async function loadChart() {
   const status = document.getElementById('chartStatus');
   if (status) status.textContent = 'Loading…';
 
-  const data = await API.get(`/market-data/${ASSET_ID}/ohlcv`, { timeframe: _tf, limit: 200 });
+  const resp = await API.get(`/market-data/${ASSET_ID}/ohlcv`, { timeframe: _tf, limit: 200 });
+  const rawData = resp?.data ?? resp;
 
-  if (!data || !Array.isArray(data) || data.length === 0) {
+  if (!rawData || !Array.isArray(rawData) || rawData.length === 0) {
     if (status) status.textContent = 'No data';
     return;
   }
-  if (status) status.textContent = `${data.length} candles · ${_tf}`;
+  if (status) status.textContent = `${rawData.length} candles · ${_tf}`;
 
-  // Map API format {t,o,h,l,c,v} → TradingView format
-  const candles = data.map(d => ({
-    time:  Math.floor(d.t / 1000),
+  // t may be ms (13 digits) or s (10 digits) — normalise to seconds
+  const toSec = t => t > 1e10 ? Math.floor(t / 1000) : Math.floor(t);
+
+  // Deduplicate by time (lightweight-charts requires unique timestamps)
+  const seen = new Set();
+  const unique = rawData.filter(d => { const s = toSec(d.t); if (seen.has(s)) return false; seen.add(s); return true; });
+
+  const candles = unique.map(d => ({
+    time:  toSec(d.t),
     open:  parseFloat(d.o),
     high:  parseFloat(d.h),
     low:   parseFloat(d.l),
     close: parseFloat(d.c),
   })).sort((a, b) => a.time - b.time);
 
-  const volumes = data.map(d => ({
-    time:  Math.floor(d.t / 1000),
-    value: parseFloat(d.v),
+  const volumes = unique.map(d => ({
+    time:  toSec(d.t),
+    value: parseFloat(d.v) || 0,
     color: parseFloat(d.c) >= parseFloat(d.o) ? 'rgba(16,185,129,.5)' : 'rgba(239,68,68,.5)',
   })).sort((a, b) => a.time - b.time);
 
-  const chartOpts = {
-    layout: {
-      background:  { type: 'solid', color: '#0f172a' },
-      textColor:   '#94a3b8',
-    },
-    grid: {
-      vertLines:   { color: '#1e293b' },
-      horzLines:   { color: '#1e293b' },
-    },
-    crosshair: { mode: 1 },
-    rightPriceScale: { borderColor: '#1e293b' },
-    timeScale: {
-      borderColor:    '#1e293b',
-      timeVisible:    true,
-      secondsVisible: false,
-    },
-    width:  document.getElementById('tvChart').clientWidth  || 700,
-    height: 420,
-  };
-
-  const volOpts = {
-    layout: {
-      background: { type: 'solid', color: '#0f172a' },
-      textColor:  '#94a3b8',
-    },
-    grid: {
-      vertLines: { color: '#1e293b' },
-      horzLines: { color: '#1e293b' },
-    },
-    rightPriceScale: { borderColor: '#1e293b' },
-    timeScale: {
-      borderColor:    '#1e293b',
-      timeVisible:    true,
-      secondsVisible: false,
-    },
-    width:  document.getElementById('tvVolume').clientWidth || 700,
-    height: 120,
-  };
-
-  // Destroy old instances
+  // Destroy old instances before creating new ones
   if (_chartInstance) { _chartInstance.remove(); _chartInstance = null; }
   if (_volChart)      { _volChart.remove();      _volChart      = null; }
 
-  _chartInstance = LightweightCharts.createChart(document.getElementById('tvChart'), chartOpts);
-  _candleSeries  = _chartInstance.addCandlestickSeries({
-    upColor:   '#10b981', downColor:       '#ef4444',
-    borderUpColor: '#10b981', borderDownColor: '#ef4444',
-    wickUpColor:   '#10b981', wickDownColor:   '#ef4444',
-  });
-  _candleSeries.setData(candles);
-  _chartInstance.timeScale().fitContent();
+  // Wait for browser layout so clientWidth is non-zero
+  requestAnimationFrame(() => {
+    const tvChart  = document.getElementById('tvChart');
+    const tvVolume = document.getElementById('tvVolume');
+    const w = tvChart.clientWidth || tvChart.parentElement?.clientWidth || 800;
 
-  _volChart     = LightweightCharts.createChart(document.getElementById('tvVolume'), volOpts);
-  _volumeSeries = _volChart.addHistogramSeries({
-    priceFormat: { type: 'volume' },
-    priceScaleId: '',
-  });
-  _volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
-  _volumeSeries.setData(volumes);
-  _volChart.timeScale().fitContent();
+    const base = {
+      layout: { background: { type: 'solid', color: '#0f172a' }, textColor: '#94a3b8' },
+      grid:   { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
+      rightPriceScale: { borderColor: '#1e293b' },
+      timeScale: { borderColor: '#1e293b', timeVisible: true, secondsVisible: false },
+    };
 
-  // Sync timescales
-  _chartInstance.timeScale().subscribeVisibleLogicalRangeChange(range => {
-    if (range) _volChart.timeScale().setVisibleLogicalRange(range);
-  });
-  _volChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-    if (range) _chartInstance.timeScale().setVisibleLogicalRange(range);
-  });
+    _chartInstance = LightweightCharts.createChart(tvChart,  { ...base, width: w, height: 420, crosshair: { mode: 1 } });
+    _volChart      = LightweightCharts.createChart(tvVolume, { ...base, width: w, height: 120 });
 
-  // Resize observer
-  const resizeObs = new ResizeObserver(() => {
-    const w = document.getElementById('tvChart').clientWidth;
-    if (w > 0) {
-      _chartInstance.resize(w, 420);
-      _volChart.resize(w, 120);
-    }
+    _candleSeries = _chartInstance.addCandlestickSeries({
+      upColor: '#10b981', downColor: '#ef4444',
+      borderUpColor: '#10b981', borderDownColor: '#ef4444',
+      wickUpColor:   '#10b981', wickDownColor:   '#ef4444',
+    });
+    _candleSeries.setData(candles);
+    _chartInstance.timeScale().fitContent();
+
+    _volumeSeries = _volChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
+    _volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+    _volumeSeries.setData(volumes);
+    _volChart.timeScale().fitContent();
+
+    // Sync timescales
+    _chartInstance.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) _volChart.timeScale().setVisibleLogicalRange(r); });
+    _volChart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) _chartInstance.timeScale().setVisibleLogicalRange(r); });
+
+    // Resize on container width change
+    const ro = new ResizeObserver(() => {
+      const nw = tvChart.clientWidth;
+      if (nw > 0 && _chartInstance) { _chartInstance.resize(nw, 420); _volChart.resize(nw, 120); }
+    });
+    ro.observe(tvChart);
   });
-  resizeObs.observe(document.getElementById('tvChart'));
 }
 
 /* ── Indicators ───────────────────────────────────────── */
@@ -563,86 +546,166 @@ async function loadIndicators() {
   grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
     <div class="spinner-border spinner-border-sm me-2"></div>Loading indicators…</div>`;
 
-  const data = await API.get(`/market-data/${ASSET_ID}/indicators`, { timeframe: _indTf });
-  if (!data) {
+  const resp = await API.get(`/market-data/${ASSET_ID}/indicators`, { timeframe: _indTf });
+  const data = resp?.indicators ?? resp;
+  if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
     grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">No indicator data available.</div>`;
     return;
   }
 
-  // Group indicators by category
-  const groups = {
-    Trend:      ['ema_20','ema_50','ema_200','sma_20','supertrend','supertrend_direction','adx'],
-    Momentum:   ['rsi','macd','macd_signal','macd_hist','stoch_k','stoch_d','cci','williams_r','momentum'],
-    Volatility: ['atr','bb_upper','bb_lower','bb_middle','bb_width','keltner_upper','keltner_lower'],
-    Volume:     ['obv','cmf','mfi','vwap','ad_line'],
-  };
+  // Current price for MA/band color comparisons
+  const currentPrice = parseFloat(document.getElementById('sideLivePrice')?.textContent?.replace(/,/g,'')) || 0;
+
+  // Exact keys returned by calculator.py, grouped for display
+  const GROUPS = [
+    {
+      label: 'Moving Averages',
+      icon: 'bi-graph-up',
+      keys: [
+        { k: 'ema20',  label: 'EMA 20'  },
+        { k: 'ema50',  label: 'EMA 50'  },
+        { k: 'ema100', label: 'EMA 100' },
+        { k: 'ema200', label: 'EMA 200' },
+        { k: 'sma20',  label: 'SMA 20'  },
+        { k: 'sma50',  label: 'SMA 50'  },
+        { k: 'vwap',   label: 'VWAP'    },
+      ],
+    },
+    {
+      label: 'Trend',
+      icon: 'bi-arrow-up-right',
+      keys: [
+        { k: 'supertrend',           label: 'Supertrend'        },
+        { k: 'supertrend_direction', label: 'Supertrend Signal' },
+        { k: 'ichimoku_tenkan',      label: 'Ichimoku Tenkan'   },
+        { k: 'ichimoku_kijun',       label: 'Ichimoku Kijun'    },
+        { k: 'ichimoku_senkou_a',    label: 'Senkou A'          },
+        { k: 'ichimoku_senkou_b',    label: 'Senkou B'          },
+      ],
+    },
+    {
+      label: 'Momentum',
+      icon: 'bi-speedometer2',
+      keys: [
+        { k: 'rsi',         label: 'RSI'          },
+        { k: 'macd',        label: 'MACD'         },
+        { k: 'macd_signal', label: 'MACD Signal'  },
+        { k: 'macd_hist',   label: 'MACD Hist'    },
+        { k: 'stoch_rsi_k', label: 'Stoch RSI %K' },
+        { k: 'stoch_rsi_d', label: 'Stoch RSI %D' },
+        { k: 'cci',         label: 'CCI'          },
+        { k: 'roc',         label: 'ROC'          },
+      ],
+    },
+    {
+      label: 'Volatility',
+      icon: 'bi-activity',
+      keys: [
+        { k: 'atr',           label: 'ATR'            },
+        { k: 'bb_upper',      label: 'BB Upper'       },
+        { k: 'bb_middle',     label: 'BB Middle'      },
+        { k: 'bb_lower',      label: 'BB Lower'       },
+        { k: 'bb_width',      label: 'BB Width'       },
+        { k: 'keltner_upper', label: 'Keltner Upper'  },
+        { k: 'keltner_lower', label: 'Keltner Lower'  },
+      ],
+    },
+    {
+      label: 'Volume',
+      icon: 'bi-bar-chart-fill',
+      keys: [
+        { k: 'obv', label: 'OBV' },
+        { k: 'cmf', label: 'CMF' },
+      ],
+    },
+  ];
+
+  // MA / band keys — colored green if price above, red if below
+  const priceAboveGreen = new Set(['ema20','ema50','ema100','ema200','sma20','sma50','vwap',
+    'supertrend','bb_upper','bb_middle','bb_lower','keltner_upper','keltner_lower',
+    'ichimoku_tenkan','ichimoku_kijun','ichimoku_senkou_a','ichimoku_senkou_b']);
 
   function fmtVal(key, val) {
-    if (val === null || val === undefined) return '<span class="text-muted">—</span>';
-    if (key === 'supertrend_direction' || key === 'supertrend') {
-      const bull = String(val).toLowerCase().includes('bull') || val === 1 || val === '1';
-      return bull
-        ? '<span class="text-green fw-700">▲ Bullish</span>'
-        : '<span class="text-red fw-700">▼ Bearish</span>';
-    }
-    if (key === 'rsi') {
-      const n = parseFloat(val);
-      const clr = n > 70 ? 'var(--red)' : n < 30 ? 'var(--green)' : 'var(--text-secondary)';
-      return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}</span>`;
-    }
-    if (key === 'cmf') {
-      const n = parseFloat(val);
-      return `<span class="${n >= 0 ? 'text-green' : 'text-red'} fw-700">${n.toFixed(4)}</span>`;
+    if (val === null || val === undefined) return '<span style="color:var(--text-muted)">—</span>';
+
+    // Direction signals
+    if (key === 'supertrend_direction') {
+      const up = String(val).toLowerCase().includes('up') || String(val).toLowerCase().includes('bull') || val === 1;
+      return up ? '<span style="color:#10b981;font-weight:700">▲ Bullish</span>'
+                : '<span style="color:#ef4444;font-weight:700">▼ Bearish</span>';
     }
     const n = parseFloat(val);
-    return isNaN(n) ? `<span class="text-muted">${val}</span>`
-                    : `<span>${n.toFixed(4)}</span>`;
+    if (isNaN(n)) return `<span>${val}</span>`;
+
+    // RSI: red >70, green <30, neutral white
+    if (key === 'rsi') {
+      const clr = n > 70 ? '#ef4444' : n < 30 ? '#10b981' : '#fff';
+      const lbl = n > 70 ? ' OB' : n < 30 ? ' OS' : '';
+      return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}${lbl}</span>`;
+    }
+    // MACD hist / CMF: positive = green, negative = red
+    if (key === 'macd_hist' || key === 'cmf') {
+      const clr = n >= 0 ? '#10b981' : '#ef4444';
+      return `<span style="color:${clr};font-weight:700">${n.toFixed(4)}</span>`;
+    }
+    // CCI / ROC: positive = green, negative = red
+    if (key === 'cci' || key === 'roc') {
+      const clr = n > 0 ? '#10b981' : '#ef4444';
+      return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}</span>`;
+    }
+    // Stoch RSI: overbought/oversold coloring
+    if (key === 'stoch_rsi_k' || key === 'stoch_rsi_d') {
+      const clr = n > 80 ? '#ef4444' : n < 20 ? '#10b981' : '#fff';
+      return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}</span>`;
+    }
+    // OBV: just white (no meaningful +/- threshold)
+    if (key === 'obv') {
+      return `<span>${n >= 1e6 ? (n/1e6).toFixed(2)+'M' : n >= 1e3 ? (n/1e3).toFixed(2)+'K' : n.toFixed(0)}</span>`;
+    }
+    // Price-level keys: green if current price is above, red if below
+    if (priceAboveGreen.has(key) && currentPrice > 0) {
+      const clr = currentPrice >= n ? '#10b981' : '#ef4444';
+      const fmt = n >= 1000 ? n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : n.toFixed(4);
+      return `<span style="color:${clr};font-weight:700">${fmt}</span>`;
+    }
+    // Default: white
+    const fmt = n >= 1000 ? n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}) : n.toFixed(4);
+    return `<span>${fmt}</span>`;
   }
 
-  function labelOf(k) {
-    return k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
-  }
+  // Build 2-column layout: left col = groups 0,1 | right col = groups 2,3,4
+  const leftGroups  = GROUPS.slice(0, 2);
+  const rightGroups = GROUPS.slice(2);
 
-  let html = '';
-  for (const [grp, keys] of Object.entries(groups)) {
-    const rows = keys
-      .filter(k => data[k] !== undefined)
-      .map(k => `
+  function renderGroup(g) {
+    const rows = g.keys
+      .filter(({ k }) => data[k] !== undefined && data[k] !== null)
+      .map(({ k, label }) => `
         <div class="indicator-card">
-          <span class="indicator-name">${labelOf(k)}</span>
+          <span class="indicator-name">${label}</span>
           <span class="indicator-value">${fmtVal(k, data[k])}</span>
         </div>`).join('');
-
-    if (!rows) continue;
-    html += `
-      <div class="col-md-6">
-        <div class="indicator-group">
-          <div class="indicator-group-label">${grp}</div>
-          ${rows}
+    if (!rows) return '';
+    return `
+      <div class="indicator-group">
+        <div class="indicator-group-label">
+          <i class="bi ${g.icon} me-1"></i>${g.label}
         </div>
+        ${rows}
       </div>`;
   }
 
-  // Catch-all for unlisted keys
-  const knownKeys = Object.values(groups).flat();
-  const extra = Object.entries(data)
-    .filter(([k]) => !knownKeys.includes(k) && k !== 'asset_id' && k !== 'timeframe')
-    .map(([k, v]) => `
-      <div class="indicator-card">
-        <span class="indicator-name">${labelOf(k)}</span>
-        <span class="indicator-value">${fmtVal(k, v)}</span>
-      </div>`).join('');
-  if (extra) {
-    html += `
-      <div class="col-md-6">
-        <div class="indicator-group">
-          <div class="indicator-group-label">Other</div>
-          ${extra}
-        </div>
-      </div>`;
+  const leftHtml  = leftGroups.map(renderGroup).filter(Boolean).join('');
+  const rightHtml = rightGroups.map(renderGroup).filter(Boolean).join('');
+
+  if (!leftHtml && !rightHtml) {
+    grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">No indicator data available.</div>`;
+    return;
   }
 
-  grid.innerHTML = html || `<div class="col-12 text-center py-5 text-muted">No indicator data available.</div>`;
+  grid.innerHTML = `
+    <div class="col-lg-6">${leftHtml}</div>
+    <div class="col-lg-6">${rightHtml}</div>`;
 }
 
 /* ── Asset Signals History ────────────────────────────── */
@@ -670,11 +733,16 @@ async function loadAssetSignals() {
 
   function shortTime(iso) {
     if (!iso) return '—';
-    const d = new Date(iso), now = new Date();
-    if ((now - d) / 36e5 < 24)
-      return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
-    return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
-           d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    if (isNaN(d)) return '—';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const pad    = n => String(n).padStart(2, '0');
+    const h24    = d.getUTCHours();
+    const ampm   = h24 >= 12 ? 'PM' : 'AM';
+    const h12    = h24 % 12 || 12;
+    const time   = `${pad(h12)}:${pad(d.getUTCMinutes())} ${ampm}`;
+    const date   = `${pad(d.getUTCDate())} ${months[d.getUTCMonth()]}`;
+    return `${date}<br><span style="color:var(--text-muted);font-size:10px">${time}</span>`;
   }
 
   tbody.innerHTML = signals.map(s => {
@@ -683,7 +751,7 @@ async function loadAssetSignals() {
     const rr      = parseFloat(s.risk_reward) || 0;
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-secondary)';
     return `<tr>
-      <td class="text-muted fs-xs" style="white-space:nowrap">${shortTime(s.generated_at)}</td>
+      <td class="fs-xs" style="white-space:nowrap;color:#fff">${shortTime(s.generated_at)}</td>
       <td><span class="badge-tag">${s.timeframe || '—'}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
@@ -733,11 +801,23 @@ async function loadSentiment() {
 }
 
 /* ── Init ─────────────────────────────────────────────── */
-document.addEventListener('app:ready', () => {
+let _pageInited = false;
+function _initPage() {
+  if (_pageInited) return;
+  _pageInited = true;
   loadLivePrice();
   loadChart();
   loadSentiment();
+}
+// Fire on app:ready (normal) or fall back after DOM is ready if event already fired
+document.addEventListener('app:ready', _initPage);
+if (document.readyState !== 'loading') {
+  setTimeout(_initPage, 80);
+} else {
+  document.addEventListener('DOMContentLoaded', () => setTimeout(_initPage, 80));
+}
 
+document.addEventListener('app:ready', () => {
   document.getElementById('btnRefreshAll')?.addEventListener('click', () => {
     loadLivePrice();
     loadChart();

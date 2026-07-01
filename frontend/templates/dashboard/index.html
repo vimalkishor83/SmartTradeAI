@@ -1,14 +1,14 @@
-﻿{% extends "partials/base.html" %}
+{% extends "partials/base.html" %}
 {% block title %}Dashboard — SmartTrade AI{% endblock %}
 {% set active = 'dashboard' %}
 {% block breadcrumb %}<i class="bi bi-grid-1x2-fill me-2"></i>Dashboard{% endblock %}
 
 {% block content %}
-<!-- Page Header -->
+<!-- Greeting + page controls -->
 <div class="page-header">
   <div>
-    <h1 class="page-title">Trading Dashboard</h1>
-    <p class="page-subtitle">AI signals across all markets &nbsp;<span class="live-dot"></span>&nbsp; Live</p>
+    <div class="page-greeting" id="pageGreeting">Good morning 👋</div>
+    <p class="page-greeting-sub">Here's what's happening across all markets right now. &nbsp;<span class="live-dot"></span>&nbsp; Live</p>
   </div>
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <select class="form-select form-select-sm" id="globalTimeframe" style="width:auto">
@@ -30,115 +30,158 @@
   </div>
 </div>
 
-<!-- KPI Row — 4 + 4 -->
-<div class="row g-3 mb-3">
-  <div class="col-6 col-sm-3">
+<!-- Filter bar -->
+<div class="filter-bar mb-3">
+  <span class="filter-bar-label"><i class="bi bi-funnel me-1"></i>Filter</span>
+  <select class="form-select form-select-sm" id="signalMarketFilter" style="width:auto">
+    <option value="">All Markets</option>
+    <option value="crypto">Crypto</option>
+    <option value="forex">Forex</option>
+    <option value="commodity">Commodities</option>
+    <option value="indian_stock">Stocks</option>
+    <option value="index">Indices</option>
+  </select>
+  <select class="form-select form-select-sm" id="signalTypeFilter" style="width:auto">
+    <option value="">All Signals</option>
+    <option value="BUY">Buy</option>
+    <option value="SELL">Sell</option>
+    <option value="HOLD">Hold</option>
+    <option value="EXIT">Exit</option>
+  </select>
+  <div class="search-bar" style="width:180px">
+    <i class="bi bi-search"></i>
+    <input type="text" id="signalSearch" placeholder="Search asset…">
+  </div>
+</div>
+
+<!-- 4 KPI Cards -->
+<div class="row g-3 mb-3" id="kpiRow">
+  <div class="col-6 col-md-3">
     <div class="kpi-card green animate-in">
       <div class="kpi-top">
-        <div><div class="kpi-label">Buy Signals</div><div class="kpi-value text-green" id="kpiBuy">—</div></div>
-        <div class="kpi-icon text-green"><i class="bi bi-arrow-up-circle-fill"></i></div>
+        <div>
+          <div class="kpi-label">Win Rate</div>
+          <div class="kpi-value text-green" id="kpiWinRate">—</div>
+        </div>
+        <div class="kpi-icon text-green"><i class="bi bi-trophy-fill"></i></div>
       </div>
-      <div class="kpi-change up"><i class="bi bi-caret-up-fill"></i> Today</div>
+      <div class="kpi-change up"><i class="bi bi-bar-chart-fill me-1"></i>All time performance</div>
     </div>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card red animate-in" style="animation-delay:.05s">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card blue animate-in" style="animation-delay:.07s">
       <div class="kpi-top">
-        <div><div class="kpi-label">Sell Signals</div><div class="kpi-value text-red" id="kpiSell">—</div></div>
-        <div class="kpi-icon text-red"><i class="bi bi-arrow-down-circle-fill"></i></div>
+        <div>
+          <div class="kpi-label">Active Signals</div>
+          <div class="kpi-value" id="kpiActiveSignals">—</div>
+        </div>
+        <div class="kpi-icon text-blue"><i class="bi bi-lightning-charge-fill"></i></div>
       </div>
-      <div class="kpi-change down"><i class="bi bi-caret-down-fill"></i> Today</div>
+      <div class="kpi-change">
+        <span class="text-green me-2"><i class="bi bi-arrow-up me-1"></i><span id="kpiBuy">—</span> Buy</span>
+        <span class="text-red"><i class="bi bi-arrow-down me-1"></i><span id="kpiSell">—</span> Sell</span>
+      </div>
     </div>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card yellow animate-in" style="animation-delay:.1s">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card yellow animate-in" style="animation-delay:.14s">
       <div class="kpi-top">
-        <div><div class="kpi-label">Win Rate</div><div class="kpi-value text-yellow" id="kpiWinRate">—</div></div>
-        <div class="kpi-icon text-yellow"><i class="bi bi-trophy-fill"></i></div>
+        <div>
+          <div class="kpi-label">Avg Confidence</div>
+          <div class="kpi-value text-yellow" id="kpiAvgConf">—</div>
+        </div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-speedometer2"></i></div>
       </div>
-      <div class="kpi-change"><i class="bi bi-bar-chart-fill"></i> All time</div>
+      <div class="kpi-change"><i class="bi bi-cpu-fill me-1"></i><span id="qsAvgConf">—</span> today average</div>
     </div>
   </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card blue animate-in" style="animation-delay:.15s">
+  <div class="col-6 col-md-3">
+    <div class="kpi-card purple animate-in" style="animation-delay:.21s">
       <div class="kpi-top">
-        <div><div class="kpi-label">Hold Signals</div><div class="kpi-value" id="kpiHold">—</div></div>
-        <div class="kpi-icon text-blue"><i class="bi bi-pause-circle-fill"></i></div>
+        <div>
+          <div class="kpi-label">Open P&amp;L</div>
+          <div class="kpi-value" id="kpiOpenPnl">—</div>
+        </div>
+        <div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div>
       </div>
-      <div class="kpi-change"><i class="bi bi-dash-circle"></i> Neutral</div>
-    </div>
-  </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card purple animate-in" style="animation-delay:.2s">
-      <div class="kpi-top">
-        <div><div class="kpi-label">Exit Signals</div><div class="kpi-value text-purple" id="kpiExit">—</div></div>
-        <div class="kpi-icon text-purple"><i class="bi bi-door-open-fill"></i></div>
-      </div>
-      <div class="kpi-change down"><i class="bi bi-x-circle"></i> Today</div>
-    </div>
-  </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card green animate-in" style="animation-delay:.25s">
-      <div class="kpi-top">
-        <div><div class="kpi-label">AI Active</div><div class="kpi-value text-accent" id="kpiAI">ON</div></div>
-        <div class="kpi-icon text-accent"><i class="bi bi-cpu-fill"></i></div>
-      </div>
-      <div class="kpi-change up"><i class="bi bi-check-circle-fill"></i> Ensemble</div>
-    </div>
-  </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card animate-in" style="animation-delay:.3s">
-      <div class="kpi-top">
-        <div><div class="kpi-label">Open Alerts</div><div class="kpi-value" id="kpiAlerts">—</div></div>
-        <div class="kpi-icon text-purple"><i class="bi bi-bell-fill"></i></div>
-      </div>
-      <div class="kpi-change"><i class="bi bi-clock"></i> Pending</div>
-    </div>
-  </div>
-  <div class="col-6 col-sm-3">
-    <div class="kpi-card blue animate-in" style="animation-delay:.35s">
-      <div class="kpi-top">
-        <div><div class="kpi-label">System</div><div class="kpi-value text-green" id="kpiSystem">OK</div></div>
-        <div class="kpi-icon text-green"><i class="bi bi-server"></i></div>
-      </div>
-      <div class="kpi-change up"><i class="bi bi-activity"></i> All systems</div>
+      <div class="kpi-change" id="kpiPnlChange"><i class="bi bi-dash me-1"></i>Unrealised</div>
     </div>
   </div>
 </div>
 
-<!-- Heatmap + Sentiment -->
+<!-- Live Signals Table -->
+<div class="section-card mb-3">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals</span>
+    <span class="text-muted fs-xs" id="signalCount">—</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th>Asset / Market</th>
+          <th>TF</th>
+          <th>Signal</th>
+          <th>Entry</th>
+          <th>Confidence &amp; Levels</th>
+          <th>R:R</th>
+          <th>Time</th>
+        </tr>
+      </thead>
+      <tbody id="signalsBody">
+        <tr>
+          <td colspan="7" class="text-center text-muted py-5">
+            <i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>
+            Loading signals…
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
+    <a href="/signals" class="btn btn-sm btn-outline-secondary">View all signals <i class="bi bi-arrow-right ms-1"></i></a>
+    <nav><ul class="pagination pagination-sm mb-0" id="signalPagination"></ul></nav>
+  </div>
+</div>
+
+<!-- Charts + Heatmap row -->
 <div class="row g-3 mb-3">
-  <div class="col-lg-8">
-    <div class="section-card">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
       <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent"></i> Market Heatmap</span>
-        <div class="d-flex gap-2">
-          <select class="form-select form-select-sm" id="heatmapMarket" style="width:auto">
-            <option value="">All Markets</option>
-            <option value="crypto">Crypto</option>
-            <option value="forex">Forex</option>
-            <option value="indian_stock">Stocks</option>
-            <option value="index">Indices</option>
-          </select>
-          <button class="btn btn-sm btn-outline-light" onclick="loadHeatmap()"><i class="bi bi-arrow-repeat"></i></button>
-        </div>
+        <span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent me-1"></i>Signal Mix</span>
+        <span class="badge-tag" id="signalMixDate">Today</span>
       </div>
-      <div class="heatmap-grid" id="heatmapGrid">
-        <div class="text-muted small p-3">Loading heatmap...</div>
+      <div class="section-card-body">
+        <div class="chart-wrapper-sm"><canvas id="signalDistChart"></canvas></div>
+        <div class="row g-2 mt-2">
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">Total Today</div><div class="qs-value" id="qsTotalToday">—</div></div></div>
+          <div class="col-6"><div class="quick-stat"><div class="qs-label">Hold / Exit</div><div class="qs-value text-yellow"><span id="kpiHold">—</span>/<span id="kpiExit">—</span></div></div></div>
+        </div>
       </div>
     </div>
   </div>
   <div class="col-lg-4">
     <div class="section-card h-100">
       <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-activity text-yellow"></i> Market Sentiment</span>
+        <span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent me-1"></i>Win Rate by Market</span>
+      </div>
+      <div class="section-card-body">
+        <div class="chart-wrapper-sm"><canvas id="winRateChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-activity text-yellow me-1"></i>Market Sentiment</span>
         <span class="badge-tag" id="sentimentAsset">BTCUSDT</span>
       </div>
       <div class="section-card-body text-center">
         <div class="gauge-value mb-1" id="sentimentScore" style="color:var(--green)">—</div>
-        <div class="gauge-label" id="sentimentLabel">Loading...</div>
+        <div class="gauge-label" id="sentimentLabel">Loading…</div>
         <div class="mt-3 px-2">
-          <div class="d-flex justify-content-between text-muted mb-1" style="font-size:10px">
+          <div class="d-flex justify-content-between mb-1" style="font-size:10px;color:var(--text-muted)">
             <span>Bearish</span><span>Neutral</span><span>Bullish</span>
           </div>
           <div class="confidence-bar" style="height:8px">
@@ -151,119 +194,65 @@
   </div>
 </div>
 
-<!-- Confluence Score Widget -->
-<div class="section-card mb-3" id="confluenceWidget" style="display:none">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-layers-fill text-accent"></i> Confluence Score — Top Assets</span>
-    <span class="text-muted fs-xs">Timeframe agreement across 7 TFs</span>
-  </div>
-  <div class="section-card-body" id="confluenceBars">
-    <div class="text-muted fs-sm">Loading confluence data...</div>
-  </div>
-</div>
-
-<!-- Live Signals Table -->
+<!-- Heatmap -->
 <div class="section-card mb-3">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent"></i> Live Signals</span>
-    <div class="d-flex gap-2 flex-wrap align-items-center">
-      <div class="search-bar" style="width:160px">
-        <i class="bi bi-search"></i>
-        <input type="text" id="signalSearch" placeholder="Search asset...">
-      </div>
-      <select class="form-select form-select-sm" id="signalMarketFilter" style="width:auto">
+    <span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent me-1"></i>Market Heatmap</span>
+    <div class="d-flex gap-2">
+      <select class="form-select form-select-sm" id="heatmapMarket" style="width:auto">
         <option value="">All Markets</option>
         <option value="crypto">Crypto</option>
         <option value="forex">Forex</option>
-        <option value="commodity">Commodities</option>
         <option value="indian_stock">Stocks</option>
         <option value="index">Indices</option>
       </select>
-      <select class="form-select form-select-sm" id="signalTypeFilter" style="width:auto">
-        <option value="">All Types</option>
-        <option value="BUY">Buy</option>
-        <option value="SELL">Sell</option>
-        <option value="HOLD">Hold</option>
-        <option value="EXIT">Exit</option>
-      </select>
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadHeatmap()"><i class="bi bi-arrow-repeat"></i></button>
     </div>
   </div>
-  <div class="table-responsive">
-    <table class="smart-table">
-      <thead>
-        <tr>
-          <th>Asset</th>
-          <th>Market</th>
-          <th>TF</th>
-          <th>Signal</th>
-          <th>Entry</th>
-          <th>Stop Loss</th>
-          <th>Target 1</th>
-          <th>Target 2</th>
-          <th>R:R</th>
-          <th>Confidence</th>
-          <th>Confluence</th>
-          <th>Time</th>
-        </tr>
-      </thead>
-      <tbody id="signalsBody">
-        <tr><td colspan="12" class="text-center text-muted py-4">Loading signals...</td></tr>
-      </tbody>
-    </table>
-  </div>
-  <div class="px-3 py-2 d-flex justify-content-between align-items-center border-top" style="border-color:var(--border) !important">
-    <span class="text-muted fs-xs" id="signalCount">—</span>
-    <nav><ul class="pagination pagination-sm mb-0" id="signalPagination"></ul></nav>
+  <div class="heatmap-grid" id="heatmapGrid">
+    <div class="text-muted small p-3">Loading heatmap…</div>
   </div>
 </div>
 
-<!-- Charts + Quick Stats -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-4">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent"></i> Signal Mix</span>
-        <span class="badge-tag" id="signalMixDate">Today</span>
-      </div>
-      <div class="section-card-body">
-        <div class="chart-wrapper-sm"><canvas id="signalDistChart"></canvas></div>
-      </div>
-    </div>
+<!-- Confluence widget (shown when data available) -->
+<div class="section-card mb-3" id="confluenceWidget" style="display:none">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-layers-fill text-accent me-1"></i>Confluence Score — Top Assets</span>
+    <span class="text-muted fs-xs">Timeframe agreement across 7 TFs</span>
   </div>
-  <div class="col-lg-4">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent"></i> Win Rate by Market</span>
-      </div>
-      <div class="section-card-body">
-        <div class="chart-wrapper-sm"><canvas id="winRateChart"></canvas></div>
-      </div>
-    </div>
+  <div class="section-card-body" id="confluenceBars">
+    <div class="text-muted fs-sm">Loading confluence data…</div>
   </div>
-  <div class="col-lg-4">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-speedometer2 text-accent"></i> Quick Stats</span>
-      </div>
-      <div class="section-card-body">
-        <div class="row g-2" id="quickStats">
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Total Today</div><div class="qs-value" id="qsTotalToday">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Avg Confidence</div><div class="qs-value text-accent" id="qsAvgConf">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Best Signal</div><div class="qs-value text-green" id="qsBest">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Markets Active</div><div class="qs-value text-blue" id="qsMarkets">6</div></div></div>
-        </div>
-        <div class="mt-3 pt-2" style="border-top:1px solid var(--border)">
-          <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="text-muted fs-xs">Top Signal Today</span>
-          </div>
-          <div id="topSignalCard" class="glass-card p-2">
-            <div class="text-muted fs-xs text-center">No signals yet</div>
-          </div>
-        </div>
-      </div>
+</div>
+
+<!-- Live P&L strip (hidden until data available) -->
+<div id="livePnlStrip" style="display:none;margin-bottom:12px">
+  <div class="section-card-header" style="background:var(--bg-secondary);border-radius:10px;border:1px solid var(--border)">
+    <span class="section-card-title fs-xs text-muted">
+      <i class="bi bi-graph-up-arrow me-1 text-accent"></i>OPEN P&amp;L
+    </span>
+    <div id="pnlTickerItems" style="display:flex;gap:18px;overflow-x:auto;scrollbar-width:none;flex:1;align-items:center;margin-left:14px">
+      <span class="text-muted" style="font-size:11px">Loading…</span>
     </div>
   </div>
 </div>
+
+<script>
+// Personalized greeting
+(function () {
+  const el = document.getElementById('pageGreeting');
+  if (!el) return;
+  const h = new Date().getHours();
+  const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const name = document.getElementById('navUserName')?.textContent?.trim();
+  el.textContent = `Good ${part}${name && name !== 'User' ? ', ' + name.split(' ')[0] : ''} 👋`;
+  // Re-try once app.js has loaded the user name
+  setTimeout(() => {
+    const n2 = document.getElementById('navUserName')?.textContent?.trim();
+    if (n2 && n2 !== 'User') el.textContent = `Good ${part}, ${n2.split(' ')[0]} 👋`;
+  }, 2000);
+})();
+</script>
 {% endblock %}
 
 {% block extra_js %}

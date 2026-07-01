@@ -1,0 +1,233 @@
+{% extends "partials/base.html" %}
+{% block title %}Market Heatmap — SmartTrade AI{% endblock %}
+{% set active = 'heatmap' %}
+{% block breadcrumb %}<i class="bi bi-grid-3x3-gap-fill me-2"></i> Market Heatmap{% endblock %}
+
+{% block extra_css %}
+<style>
+.hm-controls { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+
+.hm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 8px;
+}
+.hm-grid.view-large  { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.hm-grid.view-compact{ grid-template-columns: repeat(auto-fill, minmax(90px,  1fr)); }
+
+.hm-tile {
+  border-radius: 10px;
+  padding: 14px 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform .15s, box-shadow .15s, border-color .15s;
+  position: relative;
+  overflow: hidden;
+}
+.hm-tile:hover { transform:scale(1.04); box-shadow:0 4px 20px rgba(0,0,0,.35); border-color:rgba(255,255,255,.15); }
+.hm-tile::before {
+  content:''; position:absolute; inset:0;
+  background:inherit; filter:brightness(1.15);
+  opacity:0; transition:opacity .15s;
+}
+.hm-tile:hover::before { opacity:.18; }
+
+.hm-sym  { font-size:13px; font-weight:800; line-height:1.2; }
+.hm-name { font-size:10px; opacity:.7; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.hm-pct  { font-size:18px; font-weight:900; margin-top:8px; letter-spacing:-.02em; }
+.hm-price{ font-size:10.5px; opacity:.75; margin-top:2px; }
+
+/* Colour scale — red→neutral→green */
+.hm-strong-up   { background:#065f46; color:#6ee7b7; }
+.hm-up          { background:#064e3b; color:#34d399; }
+.hm-slight-up   { background:#0d3d2b; color:#10b981; }
+.hm-flat        { background:#1e293b; color:#94a3b8; }
+.hm-slight-down { background:#3d1515; color:#f87171; }
+.hm-down        { background:#4b1515; color:#ef4444; }
+.hm-strong-down { background:#5f1d1d; color:#fca5a5; }
+
+.legend-strip {
+  display:flex; align-items:center; gap:4px; font-size:10.5px; color:var(--text-muted);
+}
+.legend-box { width:16px; height:16px; border-radius:3px; }
+
+.market-group-header {
+  font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
+  color:var(--text-muted); margin-bottom:8px; padding-bottom:6px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+}
+
+.skeleton-tile {
+  border-radius:10px; height:90px;
+  background:linear-gradient(90deg,var(--border) 25%,rgba(255,255,255,0.05) 50%,var(--border) 75%);
+  background-size:200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer { to { background-position:-200% 0; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Market Heatmap</h1>
+    <p class="page-subtitle">All assets color-coded by 24h price change</p>
+  </div>
+  <div class="hm-controls">
+    <select class="form-select form-select-sm" id="hmMarket" style="width:auto">
+      <option value="">All Markets</option>
+      <option value="crypto">Crypto</option>
+      <option value="forex">Forex</option>
+      <option value="commodity">Commodities</option>
+      <option value="indian_stock">Indian Stocks</option>
+      <option value="index">Indices</option>
+    </select>
+    <div class="btn-group btn-group-sm" role="group">
+      <button type="button" class="btn btn-outline-secondary active" id="viewCompact" onclick="setView('compact')">S</button>
+      <button type="button" class="btn btn-outline-secondary active" id="viewNormal"  onclick="setView('normal')" style="background:var(--accent);border-color:var(--accent);color:#fff">M</button>
+      <button type="button" class="btn btn-outline-secondary" id="viewLarge"  onclick="setView('large')">L</button>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" onclick="loadHeatmapPage()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<!-- Legend -->
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap">
+  <div class="legend-strip"><div class="legend-box hm-strong-up"></div>&gt;+3%</div>
+  <div class="legend-strip"><div class="legend-box hm-up"></div>+1% → +3%</div>
+  <div class="legend-strip"><div class="legend-box hm-slight-up"></div>0 → +1%</div>
+  <div class="legend-strip"><div class="legend-box hm-flat"></div>Flat</div>
+  <div class="legend-strip"><div class="legend-box hm-slight-down"></div>0 → -1%</div>
+  <div class="legend-strip"><div class="legend-box hm-down"></div>-1% → -3%</div>
+  <div class="legend-strip"><div class="legend-box hm-strong-down"></div>&lt;-3%</div>
+  <span class="text-muted fs-xs ms-auto" id="hmTimestamp"></span>
+</div>
+
+<!-- Heatmap body -->
+<div id="hmBody">
+  <!-- skeleton -->
+  <div class="hm-grid" id="hmSkeleton">
+    {% for _ in range(16) %}<div class="skeleton-tile"></div>{% endfor %}
+  </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _hmView = 'normal';
+let _hmData = [];
+
+function tileClass(pct) {
+  if (pct >=  3) return 'hm-strong-up';
+  if (pct >=  1) return 'hm-up';
+  if (pct >   0) return 'hm-slight-up';
+  if (pct === 0) return 'hm-flat';
+  if (pct > -1)  return 'hm-slight-down';
+  if (pct > -3)  return 'hm-down';
+  return 'hm-strong-down';
+}
+
+function formatPrice(p, market) {
+  if (p === null || p === undefined) return '—';
+  const n = parseFloat(p);
+  if (market === 'crypto') {
+    return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits:0})
+         : n >= 1    ? n.toFixed(2)
+         :             n.toFixed(4);
+  }
+  return n >= 100 ? n.toLocaleString('en-US', {maximumFractionDigits:2}) : n.toFixed(4);
+}
+
+function renderTiles(items) {
+  const grid = document.createElement('div');
+  grid.className = 'hm-grid' + (_hmView === 'large' ? ' view-large' : _hmView === 'compact' ? ' view-compact' : '');
+
+  items.forEach(item => {
+    const pct   = item.change_pct ?? 0;
+    const sign  = pct >= 0 ? '+' : '';
+    const tile  = document.createElement('div');
+    tile.className = `hm-tile ${tileClass(pct)}`;
+    tile.title  = `${item.name} — ${sign}${pct.toFixed(2)}%`;
+    tile.onclick = () => window.location.href = `/asset/${item.asset_id || ''}`;
+    tile.innerHTML = `
+      <div class="hm-sym">${item.symbol}</div>
+      <div class="hm-name">${item.name}</div>
+      <div class="hm-pct">${sign}${pct.toFixed(2)}%</div>
+      <div class="hm-price">${formatPrice(item.price, item.market)}</div>`;
+    grid.appendChild(tile);
+  });
+  return grid;
+}
+
+function groupByMarket(items) {
+  const groups = {};
+  const ORDER = ['crypto','forex','commodity','indian_stock','index'];
+  items.forEach(it => {
+    const m = it.market || 'other';
+    if (!groups[m]) groups[m] = [];
+    groups[m].push(it);
+  });
+  return ORDER.filter(m => groups[m]).map(m => ({ market: m, items: groups[m] }));
+}
+
+function setView(v) {
+  _hmView = v;
+  ['compact','normal','large'].forEach(k => {
+    const btn = document.getElementById('view' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (!btn) return;
+    btn.classList.toggle('active', k === v);
+    if (k === v) { btn.style.background = 'var(--accent)'; btn.style.borderColor = 'var(--accent)'; btn.style.color = '#fff'; }
+    else         { btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
+  });
+  renderPage();
+}
+
+function renderPage() {
+  const marketFilter = document.getElementById('hmMarket')?.value || '';
+  let items = _hmData;
+  if (marketFilter) items = items.filter(i => i.market === marketFilter);
+
+  const body = document.getElementById('hmBody');
+  if (!items.length) {
+    body.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-grid-3x3-gap d-block mb-2" style="font-size:2rem;opacity:.3"></i>No data available.</div>';
+    return;
+  }
+
+  body.innerHTML = '';
+  const groups = groupByMarket(items);
+  const LABELS = { crypto:'Crypto', forex:'Forex', commodity:'Commodities', indian_stock:'Indian Stocks', index:'Indices' };
+  groups.forEach(({ market, items: g }) => {
+    const section = document.createElement('div');
+    section.className = 'mb-4';
+    section.innerHTML = `<div class="market-group-header">${LABELS[market] || market}</div>`;
+    section.appendChild(renderTiles(g));
+    body.appendChild(section);
+  });
+}
+
+async function loadHeatmapPage() {
+  document.getElementById('hmBody').innerHTML =
+    '<div class="hm-grid" id="hmSkeleton">' +
+    Array(16).fill('<div class="skeleton-tile"></div>').join('') + '</div>';
+
+  try {
+    const data = await API.get('/market-data/heatmap');
+    if (!data?.heatmap) throw new Error('No data');
+    _hmData = data.heatmap;
+    document.getElementById('hmTimestamp').textContent =
+      'Updated ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+    renderPage();
+  } catch (e) {
+    document.getElementById('hmBody').innerHTML =
+      '<div class="alert alert-warning">Failed to load heatmap data.</div>';
+  }
+}
+
+document.getElementById('hmMarket').addEventListener('change', renderPage);
+loadHeatmapPage();
+setInterval(loadHeatmapPage, 180000); // refresh every 3 min
+</script>
+{% endblock %}
