@@ -128,10 +128,11 @@
   <!-- ── Right: Results (stacked cards top to bottom) ── -->
   <div class="col-lg-8">
     <!-- Placeholder -->
-    <div id="aiPlaceholder" class="d-flex align-items-center justify-content-center section-card" style="min-height:400px">
-      <div class="text-center">
-        <i class="bi bi-cpu" style="font-size:64px;color:var(--border)"></i>
-        <p class="text-muted mt-3">Select an asset and timeframes, then click Run Prediction</p>
+    <div id="aiPlaceholder" class="section-card text-center" style="min-height:360px;display:flex;align-items:center;justify-content:center">
+      <div>
+        <i class="bi bi-cpu" style="font-size:64px;color:var(--accent);opacity:0.3"></i>
+        <p class="mt-3" style="color:var(--text-muted)">Select an asset and timeframes, then click <strong style="color:var(--accent)">Run Prediction</strong></p>
+        <p style="font-size:12px;color:var(--text-muted)">Multiple timeframes run in parallel — results appear as cards below</p>
       </div>
     </div>
 
@@ -298,10 +299,11 @@ document.getElementById('runAI').addEventListener('click', async () => {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
 
-  // Show result area with skeletons
-  document.getElementById('aiPlaceholder').style.display = 'none';
-  document.getElementById('confluenceSummary').style.display = selected.length > 1 ? 'block' : 'none';
-  document.getElementById('aiResultsList').style.display = 'block';
+  // Hide placeholder, show result panels
+  const ph = document.getElementById('aiPlaceholder');
+  ph.style.setProperty('display', 'none', 'important');
+  document.getElementById('confluenceSummary').style.setProperty('display', selected.length > 1 ? 'block' : 'none', 'important');
+  document.getElementById('aiResultsList').style.setProperty('display', 'block', 'important');
   document.getElementById('confluenceAssetLabel').textContent = assetLabel;
   document.getElementById('resultsAssetLabel').textContent = assetLabel;
 
