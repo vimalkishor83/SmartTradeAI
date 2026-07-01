@@ -116,6 +116,16 @@ def _migrate_columns(app):
             except Exception:
                 pass  # index already exists or table not yet created
 
+        # Drop OHLCV and indicator tables — data is served from the API cache,
+        # not stored in the DB.  We drop them here once (safe — they are never
+        # written to in the current code, only legacy schema).
+        for dead_table in ("market_data", "technical_indicators"):
+            try:
+                cur.execute(f"DROP TABLE IF EXISTS {dead_table}")
+                conn.commit()
+            except Exception:
+                pass
+
         conn.close()
 
 
@@ -237,8 +247,10 @@ def _init_scheduler(app):
     from app.tasks.signal_tasks import register_signal_jobs
     from app.tasks.data_tasks import register_data_jobs
     from app.tasks.notification_tasks import register_notification_jobs
+    from app.services.data.collector import register_collector_job
 
     with app.app_context():
+        register_collector_job(scheduler, app)   # must register first — warms cache early
         register_signal_jobs(scheduler, app)
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)

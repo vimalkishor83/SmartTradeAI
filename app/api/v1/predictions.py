@@ -24,7 +24,7 @@ def get_prediction(asset_id):
     if existing:
         return jsonify(existing.to_dict()), 200
 
-    df = market_fetcher.fetch(asset, timeframe, 300)
+    df = market_fetcher.fetch(asset, timeframe, 220)
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503
 

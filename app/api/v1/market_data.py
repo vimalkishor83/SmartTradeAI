@@ -1,6 +1,5 @@
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
-from app.models.market_data import MarketData
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required
 from app.services.data.fetcher import market_fetcher
@@ -42,7 +41,7 @@ def get_indicators(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     timeframe = request.args.get("timeframe", "1h")
 
-    df = market_fetcher.fetch(asset, timeframe, 300)
+    df = market_fetcher.fetch(asset, timeframe, 220)
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503
 

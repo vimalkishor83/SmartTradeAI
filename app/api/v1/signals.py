@@ -73,7 +73,7 @@ def _run_auto_generate(app):
             if max_per and count >= max_per:
                 break
             try:
-                df = market_fetcher.fetch(asset, timeframe, 300)
+                df = market_fetcher.fetch(asset, timeframe, 220)
                 if df is None:
                     continue
 

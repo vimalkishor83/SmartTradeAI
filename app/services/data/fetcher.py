@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 import threading
+from functools import wraps
 import requests
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -21,6 +22,26 @@ except ImportError:
     logging.getLogger(__name__).warning("yfinance not installed — Yahoo data unavailable. Run: pip install yfinance")
 
 logger = logging.getLogger(__name__)
+
+
+# ─────────────────────────────────────────────────────────
+# Retry decorator for transient network failures
+# ─────────────────────────────────────────────────────────
+def _retry(max_attempts: int = 3, backoff: float = 1.5):
+    """Retry on any exception with exponential backoff. Returns None on final failure."""
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_attempts):
+                try:
+                    return fn(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_attempts - 1:
+                        logger.warning(f"{fn.__name__} failed after {max_attempts} attempts: {e}")
+                        return None
+                    time.sleep(backoff ** attempt)
+        return wrapper
+    return decorator
 
 
 # ─────────────────────────────────────────────────────────
@@ -61,36 +82,33 @@ class BinanceFetcher:
     BASE = "https://api.binance.com/api/v3"
     INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","2h":"2h","4h":"4h","1d":"1d"}
 
-    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
+    @_retry(max_attempts=3, backoff=1.5)
+    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         cache_key = f"{symbol}_{timeframe}"
         cached = _cache.get(cache_key)
         if cached is not None:
             return cached
 
         interval = self.INTERVAL.get(timeframe, "1h")
-        try:
-            resp = requests.get(
-                f"{self.BASE}/klines",
-                params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if not data:
-                return None
-            df = pd.DataFrame(data, columns=[
-                "timestamp","open","high","low","close","volume",
-                "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
-            ])
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            for col in ["open","high","low","close","volume"]:
-                df[col] = df[col].astype(float)
-            df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
-            _cache.set(cache_key, df)
-            return df
-        except Exception as e:
-            logger.warning(f"Binance OHLCV error {symbol}/{timeframe}: {e}")
+        resp = requests.get(
+            f"{self.BASE}/klines",
+            params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if not data:
             return None
+        df = pd.DataFrame(data, columns=[
+            "timestamp","open","high","low","close","volume",
+            "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
+        ])
+        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+        for col in ["open","high","low","close","volume"]:
+            df[col] = df[col].astype(float)
+        df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
+        _cache.set(cache_key, df)
+        return df
 
     def fetch_ticker(self, symbol: str) -> dict | None:
         try:
@@ -148,7 +166,7 @@ class YahooFetcher:
             return symbol
         return symbol
 
-    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
+    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if not _YF_AVAILABLE:
             return None
 
@@ -190,7 +208,7 @@ class YahooFetcher:
             logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
             return None
 
-    def fetch_ohlcv_batch(self, symbols: list[str], timeframe: str, limit: int = 300) -> dict[str, pd.DataFrame]:
+    def fetch_ohlcv_batch(self, symbols: list[str], timeframe: str, limit: int = 220) -> dict[str, pd.DataFrame]:
         """Fetch multiple Yahoo symbols in a single download call (much faster than one-by-one)."""
         if not _YF_AVAILABLE or not symbols:
             return {}
@@ -274,7 +292,7 @@ class MarketDataFetcher:
         self.binance = BinanceFetcher()
         self.yahoo   = YahooFetcher()
 
-    def fetch(self, asset, timeframe: str, limit: int = 300) -> pd.DataFrame | None:
+    def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if asset.data_source == "binance":
             return self.binance.fetch_ohlcv(asset.symbol, timeframe, limit)
         return self.yahoo.fetch_ohlcv(asset.symbol, timeframe, limit)
@@ -294,7 +312,7 @@ class MarketDataFetcher:
             pass
         return None
 
-    def fetch_many(self, assets: list, timeframes: list[str], limit: int = 300) -> dict[str, dict[str, pd.DataFrame]]:
+    def fetch_many(self, assets: list, timeframes: list[str], limit: int = 220) -> dict[str, dict[str, pd.DataFrame]]:
         """
         Fetch OHLCV for multiple assets × timeframes in parallel.
         Returns {symbol: {timeframe: DataFrame}}

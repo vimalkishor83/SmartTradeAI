@@ -35,7 +35,7 @@ def run_scan():
 
     results = []
     for asset in assets:
-        df = market_fetcher.fetch(asset, timeframe, 300)
+        df = market_fetcher.fetch(asset, timeframe, 220)
         if df is None or len(df) < 60:
             continue
         try:
