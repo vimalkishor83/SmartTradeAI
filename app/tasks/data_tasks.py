@@ -66,7 +66,6 @@ def close_and_record_signals(app):
                     continue
 
                 signal.current_price = current_price
-                signal.current_price = current_price
 
                 # Determine outcome
                 outcome = _check_outcome(signal, current_price)
@@ -419,6 +418,77 @@ def check_watchlist_alerts(app):
             logger.error(f"Watchlist alert commit failed: {e}")
 
 
+def nightly_cleanup(app):
+    """
+    Automated maintenance: purge stale data to keep the database lean.
+    Runs daily at 02:00 UTC. Retention policy:
+      - System / audit logs  : 7 days
+      - News articles        : 7 days
+      - Economic events      : 7 days (past events)
+      - Notifications (sent) : 7 days
+      - Signal history       : 60 days
+      - Expired signals      : 30 days
+    """
+    with app.app_context():
+        from app.models.audit import AuditLog, SystemLog
+        from app.models.news import News
+        from app.models.economic import EconomicEvent
+        from app.models.notification import Notification
+        from app.models.signal import Signal, SignalHistory
+        from app.extensions import db
+        from datetime import datetime, timedelta
+
+        now        = datetime.utcnow()
+        week_ago   = now - timedelta(days=7)
+        month_ago  = now - timedelta(days=30)
+        two_months = now - timedelta(days=60)
+
+        stats = {}
+        try:
+            # 1. System logs older than 7 days
+            n = SystemLog.query.filter(SystemLog.created_at < week_ago).delete()
+            stats["system_logs"] = n
+
+            # 2. Audit logs older than 7 days
+            n = AuditLog.query.filter(AuditLog.created_at < week_ago).delete()
+            stats["audit_logs"] = n
+
+            # 3. Old news articles
+            n = News.query.filter(News.published_at < week_ago).delete()
+            stats["news"] = n
+
+            # 4. Past economic events older than 7 days
+            n = EconomicEvent.query.filter(EconomicEvent.event_time < week_ago).delete()
+            stats["economic_events"] = n
+
+            # 5. Sent notifications older than 7 days
+            n = Notification.query.filter(
+                Notification.created_at < week_ago,
+                Notification.is_sent == True,
+            ).delete()
+            stats["notifications"] = n
+
+            # 6. Signal history older than 60 days
+            n = SignalHistory.query.filter(SignalHistory.closed_at < two_months).delete()
+            stats["signal_history"] = n
+
+            # 7. Old expired/closed signals (keep active ones indefinitely)
+            n = Signal.query.filter(
+                Signal.status.in_(["expired", "hit_target", "hit_sl"]),
+                Signal.generated_at < month_ago,
+            ).delete(synchronize_session=False)
+            stats["old_signals"] = n
+
+            db.session.commit()
+
+            total = sum(stats.values())
+            logger.info(f"Nightly cleanup: removed {total} rows — {stats}")
+
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Nightly cleanup failed: {e}")
+
+
 def register_data_jobs(scheduler, app):
     # Crypto ticker — every 5 seconds
     scheduler.add_job(update_tickers, "interval", seconds=5,
@@ -438,4 +508,7 @@ def register_data_jobs(scheduler, app):
     # Watchlist price alerts — every 2 minutes
     scheduler.add_job(check_watchlist_alerts, "interval", minutes=2,
                       args=[app], id="watchlist_alerts", replace_existing=True)
+    # Nightly database cleanup — runs at 02:00 UTC every day
+    scheduler.add_job(nightly_cleanup, "cron", hour=2, minute=0,
+                      args=[app], id="nightly_cleanup", replace_existing=True)
     logger.info("Data jobs registered")

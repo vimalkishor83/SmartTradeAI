@@ -39,7 +39,11 @@ class Signal(db.Model):
     expires_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    __table_args__ = (db.Index("idx_signals_asset_tf", "asset_id", "timeframe"),)
+    __table_args__ = (
+        db.Index("idx_signals_asset_tf",       "asset_id", "timeframe"),
+        db.Index("idx_signals_status_time",    "status",   "generated_at"),
+        db.Index("idx_signals_asset_tf_time",  "asset_id", "timeframe", "generated_at"),
+    )
 
     SIGNAL_TYPES = ["BUY", "SELL", "HOLD", "EXIT"]
     CONFIDENCE_LABELS = {
@@ -104,3 +108,9 @@ class SignalHistory(db.Model):
     duration_minutes = db.Column(db.Integer)
     generated_at = db.Column(db.DateTime)
     closed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.Index("idx_sh_asset_outcome",  "asset_id", "outcome"),
+        db.Index("idx_sh_closed_at",      "closed_at"),
+        db.Index("idx_sh_timeframe_out",  "timeframe", "outcome"),
+    )

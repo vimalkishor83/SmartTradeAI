@@ -14,7 +14,7 @@ class AuditLog(db.Model):
     ip_address = db.Column(db.String(50))
     user_agent = db.Column(db.String(500))
     status = db.Column(db.String(20), default="success")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     user = db.relationship("User")
 
@@ -34,11 +34,11 @@ class SystemLog(db.Model):
     __tablename__ = "system_logs"
 
     id = db.Column(db.Integer, primary_key=True)
-    level = db.Column(db.String(10), nullable=False)  # INFO, WARNING, ERROR, CRITICAL
+    level = db.Column(db.String(10), nullable=False, index=True)
     module = db.Column(db.String(100))
     message = db.Column(db.Text, nullable=False)
     details = db.Column(db.JSON, default=dict)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
     def to_dict(self):
         return {

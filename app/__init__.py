@@ -77,21 +77,45 @@ def _init_db(app):
 
 
 def _migrate_columns(app):
-    """Add new columns to existing tables without dropping data (SQLite ALTER TABLE)."""
-    migrations = [
+    """Add new columns and indexes to existing tables (SQLite safe — skips if already present)."""
+    column_migrations = [
         ("users", "account_size",         "REAL    DEFAULT 100000.0"),
         ("users", "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
         ("users", "min_confidence_filter","INTEGER DEFAULT 60"),
     ]
+    index_migrations = [
+        # table, index name, columns (raw SQL fragment)
+        ("signals",        "idx_signals_status_time",   "status, generated_at"),
+        ("signals",        "idx_signals_asset_tf_time", "asset_id, timeframe, generated_at"),
+        ("signal_history", "idx_sh_asset_outcome",      "asset_id, outcome"),
+        ("signal_history", "idx_sh_closed_at",          "closed_at"),
+        ("signal_history", "idx_sh_timeframe_out",      "timeframe, outcome"),
+        ("notifications",  "idx_notif_user_sent",       "user_id, is_sent"),
+        ("notifications",  "idx_notif_user_read",       "user_id, is_read"),
+        ("notifications",  "idx_notif_created",         "created_at"),
+        ("audit_logs",     "idx_audit_logs_created",    "created_at"),
+        ("system_logs",    "idx_sys_logs_level_time",   "level, created_at"),
+        ("journal_entries","idx_journal_user_date",     "user_id, trade_date"),
+    ]
+
     with app.app_context():
         conn = db.engine.raw_connection()
         cur  = conn.cursor()
-        for table, column, col_def in migrations:
+
+        for table, column, col_def in column_migrations:
             try:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
                 conn.commit()
             except Exception:
-                pass  # column already exists — safe to ignore
+                pass  # column already exists
+
+        for table, idx_name, cols in index_migrations:
+            try:
+                cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({cols})")
+                conn.commit()
+            except Exception:
+                pass  # index already exists or table not yet created
+
         conn.close()
 
 

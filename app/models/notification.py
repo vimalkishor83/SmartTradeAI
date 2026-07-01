@@ -18,6 +18,12 @@ class Notification(db.Model):
     sent_at = db.Column(db.DateTime)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    __table_args__ = (
+        db.Index("idx_notif_user_sent",  "user_id", "is_sent"),
+        db.Index("idx_notif_user_read",  "user_id", "is_read"),
+        db.Index("idx_notif_created",    "created_at"),
+    )
+
     def to_dict(self):
         return {
             "id": self.id,
