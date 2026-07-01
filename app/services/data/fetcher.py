@@ -45,6 +45,47 @@ def _retry(max_attempts: int = 3, backoff: float = 1.5):
 
 
 # ─────────────────────────────────────────────────────────
+# Circuit breaker — stops hammering a source that is down
+# ─────────────────────────────────────────────────────────
+class _CircuitBreaker:
+    """
+    Open (block) after `failure_threshold` consecutive failures.
+    Half-open (allow one probe) after `recovery_timeout` seconds.
+    """
+    def __init__(self, name: str, failure_threshold: int = 5, recovery_timeout: int = 120):
+        self._name             = name
+        self._threshold        = failure_threshold
+        self._recovery_timeout = recovery_timeout
+        self._failures         = 0
+        self._opened_at: float = 0.0
+        self._lock             = threading.Lock()
+
+    def allow(self) -> bool:
+        with self._lock:
+            if self._failures < self._threshold:
+                return True
+            if time.time() - self._opened_at >= self._recovery_timeout:
+                self._failures = 0   # reset — probe allowed
+                return True
+            return False
+
+    def success(self):
+        with self._lock:
+            self._failures = 0
+
+    def failure(self):
+        with self._lock:
+            self._failures += 1
+            if self._failures >= self._threshold:
+                self._opened_at = time.time()
+                logger.warning(f"Circuit breaker OPEN for {self._name} after {self._failures} failures")
+
+
+_breaker_binance = _CircuitBreaker("binance")
+_breaker_yahoo   = _CircuitBreaker("yahoo")
+
+
+# ─────────────────────────────────────────────────────────
 # In-process OHLCV cache (avoids redundant network hits)
 # ─────────────────────────────────────────────────────────
 class _OHLCVCache:
@@ -89,32 +130,43 @@ class BinanceFetcher:
         if cached is not None:
             return cached
 
-        interval = self.INTERVAL.get(timeframe, "1h")
-        resp = requests.get(
-            f"{self.BASE}/klines",
-            params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        if not data:
-            return None
-        df = pd.DataFrame(data, columns=[
-            "timestamp","open","high","low","close","volume",
-            "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
-        ])
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        for col in ["open","high","low","close","volume"]:
-            df[col] = df[col].astype(float)
-        df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
-        _cache.set(cache_key, df)
-        return df
+        if not _breaker_binance.allow():
+            return None   # circuit open — avoid hammering a down service
+
+        try:
+            interval = self.INTERVAL.get(timeframe, "1h")
+            resp = requests.get(
+                f"{self.BASE}/klines",
+                params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if not data:
+                return None
+            df = pd.DataFrame(data, columns=[
+                "timestamp","open","high","low","close","volume",
+                "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
+            ])
+            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+            for col in ["open","high","low","close","volume"]:
+                df[col] = df[col].astype(float)
+            df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
+            _cache.set(cache_key, df)
+            _breaker_binance.success()
+            return df
+        except Exception as e:
+            _breaker_binance.failure()
+            raise   # re-raise so @_retry can catch it
 
     def fetch_ticker(self, symbol: str) -> dict | None:
+        if not _breaker_binance.allow():
+            return None
         try:
             resp = requests.get(f"{self.BASE}/ticker/24hr", params={"symbol": symbol}, timeout=5)
             resp.raise_for_status()
             d = resp.json()
+            _breaker_binance.success()
             return {
                 "symbol":     symbol,
                 "price":      float(d["lastPrice"]),
@@ -124,6 +176,7 @@ class BinanceFetcher:
                 "low":        float(d["lowPrice"]),
             }
         except Exception as e:
+            _breaker_binance.failure()
             logger.warning(f"Binance ticker error {symbol}: {e}")
             return None
 
@@ -169,6 +222,8 @@ class YahooFetcher:
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if not _YF_AVAILABLE:
             return None
+        if not _breaker_yahoo.allow():
+            return None
 
         cache_key = f"{symbol}_{timeframe}"
         cached = _cache.get(cache_key)
@@ -203,8 +258,10 @@ class YahooFetcher:
 
             df = df.tail(limit)
             _cache.set(cache_key, df)
+            _breaker_yahoo.success()
             return df
         except Exception as e:
+            _breaker_yahoo.failure()
             logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
             return None
 
