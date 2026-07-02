@@ -48,132 +48,165 @@
   <!-- Flat navigation -->
   <nav class="sidebar-nav" id="sidebarNav">
 
-    <!-- Overview -->
-    <span class="nav-section-label">Overview</span>
-    <a href="/dashboard" data-tooltip="Dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
-      <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
-    </a>
-    <a href="/briefing" data-tooltip="Morning Briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
-      <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
-    </a>
+    {# Determine which group is active so it auto-expands #}
+    {% set grp_overview  = active in ['dashboard','briefing'] %}
+    {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index'] %}
+    {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
+    {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news'] %}
+    {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal'] %}
+    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs'] %}
 
-    <div class="nav-section-sep"></div>
+    <!-- Overview -->
+    <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span class="nav-section-label">Overview</span>
+        <i class="bi bi-chevron-down nav-group-arrow"></i>
+      </div>
+      <div class="nav-group-body">
+        <a href="/dashboard" data-tooltip="Dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
+          <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
+        </a>
+        <a href="/briefing" data-tooltip="Morning Briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
+          <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
+        </a>
+      </div>
+    </div>
 
     <!-- Markets -->
-    <span class="nav-section-label">Markets</span>
-    <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
-      <i class="bi bi-currency-bitcoin"></i>
-      <span class="nav-text">Crypto</span>
-      <span class="badge-live">LIVE</span>
-    </a>
-    <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
-      <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
-    </a>
-    <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
-      <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
-    </a>
-    <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-      <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
-    </a>
-    <a href="/markets/index" data-tooltip="Indices" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-      <i class="bi bi-activity"></i><span class="nav-text">Indices</span>
-    </a>
-
-    <div class="nav-section-sep"></div>
+    <div class="nav-group {% if grp_markets %}open{% endif %}" data-group="markets">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span class="nav-section-label">Markets</span>
+        <i class="bi bi-chevron-down nav-group-arrow"></i>
+      </div>
+      <div class="nav-group-body">
+        <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
+          <i class="bi bi-currency-bitcoin"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
+        </a>
+        <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
+          <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
+        </a>
+        <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
+          <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
+        </a>
+        <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
+          <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
+        </a>
+        <a href="/markets/index" data-tooltip="Indices" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
+          <i class="bi bi-activity"></i><span class="nav-text">Indices</span>
+        </a>
+      </div>
+    </div>
 
     <!-- Signals & Tools -->
-    <span class="nav-section-label">Signals &amp; Tools</span>
-    <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-      <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
-    </a>
-    <a href="/auto-generate" data-tooltip="Auto Generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
-      <i class="bi bi-robot"></i>
-      <span class="nav-text">Auto Generate</span>
-      <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
-    </a>
-    <a href="/scanner" data-tooltip="Scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
-      <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
-    </a>
-    <a href="/heatmap" data-tooltip="Market Heatmap" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
-      <i class="bi bi-grid-3x3-gap-fill"></i><span class="nav-text">Market Heatmap</span>
-    </a>
-    <a href="/backtesting" data-tooltip="Backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-      <i class="bi bi-clock-history"></i>
-      <span class="nav-text">Backtesting</span>
-      <span class="badge-pro">PRO</span>
-    </a>
-    <a href="/ai-insights" data-tooltip="AI Insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
-      <i class="bi bi-cpu-fill"></i>
-      <span class="nav-text">AI Insights</span>
-      <span class="badge-pro">PRO</span>
-    </a>
-
-    <div class="nav-section-sep"></div>
+    <div class="nav-group {% if grp_signals %}open{% endif %}" data-group="signals">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span class="nav-section-label">Signals &amp; Tools</span>
+        <i class="bi bi-chevron-down nav-group-arrow"></i>
+      </div>
+      <div class="nav-group-body">
+        <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
+          <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
+        </a>
+        <a href="/auto-generate" data-tooltip="Auto Generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
+          <i class="bi bi-robot"></i><span class="nav-text">Auto Generate</span>
+          <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
+        </a>
+        <a href="/scanner" data-tooltip="Scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
+          <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
+        </a>
+        <a href="/heatmap" data-tooltip="Market Heatmap" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
+          <i class="bi bi-grid-3x3-gap-fill"></i><span class="nav-text">Market Heatmap</span>
+        </a>
+        <a href="/backtesting" data-tooltip="Backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
+          <i class="bi bi-clock-history"></i><span class="nav-text">Backtesting</span><span class="badge-pro">PRO</span>
+        </a>
+        <a href="/ai-insights" data-tooltip="AI Insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
+          <i class="bi bi-cpu-fill"></i><span class="nav-text">AI Insights</span><span class="badge-pro">PRO</span>
+        </a>
+        <a href="/signals?tab=history" data-tooltip="Signal History" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
+          <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
+        </a>
+      </div>
+    </div>
 
     <!-- Analysis -->
-    <span class="nav-section-label">Analysis</span>
-    <a href="/ta-summary" data-tooltip="TA Summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-      <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
-    </a>
-    <a href="/mtf-analysis" data-tooltip="MTF Analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-      <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
-    </a>
-    <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
-      <i class="bi bi-bar-chart-steps"></i><span class="nav-text">Model Performance</span>
-    </a>
-    <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-      <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
-    </a>
-    <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
-      <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
-    </a>
-    <a href="/signals?tab=history" data-tooltip="Signal History" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
-      <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
-    </a>
-
-    <div class="nav-section-sep"></div>
+    <div class="nav-group {% if grp_analysis %}open{% endif %}" data-group="analysis">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span class="nav-section-label">Analysis</span>
+        <i class="bi bi-chevron-down nav-group-arrow"></i>
+      </div>
+      <div class="nav-group-body">
+        <a href="/ta-summary" data-tooltip="TA Summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+          <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
+        </a>
+        <a href="/mtf-analysis" data-tooltip="MTF Analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+          <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+        </a>
+        <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
+          <i class="bi bi-bar-chart-steps"></i><span class="nav-text">Model Performance</span>
+        </a>
+        <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+          <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
+        </a>
+        <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
+          <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
+        </a>
+      </div>
+    </div>
 
     <!-- Portfolio -->
-    <span class="nav-section-label">Portfolio</span>
-    <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
-      <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
-    </a>
-    <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
-      <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
-    </a>
-    <a href="/risk" data-tooltip="Risk Manager" class="nav-item {% if active == 'risk' %}active{% endif %}">
-      <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
-    </a>
-    <a href="/performance" data-tooltip="My Performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
-      <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
-    </a>
-    <a href="/journal" data-tooltip="Trade Journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
-      <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
-    </a>
+    <div class="nav-group {% if grp_portfolio %}open{% endif %}" data-group="portfolio">
+      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <span class="nav-section-label">Portfolio</span>
+        <i class="bi bi-chevron-down nav-group-arrow"></i>
+      </div>
+      <div class="nav-group-body">
+        <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
+          <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+        </a>
+        <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
+          <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
+        </a>
+        <a href="/risk" data-tooltip="Risk Manager" class="nav-item {% if active == 'risk' %}active{% endif %}">
+          <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
+        </a>
+        <a href="/performance" data-tooltip="My Performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
+          <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
+        </a>
+        <a href="/journal" data-tooltip="Trade Journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
+          <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
+        </a>
+      </div>
+    </div>
 
     <!-- Admin (hidden until role check) -->
     <div id="adminNav" style="display:none">
-      <div class="nav-section-sep"></div>
-      <span class="nav-section-label">Admin</span>
-      <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
-        <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
-      </a>
-      <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
-        <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
-      </a>
-      <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
-        <i class="bi bi-plug-fill"></i><span class="nav-text">API Configs</span>
-      </a>
-      <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
-        <i class="bi bi-layers-fill"></i><span class="nav-text">Assets</span>
-      </a>
-      <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
-        <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
-      </a>
+      <div class="nav-group {% if grp_admin %}open{% endif %}" data-group="admin">
+        <div class="nav-group-header" onclick="toggleNavGroup(this)">
+          <span class="nav-section-label">Admin</span>
+          <i class="bi bi-chevron-down nav-group-arrow"></i>
+        </div>
+        <div class="nav-group-body">
+          <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
+          </a>
+          <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
+            <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
+          </a>
+          <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
+            <i class="bi bi-plug-fill"></i><span class="nav-text">API Configs</span>
+          </a>
+          <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
+            <i class="bi bi-layers-fill"></i><span class="nav-text">Assets</span>
+          </a>
+          <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
+            <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
+          </a>
+        </div>
+      </div>
     </div>
 
-    <!-- Bottom spacer so last items don't disappear behind footer -->
-    <div style="height:8px"></div>
+    <div style="height:6px"></div>
 
   </nav>
 
@@ -383,6 +416,28 @@ if ('serviceWorker' in navigator) {
 
   window.addEventListener('resize', () => {
     if (!isMobile()) closeMobile();
+  });
+})();
+
+// ── Nav group collapse/expand ──────────────────────────────────────
+function toggleNavGroup(header) {
+  const group = header.closest('.nav-group');
+  if (!group) return;
+  const isOpen = group.classList.toggle('open');
+  try {
+    const key = 'navgrp_' + group.dataset.group;
+    localStorage.setItem(key, isOpen ? '1' : '0');
+  } catch {}
+}
+
+// Restore saved group states (but always keep active group open)
+(function () {
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const key = 'navgrp_' + g.dataset.group;
+    const saved = localStorage.getItem(key);
+    // If active class is present keep it open regardless of saved state
+    if (g.classList.contains('open')) return;
+    if (saved === '1') g.classList.add('open');
   });
 })();
 

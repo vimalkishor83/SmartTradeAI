@@ -165,27 +165,63 @@ body {
 .sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 
-/* Section label separator */
+/* ── Collapsible nav group ───────────────────────────────── */
+.nav-group { }
+
+.nav-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px 2px 14px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 6px;
+  margin: 2px 6px 0;
+  transition: background 0.15s;
+}
+.nav-group-header:hover { background: var(--glass); }
+
 .nav-section-label {
   font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text-muted);
-  padding: 6px 18px 2px;
   white-space: nowrap;
   overflow: hidden;
   transition: opacity var(--transition);
+  padding: 0;
+  pointer-events: none;
 }
-.sidebar.collapsed .nav-section-label { opacity: 0; padding: 4px 0; }
 
-/* Section separator line */
-.nav-section-sep {
-  height: 1px;
-  background: var(--border);
-  margin: 3px 12px;
+.nav-group-arrow {
+  font-size: 9px;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
 }
-.sidebar.collapsed .nav-section-sep { margin: 3px 8px; }
+.nav-group.open .nav-group-arrow { transform: rotate(0deg); }
+.nav-group:not(.open) .nav-group-arrow { transform: rotate(-90deg); }
+
+.nav-group-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.22s ease;
+}
+.nav-group.open .nav-group-body { max-height: 400px; }
+
+/* Collapsed sidebar: hide arrows, show only icons */
+.sidebar.collapsed .nav-group-header {
+  justify-content: center;
+  padding: 5px 0 2px;
+  margin: 2px 4px 0;
+}
+.sidebar.collapsed .nav-section-label { opacity: 0; width: 0; overflow: hidden; }
+.sidebar.collapsed .nav-group-arrow   { display: none; }
+.sidebar.collapsed .nav-group-body    { max-height: 400px !important; overflow: visible; }
+
+/* Section separator replaced by group spacing */
+.nav-section-sep { display: none; }
 
 /* Nav item */
 .nav-item {
