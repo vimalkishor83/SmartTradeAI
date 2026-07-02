@@ -166,17 +166,15 @@ body {
 .sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 
 /* ── Collapsible nav group ───────────────────────────────── */
-.nav-group { }
-
 .nav-group-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 5px 10px 2px 14px;
+  padding: 4px 10px 3px 14px;
   cursor: pointer;
   user-select: none;
   border-radius: 6px;
-  margin: 2px 6px 0;
+  margin: 3px 6px 0;
   transition: background 0.15s;
 }
 .nav-group-header:hover { background: var(--glass); }
@@ -189,9 +187,9 @@ body {
   color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
-  transition: opacity var(--transition);
   padding: 0;
   pointer-events: none;
+  flex: 1;
 }
 
 .nav-group-arrow {
@@ -199,28 +197,28 @@ body {
   color: var(--text-muted);
   transition: transform 0.2s ease;
   flex-shrink: 0;
+  margin-left: 4px;
 }
-.nav-group.open .nav-group-arrow { transform: rotate(0deg); }
-.nav-group:not(.open) .nav-group-arrow { transform: rotate(-90deg); }
 
+/* Body hidden by default; JS adds/removes .open on .nav-group */
 .nav-group-body {
   overflow: hidden;
   max-height: 0;
-  transition: max-height 0.22s ease;
+  transition: max-height 0.25s ease;
 }
-.nav-group.open .nav-group-body { max-height: 400px; }
+.nav-group.open > .nav-group-body { max-height: 500px; }
 
-/* Collapsed sidebar: hide arrows, show only icons */
-.sidebar.collapsed .nav-group-header {
-  justify-content: center;
-  padding: 5px 0 2px;
-  margin: 2px 4px 0;
-}
-.sidebar.collapsed .nav-section-label { opacity: 0; width: 0; overflow: hidden; }
+/* Arrow rotates when open */
+.nav-group:not(.open) > .nav-group-header .nav-group-arrow { transform: rotate(-90deg); }
+.nav-group.open       > .nav-group-header .nav-group-arrow { transform: rotate(0deg); }
+
+/* Collapsed sidebar (icon-only): always show all items, hide labels/arrows */
+.sidebar.collapsed .nav-group-header { justify-content: center; padding: 4px 0 3px; margin: 3px 4px 0; }
+.sidebar.collapsed .nav-section-label { display: none; }
 .sidebar.collapsed .nav-group-arrow   { display: none; }
-.sidebar.collapsed .nav-group-body    { max-height: 400px !important; overflow: visible; }
+.sidebar.collapsed .nav-group-body    { max-height: 500px !important; }
 
-/* Section separator replaced by group spacing */
+/* Section separator no longer needed */
 .nav-section-sep { display: none; }
 
 /* Nav item */

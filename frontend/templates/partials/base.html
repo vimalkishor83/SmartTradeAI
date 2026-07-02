@@ -423,21 +423,26 @@ if ('serviceWorker' in navigator) {
 function toggleNavGroup(header) {
   const group = header.closest('.nav-group');
   if (!group) return;
+  // Don't collapse if sidebar is in icon-only mode
+  if (document.getElementById('sidebar')?.classList.contains('collapsed')) return;
   const isOpen = group.classList.toggle('open');
-  try {
-    const key = 'navgrp_' + group.dataset.group;
-    localStorage.setItem(key, isOpen ? '1' : '0');
-  } catch {}
+  try { localStorage.setItem('navgrp_' + group.dataset.group, isOpen ? '1' : '0'); } catch {}
 }
 
-// Restore saved group states (but always keep active group open)
+// On load: restore saved states; active group is already .open from server
 (function () {
   document.querySelectorAll('.nav-group').forEach(g => {
-    const key = 'navgrp_' + g.dataset.group;
+    const key   = 'navgrp_' + g.dataset.group;
     const saved = localStorage.getItem(key);
-    // If active class is present keep it open regardless of saved state
-    if (g.classList.contains('open')) return;
-    if (saved === '1') g.classList.add('open');
+    const hasActive = g.querySelector('.nav-item.active');
+    if (hasActive) {
+      g.classList.add('open');   // always keep active group open
+    } else if (saved === '1') {
+      g.classList.add('open');
+    } else if (saved === '0') {
+      g.classList.remove('open');
+    }
+    // if no saved state: leave as server rendered (open for active, closed for others)
   });
 })();
 
