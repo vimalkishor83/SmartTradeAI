@@ -11,63 +11,8 @@
 
 {% block extra_css %}
 <style>
-  .tf-btn {
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    border: 1px solid var(--border);
-    background: transparent;
-    color: var(--text-secondary);
-    border-radius: 4px;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .tf-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .tf-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-
-  .indicator-group { margin-bottom: 1.25rem; }
-  .indicator-group-label {
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: .1em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: .4rem;
-    padding: 4px 0 6px;
-    border-bottom: 1px solid var(--border);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-  .indicator-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 9px 14px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-    transition: background .15s;
-  }
-  .indicator-card:hover { background: var(--bg-card-hover); }
-  .indicator-name { font-size: 12px; color: var(--text-secondary); }
-  .indicator-value { font-size: 13px; font-weight: 700; }
-
-  .sentiment-bar-wrap {
-    background: var(--bg-secondary);
-    border-radius: 6px;
-    height: 8px;
-    overflow: hidden;
-    margin: 6px 0;
-  }
-  .sentiment-bar-fill {
-    height: 100%;
-    border-radius: 6px;
-    background: linear-gradient(90deg, #ef4444, #f59e0b, #10b981);
-    transition: width .4s;
-  }
-
+  /* Shared components (.tf-btn, .indicator-*, .sentiment-bar-*, .tab-nav,
+     .market-badge) now live in main.css. Only page-specific rules remain. */
   .price-hero {
     font-size: 2rem;
     font-weight: 800;
@@ -85,39 +30,6 @@
   }
   #tvChart  { width: 100%; height: 420px; display: block; }
   #tvVolume { width: 100%; height: 100px; display: block; }
-
-  .tab-nav .nav-link {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-secondary);
-    border: none;
-    border-bottom: 2px solid transparent;
-    padding: 10px 16px;
-    background: transparent;
-  }
-  .tab-nav .nav-link.active {
-    color: #ffffff;
-    border-bottom-color: var(--accent);
-  }
-
-  .market-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-  }
-  .market-badge.crypto   { background: rgba(245,158,11,.15); color: #f59e0b; }
-  .market-badge.forex    { background: rgba(99,102,241,.15);  color: #818cf8; }
-  .market-badge.gold,
-  .market-badge.silver,
-  .market-badge.commodity { background: rgba(251,191,36,.15); color: #fbbf24; }
-  .market-badge.indian_stock { background: rgba(16,185,129,.15); color: #10b981; }
-  .market-badge.index    { background: rgba(59,130,246,.15);  color: #60a5fa; }
 </style>
 {% endblock %}
 
@@ -253,6 +165,16 @@
           </div>
         </div>
         <div class="kpi-change" id="sidePriceChange">—</div>
+      </div>
+
+      <!-- AI Signal -->
+      <div class="section-card mb-3" style="padding:14px">
+        <div class="fw-600 fs-sm mb-3">
+          <i class="bi bi-cpu me-1 text-accent"></i>AI Signal
+        </div>
+        <div id="aiSignalContent">
+          <div class="text-center py-3 text-muted fs-xs">Loading…</div>
+        </div>
       </div>
 
       <!-- Market Sentiment -->
@@ -421,6 +343,7 @@ function setTF(tf) {
   _tf = tf;
   document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
   loadChart();
+  if (typeof loadAISignal === 'function') loadAISignal();
 }
 
 function setIndTF(tf) {
@@ -686,7 +609,7 @@ async function loadIndicators() {
       .map(({ k, label }) => `
         <div class="indicator-card">
           <span class="indicator-name">${label}</span>
-          <span class="indicator-value">${fmtVal(k, data[k])}</span>
+          <span class="indicator-value mono">${fmtVal(k, data[k])}</span>
         </div>`).join('');
     if (!rows) return '';
     return `
@@ -800,6 +723,79 @@ async function loadSentiment() {
   `;
 }
 
+/* ── AI Signal card ───────────────────────────────────── */
+// Direction + confidence from /predictions/; reasoning bullets derived from
+// the same technical indicators the Indicators tab uses.
+function _reasoningFromIndicators(ind, close) {
+  const bullets = [];
+  const rsi = ind.rsi;
+  if (rsi != null) {
+    if (rsi < 30)      bullets.push(`RSI at ${rsi.toFixed(1)} — oversold`);
+    else if (rsi > 70) bullets.push(`RSI at ${rsi.toFixed(1)} — overbought`);
+    else               bullets.push(`RSI neutral at ${rsi.toFixed(1)}`);
+  }
+  if (ind.macd != null && ind.macd_signal != null) {
+    bullets.push(ind.macd > ind.macd_signal ? 'MACD bullish crossover' : 'MACD bearish crossover');
+  }
+  if (ind.stoch_rsi_k != null) {
+    if (ind.stoch_rsi_k < 20)      bullets.push('Stochastic RSI oversold');
+    else if (ind.stoch_rsi_k > 80) bullets.push('Stochastic RSI overbought');
+  }
+  const ema50 = ind.ema50 ?? ind.sma50;
+  if (ema50 != null && close != null) {
+    bullets.push(close > ema50 ? 'Price above 50-period MA' : 'Price below 50-period MA');
+  }
+  if (ind.supertrend_direction) {
+    bullets.push(`Supertrend pointing ${ind.supertrend_direction === 'up' ? 'up (bullish)' : 'down (bearish)'}`);
+  }
+  if (ind.bb_upper != null && ind.bb_lower != null && close != null) {
+    if (close > ind.bb_upper)      bullets.push('Price above upper Bollinger band');
+    else if (close < ind.bb_lower) bullets.push('Price below lower Bollinger band');
+  }
+  return bullets.slice(0, 5);
+}
+
+async function loadAISignal() {
+  const el = document.getElementById('aiSignalContent');
+  if (!el) return;
+
+  const pred = await API.get(`/predictions/${ASSET_ID}`, { timeframe: _tf });
+  const ind  = await API.get(`/market-data/${ASSET_ID}/indicators`, { timeframe: _tf });
+
+  if (!pred || pred.error) {
+    el.innerHTML = `<div class="text-center py-2 text-muted fs-xs">AI signal unavailable.</div>`;
+    return;
+  }
+
+  const dirMap = { bullish: { txt: 'BUY', cls: 'signal-buy', clr: 'var(--green)' },
+                   bearish: { txt: 'SELL', cls: 'signal-sell', clr: 'var(--red)' },
+                   neutral: { txt: 'HOLD', cls: 'signal-hold', clr: 'var(--yellow)' } };
+  const d = dirMap[pred.predicted_direction] || dirMap.neutral;
+  const conf = Math.round(parseFloat(pred.confidence || 0));
+
+  let close = null;
+  const indicators = ind?.indicators || {};
+  if (indicators.close != null) close = indicators.close;
+  else if (indicators.price != null) close = indicators.price;
+  const bullets = ind && !ind.error ? _reasoningFromIndicators(indicators, close) : [];
+
+  el.innerHTML = `
+    <div class="text-center mb-3">
+      <span class="signal-badge ${d.cls}" style="font-size:15px;padding:7px 20px;border-radius:8px">${d.txt}</span>
+    </div>
+    <div class="mb-3">
+      <div class="d-flex justify-content-between mb-1">
+        <span class="fs-xs text-muted">Confidence</span>
+        <span class="fs-xs fw-700 mono" style="color:${d.clr}">${conf}%</span>
+      </div>
+      <div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${d.clr}"></div></div>
+    </div>
+    ${bullets.length ? `<ul class="list-unstyled mb-0 d-flex flex-column" style="gap:8px">
+      ${bullets.map(b => `<li class="fs-xs" style="color:var(--text-secondary)">• ${b}</li>`).join('')}
+    </ul>` : '<div class="text-muted fs-xs">No indicator signals available.</div>'}
+  `;
+}
+
 /* ── Init ─────────────────────────────────────────────── */
 let _pageInited = false;
 function _initPage() {
@@ -808,6 +804,7 @@ function _initPage() {
   loadLivePrice();
   loadChart();
   loadSentiment();
+  loadAISignal();
 }
 // Fire on app:ready (normal) or fall back after DOM is ready if event already fired
 document.addEventListener('app:ready', _initPage);

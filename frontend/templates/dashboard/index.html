@@ -194,6 +194,21 @@
   </div>
 </div>
 
+<!-- Allocation by Market -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-diagram-3-fill text-accent me-1"></i>Allocation by Market</span>
+        <span class="badge-tag" id="allocTotal">—</span>
+      </div>
+      <div class="section-card-body" id="allocBody">
+        <div class="text-muted fs-sm">Loading allocation…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Heatmap -->
 <div class="section-card mb-3">
   <div class="section-card-header">
@@ -251,6 +266,45 @@
     const n2 = document.getElementById('navUserName')?.textContent?.trim();
     if (n2 && n2 !== 'User') el.textContent = `Good ${part}, ${n2.split(' ')[0]} 👋`;
   }, 2000);
+})();
+
+// Allocation by Market — real data: asset coverage per market from /assets/
+(function () {
+  const MARKET_META = {
+    crypto:       { label: 'Crypto',        color: 'var(--accent)' },
+    indian_stock: { label: 'Indian Stocks', color: 'var(--blue)'   },
+    forex:        { label: 'Forex',         color: 'var(--purple)' },
+    commodity:    { label: 'Commodities',   color: 'var(--yellow)' },
+    index:        { label: 'Indices',       color: 'var(--green)'  },
+  };
+  async function loadAllocation() {
+    const body = document.getElementById('allocBody');
+    if (!body) return;
+    const data = await API.get('/assets/');
+    const assets = data?.assets || [];
+    if (!assets.length) {
+      body.innerHTML = '<div class="text-muted fs-sm py-3 text-center">No assets available</div>';
+      return;
+    }
+    const counts = {};
+    assets.forEach(a => { const m = a.market || 'index'; counts[m] = (counts[m] || 0) + 1; });
+    const total = assets.length;
+    document.getElementById('allocTotal').textContent = total + ' assets';
+    const order = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    body.innerHTML = order.map(m => {
+      const meta = MARKET_META[m] || { label: m, color: 'var(--text-muted)' };
+      const pct = Math.round(counts[m] / total * 100);
+      return `<div class="alloc-row">
+        <div class="alloc-row-top">
+          <span class="alloc-dot" style="background:${meta.color}"></span>
+          <span class="alloc-name">${meta.label}</span>
+          <span class="alloc-pct">${pct}%</span>
+        </div>
+        <div class="alloc-bar-track"><div class="alloc-bar-fill" style="width:${pct}%;background:${meta.color}"></div></div>
+      </div>`;
+    }).join('');
+  }
+  document.addEventListener('app:ready', loadAllocation);
 })();
 </script>
 {% endblock %}

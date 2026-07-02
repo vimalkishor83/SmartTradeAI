@@ -286,6 +286,14 @@ function formatPrice(price, market) {
   return p.toFixed(6);
 }
 
+// Symbol icon chip — first 1-2 letters of the symbol in a rounded chip.
+// Shared across signals / portfolio / watchlist tables.
+function symIcon(symbol) {
+  const s = (symbol || '').toString().replace(/[^A-Za-z0-9]/g, '');
+  const letters = s.slice(0, 2).toUpperCase() || '?';
+  return `<span class="sym-ic">${letters}</span>`;
+}
+
 function formatTime(iso) {
   if (!iso) return '—';
   // Ensure UTC interpretation — append Z if no timezone offset present

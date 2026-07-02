@@ -65,6 +65,8 @@ class PortfolioItem(db.Model):
         return {
             "id": self.id,
             "asset": self.asset.symbol if self.asset else None,
+            "name": self.asset.name if self.asset else None,
+            "market": self.asset.market if self.asset else None,
             "quantity": self.quantity,
             "buy_price": self.buy_price,
             "current_price": self.current_price,

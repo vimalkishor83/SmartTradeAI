@@ -296,16 +296,19 @@ async function loadSignals(page = 1) {
     const mktLabel = (s.market || '').replace('_', ' ');
     return `<tr>
       <td>
-        <div class="asset-cell">
-          <a href="/asset/${s.asset_id}" class="asset-cell-name" style="text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">
-            ${s.asset}
-          </a>
-          <span class="asset-cell-sub"><span class="badge-tag">${mktLabel}</span></span>
+        <div class="d-flex align-items-center gap-2">
+          ${symIcon(s.asset)}
+          <div class="asset-cell">
+            <a href="/asset/${s.asset_id}" class="asset-cell-name" style="text-decoration:none" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color=''">
+              ${s.asset}
+            </a>
+            <span class="asset-cell-sub"><span class="badge-tag">${mktLabel}</span></span>
+          </div>
         </div>
       </td>
       <td><span class="badge-tag">${s.timeframe}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
+      <td class="fw-700 mono">${formatPrice(s.entry_price, s.market)}</td>
       <td style="min-width:160px">
         <div class="confidence-wrap">
           <div style="font-size:12px;font-weight:700;color:${confClr}">${conf.toFixed(0)}% <span style="color:var(--text-muted);font-weight:400;font-size:11px">${s.confidence_label || ''}</span></div>
@@ -369,12 +372,12 @@ async function loadHistory(page = 1) {
       ? (h.duration_minutes < 60 ? h.duration_minutes + 'm' : Math.round(h.duration_minutes/60) + 'h')
       : '—';
     return `<tr>
-      <td><strong>${h.asset}</strong></td>
+      <td><div class="d-flex align-items-center gap-2">${symIcon(h.asset)}<strong>${h.asset}</strong></div></td>
       <td><span class="badge-tag">${h.timeframe}</span></td>
       <td>${signalBadge(h.signal_type)}</td>
-      <td class="fw-700">${formatPrice(h.entry)}</td>
-      <td class="fw-700">${formatPrice(h.exit)}</td>
-      <td class="${pnlCls} fw-700">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
+      <td class="fw-700 mono">${formatPrice(h.entry)}</td>
+      <td class="fw-700 mono">${formatPrice(h.exit)}</td>
+      <td class="${pnlCls} fw-700 mono">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
       <td><span class="signal-badge ${outCls}">${(h.outcome||'—').toUpperCase()}</span></td>
       <td>
         <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${h.confidence||0}%;background:var(--accent)"></div></div>
@@ -465,13 +468,13 @@ async function loadOpenPnl() {
       : '—';
 
     return `<tr>
-      <td><a href="/asset/${row.asset_id}" style="color:var(--text-primary);font-weight:700;text-decoration:none"
+      <td><div class="d-flex align-items-center gap-2">${symIcon(row.asset)}<a href="/asset/${row.asset_id}" style="color:var(--text-primary);font-weight:700;text-decoration:none"
              onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">
-        ${row.asset}</a></td>
+        ${row.asset}</a></div></td>
       <td><span class="badge-tag">${row.timeframe}</span></td>
       <td>${signalBadge(row.signal_type)}</td>
-      <td class="fw-700">${fmtPrice(row.entry_price)}</td>
-      <td class="fw-700">${row.current_price ? fmtPrice(row.current_price) : '<span class="text-muted">—</span>'}</td>
+      <td class="fw-700 mono">${fmtPrice(row.entry_price)}</td>
+      <td class="fw-700 mono">${row.current_price ? fmtPrice(row.current_price) : '<span class="text-muted">—</span>'}</td>
       <td>${pnlStr}</td>
       <td>${fmtDist(row.distance_to_sl_pct)}</td>
       <td>${row.distance_to_t1_pct !== null && row.distance_to_t1_pct !== undefined

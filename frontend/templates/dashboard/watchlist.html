@@ -112,9 +112,12 @@ async function loadWatchlists() {
         <div>
           ${wl.items?.length ? wl.items.map(item => `
             <div class="d-flex justify-content-between align-items-center p-3 border-bottom" style="border-color:var(--border)!important">
-              <div>
-                <strong>${item.symbol}</strong>
-                <span class="badge bg-secondary ms-2">${item.market || ''}</span>
+              <div class="d-flex align-items-center gap-2">
+                ${symIcon(item.symbol)}
+                <div>
+                  <strong>${item.symbol}</strong>
+                  <span class="badge bg-secondary ms-2">${item.market || ''}</span>
+                </div>
               </div>
               <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.id})"><i class="bi bi-x"></i></button>
             </div>`).join('') : '<div class="p-3 text-muted small">No assets added yet</div>'}

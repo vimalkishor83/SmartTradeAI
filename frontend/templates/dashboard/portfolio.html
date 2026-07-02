@@ -27,23 +27,38 @@
   <div class="col-md-3"><div class="kpi-card yellow"><div class="kpi-label">P&amp;L %</div><div class="kpi-value" id="totalPnlPct">—</div></div></div>
 </div>
 
-<!-- Holdings Table -->
-<div class="section-card">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-briefcase text-accent"></i> Holdings</span>
-    <span class="badge-tag" id="holdingCount">0 positions</span>
+<!-- Asset Allocation + Holdings -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-diagram-3-fill text-accent"></i> Asset Allocation</span>
+        <span class="badge-tag" id="allocTotalValue">—</span>
+      </div>
+      <div class="section-card-body" id="allocBody">
+        <div class="text-muted fs-sm py-3 text-center">Loading allocation…</div>
+      </div>
+    </div>
   </div>
-  <div class="table-responsive">
-    <table class="smart-table">
-      <thead>
-        <tr><th>Asset</th><th>Qty</th><th>Buy Price</th><th>Current Price</th>
-        <th>Invested</th><th>Current Value</th><th>P&amp;L</th><th>P&amp;L %</th>
-        <th>Days</th><th>Action</th></tr>
-      </thead>
-      <tbody id="holdingsBody">
-        <tr><td colspan="10"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-pie-chart" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px"></i>No positions yet — click <strong style="color:var(--accent)">Add Position</strong> to start tracking</div></td></tr>
-      </tbody>
-    </table>
+  <div class="col-lg-8">
+    <div class="section-card h-100" id="holdingsCard">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-briefcase text-accent"></i> Holdings</span>
+        <span class="badge-tag" id="holdingCount">0 positions</span>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead>
+            <tr><th>Asset</th><th>Qty</th><th>Buy Price</th><th>Current Price</th>
+            <th>Invested</th><th>Current Value</th><th>P&amp;L</th><th>P&amp;L %</th>
+            <th>Days</th><th>Action</th></tr>
+          </thead>
+          <tbody id="holdingsBody">
+            <tr><td colspan="10"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-pie-chart" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px"></i>No positions yet — click <strong style="color:var(--accent)">Add Position</strong> to start tracking</div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -108,21 +123,62 @@ async function loadPortfolio() {
   document.getElementById('totalPnlPct').textContent = (p.total_pnl_pct >= 0 ? '+' : '') + p.total_pnl_pct + '%';
   document.getElementById('holdingCount').textContent = `${data.holdings.length} positions`;
 
+  renderAllocation(data.holdings, p.total_current || 0);
+
   if (!data.holdings.length) return;
 
   document.getElementById('holdingsBody').innerHTML = data.holdings.map(h => `
     <tr>
-      <td><strong>${h.asset}</strong></td>
-      <td>${h.quantity}</td>
-      <td>₹${formatPrice(h.buy_price)}</td>
-      <td>₹${formatPrice(h.current_price)}</td>
-      <td>₹${h.invested_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
-      <td>₹${h.current_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
-      <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}₹${Math.abs(h.pnl || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
-      <td class="${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
-      <td>${h.holding_days}d</td>
+      <td><div class="d-flex align-items-center gap-2">${symIcon(h.asset)}<strong>${h.asset}</strong></div></td>
+      <td class="mono">${h.quantity}</td>
+      <td class="mono">₹${formatPrice(h.buy_price)}</td>
+      <td class="mono">₹${formatPrice(h.current_price)}</td>
+      <td class="mono">₹${h.invested_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
+      <td class="mono">₹${h.current_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
+      <td class="mono ${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}₹${Math.abs(h.pnl || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td class="mono ${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
+      <td class="mono">${h.holding_days}d</td>
       <td><button class="btn btn-sm btn-outline-danger" onclick="removePosition(${h.id})"><i class="bi bi-trash"></i></button></td>
     </tr>`).join('');
+}
+
+// Asset Allocation card — group holdings by market, % of total current value.
+const ALLOC_MARKET_META = {
+  crypto:       { label: 'Crypto',        color: 'var(--accent)' },
+  indian_stock: { label: 'Indian Stocks', color: 'var(--blue)'   },
+  forex:        { label: 'Forex',         color: 'var(--purple)' },
+  commodity:    { label: 'Commodities',   color: 'var(--yellow)' },
+  index:        { label: 'Indices',       color: 'var(--green)'  },
+};
+function renderAllocation(holdings, totalValue) {
+  const body = document.getElementById('allocBody');
+  const totalEl = document.getElementById('allocTotalValue');
+  if (!body) return;
+  if (!holdings || !holdings.length || !totalValue) {
+    if (totalEl) totalEl.textContent = '₹0';
+    body.innerHTML = '<div class="text-muted fs-sm py-4 text-center"><i class="bi bi-pie-chart d-block mb-2" style="font-size:22px;opacity:.3"></i>No holdings to allocate yet</div>';
+    return;
+  }
+  const byMarket = {};
+  holdings.forEach(h => {
+    const m = h.market || 'index';
+    byMarket[m] = (byMarket[m] || 0) + (h.current_value || 0);
+  });
+  if (totalEl) totalEl.textContent = '₹' + totalValue.toLocaleString('en-IN', {maximumFractionDigits:0});
+  const order = Object.keys(byMarket).sort((a, b) => byMarket[b] - byMarket[a]);
+  body.innerHTML = order.map(m => {
+    const meta = ALLOC_MARKET_META[m] || { label: m, color: 'var(--text-muted)' };
+    const pct = totalValue ? (byMarket[m] / totalValue * 100) : 0;
+    const pctR = Math.round(pct);
+    return `<div class="alloc-row">
+      <div class="alloc-row-top">
+        <span class="alloc-dot" style="background:${meta.color}"></span>
+        <span class="alloc-name">${meta.label}</span>
+        <span class="alloc-pct">${pctR}%</span>
+      </div>
+      <div class="alloc-bar-track"><div class="alloc-bar-fill" style="width:${pct.toFixed(1)}%;background:${meta.color}"></div></div>
+    </div>`;
+  }).join('');
 }
 
 async function removePosition(id) {

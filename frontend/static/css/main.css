@@ -48,6 +48,9 @@
   --transition:    0.18s ease;
   /* card accent for KPI cards */
   --card-accent:   var(--accent);
+  /* font families */
+  --font-ui:       'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-data:     'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
 }
 
 [data-theme="light"] {
@@ -785,7 +788,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 20px 22px;
+  padding: 16px 18px;
   position: relative;
   overflow: hidden;
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
@@ -793,8 +796,8 @@ body {
 .kpi-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0; right: 0;
-  height: 2px;
+  top: 0; left: 0; bottom: 0;
+  width: 2px;
   background: var(--card-accent, var(--accent));
 }
 .kpi-card:hover {
@@ -817,18 +820,18 @@ body {
 }
 
 .kpi-icon {
-  width: 40px; height: 40px;
-  border-radius: 10px;
+  width: 36px; height: 36px;
+  border-radius: 9px;
   display: flex; align-items: center; justify-content: center;
-  font-size: 18px;
+  font-size: 16px;
   background: rgba(255,255,255,0.05);
   border: 1px solid var(--glass-border);
   flex-shrink: 0;
 }
 
-.kpi-label  { font-size: 11px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
-.kpi-value  { font-size: 30px; font-weight: 900; line-height: 1; margin: 6px 0 8px; letter-spacing: -1.5px; color: var(--text-primary); }
-.kpi-change { font-size: 11.5px; display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
+.kpi-label  { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; }
+.kpi-value  { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 26px; font-weight: 700; line-height: 1; margin: 6px 0 6px; letter-spacing: -1px; color: var(--text-primary); }
+.kpi-change { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 11px; display: flex; align-items: center; gap: 4px; color: var(--text-secondary); }
 .kpi-change.up   { color: var(--green); }
 .kpi-change.down { color: var(--red); }
 
@@ -1752,3 +1755,81 @@ select option { background: var(--bg-secondary); color: var(--text-primary); }
 /* --- Text muted override — never pure white --- */
 .text-muted { color: var(--text-muted) !important; }
 .text-secondary { color: var(--text-secondary) !important; }
+
+/* ════════════════════════════════════════════════════════════
+   PREMIUM DESIGN SYSTEM — shared primitives (redesign step 1)
+   Additive only. Matches D:\Claude\Design\style.css semantics,
+   adapted to this app's existing CSS custom properties.
+   ════════════════════════════════════════════════════════════ */
+
+/* Monospace / tabular-nums utility for numeric displays */
+.mono { font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+
+/* Allocation / breakdown list (dot + label + % + progress bar) */
+.alloc-row { padding: 10px 0; border-bottom: 1px solid var(--border); }
+.alloc-row:last-child { border-bottom: none; }
+.alloc-row-top { display: flex; align-items: center; gap: 10px; }
+.alloc-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.alloc-name { flex: 1; font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+.alloc-pct { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 12.5px; color: var(--text-secondary); }
+.alloc-bar-track { width: 100%; height: 5px; background: var(--glass-border); border-radius: 99px; margin-top: 6px; }
+.alloc-bar-fill { height: 100%; border-radius: 99px; background: var(--accent); }
+
+/* Symbol icon chip (rounded ticker initials) */
+.sym-ic {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+/* Canonical mini stat tile */
+.mini { background: var(--glass); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+.mini-label { font-size: 10px; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; }
+.mini-value { font-family: var(--font-data); font-variant-numeric: tabular-nums; font-size: 19px; font-weight: 700; margin-top: 5px; color: var(--text-primary); }
+
+/* Log line row */
+.log-line { display: flex; gap: 12px; padding: 9px 16px; border-bottom: 1px solid var(--border); font-size: 12px; font-family: var(--font-data); font-variant-numeric: tabular-nums; }
+.log-line:last-child { border-bottom: none; }
+.log-time { color: var(--text-muted); white-space: nowrap; }
+.log-level { font-weight: 700; padding: 1px 6px; border-radius: 4px; font-size: 10px; height: fit-content; }
+.log-level.info  { background: var(--blue-bg);   color: #93c5fd; }
+.log-level.warn  { background: var(--yellow-bg); color: #fbbf24; }
+.log-level.error { background: var(--red-bg);    color: #f87171; }
+.log-msg { color: var(--text-secondary); }
+
+/* Canonical underline tab bar (additive — does not replace .nav-tabs/.tab-nav) */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 18px; }
+.tab { padding: 9px 16px; font-size: 13px; font-weight: 600; color: var(--text-secondary); border: none; border-bottom: 2px solid transparent; background: transparent; cursor: pointer; }
+.tab.active { color: var(--text-primary); border-bottom-color: var(--accent); }
+
+/* Briefing page components (economic events + P&L text) */
+.event-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border-hover);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+.event-impact {
+  font-family: var(--font-data);
+  font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 3px 8px; border-radius: 5px;
+  white-space: nowrap; flex-shrink: 0;
+  background: var(--glass); color: var(--text-secondary);
+}
+.event-impact.impact-high   { background: var(--red-bg);    color: #f87171; }
+.event-impact.impact-medium { background: var(--yellow-bg); color: #fbbf24; }
+.event-impact.impact-low    { background: var(--blue-bg);   color: #93c5fd; }
+.event-row:has(.impact-high)   { border-left-color: var(--red); }
+.event-row:has(.impact-medium) { border-left-color: var(--yellow); }
+.event-row:has(.impact-low)    { border-left-color: var(--blue); }
+.pnl-positive { color: var(--green) !important; font-family: var(--font-data); font-variant-numeric: tabular-nums; font-weight: 700; }
+.pnl-negative { color: var(--red)   !important; font-family: var(--font-data); font-variant-numeric: tabular-nums; font-weight: 700; }
