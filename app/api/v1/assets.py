@@ -194,10 +194,6 @@ def add_from_search():
     if not symbol or not name:
         return jsonify({"error": "symbol and name are required"}), 400
 
-    existing = Asset.query.filter_by(symbol=symbol).first()
-    if existing:
-        return jsonify({"error": f"{symbol} already exists", "asset": existing.to_dict()}), 409
-
     if source == "delta_exchange":
         from app.services.data.fetcher import to_delta_symbol
         if not to_delta_symbol(symbol):
@@ -207,6 +203,21 @@ def add_from_search():
         data_source = "delta_exchange"
     else:
         data_source = "yahoo"
+
+    existing = Asset.query.filter_by(symbol=symbol).first()
+    if existing:
+        if existing.is_active:
+            return jsonify({"error": f"{symbol} already exists", "asset": existing.to_dict()}), 409
+        # Previously soft-deleted — reactivate instead of blocking re-add
+        existing.name        = name
+        existing.market      = market
+        existing.exchange    = exchange
+        existing.data_source = data_source
+        existing.is_active   = True
+        db.session.commit()
+        for mk in Asset.MARKETS + ["all"]:
+            cache.delete(f"assets_list_{mk}")
+        return jsonify({"message": f"{symbol} re-added successfully", "asset": existing.to_dict()}), 201
 
     asset = Asset(
         symbol=symbol,
