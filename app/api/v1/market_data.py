@@ -325,8 +325,7 @@ def live_prices():
     cached = get_all_live_prices()
     # Supplement with any assets not yet in stream cache
     if not cached:
-        assets = Asset.query.filter_by(market="crypto", is_active=True,
-                                       data_source="binance").all()
+        assets = Asset.query.filter_by(market="crypto", is_active=True).all()
         for a in assets:
             t = market_fetcher.fetch_ticker(a)
             if t:

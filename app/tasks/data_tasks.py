@@ -16,10 +16,9 @@ def update_tickers(app):
         from app.services.data.fetcher import market_fetcher
 
         # Only poll assets NOT covered by the Delta Exchange WS stream
-        # (data_source == "binance" is the crypto marker — see fetcher.py note)
         non_crypto = Asset.query.filter(
             Asset.is_active == True,
-            Asset.data_source != "binance",
+            Asset.market != "crypto",
         ).all()
 
         for asset in non_crypto:

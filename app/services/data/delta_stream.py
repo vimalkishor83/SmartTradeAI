@@ -19,7 +19,7 @@ import logging
 import threading
 import time
 
-from app.services.data.fetcher import DELTA_SYMBOL_MAP, DELTA_SYMBOL_MAP_REVERSE
+from app.services.data.fetcher import to_delta_symbol, from_delta_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,12 @@ class DeltaStreamManager:
         self._stop_event.set()
 
     def _get_symbols(self) -> list[str]:
-        """Fetch active crypto symbols from DB that have a known Delta mapping."""
+        """Fetch active crypto symbols from DB that have a valid Delta mapping."""
         try:
             with self._app.app_context():
                 from app.models.asset import Asset
-                assets = Asset.query.filter_by(
-                    market="crypto", is_active=True, data_source="binance"
-                ).all()
-                return [a.symbol.upper() for a in assets if a.symbol.upper() in DELTA_SYMBOL_MAP]
+                assets = Asset.query.filter_by(market="crypto", is_active=True).all()
+                return [a.symbol.upper() for a in assets if to_delta_symbol(a.symbol)]
         except Exception as e:
             logger.debug(f"DeltaStream: could not load symbols: {e}")
             return []
@@ -107,7 +105,7 @@ class DeltaStreamManager:
             self._stop_event.set()
             return
 
-        delta_symbols = [DELTA_SYMBOL_MAP[s] for s in symbols]
+        delta_symbols = [to_delta_symbol(s) for s in symbols]
 
         def on_open(ws):
             sub = {
@@ -134,9 +132,9 @@ class DeltaStreamManager:
                 return
 
             delta_symbol = msg.get("symbol")
-            our_symbol = DELTA_SYMBOL_MAP_REVERSE.get(delta_symbol)
-            if not our_symbol:
+            if not delta_symbol:
                 return
+            our_symbol = from_delta_symbol(delta_symbol)
 
             close  = float(msg.get("close", 0) or 0)
             open_  = float(msg.get("open", 0) or 0)

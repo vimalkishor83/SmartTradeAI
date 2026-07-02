@@ -254,6 +254,13 @@ def _seed_initial_data(app):
             a.market = "commodity"
             a.data_source = "yahoo"
 
+    # Migrate existing crypto assets from Binance → Delta Exchange India
+    for a in Asset.query.filter_by(market="crypto").all():
+        if a.data_source == "binance":
+            a.data_source = "delta_exchange"
+        if a.exchange == "binance":
+            a.exchange = "delta_exchange"
+
     # Add Crude Oil if missing
     if not Asset.query.filter_by(symbol="CLUSD").first():
         db.session.add(Asset(symbol="CLUSD", name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"))
@@ -262,11 +269,11 @@ def _seed_initial_data(app):
     if not Asset.query.first():
         assets = [
             # Crypto
-            Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="binance", data_source="binance"),
-            Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="binance", data_source="binance"),
-            Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="binance", data_source="binance"),
-            Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="binance", data_source="binance"),
-            Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="binance", data_source="binance"),
+            Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+            Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+            Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+            Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+            Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
             # Forex
             Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
             Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),

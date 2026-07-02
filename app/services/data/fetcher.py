@@ -87,19 +87,54 @@ _breaker_yahoo   = _CircuitBreaker("yahoo")
 
 
 # ─────────────────────────────────────────────────────────
-# Symbol mapping: our stored symbols (Binance-style, e.g. BTCUSDT)
-# → Delta Exchange India's native perpetual-futures symbols (e.g. BTCUSD).
-# Kept as an explicit map rather than a suffix-strip so unmapped/exotic
-# symbols fail loudly (return None) instead of silently guessing wrong.
+# Symbol mapping: our stored symbols (e.g. BTCUSDT) → Delta Exchange
+# India's native perpetual-futures symbols (e.g. BTCUSD).
+#
+# Our convention is always {BASE}USDT; Delta's is always {BASE}USD, so the
+# mapping is algorithmic (strip trailing "T") rather than a hardcoded table —
+# this lets any coin Delta lists work immediately once added via search,
+# without needing a code change per-symbol. `_delta_live_symbols()` validates
+# the derived symbol actually exists on Delta before using it, so an unmapped/
+# nonexistent symbol fails loudly (returns None) instead of guessing wrong.
 # ─────────────────────────────────────────────────────────
-DELTA_SYMBOL_MAP = {
-    "BTCUSDT": "BTCUSD",
-    "ETHUSDT": "ETHUSD",
-    "BNBUSDT": "BNBUSD",
-    "SOLUSDT": "SOLUSD",
-    "XRPUSDT": "XRPUSD",
-}
-DELTA_SYMBOL_MAP_REVERSE = {v: k for k, v in DELTA_SYMBOL_MAP.items()}
+def to_delta_symbol(our_symbol: str) -> str | None:
+    """BTCUSDT -> BTCUSD, validated against Delta's live product list."""
+    s = our_symbol.upper()
+    if not s.endswith("USDT"):
+        return None
+    delta_sym = s[:-1]  # strip trailing "T": BTCUSDT -> BTCUSD
+    return delta_sym if delta_sym in _delta_live_symbols() else None
+
+
+def from_delta_symbol(delta_symbol: str) -> str:
+    """BTCUSD -> BTCUSDT (our storage convention)."""
+    return delta_symbol.upper() + "T"
+
+
+def _delta_live_symbols() -> set[str]:
+    """Cached set of all live USD-quoted perpetual symbols Delta currently lists."""
+    now = time.time()
+    cached = _delta_live_symbols._cache
+    if cached and now - cached[1] < 600:  # 10 min TTL
+        return cached[0]
+    try:
+        resp = requests.get(
+            "https://api.india.delta.exchange/v2/products",
+            params={"contract_types": "perpetual_futures"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        symbols = {
+            p["symbol"] for p in resp.json().get("result", [])
+            if p.get("symbol", "").endswith("USD") and p.get("state") == "live"
+        }
+        _delta_live_symbols._cache = (symbols, now)
+        return symbols
+    except Exception:
+        return cached[0] if cached else set()
+
+
+_delta_live_symbols._cache = None
 
 
 # ─────────────────────────────────────────────────────────
@@ -208,7 +243,7 @@ class DeltaExchangeFetcher:
     INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","2h":"2h","4h":"4h","1d":"1d"}
 
     def _delta_symbol(self, symbol: str) -> str | None:
-        return DELTA_SYMBOL_MAP.get(symbol.upper())
+        return to_delta_symbol(symbol)
 
     @_retry(max_attempts=3, backoff=1.5)
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
@@ -475,25 +510,24 @@ class YahooFetcher:
 # ─────────────────────────────────────────────────────────
 # Unified fetcher
 #
-# Note: crypto assets keep `data_source == "binance"` in the DB (avoids a
-# data migration / breaking existing symbol references) but are now routed
-# to Delta Exchange India — Binance is no longer called for OHLCV/tickers.
-# The `data_source` string is being read here as "crypto data source",
-# not literally "use the Binance API".
+# Crypto assets (market == "crypto") are always routed to Delta Exchange
+# India — never Yahoo, even as a fallback. Yahoo is only used for
+# forex/commodity/index/stock assets. This is enforced by checking
+# `asset.market` directly, not just `data_source`, so a crypto asset with
+# a missing/stale data_source value still never silently hits Yahoo.
 # ─────────────────────────────────────────────────────────
 class MarketDataFetcher:
     def __init__(self):
-        self.binance = BinanceFetcher()          # kept for reference/rollback; unused below
-        self.delta   = DeltaExchangeFetcher()
-        self.yahoo   = YahooFetcher()
+        self.delta = DeltaExchangeFetcher()
+        self.yahoo = YahooFetcher()
 
     def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
-        if asset.data_source == "binance":
+        if asset.market == "crypto":
             return self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
         return self.yahoo.fetch_ohlcv(asset.symbol, timeframe, limit)
 
     def fetch_ticker(self, asset) -> dict | None:
-        if asset.data_source == "binance":
+        if asset.market == "crypto":
             return self.delta.fetch_ticker(asset.symbol)
         if not _YF_AVAILABLE:
             return None
@@ -512,9 +546,9 @@ class MarketDataFetcher:
         Fetch OHLCV for multiple assets × timeframes in parallel.
         Returns {symbol: {timeframe: DataFrame}}
         """
-        # Separate by data source
-        delta_assets = [a for a in assets if a.data_source == "binance"]
-        yahoo_assets = [a for a in assets if a.data_source != "binance"]
+        # Separate by market — crypto always goes to Delta, everything else to Yahoo
+        delta_assets = [a for a in assets if a.market == "crypto"]
+        yahoo_assets = [a for a in assets if a.market != "crypto"]
 
         results: dict[str, dict[str, pd.DataFrame]] = {a.symbol: {} for a in assets}
 

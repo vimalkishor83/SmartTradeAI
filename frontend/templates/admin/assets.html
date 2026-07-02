@@ -104,7 +104,7 @@
     <div id="assetSearchResults" style="display:none" class="table-responsive">
       <table class="smart-table">
         <thead>
-          <tr><th>Symbol</th><th>Name</th><th>Exchange</th><th>Type</th><th>Add as Market</th><th></th></tr>
+          <tr><th>Symbol</th><th>Name</th><th>Source</th><th>Exchange</th><th>Add as Market</th><th></th></tr>
         </thead>
         <tbody id="assetSearchBody"></tbody>
       </table>
@@ -216,16 +216,25 @@ async function searchAssets() {
   };
   const mkOpts = (def) => ['crypto','forex','commodity','indian_stock','index'].map(m =>
     `<option value="${m}" ${m===def?'selected':''}>${m.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
-  document.getElementById('assetSearchBody').innerHTML = data.results.map(r => {
+  // Delta Exchange (crypto) results shown first, tagged with a distinct badge
+  const sorted = [...data.results].sort((a, b) => (a.source === 'delta_exchange' ? -1 : 0) - (b.source === 'delta_exchange' ? -1 : 0));
+  document.getElementById('assetSearchBody').innerHTML = sorted.map(r => {
     const sid = r.symbol.replace(/[^a-z0-9]/gi,'_');
+    const isDelta = r.source === 'delta_exchange';
+    const sourceBadge = isDelta
+      ? '<span class="badge-tag" style="background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.3)">Delta Exchange</span>'
+      : '<span class="badge-tag">Yahoo</span>';
+    const marketCell = isDelta
+      ? `<input type="hidden" id="mkt_${sid}" value="crypto"><span class="badge-tag">Crypto</span>`
+      : `<select id="mkt_${sid}" class="form-select form-select-sm" style="width:160px">${mkOpts(guessMkt(r))}</select>`;
     return `<tr id="row_${sid}">
       <td><code style="color:var(--accent)">${r.symbol}</code></td>
       <td>${r.name}</td>
+      <td style="font-size:12px">${sourceBadge}</td>
       <td style="font-size:12px">${r.exchange || '—'}</td>
-      <td style="font-size:12px">${r.type || '—'}</td>
-      <td><select id="mkt_${sid}" class="form-select form-select-sm" style="width:160px">${mkOpts(guessMkt(r))}</select></td>
+      <td>${marketCell}</td>
       <td>
-        <button onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange||''}')"
+        <button onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange||''}','${r.source||'yahoo'}')"
           style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
           <i class="bi bi-plus-lg me-1"></i>Add
         </button>
@@ -234,14 +243,14 @@ async function searchAssets() {
   }).join('');
 }
 
-async function addAsset(symbol, name, exchange) {
+async function addAsset(symbol, name, exchange, source) {
   const sid    = symbol.replace(/[^a-z0-9]/gi,'_');
   const market = document.getElementById('mkt_' + sid)?.value || 'index';
   const token  = localStorage.getItem('access_token');
   const res    = await fetch('/api/v1/assets/add-from-search', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ symbol, name, exchange, market })
+    body: JSON.stringify({ symbol, name, exchange, market, source })
   });
   const data = await res.json();
   if (res.ok) {
