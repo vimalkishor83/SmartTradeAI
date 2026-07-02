@@ -60,8 +60,8 @@
   </div>
 </div>
 
-<!-- ── Open Positions P&L Panel ──────────────────────── -->
-<div class="section-card mb-4" id="pnlPanel">
+<!-- ── Open Positions P&L Panel (Live Signals tab only) ── -->
+<div class="section-card mb-4" id="pnlPanel" {% if active_tab == 'history' %}style="display:none"{% endif %}>
   <div class="section-card-header" style="cursor:pointer" onclick="togglePnlPanel()">
     <span class="section-card-title">
       <i class="bi bi-graph-up-arrow text-accent me-1"></i>
@@ -242,6 +242,7 @@ function shortTime(iso) {
 function showTab(tab) {
   document.getElementById('liveTab').style.display    = tab === 'live'    ? 'block' : 'none';
   document.getElementById('historyTab').style.display = tab === 'history' ? 'block' : 'none';
+  document.getElementById('pnlPanel').style.display   = tab === 'live'    ? '' : 'none';
   document.getElementById('tabLiveBtn').classList.toggle('active', tab === 'live');
   document.getElementById('tabHistBtn').classList.toggle('active', tab === 'history');
   if (tab === 'history') loadHistory(1);
