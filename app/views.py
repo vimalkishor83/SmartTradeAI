@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, render_template, redirect, url_for, request
 from app.models.asset import Asset
 
 views_bp = Blueprint("views", __name__)
@@ -58,7 +58,8 @@ def watchlist():
 
 @views_bp.route("/signals")
 def signals():
-    return render_template("dashboard/signals.html")
+    tab = request.args.get('tab', 'live')
+    return render_template("dashboard/signals.html", active_tab=tab)
 
 
 @views_bp.route("/analytics")

@@ -736,15 +736,12 @@ async function loadAssetSignals() {
 
   function shortTime(iso) {
     if (!iso) return '—';
-    const d = new Date(iso.endsWith('Z') ? iso : iso + 'Z');
+    const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+    const d = new Date(str);
     if (isNaN(d)) return '—';
-    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    const pad    = n => String(n).padStart(2, '0');
-    const h24    = d.getUTCHours();
-    const ampm   = h24 >= 12 ? 'PM' : 'AM';
-    const h12    = h24 % 12 || 12;
-    const time   = `${pad(h12)}:${pad(d.getUTCMinutes())} ${ampm}`;
-    const date   = `${pad(d.getUTCDate())} ${months[d.getUTCMonth()]}`;
+    const IST = { timeZone: 'Asia/Kolkata' };
+    const date = d.toLocaleDateString('en-IN', { ...IST, day:'2-digit', month:'short' });
+    const time = d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:true });
     return `${date}<br><span style="color:var(--text-muted);font-size:10px">${time}</span>`;
   }
 

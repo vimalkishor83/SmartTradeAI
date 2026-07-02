@@ -134,12 +134,13 @@ let _sentimentAssetId = null;
 /* ── Short time format ───────────────────────── */
 function shortTime(iso) {
   if (!iso) return '—';
-  const d = new Date(iso);
-  const now = new Date();
+  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  const d = new Date(str), now = new Date();
+  const IST = { timeZone: 'Asia/Kolkata' };
   const diffH = (now - d) / 36e5;
-  if (diffH < 24) return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
-  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
-         d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+  if (diffH < 24) return d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
+  return d.toLocaleDateString('en-IN', { ...IST, day:'2-digit', month:'short' }) + ' ' +
+         d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
 }
 
 /* ── Asset Cards ─────────────────────────────── */

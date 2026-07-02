@@ -19,7 +19,7 @@
   <div class="table-responsive">
     <table class="smart-table">
       <thead><tr><th>Level</th><th>Module</th><th>Message</th><th>Time</th></tr></thead>
-      <tbody id="logsBody"><tr><td colspan="4" class="text-center py-5 text-muted"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</td></tr></tbody>
+      <tbody id="logsBody"><tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr></tbody>
     </table>
   </div>
   <div class="p-3"><nav><ul class="pagination pagination-sm mb-0" id="logsPagination"></ul></nav></div>
@@ -37,7 +37,7 @@ async function loadLogs(page = 1) {
 
   const LEVEL_COLORS = { INFO: 'bg-info text-dark', WARNING: 'bg-warning text-dark', ERROR: 'bg-danger', CRITICAL: 'bg-danger' };
   if (!data.logs?.length) {
-    document.getElementById('logsBody').innerHTML = '<tr><td colspan="4" class="text-center py-5 text-muted"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</td></tr>';
+    document.getElementById('logsBody').innerHTML = '<tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr>';
     return;
   }
   document.getElementById('logsBody').innerHTML = data.logs.map(l => `

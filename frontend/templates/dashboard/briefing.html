@@ -180,7 +180,7 @@ async function loadEvents() {
   const impactClass = { high: 'impact-high', medium: 'impact-medium', low: 'impact-low' };
   el.innerHTML = todayEvents.map(e => {
     const imp = (e.impact || 'low').toLowerCase();
-    const time = e.event_time ? new Date(e.event_time + 'Z').toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const time = e.event_time ? new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
     return `<div class="event-row">
       <span class="event-impact ${impactClass[imp] || 'impact-low'}">${(e.impact || 'LOW').toUpperCase()}</span>
       <div style="flex:1">

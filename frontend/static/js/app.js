@@ -288,7 +288,13 @@ function formatPrice(price, market) {
 
 function formatTime(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' });
+  // Ensure UTC interpretation — append Z if no timezone offset present
+  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  return new Date(str).toLocaleString('en-IN', {
+    timeZone: 'Asia/Kolkata',
+    dateStyle: 'short',
+    timeStyle: 'short',
+  });
 }
 
 function formatChange(val) {

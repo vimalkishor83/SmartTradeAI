@@ -865,11 +865,12 @@ function providerLabel(p) {
 
 function timeAgo(iso) {
   if (!iso) return '—';
-  const diff = Math.floor((Date.now() - new Date(iso)) / 1000);
+  const str  = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  const diff = Math.floor((Date.now() - new Date(str)) / 1000);
   if (diff < 60)   return diff + 's ago';
   if (diff < 3600) return Math.floor(diff/60) + 'm ago';
   if (diff < 86400)return Math.floor(diff/3600) + 'h ago';
-  return new Date(iso).toLocaleDateString();
+  return new Date(str).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
 }
 
 // Extend API helper with delete

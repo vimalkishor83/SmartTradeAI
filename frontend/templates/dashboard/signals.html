@@ -1,7 +1,7 @@
 ﻿{% extends "partials/base.html" %}
-{% block title %}All Signals — SmartTrade AI{% endblock %}
-{% set active = 'signals' %}
-{% block breadcrumb %}<i class="bi bi-lightning-charge-fill me-2"></i> All Signals{% endblock %}
+{% block title %}{% if active_tab == 'history' %}Signal History{% else %}All Signals{% endif %} — SmartTrade AI{% endblock %}
+{% set active = 'signal_history' if active_tab == 'history' else 'signals' %}
+{% block breadcrumb %}{% if active_tab == 'history' %}<i class="bi bi-journal-text me-2"></i> Signal History{% else %}<i class="bi bi-lightning-charge-fill me-2"></i> All Signals{% endif %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -114,19 +114,19 @@
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-4" id="signalTabs" style="border-color:var(--border)">
   <li class="nav-item">
-    <a class="nav-link active" id="tabLiveBtn" href="#" onclick="showTab('live');return false">
+    <a class="nav-link {% if active_tab != 'history' %}active{% endif %}" id="tabLiveBtn" href="#" onclick="showTab('live');return false">
       <i class="bi bi-lightning-charge me-1"></i>Live Signals
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="tabHistBtn" href="#" onclick="showTab('history');return false">
+    <a class="nav-link {% if active_tab == 'history' %}active{% endif %}" id="tabHistBtn" href="#" onclick="showTab('history');return false">
       <i class="bi bi-clock-history me-1"></i>Signal History
     </a>
   </li>
 </ul>
 
 <!-- ── LIVE TAB ──────────────────────────────────────── -->
-<div id="liveTab">
+<div id="liveTab" {% if active_tab == 'history' %}style="display:none"{% endif %}>
   <div class="section-card mb-3">
     <div class="section-card-body py-2">
       <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -183,7 +183,7 @@
 </div>
 
 <!-- ── HISTORY TAB ──────────────────────────────────── -->
-<div id="historyTab" style="display:none">
+<div id="historyTab" {% if active_tab != 'history' %}style="display:none"{% endif %}>
   <div class="section-card mb-3">
     <div class="section-card-body py-2">
       <div class="d-flex flex-wrap gap-2 align-items-center">
@@ -230,11 +230,13 @@
 <script>
 function shortTime(iso) {
   if (!iso) return '—';
-  const d = new Date(iso), now = new Date();
+  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  const d = new Date(str), now = new Date();
+  const IST = { timeZone: 'Asia/Kolkata' };
   if ((now - d) / 36e5 < 24)
-    return d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
-  return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short'}) + ' ' +
-         d.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+    return d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
+  return d.toLocaleDateString('en-IN', { ...IST, day:'2-digit', month:'short' }) + ' ' +
+         d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
 }
 
 function showTab(tab) {
@@ -492,7 +494,11 @@ document.addEventListener('app:ready', () => {
   })();
 
   loadSummary();
-  loadSignals(1);
+  if (location.search.includes('tab=history')) {
+    loadHistory(1);
+  } else {
+    loadSignals(1);
+  }
   loadOpenPnl();
   setInterval(loadOpenPnl, 60000);
 
