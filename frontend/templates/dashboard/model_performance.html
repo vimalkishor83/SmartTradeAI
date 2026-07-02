@@ -96,12 +96,12 @@
 <div class="row g-3 mb-4">
   <!-- Accuracy trend chart -->
   <div class="col-12 col-xl-7">
-    <div class="card h-100">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <span class="fw-700">30-Day Accuracy Trend</span>
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title fw-700">30-Day Accuracy Trend</span>
         <span class="badge-model" id="trendSampleCount"></span>
       </div>
-      <div class="card-body">
+      <div class="section-card-body">
         <div class="trend-canvas-wrap">
           <canvas id="trendChart"></canvas>
         </div>
@@ -111,9 +111,11 @@
 
   <!-- By timeframe -->
   <div class="col-12 col-xl-5">
-    <div class="card h-100">
-      <div class="card-header fw-700">Accuracy by Timeframe</div>
-      <div class="card-body p-0">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title fw-700">Accuracy by Timeframe</span>
+      </div>
+      <div class="table-responsive">
         <table class="perf-table" id="tfTable">
           <thead><tr>
             <th>Timeframe</th>
@@ -132,9 +134,11 @@
 <div class="row g-3">
   <!-- By model -->
   <div class="col-12 col-md-4">
-    <div class="card h-100">
-      <div class="card-header fw-700">Accuracy by Model</div>
-      <div class="card-body p-0">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title fw-700">Accuracy by Model</span>
+      </div>
+      <div class="table-responsive">
         <table class="perf-table" id="modelTable">
           <thead><tr>
             <th>Model</th>
@@ -151,12 +155,12 @@
 
   <!-- By asset -->
   <div class="col-12 col-md-8">
-    <div class="card h-100">
-      <div class="card-header d-flex align-items-center justify-content-between">
-        <span class="fw-700">Per-Asset Accuracy</span>
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title fw-700">Per-Asset Accuracy</span>
         <input type="text" id="assetSearch" class="form-control form-control-sm" placeholder="Filter…" style="width:140px" oninput="filterAssets(this.value)">
       </div>
-      <div class="card-body p-0" style="max-height:420px;overflow-y:auto">
+      <div style="max-height:420px;overflow-y:auto">
         <table class="perf-table" id="assetTable">
           <thead><tr>
             <th>Asset</th>

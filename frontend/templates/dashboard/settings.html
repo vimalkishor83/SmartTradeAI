@@ -72,7 +72,7 @@
         <!-- 2FA disabled state -->
         <div id="twofa_disabled">
           <div class="d-flex align-items-center gap-3 mb-3">
-            <span class="badge bg-danger" style="font-size:12px;padding:6px 12px">DISABLED</span>
+            <span class="badge bg-danger">DISABLED</span>
             <span style="font-size:13px;color:var(--text-muted)">Your account is protected by password only. Enable 2FA for stronger security.</span>
           </div>
           <button class="btn btn-primary" onclick="setup2FA()">
@@ -83,7 +83,7 @@
         <!-- 2FA enabled state -->
         <div id="twofa_enabled" style="display:none">
           <div class="d-flex align-items-center gap-3 mb-3">
-            <span class="badge bg-success" style="font-size:12px;padding:6px 12px">ENABLED</span>
+            <span class="badge bg-success">ENABLED</span>
             <span style="font-size:13px;color:var(--text-secondary)">Your account is protected with TOTP two-factor authentication.</span>
           </div>
           <button class="btn btn-outline-danger btn-sm" onclick="show2FADisableModal()">
@@ -122,7 +122,7 @@
 
         <!-- Backup codes display (shown once after enabling) -->
         <div id="twofa_backup" style="display:none;margin-top:16px">
-          <div class="p-3 rounded" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2)">
+          <div class="p-3 rounded" style="background:var(--green-bg);border:1px solid rgba(16,185,129,0.25)">
             <strong style="color:var(--green)"><i class="bi bi-key me-1"></i> Save these backup codes</strong>
             <p style="font-size:12px;color:var(--text-muted);margin:6px 0 10px">If you lose your authenticator device, use one of these codes to sign in. Each code can only be used once.</p>
             <div id="backupCodesList" style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font-family:monospace;font-size:13px"></div>
@@ -162,31 +162,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<style>
-.asset-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-secondary);
-  cursor: pointer;
-  transition: border-color .15s, background .15s;
-  user-select: none;
-}
-.asset-toggle:hover { border-color: var(--accent); }
-.asset-toggle.active { border-color: var(--accent); background: rgba(99,102,241,0.12); }
-.asset-toggle .check {
-  width: 18px; height: 18px; border-radius: 4px; border: 2px solid var(--border);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  transition: background .15s, border-color .15s;
-}
-.asset-toggle.active .check { background: var(--accent); border-color: var(--accent); }
-.asset-toggle.active .check::after { content: '✓'; color: #fff; font-size: 11px; font-weight: 700; }
-.mkt-header { font-size: 11px; font-weight: 700; color: var(--text-muted); letter-spacing: .8px; text-transform: uppercase; margin: 12px 0 6px; }
-</style>
-
 <script>
 let _assetPrefs = {};  // { asset_id: true/false }
 

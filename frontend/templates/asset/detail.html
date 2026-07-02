@@ -40,7 +40,7 @@
     gap: 5px;
   }
   .indicator-card {
-    background: var(--surface-2, #1e293b);
+    background: var(--bg-secondary);
     border: 1px solid var(--border);
     border-radius: 6px;
     padding: 9px 14px;
@@ -50,12 +50,12 @@
     margin-bottom: 4px;
     transition: background .15s;
   }
-  .indicator-card:hover { background: #263244; }
+  .indicator-card:hover { background: var(--bg-card-hover); }
   .indicator-name { font-size: 12px; color: var(--text-secondary); }
   .indicator-value { font-size: 13px; font-weight: 700; }
 
   .sentiment-bar-wrap {
-    background: var(--surface-2, #1e293b);
+    background: var(--bg-secondary);
     border-radius: 6px;
     height: 8px;
     overflow: hidden;
@@ -76,7 +76,7 @@
   }
 
   #chartContainer {
-    background: #0f172a;
+    background: var(--bg-primary);
     border-radius: 0 0 8px 8px;
     position: relative;
     width: 100%;
@@ -187,7 +187,7 @@
           <!-- Chart container -->
           <div id="chartContainer">
             <div id="tvChart"></div>
-            <div id="tvVolume" style="border-top:1px solid #1e293b"></div>
+            <div id="tvVolume" style="border-top:1px solid var(--border)"></div>
           </div>
         </div>
       </div>
@@ -504,11 +504,14 @@ async function loadChart() {
     const tvVolume = document.getElementById('tvVolume');
     const w = tvChart.clientWidth || tvChart.parentElement?.clientWidth || 800;
 
+    const cssBg     = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#0d1117';
+    const cssBorder = '#1a2334';
+    const cssText   = '#8b9ab2';
     const base = {
-      layout: { background: { type: 'solid', color: '#0f172a' }, textColor: '#94a3b8' },
-      grid:   { vertLines: { color: '#1e293b' }, horzLines: { color: '#1e293b' } },
-      rightPriceScale: { borderColor: '#1e293b' },
-      timeScale: { borderColor: '#1e293b', timeVisible: true, secondsVisible: false },
+      layout: { background: { type: 'solid', color: cssBg }, textColor: cssText },
+      grid:   { vertLines: { color: cssBorder }, horzLines: { color: cssBorder } },
+      rightPriceScale: { borderColor: cssBorder },
+      timeScale: { borderColor: cssBorder, timeVisible: true, secondsVisible: false },
     };
 
     _chartInstance = LightweightCharts.createChart(tvChart,  { ...base, width: w, height: 420, crosshair: { mode: 1 } });

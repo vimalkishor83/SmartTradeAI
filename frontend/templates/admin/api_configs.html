@@ -9,45 +9,49 @@
     <h1 class="page-title">API Configurations</h1>
     <p class="text-muted mb-0">Manage data providers and broker connections per market</p>
   </div>
-  <button class="btn btn-accent" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+  <button class="btn btn-primary" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
 </div>
 
 <!-- Summary KPIs -->
 <div class="row g-3 mb-4" id="apiKpis">
   <div class="col-6 col-md-3">
     <div class="kpi-card blue">
-      <div class="kpi-icon"><i class="bi bi-plug-fill" style="color:var(--blue)"></i></div>
-      <div class="kpi-label">Total APIs</div>
-      <div class="kpi-value" id="kpiTotal">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">Total APIs</div><div class="kpi-value" id="kpiTotal">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-plug-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="kpi-card green">
-      <div class="kpi-icon"><i class="bi bi-check-circle-fill" style="color:var(--green)"></i></div>
-      <div class="kpi-label">Active</div>
-      <div class="kpi-value" id="kpiActive">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">Active</div><div class="kpi-value" id="kpiActive">—</div></div>
+        <div class="kpi-icon text-green"><i class="bi bi-check-circle-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card" style="border-top:3px solid var(--warning)">
-      <div class="kpi-icon"><i class="bi bi-pause-circle-fill" style="color:var(--warning)"></i></div>
-      <div class="kpi-label">Paused</div>
-      <div class="kpi-value" id="kpiPaused">—</div>
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Paused</div><div class="kpi-value" id="kpiPaused">—</div></div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-pause-circle-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card" style="border-top:3px solid var(--red)">
-      <div class="kpi-icon"><i class="bi bi-exclamation-triangle-fill" style="color:var(--red)"></i></div>
-      <div class="kpi-label">Error</div>
-      <div class="kpi-value" id="kpiError">—</div>
+    <div class="kpi-card red">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Error</div><div class="kpi-value" id="kpiError">—</div></div>
+        <div class="kpi-icon text-red"><i class="bi bi-exclamation-triangle-fill"></i></div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- Market Tabs -->
-<div class="card mb-0">
-  <div class="card-header p-0" style="border-bottom:1px solid var(--border)">
-    <ul class="nav nav-tabs border-0" id="marketTabs" style="flex-wrap:nowrap;overflow-x:auto">
+<div class="section-card mb-0">
+  <div class="section-card-header p-0" style="border-bottom:1px solid var(--border);padding:0!important">
+    <ul class="nav nav-tabs border-0" id="marketTabs" style="flex-wrap:nowrap;overflow-x:auto;margin-bottom:0">
       <li class="nav-item"><button class="nav-link active" data-market="all"     onclick="switchTab(this,'all')">All</button></li>
       <li class="nav-item"><button class="nav-link"        data-market="crypto"        onclick="switchTab(this,'crypto')"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button></li>
       <li class="nav-item"><button class="nav-link"        data-market="indian_stock"  onclick="switchTab(this,'indian_stock')"><i class="bi bi-building me-1"></i>Indian Stocks</button></li>
@@ -57,10 +61,8 @@
       <li class="nav-item"><button class="nav-link"        data-market="index"         onclick="switchTab(this,'index')"><i class="bi bi-bar-chart-fill me-1"></i>Indices</button></li>
     </ul>
   </div>
-  <div class="card-body p-0">
-    <div id="configTableWrap">
-      <div class="p-4 text-center text-muted">Loading configurations…</div>
-    </div>
+  <div id="configTableWrap">
+    <div class="p-4 text-center text-muted">Loading configurations…</div>
   </div>
 </div>
 

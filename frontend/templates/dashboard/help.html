@@ -9,8 +9,8 @@
 </div>
 
 <!-- Quick jump -->
-<div id="helpJumpNav" class="card mb-4">
-  <div class="card-body py-3">
+<div id="helpJumpNav" class="section-card mb-4">
+  <div class="section-card-body py-3">
     <div class="d-flex flex-wrap gap-2">
       <a href="#getting-started" class="btn btn-sm btn-outline-secondary">Getting Started</a>
       <a href="#signals"         class="btn btn-sm btn-outline-secondary">Signals</a>
@@ -32,9 +32,9 @@
 </div>
 
 <!-- Getting Started -->
-<div class="card mb-4" id="getting-started">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-play-circle me-2 text-accent"></i>Getting Started</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="getting-started">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-play-circle me-2 text-accent"></i>Getting Started</span></div>
+  <div class="section-card-body">
     <ol class="mb-0">
       <li class="mb-2"><strong>Login</strong> with your account credentials (default admin: <code>admin / Admin@123</code> — change immediately in Settings).</li>
       <li class="mb-2"><strong>Set minimum confidence</strong> in the top navbar slider (default 60%). Signals below this threshold are hidden across all pages.</li>
@@ -47,9 +47,9 @@
 </div>
 
 <!-- Signals -->
-<div class="card mb-4" id="signals">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Signals</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="signals">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-lightning-charge-fill me-2 text-warning"></i>Signals</span></div>
+  <div class="section-card-body">
     <h6>How signals are generated</h6>
     <p>The signal engine runs a <strong>7-stage pipeline</strong> for every asset + timeframe combination:</p>
     <ol>
@@ -73,9 +73,9 @@
 </div>
 
 <!-- AI Insights -->
-<div class="card mb-4" id="ai-insights">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-cpu-fill me-2 text-accent"></i>AI Insights</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="ai-insights">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-cpu-fill me-2 text-accent"></i>AI Insights</span></div>
+  <div class="section-card-body">
     <p>AI Insights runs a machine-learning ensemble (Random Forest + XGBoost + LightGBM) trained on 28 features derived from price action, momentum, volatility, and volume.</p>
     <h6>How to use</h6>
     <ol>
@@ -96,9 +96,9 @@
 </div>
 
 <!-- TA Summary -->
-<div class="card mb-4" id="ta-summary">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-speedometer2 me-2 text-info"></i>TA Summary</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="ta-summary">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-speedometer2 me-2 text-info"></i>TA Summary</span></div>
+  <div class="section-card-body">
     <p>Technical Analysis Summary provides a quick snapshot of indicator consensus across <strong>7 timeframes</strong> (1m → 1d) for any asset.</p>
     <ul class="mb-0">
       <li><strong>Oscillators</strong>: RSI, Stochastic, CCI, MACD — each rated BUY / NEUTRAL / SELL.</li>
@@ -111,9 +111,9 @@
 </div>
 
 <!-- MTF Analysis -->
-<div class="card mb-4" id="mtf">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-table me-2 text-success"></i>MTF Analysis</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="mtf">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-table me-2 text-success"></i>MTF Analysis</span></div>
+  <div class="section-card-body">
     <p>Multi-Timeframe Analysis shows the alignment of trend and momentum indicators across all timeframes in a single grid.</p>
     <ul class="mb-0">
       <li>Each cell shows the <strong>trend direction</strong> for that asset × timeframe.</li>
@@ -126,9 +126,9 @@
 </div>
 
 <!-- Scanner -->
-<div class="card mb-4" id="scanner">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-radar me-2 text-warning"></i>Scanner</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="scanner">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-radar me-2 text-warning"></i>Scanner</span></div>
+  <div class="section-card-body">
     <p>The Scanner sweeps all tracked assets on a selected timeframe and ranks them by signal confidence.</p>
     <ul class="mb-0">
       <li>Filter by market type, minimum confidence, and direction (BUY / SELL / both).</li>
@@ -139,9 +139,9 @@
 </div>
 
 <!-- Backtesting -->
-<div class="card mb-4" id="backtesting">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-clock-history me-2 text-accent"></i>Backtesting <span class="badge bg-warning text-dark ms-1" style="font-size:10px">PRO</span></h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="backtesting">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-clock-history me-2 text-accent"></i>Backtesting <span class="badge bg-warning text-dark ms-1" style="font-size:10px">PRO</span></span></div>
+  <div class="section-card-body">
     <p>Backtesting replays the signal engine on historical data and measures realistic performance.</p>
     <h6>Parameters</h6>
     <ul>
@@ -169,9 +169,9 @@
 </div>
 
 <!-- Risk Manager -->
-<div class="card mb-4" id="risk">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-shield-check me-2 text-success"></i>Risk Manager</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="risk">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-shield-check me-2 text-success"></i>Risk Manager</span></div>
+  <div class="section-card-body">
     <p>Calculates recommended position size for a trade based on your account and risk tolerance.</p>
     <h6>Standard calculator</h6>
     <ul>
@@ -190,9 +190,9 @@
 </div>
 
 <!-- Trade Journal -->
-<div class="card mb-4" id="journal">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-journal-bookmark-fill me-2 text-info"></i>Trade Journal</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="journal">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-journal-bookmark-fill me-2 text-info"></i>Trade Journal</span></div>
+  <div class="section-card-body">
     <p>Log and review your actual trades with notes, emotions, and outcomes.</p>
     <ul class="mb-0">
       <li>Record entry/exit prices, P&amp;L, trade setup notes, and emotional state.</li>
@@ -203,9 +203,9 @@
 </div>
 
 <!-- Morning Briefing -->
-<div class="card mb-4" id="briefing">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-sunrise me-2 text-warning"></i>Morning Briefing</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="briefing">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-sunrise me-2 text-warning"></i>Morning Briefing</span></div>
+  <div class="section-card-body">
     <p>A daily summary page generated each morning with:</p>
     <ul class="mb-0">
       <li>Top signals from the last 24 hours across all markets.</li>
@@ -217,9 +217,9 @@
 </div>
 
 <!-- Portfolio & Watchlist -->
-<div class="card mb-4" id="portfolio">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-pie-chart-fill me-2 text-accent"></i>Portfolio & Watchlist</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="portfolio">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-pie-chart-fill me-2 text-accent"></i>Portfolio & Watchlist</span></div>
+  <div class="section-card-body">
     <h6>Portfolio</h6>
     <p>Track your open and closed positions, total P&amp;L, and allocation breakdown by market.</p>
     <h6 id="watchlist">Watchlist</h6>
@@ -228,9 +228,9 @@
 </div>
 
 <!-- Settings -->
-<div class="card mb-4" id="settings">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-gear-fill me-2 text-secondary"></i>Settings</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="settings">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-gear-fill me-2 text-secondary"></i>Settings</span></div>
+  <div class="section-card-body">
     <ul class="mb-0">
       <li><strong>Min Confidence Filter</strong>: signals below this are hidden sitewide (also adjustable from the navbar slider).</li>
       <li><strong>Account Size &amp; Risk %</strong>: used as defaults in the Risk Manager calculator.</li>
@@ -242,9 +242,9 @@
 </div>
 
 <!-- Changelog -->
-<div class="card mb-4" id="changelog">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-journal-code me-2 text-success"></i>Architecture Changelog</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="changelog">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-journal-code me-2 text-success"></i>Architecture Changelog</span></div>
+  <div class="section-card-body">
 
     <h6 class="text-success">P0 — Signal Engine Overhaul <small class="text-muted fw-normal">(2026-07)</small></h6>
     <ul>
@@ -287,9 +287,9 @@
 </div>
 
 <!-- FAQ -->
-<div class="card mb-4" id="faq">
-  <div class="card-header"><h5 class="mb-0"><i class="bi bi-patch-question-fill me-2 text-accent"></i>FAQ</h5></div>
-  <div class="card-body">
+<div class="section-card mb-4" id="faq">
+  <div class="section-card-header"><span class="section-card-title fs-6 fw-700"><i class="bi bi-patch-question-fill me-2 text-accent"></i>FAQ</span></div>
+  <div class="section-card-body">
 
     <div class="mb-3">
       <strong>Why is the AI Insights result different from the TA Summary?</strong>

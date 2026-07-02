@@ -18,30 +18,34 @@
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="kpi-card blue">
-      <div class="kpi-icon"><i class="bi bi-layers-fill" style="color:var(--blue)"></i></div>
-      <div class="kpi-label">Total Assets</div>
-      <div class="kpi-value" id="kpiTotal">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">Total Assets</div><div class="kpi-value" id="kpiTotal">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-layers-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card" style="border-top:3px solid #f59e0b">
-      <div class="kpi-icon"><i class="bi bi-currency-bitcoin" style="color:#f59e0b"></i></div>
-      <div class="kpi-label">Crypto</div>
-      <div class="kpi-value" id="kpiCrypto">—</div>
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Crypto</div><div class="kpi-value" id="kpiCrypto">—</div></div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-currency-bitcoin"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card" style="border-top:3px solid #3b82f6">
-      <div class="kpi-icon"><i class="bi bi-currency-exchange" style="color:#3b82f6"></i></div>
-      <div class="kpi-label">Forex</div>
-      <div class="kpi-value" id="kpiForex">—</div>
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Forex</div><div class="kpi-value" id="kpiForex">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-currency-exchange"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card" style="border-top:3px solid #8b5cf6">
-      <div class="kpi-icon"><i class="bi bi-gem" style="color:#8b5cf6"></i></div>
-      <div class="kpi-label">Other</div>
-      <div class="kpi-value" id="kpiOther">—</div>
+    <div class="kpi-card purple">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Other</div><div class="kpi-value" id="kpiOther">—</div></div>
+        <div class="kpi-icon text-purple"><i class="bi bi-gem"></i></div>
+      </div>
     </div>
   </div>
 </div>
@@ -94,7 +98,7 @@
     <div class="d-flex gap-2 mb-3">
       <input type="text" id="assetSearchInput" placeholder="e.g. nifty bank, nasdaq, gold, reliance…"
         class="form-control" style="max-width:420px">
-      <button class="btn btn-accent" onclick="searchAssets()"><i class="bi bi-search me-1"></i>Search</button>
+      <button class="btn btn-primary" onclick="searchAssets()"><i class="bi bi-search me-1"></i>Search</button>
     </div>
     <div id="assetSearchMsg" class="text-muted small mb-2"></div>
     <div id="assetSearchResults" style="display:none" class="table-responsive">

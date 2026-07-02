@@ -15,40 +15,30 @@
 </div>
 
 <!-- ═══ Asset Search & Add ════════════════════════════════════ -->
-<div class="card mb-4" style="background:var(--card-bg);border:1px solid var(--border)">
-  <div class="card-header" style="background:var(--card-bg);border-bottom:1px solid var(--border)">
-    <div class="d-flex align-items-center justify-content-between">
-      <h6 class="mb-0" style="color:var(--text-primary)"><i class="bi bi-search me-2 text-accent"></i>Search & Add Asset / Index</h6>
-      <a href="/admin/assets" class="btn btn-sm btn-outline-light"><i class="bi bi-list-ul me-1"></i>Manage Assets</a>
-    </div>
-    <div class="row g-2 mt-2">
-      <div class="col">
-        <input type="text" id="assetSearchInput" class="form-control"
-          style="background:var(--input-bg,var(--bg-secondary));border:1px solid var(--border);color:var(--text-primary)"
-          placeholder="e.g. nifty bank, midcap, nasdaq, gold, reliance…" autocomplete="off">
-      </div>
-      <div class="col-auto">
-        <button class="btn btn-accent" onclick="searchAssets()" style="font-weight:600"><i class="bi bi-search me-1"></i>Search</button>
-      </div>
-    </div>
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-search me-2 text-accent"></i>Search &amp; Add Asset / Index</span>
+    <a href="/admin/assets" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul me-1"></i>Manage Assets</a>
   </div>
-  <div class="card-body p-0">
-    <div id="assetSearchResults" style="display:none">
-      <table class="table table-sm table-hover mb-0" style="color:var(--text-primary)">
-        <thead style="background:var(--bg-secondary);color:var(--text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em">
+  <div class="section-card-body">
+    <div class="d-flex gap-2">
+      <input type="text" id="assetSearchInput" class="form-control"
+        placeholder="e.g. nifty bank, midcap, nasdaq, gold, reliance…" autocomplete="off">
+      <button class="btn btn-primary" onclick="searchAssets()" style="white-space:nowrap"><i class="bi bi-search me-1"></i>Search</button>
+    </div>
+    <div id="assetSearchMsg" class="text-muted mt-2" style="font-size:13px"></div>
+  </div>
+  <div id="assetSearchResults" style="display:none">
+    <div class="table-responsive">
+      <table class="smart-table">
+        <thead>
           <tr>
-            <th class="px-3 py-2">Symbol</th>
-            <th class="py-2">Name</th>
-            <th class="py-2">Exchange</th>
-            <th class="py-2">Type</th>
-            <th class="py-2">Add as Market</th>
-            <th class="py-2"></th>
+            <th>Symbol</th><th>Name</th><th>Exchange</th><th>Type</th><th>Add as Market</th><th></th>
           </tr>
         </thead>
         <tbody id="assetSearchBody"></tbody>
       </table>
     </div>
-    <div id="assetSearchMsg" class="text-muted px-3 py-2" style="font-size:13px"></div>
   </div>
 </div>
 
@@ -57,32 +47,38 @@
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
     <div class="kpi-card blue">
-      <div class="kpi-icon"><i class="bi bi-people-fill" style="color:var(--blue)"></i></div>
-      <div class="kpi-label">Total Users</div>
-      <div class="kpi-value" id="adminTotalUsers">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">Total Users</div><div class="kpi-value" id="adminTotalUsers">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-people-fill"></i></div>
+      </div>
       <div class="kpi-change up" id="adminActiveUsers">— active</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="kpi-card green">
-      <div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div>
-      <div class="kpi-label">Signals Today</div>
-      <div class="kpi-value" id="adminSignalsToday">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">Signals Today</div><div class="kpi-value" id="adminSignalsToday">—</div></div>
+        <div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div>
+      </div>
       <div class="kpi-change up" id="adminWinRate">— win rate</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
     <div class="kpi-card yellow">
-      <div class="kpi-icon text-yellow"><i class="bi bi-cpu-fill"></i></div>
-      <div class="kpi-label">CPU Usage</div>
-      <div class="kpi-value" id="adminCpu">—</div>
+      <div class="kpi-top">
+        <div><div class="kpi-label">CPU Usage</div><div class="kpi-value" id="adminCpu">—</div></div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-cpu-fill"></i></div>
+      </div>
+      <div class="kpi-change"><i class="bi bi-activity me-1"></i>System load</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card">
-      <div class="kpi-icon"><i class="bi bi-memory" style="color:#8b5cf6"></i></div>
-      <div class="kpi-label">Memory</div>
-      <div class="kpi-value" id="adminMem">—</div>
+    <div class="kpi-card purple">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Memory</div><div class="kpi-value" id="adminMem">—</div></div>
+        <div class="kpi-icon text-purple"><i class="bi bi-memory"></i></div>
+      </div>
+      <div class="kpi-change"><i class="bi bi-hdd me-1"></i>RAM usage</div>
     </div>
   </div>
 </div>
