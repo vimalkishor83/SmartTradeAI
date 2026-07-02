@@ -1521,3 +1521,197 @@ select option { background: #131920; color: #e8edf5; }
   vertical-align: middle;
   margin-right: 4px;
 }
+
+/* ════════════════════════════════════════════════════════════
+   UI AUDIT FIXES — visibility, color, empty states
+   ════════════════════════════════════════════════════════════ */
+
+/* --- Global: ensure all table cell text is readable (never white-on-white) --- */
+.smart-table td { color: var(--text-primary) !important; }
+.smart-table th { color: var(--text-muted) !important; }
+.smart-table tbody tr:last-child td { border-bottom: none; }
+
+/* --- Forms: inputs, selects, textareas must show text --- */
+.form-control,
+.form-select {
+  color: var(--text-primary) !important;
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border) !important;
+}
+.form-control::placeholder { color: var(--text-muted) !important; }
+.form-control:focus,
+.form-select:focus {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--accent) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.15) !important;
+}
+textarea.form-control { color: var(--text-primary) !important; }
+
+/* --- Modal --- */
+.modal-content {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-primary) !important;
+}
+.modal-header {
+  border-bottom: 1px solid var(--border) !important;
+  background: var(--bg-secondary) !important;
+}
+.modal-footer {
+  border-top: 1px solid var(--border) !important;
+  background: var(--bg-secondary) !important;
+}
+.modal-title { color: var(--text-primary) !important; }
+.btn-close { filter: invert(1) opacity(0.7); }
+
+/* --- Watchlist: make empty state more guiding --- */
+.watchlist-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+/* --- Portfolio KPI cards: zero values still visible --- */
+.kpi-value { color: var(--text-primary) !important; }
+
+/* --- Scanner info bar: improve contrast --- */
+.scanner-info-bar {
+  background: rgba(99,102,241,0.1);
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 8px;
+  padding: 10px 16px;
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* --- Journal: glass-card inside insight panel --- */
+.glass-card {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.glass-card.border-success { border-color: rgba(16,185,129,0.35) !important; }
+.glass-card.border-danger  { border-color: rgba(239,68,68,0.35)  !important; }
+
+/* --- MTF summary KPI cards at bottom --- */
+.mtf-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  text-align: center;
+}
+.mtf-summary-card .label {
+  font-size: 10px; font-weight: 700; letter-spacing: .8px;
+  text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+}
+.mtf-summary-card .value {
+  font-size: 2rem; font-weight: 900; line-height: 1;
+  color: var(--text-primary);
+}
+.mtf-summary-card .sub {
+  font-size: 11px; color: var(--text-muted); margin-top: 4px;
+}
+
+/* --- Admin table action icon buttons visibility --- */
+.btn-outline-secondary { color: var(--text-secondary) !important; border-color: var(--border) !important; }
+.btn-outline-secondary:hover { color: var(--text-primary) !important; border-color: var(--text-secondary) !important; background: rgba(255,255,255,0.05) !important; }
+.btn-outline-light { color: var(--text-secondary) !important; border-color: var(--border) !important; }
+.btn-outline-light:hover { color: var(--text-primary) !important; background: rgba(255,255,255,0.06) !important; border-color: var(--border-hover) !important; }
+.btn-outline-danger { color: var(--red) !important; border-color: rgba(239,68,68,0.5) !important; }
+.btn-outline-danger:hover { background: rgba(239,68,68,0.1) !important; }
+
+/* --- Code tags in tables and logs --- */
+code { color: var(--accent-light) !important; background: rgba(99,102,241,0.1); padding: 1px 5px; border-radius: 4px; font-size: 0.85em; }
+
+/* --- Pagination --- */
+.pagination .page-link {
+  background: var(--bg-secondary) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+.pagination .page-item.active .page-link {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+}
+.pagination .page-link:hover { color: var(--text-primary) !important; background: var(--bg-tertiary) !important; }
+
+/* --- Badge visibility --- */
+.badge.bg-secondary { background: rgba(100,116,139,0.3) !important; color: var(--text-secondary) !important; }
+.badge.bg-success   { background: rgba(16,185,129,0.2) !important; color: var(--green) !important; }
+.badge.bg-danger    { background: rgba(239,68,68,0.2)  !important; color: var(--red)   !important; }
+.badge.bg-warning   { background: rgba(245,158,11,0.2) !important; color: var(--yellow) !important; }
+.badge.bg-info      { background: rgba(6,182,212,0.2)  !important; color: var(--cyan, #06b6d4) !important; }
+.badge.bg-primary   { background: rgba(99,102,241,0.2) !important; color: var(--accent-light) !important; }
+
+/* --- Alert --- */
+.alert-danger { background: rgba(239,68,68,0.12) !important; border-color: rgba(239,68,68,0.3) !important; color: #fca5a5 !important; }
+
+/* --- Model performance perf-table td color --- */
+.perf-table td { color: var(--text-primary) !important; }
+
+/* --- Section-sub-title --- */
+.section-sub-title {
+  font-size: 11px; font-weight: 700; letter-spacing: .6px;
+  text-transform: uppercase; margin-bottom: 8px;
+  color: var(--text-muted);
+}
+
+/* --- Watchlist list item text --- */
+.watchlist-item-symbol { color: var(--text-primary) !important; font-weight: 700; }
+.watchlist-item-name   { color: var(--text-muted)   !important; font-size: 11px; }
+
+/* --- Admin API configs row text --- */
+.api-row-name { color: var(--text-primary) !important; font-weight: 600; }
+
+/* --- kpi-top: when no margin-bottom needed (no kpi-change row) --- */
+.kpi-top { margin-bottom: 0; }
+
+/* --- Input date color fix (date picker text) --- */
+input[type="date"] { color-scheme: dark; color: var(--text-primary) !important; }
+input[type="range"] { accent-color: var(--accent); }
+
+/* --- Select option text inside dark bg --- */
+select option { background: var(--bg-secondary); color: var(--text-primary); }
+
+/* --- Empty state shared style --- */
+.empty-state-box {
+  padding: 50px 20px;
+  text-align: center;
+  color: var(--text-muted);
+}
+.empty-state-box i { font-size: 2.5rem; opacity: .25; display: block; margin-bottom: 12px; }
+.empty-state-box p { font-size: 13px; margin: 0; }
+
+/* --- Confidence bar --- */
+.confidence-bar { background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+.confidence-fill { height: 100%; border-radius: 3px; transition: width .4s; }
+
+/* --- News card grid --- */
+.news-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: border-color .2s;
+}
+.news-card:hover { border-color: var(--border-hover); }
+.news-card-title { font-size: 14px; font-weight: 600; color: var(--text-primary) !important; line-height: 1.4; }
+.news-card-meta  { font-size: 11px; color: var(--text-muted) !important; }
+.news-card-read  { font-size: 12px; color: var(--accent-light) !important; font-weight: 600; text-decoration: none; margin-top: auto; }
+
+/* --- Auth card inputs --- */
+.auth-card { color: var(--text-primary) !important; }
+.auth-card label { color: var(--text-secondary) !important; }
+.auth-card h2 { color: var(--text-primary) !important; }
+
+/* --- Text muted override — never pure white --- */
+.text-muted { color: var(--text-muted) !important; }
+.text-secondary { color: var(--text-secondary) !important; }

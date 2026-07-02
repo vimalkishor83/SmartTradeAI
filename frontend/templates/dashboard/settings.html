@@ -227,10 +227,13 @@ document.getElementById('saveAssets').addEventListener('click', async () => {
 });
 
 document.addEventListener('app:ready', async () => {
-  const user = Auth.user || await API.get('/auth/me');
+  const user = await API.get('/auth/me');
   if (!user) return;
-  document.getElementById('firstName').value = user.first_name || '';
-  document.getElementById('lastName').value = user.last_name || '';
+  // API returns full_name; split into first/last if individual fields absent
+  const firstName = user.first_name || (user.full_name || '').split(' ')[0] || '';
+  const lastName  = user.last_name  || (user.full_name || '').split(' ').slice(1).join(' ') || '';
+  document.getElementById('firstName').value = firstName;
+  document.getElementById('lastName').value = lastName;
   document.getElementById('phone').value = user.phone || '';
   document.getElementById('theme').value = user.theme || 'dark';
   document.getElementById('emailNotif').checked = user.email_notifications;

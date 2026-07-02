@@ -66,29 +66,43 @@
 <!-- Summary stat cards -->
 <div class="row g-3 mb-4" id="statCards">
   <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-val" id="statTotal">—</div>
-      <div class="stat-lbl">Predictions Evaluated</div>
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Predictions Evaluated</div><div class="kpi-value" id="statTotal">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-database-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-val" id="statAcc">—</div>
-      <div class="stat-lbl">Overall Accuracy</div>
-      <div class="stat-sub" id="statAccSub"></div>
+    <div class="kpi-card green">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Overall Accuracy</div>
+          <div class="kpi-value" id="statAcc">—</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="statAccSub"></div>
+        </div>
+        <div class="kpi-icon text-green"><i class="bi bi-bullseye"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-val" id="statCorrect">—</div>
-      <div class="stat-lbl">Correct Predictions</div>
+    <div class="kpi-card purple">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Correct Predictions</div><div class="kpi-value" id="statCorrect">—</div></div>
+        <div class="kpi-icon text-purple"><i class="bi bi-check-circle-fill"></i></div>
+      </div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="stat-card">
-      <div class="stat-val" id="statBest">—</div>
-      <div class="stat-lbl">Best Timeframe</div>
-      <div class="stat-sub" id="statBestSub"></div>
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div>
+          <div class="kpi-label">Best Timeframe</div>
+          <div class="kpi-value" id="statBest">—</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:2px" id="statBestSub"></div>
+        </div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-clock-fill"></i></div>
+      </div>
     </div>
   </div>
 </div>
