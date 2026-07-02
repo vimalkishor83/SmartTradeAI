@@ -37,7 +37,7 @@
 .hm-pct  { font-size:18px; font-weight:900; margin-top:8px; letter-spacing:-.02em; }
 .hm-price{ font-size:10.5px; opacity:.75; margin-top:2px; }
 
-/* Colour scale — red→neutral→green */
+/* Colour scale — red→neutral→green (dark theme) */
 .hm-strong-up   { background:#065f46; color:#6ee7b7; }
 .hm-up          { background:#064e3b; color:#34d399; }
 .hm-slight-up   { background:#0d3d2b; color:#10b981; }
@@ -45,6 +45,15 @@
 .hm-slight-down { background:#3d1515; color:#f87171; }
 .hm-down        { background:#4b1515; color:#ef4444; }
 .hm-strong-down { background:#5f1d1d; color:#fca5a5; }
+
+/* Light theme — same scale, brighter tints so tiles read on a white page */
+[data-theme="light"] .hm-strong-up   { background:#bbf7d0; color:#065f46; }
+[data-theme="light"] .hm-up          { background:#dcfce7; color:#047857; }
+[data-theme="light"] .hm-slight-up   { background:#ecfdf5; color:#059669; }
+[data-theme="light"] .hm-flat        { background:#e2e8f0; color:#475569; }
+[data-theme="light"] .hm-slight-down { background:#fef2f2; color:#dc2626; }
+[data-theme="light"] .hm-down        { background:#fee2e2; color:#b91c1c; }
+[data-theme="light"] .hm-strong-down { background:#fecaca; color:#991b1b; }
 
 .legend-strip {
   display:flex; align-items:center; gap:4px; font-size:10.5px; color:var(--text-muted);

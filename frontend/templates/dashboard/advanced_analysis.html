@@ -44,10 +44,15 @@
 .overlay-toggle input { accent-color: var(--accent); cursor: pointer; width: 15px; height: 15px; }
 .overlay-toggle:has(input:checked) { color: var(--text-primary); }
 
-/* ── Chart ── */
+/* ── Chart ──
+   Kept dark regardless of app theme (standard practice for price charts —
+   TradingView/Bloomberg do the same) so candle colors stay legible. Needs its
+   own visible border/shadow since var(--border) is too faint against black
+   in light theme. */
 #aaChartWrap {
-  background: #0f1117; border-radius: 12px; border: 1px solid var(--border);
+  background: #0f1117; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);
   overflow: hidden; position: relative; height: 620px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25);
 }
 #aaChart { width: 100%; height: 100%; }
 .chart-empty {
