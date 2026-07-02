@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+﻿from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required
@@ -363,3 +363,276 @@ def get_heatmap():
         except Exception:
             continue
     return jsonify({"heatmap": heatmap}), 200
+
+
+# ─── Advanced Analysis endpoint ───────────────────────────────────────────────
+
+import numpy as np
+
+
+def _pivot_highs_lows(highs, lows):
+    ph, pl = [], []
+    for i in range(1, len(highs) - 1):
+        if highs[i] > highs[i - 1] and highs[i] > highs[i + 1]:
+            ph.append(i)
+        if lows[i] < lows[i - 1] and lows[i] < lows[i + 1]:
+            pl.append(i)
+    return ph, pl
+
+
+def _compute_fibonacci(highs, lows):
+    n = min(100, len(highs))
+    h_slice = highs[-n:]
+    l_slice = lows[-n:]
+    swing_high = float(max(h_slice))
+    swing_low  = float(min(l_slice))
+    diff = swing_high - swing_low
+    retracement_ratios = [0.0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0]
+    extension_ratios   = [1.272, 1.618, 2.0]
+    levels = []
+    for r in retracement_ratios:
+        levels.append({"label": str(r), "price": round(swing_high - diff * r, 6), "type": "retracement"})
+    for r in extension_ratios:
+        levels.append({"label": str(r), "price": round(swing_high + diff * (r - 1.0), 6), "type": "extension"})
+    return {"swing_high": round(swing_high, 6), "swing_low": round(swing_low, 6), "levels": levels}
+
+
+def _compute_liquidity(highs, lows, timestamps):
+    n = min(100, len(highs))
+    h_slice = list(highs[-n:])
+    l_slice = list(lows[-n:])
+
+    def find_clusters(values, label_type):
+        clusters = []
+        used = [False] * len(values)
+        for i in range(len(values)):
+            if used[i]:
+                continue
+            ref = values[i]
+            if ref == 0:
+                continue
+            cluster_vals = [ref]
+            cluster_idx  = [i]
+            for j in range(i + 1, len(values)):
+                if used[j]:
+                    continue
+                if abs(values[j] - ref) / ref <= 0.0015:
+                    cluster_vals.append(values[j])
+                    cluster_idx.append(j)
+                    used[j] = True
+            if len(cluster_vals) >= 2:
+                used[i] = True
+                hits = len(cluster_vals)
+                strength = "strong" if hits >= 4 else "medium" if hits >= 3 else "weak"
+                clusters.append({
+                    "type": label_type,
+                    "price": round(float(sum(cluster_vals) / len(cluster_vals)), 6),
+                    "hits": hits,
+                    "strength": strength
+                })
+        return clusters
+
+    buy_side  = find_clusters(l_slice, "buy_side")
+    sell_side = find_clusters(h_slice, "sell_side")
+    return {"buy_side": buy_side, "sell_side": sell_side}
+
+
+def _compute_fvg(opens, highs, lows, closes, timestamps):
+    fvgs = []
+    for i in range(1, len(highs) - 1):
+        if lows[i - 1] > highs[i + 1]:
+            top    = float(lows[i - 1])
+            bottom = float(highs[i + 1])
+            filled = any(highs[k] >= top for k in range(i + 2, len(highs)))
+            fvgs.append({"type": "bearish", "top": round(top, 6), "bottom": round(bottom, 6),
+                         "time": int(timestamps[i]), "filled": filled})
+        elif highs[i - 1] < lows[i + 1]:
+            top    = float(lows[i + 1])
+            bottom = float(highs[i - 1])
+            filled = any(lows[k] <= bottom for k in range(i + 2, len(lows)))
+            fvgs.append({"type": "bullish", "top": round(top, 6), "bottom": round(bottom, 6),
+                         "time": int(timestamps[i]), "filled": filled})
+    return fvgs[-10:]
+
+
+def _compute_order_blocks(opens, highs, lows, closes, timestamps):
+    obs = []
+    threshold = 0.005
+    for i in range(1, len(closes) - 1):
+        move = (closes[i + 1] - closes[i]) / closes[i] if closes[i] else 0
+        if move > threshold and closes[i] < opens[i]:
+            top    = float(opens[i])
+            bottom = float(closes[i])
+            broken = any(lows[k] < bottom for k in range(i + 1, len(lows)))
+            obs.append({"type": "bullish", "top": round(top, 6), "bottom": round(bottom, 6),
+                        "time": int(timestamps[i]), "broken": broken})
+        elif move < -threshold and closes[i] > opens[i]:
+            top    = float(closes[i])
+            bottom = float(opens[i])
+            broken = any(highs[k] > top for k in range(i + 1, len(highs)))
+            obs.append({"type": "bearish", "top": round(top, 6), "bottom": round(bottom, 6),
+                        "time": int(timestamps[i]), "broken": broken})
+    return obs[-8:]
+
+
+def _compute_market_structure(highs, lows, timestamps):
+    ph_idx, pl_idx = _pivot_highs_lows(highs, lows)
+    if len(ph_idx) < 2 or len(pl_idx) < 2:
+        return {"points": [], "trend": "ranging"}
+
+    sh_vals = [(ph_idx[i], float(highs[ph_idx[i]]), "H") for i in range(len(ph_idx))]
+    sl_vals = [(pl_idx[i], float(lows[pl_idx[i]]), "L")  for i in range(len(pl_idx))]
+    all_pts  = sorted(sh_vals + sl_vals, key=lambda x: x[0])
+
+    points = []
+    prev_high = None
+    prev_low  = None
+    for idx, price, kind in all_pts:
+        if kind == "H":
+            label = ("HH" if prev_high is None or price > prev_high else "LH")
+            prev_high = price
+        else:
+            label = ("LL" if prev_low is None or price < prev_low else "HL")
+            prev_low = price
+        points.append({"type": label, "price": round(price, 6), "time": int(timestamps[idx])})
+
+    recent = points[-6:]
+    hh = sum(1 for p in recent if p["type"] == "HH")
+    hl = sum(1 for p in recent if p["type"] == "HL")
+    ll = sum(1 for p in recent if p["type"] == "LL")
+    lh = sum(1 for p in recent if p["type"] == "LH")
+    if hh >= 1 and hl >= 1:
+        trend = "uptrend"
+    elif ll >= 1 and lh >= 1:
+        trend = "downtrend"
+    else:
+        trend = "ranging"
+    return {"points": points[-10:], "trend": trend}
+
+
+def _linear_regression_line(xs, ys):
+    n = len(xs)
+    if n < 2:
+        return 0, ys[0] if ys else 0
+    sx  = sum(xs)
+    sy  = sum(ys)
+    sxy = sum(xs[i] * ys[i] for i in range(n))
+    sxx = sum(xs[i] ** 2 for i in range(n))
+    denom = n * sxx - sx * sx
+    if denom == 0:
+        return 0, sy / n
+    slope     = (n * sxy - sx * sy) / denom
+    intercept = (sy - slope * sx) / n
+    return slope, intercept
+
+
+def _compute_trend_lines(highs, lows, timestamps):
+    ph_idx, pl_idx = _pivot_highs_lows(highs, lows)
+    lines = []
+    if len(ph_idx) >= 2:
+        idx_list = ph_idx[-3:]
+        xs = list(range(len(idx_list)))
+        ys = [float(highs[i]) for i in idx_list]
+        slope, intercept = _linear_regression_line(xs, ys)
+        y1 = intercept
+        y2 = slope * (len(idx_list) - 1) + intercept
+        lines.append({
+            "type": "resistance",
+            "x1_time": int(timestamps[idx_list[0]]),
+            "y1": round(y1, 6),
+            "x2_time": int(timestamps[idx_list[-1]]),
+            "y2": round(y2, 6),
+            "slope": round(slope, 8)
+        })
+    if len(pl_idx) >= 2:
+        idx_list = pl_idx[-3:]
+        xs = list(range(len(idx_list)))
+        ys = [float(lows[i]) for i in idx_list]
+        slope, intercept = _linear_regression_line(xs, ys)
+        y1 = intercept
+        y2 = slope * (len(idx_list) - 1) + intercept
+        lines.append({
+            "type": "support",
+            "x1_time": int(timestamps[idx_list[0]]),
+            "y1": round(y1, 6),
+            "x2_time": int(timestamps[idx_list[-1]]),
+            "y2": round(y2, 6),
+            "slope": round(slope, 8)
+        })
+    return lines
+
+
+def _compute_vwap(opens, highs, lows, closes, volumes, timestamps):
+    typical = [(highs[i] + lows[i] + closes[i]) / 3.0 for i in range(len(closes))]
+    cum_tp_v = 0.0
+    cum_v    = 0.0
+    result = []
+    for i in range(len(closes)):
+        cum_tp_v += typical[i] * volumes[i]
+        cum_v    += volumes[i]
+        vwap = cum_tp_v / cum_v if cum_v > 0 else closes[i]
+        result.append({"t": int(timestamps[i]), "vwap": round(float(vwap), 6)})
+    return result
+
+
+def _compute_volume_profile(highs, lows, closes, volumes, buckets=20):
+    price_min = float(min(lows))
+    price_max = float(max(highs))
+    if price_max <= price_min:
+        return []
+    step = (price_max - price_min) / buckets
+    profile = [{"price_low": round(price_min + i * step, 6),
+                "price_high": round(price_min + (i + 1) * step, 6),
+                "volume": 0.0, "is_poc": False} for i in range(buckets)]
+    for i in range(len(closes)):
+        bucket_idx = int((closes[i] - price_min) / step)
+        bucket_idx = max(0, min(buckets - 1, bucket_idx))
+        profile[bucket_idx]["volume"] += float(volumes[i])
+    max_vol = max(b["volume"] for b in profile) if profile else 0
+    for b in profile:
+        b["volume"] = round(b["volume"], 2)
+        b["is_poc"] = (b["volume"] == max_vol and max_vol > 0)
+    return profile
+
+
+@market_data_bp.route("/<int:asset_id>/advanced", methods=["GET"])
+@login_required
+def get_advanced(asset_id):
+    asset     = Asset.query.get_or_404(asset_id)
+    timeframe = request.args.get("timeframe", "1h")
+
+    df = market_fetcher.fetch(asset, timeframe, 500)
+    if df is None or len(df) < 10:
+        return jsonify({"error": "Insufficient data"}), 503
+
+    opens      = df["open"].astype(float).values.tolist()
+    highs      = df["high"].astype(float).values.tolist()
+    lows       = df["low"].astype(float).values.tolist()
+    closes     = df["close"].astype(float).values.tolist()
+    volumes    = df["volume"].astype(float).values.tolist() if "volume" in df.columns else [0.0] * len(df)
+    timestamps = []
+    for ts in df.index:
+        try:
+            timestamps.append(int(ts.timestamp() * 1000))
+        except Exception:
+            timestamps.append(0)
+
+    def safe(fn, fallback):
+        try:
+            return fn()
+        except Exception:
+            return fallback
+
+    return jsonify({
+        "symbol":           asset.symbol,
+        "timeframe":        timeframe,
+        "fib":              safe(lambda: _compute_fibonacci(highs, lows), {}),
+        "liquidity":        safe(lambda: _compute_liquidity(highs, lows, timestamps), {"buy_side": [], "sell_side": []}),
+        "fvg":              safe(lambda: _compute_fvg(opens, highs, lows, closes, timestamps), []),
+        "order_blocks":     safe(lambda: _compute_order_blocks(opens, highs, lows, closes, timestamps), []),
+        "market_structure": safe(lambda: _compute_market_structure(highs, lows, timestamps), {"points": [], "trend": "ranging"}),
+        "trend_lines":      safe(lambda: _compute_trend_lines(highs, lows, timestamps), []),
+        "vwap":             safe(lambda: _compute_vwap(opens, highs, lows, closes, volumes, timestamps), []),
+        "volume_profile":   safe(lambda: _compute_volume_profile(highs, lows, closes, volumes), []),
+    }), 200
+

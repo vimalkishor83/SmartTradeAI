@@ -52,7 +52,7 @@
     {% set grp_overview  = active in ['dashboard','briefing'] %}
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index'] %}
     {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
-    {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news'] %}
+    {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs'] %}
 
@@ -144,6 +144,9 @@
         </a>
         <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
           <i class="bi bi-bar-chart-steps"></i><span class="nav-text">Model Performance</span>
+        </a>
+        <a href="/advanced-analysis" data-tooltip="Advanced Analysis" class="nav-item {% if active == 'advanced_analysis' %}active{% endif %}">
+          <i class="bi bi-layers"></i><span class="nav-text">Advanced Analysis</span>
         </a>
         <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
           <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>

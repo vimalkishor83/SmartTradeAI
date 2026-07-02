@@ -1,0 +1,712 @@
+{% extends "partials/base.html" %}
+{% block title %}Advanced Analysis — SmartTrade AI{% endblock %}
+{% set active = 'advanced_analysis' %}
+{% block breadcrumb %}<i class="bi bi-layers me-2"></i> Advanced Analysis{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Layout ── */
+.aa-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+.aa-select {
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-primary);
+  border-radius: 8px; padding: 8px 14px; font-size: 13px; min-width: 220px; outline: none;
+}
+.aa-select:focus { border-color: var(--accent); }
+.tf-btn {
+  background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-muted);
+  border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer;
+  transition: all .2s;
+}
+.tf-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tf-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn-analyze {
+  background: var(--accent); border: none; color: #fff; border-radius: 8px;
+  padding: 8px 20px; font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: opacity .2s; display: flex; align-items: center; gap: 6px;
+}
+.btn-analyze:hover { opacity: .85; }
+.btn-analyze:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── Toggle bar ── */
+.overlay-toggles {
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 10px; padding: 10px 14px; margin-bottom: 14px;
+}
+.overlay-toggle {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--text-muted);
+  user-select: none; transition: color .2s;
+}
+.overlay-toggle input { accent-color: var(--accent); cursor: pointer; width: 15px; height: 15px; }
+.overlay-toggle:has(input:checked) { color: var(--text-primary); }
+
+/* ── Chart ── */
+#aaChartWrap {
+  background: #0f1117; border-radius: 12px; border: 1px solid var(--border);
+  overflow: hidden; position: relative; height: 500px;
+}
+#aaChart { width: 100%; height: 100%; }
+.chart-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; color: var(--text-muted);
+  font-size: 14px; gap: 12px; text-align: center;
+}
+.chart-empty i { font-size: 2.5rem; opacity: .35; }
+.chart-loading {
+  position: absolute; inset: 0; background: rgba(15,17,23,.8);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 10; border-radius: 12px;
+}
+.spinner-aa {
+  width: 36px; height: 36px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Right panel ── */
+.aa-right { display: flex; flex-direction: column; gap: 14px; }
+.aa-card {
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 12px; padding: 14px 16px;
+}
+.aa-card-title {
+  font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+}
+.aa-card-title i { font-size: 13px; }
+
+/* ── Trend badge ── */
+.trend-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; margin-bottom: 10px;
+}
+.trend-badge.up   { background: rgba(16,185,129,.15); color: var(--green); }
+.trend-badge.down { background: rgba(239,68,68,.15);  color: var(--red); }
+.trend-badge.range{ background: rgba(245,158,11,.15); color: var(--yellow); }
+
+/* ── Structure timeline ── */
+.struct-list { display: flex; flex-direction: column; gap: 6px; }
+.struct-item {
+  display: flex; align-items: center; gap: 8px; font-size: 12px;
+}
+.struct-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.dot-HH,.dot-HL { background: var(--green); }
+.dot-LH,.dot-LL { background: var(--red); }
+.struct-label { font-weight: 700; font-size: 11px; min-width: 24px; }
+.lbl-HH,.lbl-HL { color: var(--green); }
+.lbl-LH,.lbl-LL { color: var(--red); }
+.struct-price { color: var(--text-primary); font-weight: 600; margin-left: auto; }
+
+/* ── Fib table ── */
+.fib-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.fib-table th {
+  color: var(--text-muted); font-size: 10px; font-weight: 700; letter-spacing: .6px;
+  text-transform: uppercase; padding: 4px 6px; border-bottom: 1px solid var(--border);
+  text-align: left;
+}
+.fib-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.03); color: #fff; }
+.fib-table tr:last-child td { border-bottom: none; }
+.fib-table tr.nearest td { background: rgba(99,102,241,.12); }
+.fib-ext { color: var(--purple); font-size: 10px; margin-left: 3px; }
+.dist-pos { color: var(--green); }
+.dist-neg { color: var(--red); }
+
+/* ── Liquidity ── */
+.liq-section { margin-bottom: 10px; }
+.liq-section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 5px;
+}
+.liq-section-title.buy  { color: var(--green); }
+.liq-section-title.sell { color: var(--red); }
+.liq-item {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.03);
+}
+.liq-item:last-child { border-bottom: none; }
+.str-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+}
+.str-badge.strong { background: rgba(16,185,129,.2); color: var(--green); }
+.str-badge.medium { background: rgba(245,158,11,.2); color: var(--yellow); }
+.str-badge.weak   { background: rgba(148,163,184,.15); color: var(--text-muted); }
+
+/* ── FVG list ── */
+.fvg-item {
+  display: flex; flex-direction: column; gap: 2px; padding: 6px 8px;
+  border-radius: 7px; margin-bottom: 6px; border: 1px solid transparent;
+  font-size: 12px;
+}
+.fvg-item.bullish { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.2); }
+.fvg-item.bearish { background: rgba(239,68,68,.08);  border-color: rgba(239,68,68,.2); }
+.fvg-item.filled  { opacity: .5; }
+.fvg-row { display: flex; justify-content: space-between; align-items: center; }
+.fvg-type { font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; }
+.fvg-item.bullish .fvg-type { color: var(--green); }
+.fvg-item.bearish .fvg-type { color: var(--red); }
+.fvg-filled-badge {
+  font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px;
+  background: rgba(148,163,184,.15); color: var(--text-muted);
+}
+
+/* ── OB list ── */
+.ob-item {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 7px; margin-bottom: 5px; font-size: 12px;
+  border: 1px solid transparent;
+}
+.ob-item.bullish { background: rgba(16,185,129,.08); border-color: rgba(16,185,129,.2); }
+.ob-item.bearish { background: rgba(239,68,68,.08);  border-color: rgba(239,68,68,.2); }
+.ob-item.broken  { opacity: .45; border-style: dashed; }
+.ob-type { font-weight: 700; font-size: 10px; text-transform: uppercase; min-width: 50px; }
+.ob-item.bullish .ob-type { color: var(--green); }
+.ob-item.bearish .ob-type { color: var(--red); }
+.ob-range { color: var(--text-primary); flex: 1; }
+.ob-broken { font-size: 10px; color: var(--text-muted); margin-left: auto; }
+
+/* ── Volume profile ── */
+.vp-wrap { display: flex; flex-direction: column; gap: 3px; }
+.vp-row { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+.vp-label { color: var(--text-muted); width: 62px; text-align: right; flex-shrink: 0; }
+.vp-bar-bg { flex: 1; height: 10px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.vp-bar-fill { height: 100%; border-radius: 3px; background: rgba(99,102,241,.5); transition: width .4s; }
+.vp-bar-fill.poc { background: var(--accent); }
+
+/* ── Empty states ── */
+.aa-empty { text-align: center; color: var(--text-muted); font-size: 12px; padding: 16px 0; }
+.aa-empty i { display: block; font-size: 1.6rem; opacity: .3; margin-bottom: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3 px-3 px-lg-4">
+
+  <!-- Toolbar -->
+  <div class="aa-toolbar">
+    <select class="aa-select" id="aaAssetSelect">
+      <option value="">— Select Asset —</option>
+    </select>
+    <div class="d-flex gap-1" id="tfButtons">
+      {% for tf in ['5m','15m','1h','4h','1d'] %}
+      <button class="tf-btn {% if tf == '1h' %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</button>
+      {% endfor %}
+    </div>
+    <button class="btn-analyze" id="btnAnalyze" disabled>
+      <i class="bi bi-play-fill"></i> Analyze
+    </button>
+    <span class="text-muted" style="font-size:12px" id="aaStatusText"></span>
+  </div>
+
+  <!-- Overlay toggles -->
+  <div class="overlay-toggles">
+    <span style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.6px">Overlays:</span>
+    <label class="overlay-toggle"><input type="checkbox" id="togFib" checked> <span>Fibonacci</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togLiq" checked> <span>Liquidity</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togFvg" checked> <span>FVG</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togOB" checked> <span>Order Blocks</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togStruct" checked> <span>Structure</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togVwap" checked> <span>VWAP</span></label>
+    <label class="overlay-toggle"><input type="checkbox" id="togTL" checked> <span>Trend Lines</span></label>
+  </div>
+
+  <div class="row g-3">
+    <!-- Chart column -->
+    <div class="col-lg-9">
+      <div id="aaChartWrap">
+        <div id="aaChart"></div>
+        <div class="chart-empty" id="chartEmpty">
+          <i class="bi bi-layers"></i>
+          <div>Select an asset and timeframe to begin analysis</div>
+        </div>
+        <div class="chart-loading d-none" id="chartLoading">
+          <div class="spinner-aa"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="col-lg-3">
+      <div class="aa-right" id="aaRight">
+
+        <!-- Market Structure -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-diagram-3"></i> Market Structure</div>
+          <div id="structTrend"></div>
+          <div class="struct-list" id="structList">
+            <div class="aa-empty"><i class="bi bi-diagram-3"></i>No data yet</div>
+          </div>
+        </div>
+
+        <!-- Fibonacci -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-rulers"></i> Fibonacci Levels</div>
+          <div id="fibTable">
+            <div class="aa-empty"><i class="bi bi-rulers"></i>No data yet</div>
+          </div>
+        </div>
+
+        <!-- Liquidity -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-droplet-fill"></i> Liquidity Pools</div>
+          <div id="liqPanel">
+            <div class="aa-empty"><i class="bi bi-droplet-fill"></i>No data yet</div>
+          </div>
+        </div>
+
+        <!-- FVG -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-layout-split"></i> Fair Value Gaps</div>
+          <div id="fvgList">
+            <div class="aa-empty"><i class="bi bi-layout-split"></i>No data yet</div>
+          </div>
+        </div>
+
+        <!-- Order Blocks -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-bounding-box"></i> Order Blocks</div>
+          <div id="obList">
+            <div class="aa-empty"><i class="bi bi-bounding-box"></i>No data yet</div>
+          </div>
+        </div>
+
+        <!-- Volume Profile -->
+        <div class="aa-card">
+          <div class="aa-card-title"><i class="bi bi-bar-chart-horizontal-fill"></i> Volume Profile</div>
+          <div id="vpChart">
+            <div class="aa-empty"><i class="bi bi-bar-chart-horizontal-fill"></i>No data yet</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+/* ════════════════════════════════════════════════════════════════
+   Advanced Analysis — SmartTrade AI
+════════════════════════════════════════════════════════════════ */
+
+// ── State ──────────────────────────────────────────────────────
+let chart = null;
+let candleSeries = null;
+let vwapSeries = null;
+let tlSeries = [];
+let fibLines = [];
+let liqLines = [];
+let structMarkers = [];
+let analysisData = null;
+let currentClose = 0;
+let selectedTf = '1h';
+
+// ── Helpers ────────────────────────────────────────────────────
+function fmtPrice(p) {
+  if (!p && p !== 0) return '—';
+  const n = parseFloat(p);
+  return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: n >= 1 ? 2 : 6 });
+}
+function fmtPct(p) {
+  const s = p >= 0 ? '+' : '';
+  return s + p.toFixed(2) + '%';
+}
+function tsToTime(ms) {
+  return Math.floor(ms / 1000);
+}
+function timeSince(ms) {
+  const sec = Math.floor((Date.now() - ms) / 1000);
+  if (sec < 60) return sec + 's ago';
+  if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
+  if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
+  return Math.floor(sec / 86400) + 'd ago';
+}
+
+// ── Init chart ─────────────────────────────────────────────────
+function initChart() {
+  const el = document.getElementById('aaChart');
+  if (chart) { chart.remove(); chart = null; }
+  chart = LightweightCharts.createChart(el, {
+    width: el.parentElement.clientWidth,
+    height: 500,
+    layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
+    grid: { vertLines: { color: 'rgba(255,255,255,0.05)' }, horzLines: { color: 'rgba(255,255,255,0.05)' } },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    rightPriceScale: { borderColor: 'rgba(255,255,255,0.1)' },
+    timeScale: { borderColor: 'rgba(255,255,255,0.1)', timeVisible: true, secondsVisible: false },
+  });
+  candleSeries = chart.addCandlestickSeries({
+    upColor: '#10b981', downColor: '#ef4444',
+    borderUpColor: '#10b981', borderDownColor: '#ef4444',
+    wickUpColor: '#10b981', wickDownColor: '#ef4444',
+  });
+  window.addEventListener('resize', () => {
+    if (chart) chart.applyOptions({ width: el.parentElement.clientWidth });
+  });
+}
+
+// ── Load assets ────────────────────────────────────────────────
+async function loadAssets() {
+  try {
+    const res = await API.get('/api/v1/assets/');
+    const data = await res.json();
+    const sel = document.getElementById('aaAssetSelect');
+    const assets = data.assets || data;
+    assets.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.id;
+      opt.textContent = `${a.symbol} — ${a.name} (${a.market})`;
+      sel.appendChild(opt);
+    });
+  } catch(e) {
+    console.error('Assets load failed', e);
+  }
+}
+
+// ── Run analysis ───────────────────────────────────────────────
+async function runAnalysis() {
+  const assetId = document.getElementById('aaAssetSelect').value;
+  if (!assetId) return;
+
+  // show loading
+  document.getElementById('chartEmpty').classList.add('d-none');
+  document.getElementById('chartLoading').classList.remove('d-none');
+  document.getElementById('btnAnalyze').disabled = true;
+  document.getElementById('aaStatusText').textContent = 'Fetching data…';
+
+  try {
+    // fetch OHLCV
+    const ohlcvRes = await API.get(`/api/v1/market-data/${assetId}/ohlcv?timeframe=${selectedTf}&limit=500`);
+    const ohlcvData = await ohlcvRes.json();
+
+    // fetch advanced
+    const advRes = await API.get(`/api/v1/market-data/${assetId}/advanced?timeframe=${selectedTf}`);
+    const adv = await advRes.json();
+    if (adv.error) throw new Error(adv.error);
+
+    analysisData = adv;
+
+    // render chart candles
+    if (!chart) initChart();
+    const candles = (ohlcvData.data || []).map(c => ({
+      time: tsToTime(c.t), open: c.o, high: c.h, low: c.l, close: c.c
+    })).sort((a, b) => a.time - b.time);
+    candleSeries.setData(candles);
+    currentClose = candles.length ? candles[candles.length - 1].close : 0;
+
+    // render overlays
+    renderAllOverlays();
+
+    // render right panels
+    renderStructPanel(adv.market_structure);
+    renderFibPanel(adv.fib, currentClose);
+    renderLiqPanel(adv.liquidity);
+    renderFvgPanel(adv.fvg);
+    renderObPanel(adv.order_blocks);
+    renderVpPanel(adv.volume_profile);
+
+    document.getElementById('aaStatusText').textContent =
+      `${adv.symbol} · ${adv.timeframe} · ${candles.length} candles`;
+
+  } catch(e) {
+    console.error('Analysis failed', e);
+    showToast('Analysis failed: ' + (e.message || 'Unknown error'), 'error');
+    document.getElementById('aaStatusText').textContent = 'Error — try again';
+  } finally {
+    document.getElementById('chartLoading').classList.add('d-none');
+    document.getElementById('btnAnalyze').disabled = false;
+  }
+}
+
+// ── Overlay rendering ──────────────────────────────────────────
+function clearOverlays() {
+  // remove fib price lines
+  fibLines.forEach(pl => { try { candleSeries.removePriceLine(pl); } catch(e){} });
+  fibLines = [];
+  // remove liq price lines
+  liqLines.forEach(pl => { try { candleSeries.removePriceLine(pl); } catch(e){} });
+  liqLines = [];
+  // remove vwap
+  if (vwapSeries) { try { chart.removeSeries(vwapSeries); } catch(e){} vwapSeries = null; }
+  // remove trend lines
+  tlSeries.forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  tlSeries = [];
+  // clear markers
+  structMarkers = [];
+  try { candleSeries.setMarkers([]); } catch(e){}
+}
+
+function renderAllOverlays() {
+  if (!analysisData || !chart) return;
+  clearOverlays();
+  if (document.getElementById('togFib').checked)    renderFibOverlay(analysisData.fib);
+  if (document.getElementById('togLiq').checked)    renderLiqOverlay(analysisData.liquidity);
+  if (document.getElementById('togVwap').checked)   renderVwapOverlay(analysisData.vwap);
+  if (document.getElementById('togTL').checked)     renderTLOverlay(analysisData.trend_lines);
+  if (document.getElementById('togStruct').checked) renderStructOverlay(analysisData.market_structure);
+}
+
+function renderFibOverlay(fib) {
+  if (!fib || !fib.levels) return;
+  fib.levels.forEach(lvl => {
+    const isExt = lvl.type === 'extension';
+    const pl = candleSeries.createPriceLine({
+      price: lvl.price,
+      color: isExt ? 'rgba(139,92,246,0.6)' : 'rgba(245,158,11,0.55)',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: lvl.label + (isExt ? ' ext' : ''),
+    });
+    fibLines.push(pl);
+  });
+}
+
+function renderLiqOverlay(liq) {
+  if (!liq) return;
+  (liq.buy_side || []).forEach(l => {
+    const pl = candleSeries.createPriceLine({
+      price: l.price,
+      color: 'rgba(16,185,129,0.5)',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true,
+      title: 'Buy Liq · ' + l.strength,
+    });
+    liqLines.push(pl);
+  });
+  (liq.sell_side || []).forEach(l => {
+    const pl = candleSeries.createPriceLine({
+      price: l.price,
+      color: 'rgba(239,68,68,0.5)',
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true,
+      title: 'Sell Liq · ' + l.strength,
+    });
+    liqLines.push(pl);
+  });
+}
+
+function renderVwapOverlay(vwap) {
+  if (!vwap || !vwap.length) return;
+  vwapSeries = chart.addLineSeries({
+    color: '#3b82f6', lineWidth: 2, title: 'VWAP', priceLineVisible: false,
+  });
+  vwapSeries.setData(vwap.map(v => ({ time: tsToTime(v.t), value: v.vwap })));
+}
+
+function renderTLOverlay(lines) {
+  if (!lines || !lines.length) return;
+  lines.forEach(tl => {
+    const s = chart.addLineSeries({
+      color: tl.type === 'resistance' ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)',
+      lineWidth: 2,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      priceLineVisible: false,
+      title: tl.type,
+    });
+    s.setData([
+      { time: tsToTime(tl.x1_time), value: tl.y1 },
+      { time: tsToTime(tl.x2_time), value: tl.y2 },
+    ]);
+    tlSeries.push(s);
+  });
+}
+
+function renderStructOverlay(ms) {
+  if (!ms || !ms.points || !ms.points.length) return;
+  const markers = ms.points.map(p => ({
+    time: tsToTime(p.time),
+    position: (p.type === 'HH' || p.type === 'LH') ? 'aboveBar' : 'belowBar',
+    color: (p.type === 'HH' || p.type === 'HL') ? '#10b981' : '#ef4444',
+    shape: (p.type === 'HH' || p.type === 'LH') ? 'arrowDown' : 'arrowUp',
+    text: p.type,
+    size: 1,
+  }));
+  candleSeries.setMarkers(markers);
+}
+
+// ── Right-panel renders ────────────────────────────────────────
+function renderStructPanel(ms) {
+  const trendEl = document.getElementById('structTrend');
+  const listEl  = document.getElementById('structList');
+  if (!ms || !ms.points || !ms.points.length) {
+    trendEl.innerHTML = '';
+    listEl.innerHTML = '<div class="aa-empty"><i class="bi bi-diagram-3"></i>No structure detected</div>';
+    return;
+  }
+  const trendClass = ms.trend === 'uptrend' ? 'up' : ms.trend === 'downtrend' ? 'down' : 'range';
+  const trendIcon  = ms.trend === 'uptrend' ? 'bi-arrow-up-right' : ms.trend === 'downtrend' ? 'bi-arrow-down-right' : 'bi-arrow-left-right';
+  const trendLabel = ms.trend === 'uptrend' ? 'Uptrend' : ms.trend === 'downtrend' ? 'Downtrend' : 'Ranging';
+  trendEl.innerHTML = `<div class="trend-badge ${trendClass}"><i class="bi ${trendIcon}"></i>${trendLabel}</div>`;
+
+  const last5 = ms.points.slice(-5).reverse();
+  listEl.innerHTML = last5.map(p => `
+    <div class="struct-item">
+      <span class="struct-dot dot-${p.type}"></span>
+      <span class="struct-label lbl-${p.type}">${p.type}</span>
+      <span style="font-size:11px;color:var(--text-muted)">${timeSince(p.time)}</span>
+      <span class="struct-price">${fmtPrice(p.price)}</span>
+    </div>`).join('');
+}
+
+function renderFibPanel(fib, close) {
+  const el = document.getElementById('fibTable');
+  if (!fib || !fib.levels || !fib.levels.length) {
+    el.innerHTML = '<div class="aa-empty"><i class="bi bi-rulers"></i>No data</div>';
+    return;
+  }
+  // find nearest level
+  let nearestDist = Infinity, nearestIdx = -1;
+  fib.levels.forEach((lvl, i) => {
+    const d = Math.abs(lvl.price - close);
+    if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
+  });
+  const rows = fib.levels.map((lvl, i) => {
+    const pct = close ? ((lvl.price - close) / close * 100) : 0;
+    const cls = i === nearestIdx ? 'nearest' : '';
+    const extTag = lvl.type === 'extension' ? '<span class="fib-ext">ext</span>' : '';
+    const distCls = pct >= 0 ? 'dist-pos' : 'dist-neg';
+    return `<tr class="${cls}">
+      <td>${lvl.label}${extTag}</td>
+      <td style="color:#fff">${fmtPrice(lvl.price)}</td>
+      <td class="${distCls}">${fmtPct(pct)}</td>
+    </tr>`;
+  }).join('');
+  el.innerHTML = `
+    <table class="fib-table">
+      <thead><tr><th>Level</th><th>Price</th><th>Dist%</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderLiqPanel(liq) {
+  const el = document.getElementById('liqPanel');
+  if (!liq || (!liq.buy_side.length && !liq.sell_side.length)) {
+    el.innerHTML = '<div class="aa-empty"><i class="bi bi-droplet-fill"></i>No liquidity zones</div>';
+    return;
+  }
+  let html = '';
+  if (liq.sell_side.length) {
+    html += `<div class="liq-section">
+      <div class="liq-section-title sell"><i class="bi bi-caret-up-fill"></i>Sell-side (${liq.sell_side.length})</div>`;
+    liq.sell_side.forEach(l => {
+      html += `<div class="liq-item">
+        <span style="color:#fff">${fmtPrice(l.price)}</span>
+        <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
+        <span class="str-badge ${l.strength}">${l.strength}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  if (liq.buy_side.length) {
+    html += `<div class="liq-section">
+      <div class="liq-section-title buy"><i class="bi bi-caret-down-fill"></i>Buy-side (${liq.buy_side.length})</div>`;
+    liq.buy_side.forEach(l => {
+      html += `<div class="liq-item">
+        <span style="color:#fff">${fmtPrice(l.price)}</span>
+        <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
+        <span class="str-badge ${l.strength}">${l.strength}</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function renderFvgPanel(fvgs) {
+  const el = document.getElementById('fvgList');
+  if (!fvgs || !fvgs.length) {
+    el.innerHTML = '<div class="aa-empty"><i class="bi bi-layout-split"></i>No FVGs detected</div>';
+    return;
+  }
+  el.innerHTML = fvgs.map(f => {
+    const filledTag = f.filled ? '<span class="fvg-filled-badge">FILLED</span>' : '';
+    return `<div class="fvg-item ${f.type} ${f.filled ? 'filled' : ''}">
+      <div class="fvg-row">
+        <span class="fvg-type">${f.type} FVG</span>
+        ${filledTag}
+        <span style="font-size:11px;color:var(--text-muted)">${timeSince(f.time)}</span>
+      </div>
+      <div style="color:var(--text-muted);font-size:11px;margin-top:2px">
+        ${fmtPrice(f.bottom)} — ${fmtPrice(f.top)}
+      </div>
+    </div>`;
+  }).reverse().join('');
+}
+
+function renderObPanel(obs) {
+  const el = document.getElementById('obList');
+  if (!obs || !obs.length) {
+    el.innerHTML = '<div class="aa-empty"><i class="bi bi-bounding-box"></i>No order blocks</div>';
+    return;
+  }
+  el.innerHTML = obs.map(ob => `
+    <div class="ob-item ${ob.type} ${ob.broken ? 'broken' : ''}">
+      <span class="ob-type">${ob.type} OB</span>
+      <span class="ob-range">${fmtPrice(ob.bottom)} – ${fmtPrice(ob.top)}</span>
+      ${ob.broken ? '<span class="ob-broken">Broken</span>' : ''}
+    </div>`).reverse().join('');
+}
+
+function renderVpPanel(vp) {
+  const el = document.getElementById('vpChart');
+  if (!vp || !vp.length) {
+    el.innerHTML = '<div class="aa-empty"><i class="bi bi-bar-chart-horizontal-fill"></i>No data</div>';
+    return;
+  }
+  const maxVol = Math.max(...vp.map(b => b.volume));
+  // show reversed (highest price at top)
+  const rows = [...vp].reverse().map(b => {
+    const pct = maxVol > 0 ? (b.volume / maxVol * 100) : 0;
+    const poc = b.is_poc ? 'poc' : '';
+    return `<div class="vp-row">
+      <div class="vp-label">${fmtPrice(b.price_low)}</div>
+      <div class="vp-bar-bg"><div class="vp-bar-fill ${poc}" style="width:${pct.toFixed(1)}%"></div></div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `<div class="vp-wrap">${rows}</div>`;
+}
+
+// ── Toast helper ───────────────────────────────────────────────
+function showToast(msg, type) {
+  if (window.showToast) { window.showToast(msg, type); return; }
+  console.warn(msg);
+}
+
+// ── Wire up controls ───────────────────────────────────────────
+document.getElementById('aaAssetSelect').addEventListener('change', function() {
+  document.getElementById('btnAnalyze').disabled = !this.value;
+});
+
+document.querySelectorAll('.tf-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    selectedTf = this.dataset.tf;
+  });
+});
+
+document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+
+// overlay toggles — re-render overlays without re-fetching
+['togFib','togLiq','togFvg','togOB','togStruct','togVwap','togTL'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => {
+    if (analysisData) renderAllOverlays();
+  });
+});
+
+// ── Boot ───────────────────────────────────────────────────────
+initChart();
+loadAssets();
+</script>
+{% endblock %}

@@ -97,6 +97,11 @@ def settings():
     return render_template("dashboard/settings.html")
 
 
+@views_bp.route("/advanced-analysis")
+def advanced_analysis():
+    return render_template("dashboard/advanced_analysis.html")
+
+
 @views_bp.route("/auto-generate")
 def auto_generate():
     return render_template("dashboard/auto_generate.html")
