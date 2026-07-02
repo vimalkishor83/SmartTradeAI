@@ -109,10 +109,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 14px 16px 18px;
+  padding: 12px 12px 12px 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  min-height: 58px;
+  min-height: 50px;
 }
 
 .brand {
@@ -157,56 +157,59 @@ body {
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 10px 0 8px;
-  scrollbar-width: none; /* hide sidebar scrollbar — cleaner look */
+  padding: 6px 0 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
 }
-.sidebar-nav::-webkit-scrollbar { display: none; }
+.sidebar-nav::-webkit-scrollbar { width: 3px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.sidebar-nav::-webkit-scrollbar-track { background: transparent; }
 
 /* Section label separator */
 .nav-section-label {
-  font-size: 10px;
+  font-size: 9.5px;
   font-weight: 800;
   letter-spacing: 1.2px;
   text-transform: uppercase;
   color: var(--text-muted);
-  padding: 10px 18px 4px;
+  padding: 6px 18px 2px;
   white-space: nowrap;
   overflow: hidden;
   transition: opacity var(--transition);
 }
-.sidebar.collapsed .nav-section-label { opacity: 0; padding: 6px 0; }
+.sidebar.collapsed .nav-section-label { opacity: 0; padding: 4px 0; }
 
 /* Section separator line */
 .nav-section-sep {
   height: 1px;
   background: var(--border);
-  margin: 6px 12px;
+  margin: 3px 12px;
 }
-.sidebar.collapsed .nav-section-sep { margin: 6px 8px; }
+.sidebar.collapsed .nav-section-sep { margin: 3px 8px; }
 
 /* Nav item */
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 11px;
-  padding: 8px 14px 8px 18px;
+  gap: 10px;
+  padding: 5px 12px 5px 16px;
   color: var(--text-secondary);
   text-decoration: none;
   transition: background 0.15s, color 0.15s;
   position: relative;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: 13px;
   font-weight: 500;
-  min-height: 38px;
-  border-radius: 8px;
-  margin: 1px 8px;
+  min-height: 32px;
+  border-radius: 7px;
+  margin: 1px 6px;
   border-left: none;
 }
 
 .nav-item i {
-  font-size: 15px;
+  font-size: 14px;
   flex-shrink: 0;
-  width: 18px;
+  width: 17px;
   text-align: center;
   color: var(--text-muted);
   transition: color 0.15s;
@@ -293,12 +296,12 @@ body {
 /* ── Sidebar Footer ──────────────────────────────────────── */
 .sidebar-footer {
   border-top: 1px solid var(--border);
-  padding: 6px 0 4px;
+  padding: 4px 0 3px;
   flex-shrink: 0;
 }
 .sidebar-footer .nav-item {
-  padding-left: 18px;
-  min-height: 38px;
+  padding-left: 16px;
+  min-height: 32px;
   font-size: 13px;
 }
 
@@ -307,7 +310,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: 8px 14px;
   border-top: 1px solid var(--border);
   white-space: nowrap;
   flex-shrink: 0;
