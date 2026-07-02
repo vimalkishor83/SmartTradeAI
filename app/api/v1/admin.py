@@ -366,6 +366,7 @@ def _test_connection(cfg: APIConfig) -> dict:
     # Provider-specific ping endpoints
     ping_paths = {
         "binance":       "/api/v3/time",
+        "delta_exchange": "/v2/products?page_size=1",
         "bybit":         "/v5/market/time",
         "okx":           "/api/v5/public/time",
         "kucoin":        "/api/v1/timestamp",

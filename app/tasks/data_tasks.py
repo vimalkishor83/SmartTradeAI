@@ -8,14 +8,15 @@ logger = logging.getLogger(__name__)
 def update_tickers(app):
     """
     Fallback ticker poll for non-crypto assets (forex, indices, commodities, stocks).
-    Crypto is handled by the Binance WebSocket stream — no polling needed there.
+    Crypto is handled by the Delta Exchange WebSocket stream — no polling needed there.
     Runs every 15s; broadcasts via WebSocket + updates live price cache.
     """
     with app.app_context():
         from app.models.asset import Asset
         from app.services.data.fetcher import market_fetcher
 
-        # Only poll assets NOT covered by the Binance WS stream
+        # Only poll assets NOT covered by the Delta Exchange WS stream
+        # (data_source == "binance" is the crypto marker — see fetcher.py note)
         non_crypto = Asset.query.filter(
             Asset.is_active == True,
             Asset.data_source != "binance",

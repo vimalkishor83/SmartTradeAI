@@ -319,9 +319,9 @@ def ai_summary():
 @login_required
 @limiter.exempt
 def live_prices():
-    """Return cached live prices from Binance WebSocket stream (crypto only).
+    """Return cached live prices from Delta Exchange WebSocket stream (crypto only).
     Falls back to REST fetch_ticker for assets not in stream cache."""
-    from app.services.data.binance_stream import get_all_live_prices
+    from app.services.data.delta_stream import get_all_live_prices
     cached = get_all_live_prices()
     # Supplement with any assets not yet in stream cache
     if not cached:

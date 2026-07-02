@@ -310,13 +310,22 @@ def _seed_initial_data(app):
     except Exception:
         pass
 
-    # Seed default API configurations if none exist
+    # Migrate existing crypto APIConfig from Binance → Delta Exchange India
     from app.models.api_config import APIConfig
+    _binance_cfg = APIConfig.query.filter_by(provider="binance", market="crypto").first()
+    if _binance_cfg:
+        _binance_cfg.name             = "Delta Exchange India (Crypto)"
+        _binance_cfg.provider         = "delta_exchange"
+        _binance_cfg.base_url         = "https://api.india.delta.exchange"
+        _binance_cfg.websocket_url    = "wss://socket.india.delta.exchange"
+        _binance_cfg.auth_type        = "none"
+
+    # Seed default API configurations if none exist
     if not APIConfig.query.first():
         defaults = [
-            APIConfig(name="Binance (Crypto)", provider="binance", market="crypto",
-                      base_url="https://api.binance.com", websocket_url="wss://stream.binance.com:9443",
-                      auth_type="api_key", status="active", is_active=True, is_default=True,
+            APIConfig(name="Delta Exchange India (Crypto)", provider="delta_exchange", market="crypto",
+                      base_url="https://api.india.delta.exchange", websocket_url="wss://socket.india.delta.exchange",
+                      auth_type="none", status="active", is_active=True, is_default=True,
                       rate_limit=1200, refresh_interval=45, priority=10),
             APIConfig(name="Yahoo Finance (Forex)", provider="yahoo", market="forex",
                       base_url="https://query1.finance.yahoo.com", auth_type="none",
@@ -444,9 +453,9 @@ def _configure_logging(app):
 
 
 def _start_streams(app):
-    """Start Binance WebSocket price stream in background (crypto live prices)."""
+    """Start Delta Exchange India WebSocket price stream in background (crypto live prices)."""
     try:
-        from app.services.data.binance_stream import binance_stream
-        binance_stream.start(app)
+        from app.services.data.delta_stream import delta_stream
+        delta_stream.start(app)
     except Exception as e:
-        logging.getLogger(__name__).warning(f"Binance stream start failed: {e}")
+        logging.getLogger(__name__).warning(f"Delta Exchange stream start failed: {e}")

@@ -1,6 +1,6 @@
 """
 Pluggable market data fetcher — 100% free APIs, no keys required.
-  • Crypto  → Binance public REST (no API key)
+  • Crypto  → Delta Exchange India public REST (no API key)
   • Forex   → Yahoo Finance via yfinance (free)
   • Gold/Silver → Yahoo Finance futures (GC=F, SI=F)
   • Indian Stocks/Indices → Yahoo Finance (.NS / ^NSEI etc.)
@@ -82,7 +82,24 @@ class _CircuitBreaker:
 
 
 _breaker_binance = _CircuitBreaker("binance")
+_breaker_delta   = _CircuitBreaker("delta_exchange")
 _breaker_yahoo   = _CircuitBreaker("yahoo")
+
+
+# ─────────────────────────────────────────────────────────
+# Symbol mapping: our stored symbols (Binance-style, e.g. BTCUSDT)
+# → Delta Exchange India's native perpetual-futures symbols (e.g. BTCUSD).
+# Kept as an explicit map rather than a suffix-strip so unmapped/exotic
+# symbols fail loudly (return None) instead of silently guessing wrong.
+# ─────────────────────────────────────────────────────────
+DELTA_SYMBOL_MAP = {
+    "BTCUSDT": "BTCUSD",
+    "ETHUSDT": "ETHUSD",
+    "BNBUSDT": "BNBUSD",
+    "SOLUSDT": "SOLUSD",
+    "XRPUSDT": "XRPUSD",
+}
+DELTA_SYMBOL_MAP_REVERSE = {v: k for k, v in DELTA_SYMBOL_MAP.items()}
 
 
 # ─────────────────────────────────────────────────────────
@@ -178,6 +195,96 @@ class BinanceFetcher:
         except Exception as e:
             _breaker_binance.failure()
             logger.warning(f"Binance ticker error {symbol}: {e}")
+            return None
+
+
+# ─────────────────────────────────────────────────────────
+# Delta Exchange India (crypto) — completely public, no key needed
+# Docs: https://docs.delta.exchange/  Base: https://api.india.delta.exchange
+# ─────────────────────────────────────────────────────────
+class DeltaExchangeFetcher:
+    BASE = "https://api.india.delta.exchange/v2"
+    # Delta resolution strings verified against live API: 1m,3m,5m,15m,30m,1h,2h,4h,6h,1d,7d,30d,1w,2w
+    INTERVAL = {"1m":"1m","5m":"5m","15m":"15m","30m":"30m","1h":"1h","2h":"2h","4h":"4h","1d":"1d"}
+
+    def _delta_symbol(self, symbol: str) -> str | None:
+        return DELTA_SYMBOL_MAP.get(symbol.upper())
+
+    @_retry(max_attempts=3, backoff=1.5)
+    def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
+        delta_symbol = self._delta_symbol(symbol)
+        if not delta_symbol:
+            return None
+
+        cache_key = f"{symbol}_{timeframe}"
+        cached = _cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        if not _breaker_delta.allow():
+            return None   # circuit open — avoid hammering a down service
+
+        try:
+            resolution = self.INTERVAL.get(timeframe, "1h")
+            # Candle count → seconds-per-candle, so `start` covers `limit` candles
+            seconds_per_candle = {
+                "1m":60, "5m":300, "15m":900, "30m":1800,
+                "1h":3600, "2h":7200, "4h":14400, "1d":86400,
+            }.get(resolution, 3600)
+            end_ts   = int(time.time())
+            start_ts = end_ts - seconds_per_candle * min(limit, 2000)
+
+            resp = requests.get(
+                f"{self.BASE}/history/candles",
+                params={"symbol": delta_symbol, "resolution": resolution,
+                        "start": start_ts, "end": end_ts},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+            data = payload.get("result")
+            if not data:
+                return None
+
+            df = pd.DataFrame(data)
+            df["timestamp"] = pd.to_datetime(df["time"], unit="s")
+            for col in ["open","high","low","close","volume"]:
+                df[col] = df[col].astype(float)
+            df = df[["timestamp","open","high","low","close","volume"]] \
+                    .sort_values("timestamp").set_index("timestamp")
+            df = df.tail(limit)
+            _cache.set(cache_key, df)
+            _breaker_delta.success()
+            return df
+        except Exception as e:
+            _breaker_delta.failure()
+            raise   # re-raise so @_retry can catch it
+
+    def fetch_ticker(self, symbol: str) -> dict | None:
+        delta_symbol = self._delta_symbol(symbol)
+        if not delta_symbol:
+            return None
+        if not _breaker_delta.allow():
+            return None
+        try:
+            resp = requests.get(f"{self.BASE}/tickers/{delta_symbol}", timeout=5)
+            resp.raise_for_status()
+            d = resp.json().get("result", {})
+            _breaker_delta.success()
+            close = float(d.get("close", 0) or 0)
+            open_ = float(d.get("open", 0) or 0)
+            chg_pct = round((close - open_) / open_ * 100, 2) if open_ else 0.0
+            return {
+                "symbol":     symbol,
+                "price":      close,
+                "change_pct": chg_pct,
+                "volume":     float(d.get("volume", 0) or 0),
+                "high":       float(d.get("high", 0) or 0),
+                "low":        float(d.get("low", 0) or 0),
+            }
+        except Exception as e:
+            _breaker_delta.failure()
+            logger.warning(f"Delta Exchange ticker error {symbol}: {e}")
             return None
 
 
@@ -367,20 +474,27 @@ class YahooFetcher:
 
 # ─────────────────────────────────────────────────────────
 # Unified fetcher
+#
+# Note: crypto assets keep `data_source == "binance"` in the DB (avoids a
+# data migration / breaking existing symbol references) but are now routed
+# to Delta Exchange India — Binance is no longer called for OHLCV/tickers.
+# The `data_source` string is being read here as "crypto data source",
+# not literally "use the Binance API".
 # ─────────────────────────────────────────────────────────
 class MarketDataFetcher:
     def __init__(self):
-        self.binance = BinanceFetcher()
+        self.binance = BinanceFetcher()          # kept for reference/rollback; unused below
+        self.delta   = DeltaExchangeFetcher()
         self.yahoo   = YahooFetcher()
 
     def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if asset.data_source == "binance":
-            return self.binance.fetch_ohlcv(asset.symbol, timeframe, limit)
+            return self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
         return self.yahoo.fetch_ohlcv(asset.symbol, timeframe, limit)
 
     def fetch_ticker(self, asset) -> dict | None:
         if asset.data_source == "binance":
-            return self.binance.fetch_ticker(asset.symbol)
+            return self.delta.fetch_ticker(asset.symbol)
         if not _YF_AVAILABLE:
             return None
         try:
@@ -399,19 +513,19 @@ class MarketDataFetcher:
         Returns {symbol: {timeframe: DataFrame}}
         """
         # Separate by data source
-        binance_assets = [a for a in assets if a.data_source == "binance"]
-        yahoo_assets   = [a for a in assets if a.data_source != "binance"]
+        delta_assets = [a for a in assets if a.data_source == "binance"]
+        yahoo_assets = [a for a in assets if a.data_source != "binance"]
 
         results: dict[str, dict[str, pd.DataFrame]] = {a.symbol: {} for a in assets}
 
-        # ── Binance: parallel per (symbol, tf) ──────────────────
-        def _binance_fetch(asset, tf):
-            return asset.symbol, tf, self.binance.fetch_ohlcv(asset.symbol, tf, limit)
+        # ── Delta Exchange: parallel per (symbol, tf) ────────────
+        def _delta_fetch(asset, tf):
+            return asset.symbol, tf, self.delta.fetch_ohlcv(asset.symbol, tf, limit)
 
-        if binance_assets:
-            with ThreadPoolExecutor(max_workers=min(20, len(binance_assets) * len(timeframes))) as ex:
-                futures = {ex.submit(_binance_fetch, a, tf): (a.symbol, tf)
-                           for a in binance_assets for tf in timeframes}
+        if delta_assets:
+            with ThreadPoolExecutor(max_workers=min(20, len(delta_assets) * len(timeframes))) as ex:
+                futures = {ex.submit(_delta_fetch, a, tf): (a.symbol, tf)
+                           for a in delta_assets for tf in timeframes}
                 for fut in as_completed(futures):
                     sym, tf, df = fut.result()
                     if df is not None:

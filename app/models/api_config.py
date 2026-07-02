@@ -48,6 +48,7 @@ class APIConfig(db.Model):
 
     PROVIDER_DEFAULTS = {
         "binance":              {"base_url": "https://api.binance.com", "websocket_url": "wss://stream.binance.com:9443"},
+        "delta_exchange":       {"base_url": "https://api.india.delta.exchange", "websocket_url": "wss://socket.india.delta.exchange"},
         "bybit":                {"base_url": "https://api.bybit.com",   "websocket_url": "wss://stream.bybit.com/v5/public/linear"},
         "okx":                  {"base_url": "https://www.okx.com",     "websocket_url": "wss://ws.okx.com:8443/ws/v5/public"},
         "kucoin":               {"base_url": "https://api.kucoin.com"},
