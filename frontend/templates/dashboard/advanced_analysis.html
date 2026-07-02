@@ -47,7 +47,7 @@
 /* ── Chart ── */
 #aaChartWrap {
   background: #0f1117; border-radius: 12px; border: 1px solid var(--border);
-  overflow: hidden; position: relative; height: 500px;
+  overflow: hidden; position: relative; height: 620px;
 }
 #aaChart { width: 100%; height: 100%; }
 .chart-empty {
@@ -336,7 +336,7 @@ function initChart() {
   if (chart) { chart.remove(); chart = null; }
   chart = LightweightCharts.createChart(el, {
     width: el.parentElement.clientWidth,
-    height: 500,
+    height: 620,
     layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
     grid: { vertLines: { color: 'rgba(255,255,255,0.05)' }, horzLines: { color: 'rgba(255,255,255,0.05)' } },
     crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
@@ -356,8 +356,8 @@ function initChart() {
 // ── Load assets ────────────────────────────────────────────────
 async function loadAssets() {
   try {
-    const res = await API.get('/api/v1/assets/');
-    const data = await res.json();
+    const data = await API.get('/assets/');
+    if (!data) return;
     const sel = document.getElementById('aaAssetSelect');
     const assets = data.assets || data;
     assets.forEach(a => {
@@ -384,12 +384,12 @@ async function runAnalysis() {
 
   try {
     // fetch OHLCV
-    const ohlcvRes = await API.get(`/api/v1/market-data/${assetId}/ohlcv?timeframe=${selectedTf}&limit=500`);
-    const ohlcvData = await ohlcvRes.json();
+    const ohlcvData = await API.get(`/market-data/${assetId}/ohlcv`, { timeframe: selectedTf, limit: 500 });
+    if (!ohlcvData) throw new Error('Failed to load candle data');
 
     // fetch advanced
-    const advRes = await API.get(`/api/v1/market-data/${assetId}/advanced?timeframe=${selectedTf}`);
-    const adv = await advRes.json();
+    const adv = await API.get(`/market-data/${assetId}/advanced`, { timeframe: selectedTf });
+    if (!adv) throw new Error('Failed to load analysis data');
     if (adv.error) throw new Error(adv.error);
 
     analysisData = adv;
@@ -456,15 +456,18 @@ function renderAllOverlays() {
 
 function renderFibOverlay(fib) {
   if (!fib || !fib.levels) return;
+  // Only label the levels traders actually watch — rest still draw as unlabeled lines
+  const KEY_LABELS = new Set(['0.5', '0.618', '0.786', '1.0', '1.618']);
   fib.levels.forEach(lvl => {
     const isExt = lvl.type === 'extension';
+    const showLabel = KEY_LABELS.has(lvl.label);
     const pl = candleSeries.createPriceLine({
       price: lvl.price,
-      color: isExt ? 'rgba(139,92,246,0.6)' : 'rgba(245,158,11,0.55)',
+      color: isExt ? 'rgba(139,92,246,0.55)' : 'rgba(245,158,11,0.5)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
-      axisLabelVisible: true,
-      title: lvl.label + (isExt ? ' ext' : ''),
+      axisLabelVisible: showLabel,
+      title: showLabel ? lvl.label + (isExt ? ' ext' : '') : '',
     });
     fibLines.push(pl);
   });
@@ -472,25 +475,46 @@ function renderFibOverlay(fib) {
 
 function renderLiqOverlay(liq) {
   if (!liq) return;
+  // Chart stays readable: label only the strongest pools per side, skipping any
+  // that sit within 0.5% of an already-labeled price (avoids stacked/overlapping labels)
+  const topLabeled = (arr) => {
+    const sorted = [...arr].sort((a, b) => b.hits - a.hits);
+    const chosen = [];
+    const set = new Set();
+    for (const l of sorted) {
+      if (chosen.length >= 3) break;
+      const tooClose = chosen.some(c => Math.abs(c.price - l.price) / l.price < 0.005);
+      if (tooClose) continue;
+      chosen.push(l);
+      set.add(l.price);
+    }
+    return set;
+  };
+
+  const buyLabelSet  = topLabeled(liq.buy_side  || []);
+  const sellLabelSet = topLabeled(liq.sell_side || []);
+
   (liq.buy_side || []).forEach(l => {
+    const showLabel = buyLabelSet.has(l.price);
     const pl = candleSeries.createPriceLine({
       price: l.price,
-      color: 'rgba(16,185,129,0.5)',
+      color: 'rgba(16,185,129,0.45)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dotted,
-      axisLabelVisible: true,
-      title: 'Buy Liq · ' + l.strength,
+      axisLabelVisible: showLabel,
+      title: showLabel ? 'Buy Liq · ' + l.strength : '',
     });
     liqLines.push(pl);
   });
   (liq.sell_side || []).forEach(l => {
+    const showLabel = sellLabelSet.has(l.price);
     const pl = candleSeries.createPriceLine({
       price: l.price,
-      color: 'rgba(239,68,68,0.5)',
+      color: 'rgba(239,68,68,0.45)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dotted,
-      axisLabelVisible: true,
-      title: 'Sell Liq · ' + l.strength,
+      axisLabelVisible: showLabel,
+      title: showLabel ? 'Sell Liq · ' + l.strength : '',
     });
     liqLines.push(pl);
   });

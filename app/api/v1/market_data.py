@@ -434,6 +434,13 @@ def _compute_liquidity(highs, lows, timestamps):
 
     buy_side  = find_clusters(l_slice, "buy_side")
     sell_side = find_clusters(h_slice, "sell_side")
+
+    # Keep only the strongest/most-recent pools — full list would flood the chart
+    strength_rank = {"strong": 3, "medium": 2, "weak": 1}
+    buy_side  = sorted(buy_side,  key=lambda c: (strength_rank[c["strength"]], c["hits"]), reverse=True)[:6]
+    sell_side = sorted(sell_side, key=lambda c: (strength_rank[c["strength"]], c["hits"]), reverse=True)[:6]
+    buy_side.sort(key=lambda c: c["price"], reverse=True)
+    sell_side.sort(key=lambda c: c["price"], reverse=True)
     return {"buy_side": buy_side, "sell_side": sell_side}
 
 
