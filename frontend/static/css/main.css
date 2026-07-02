@@ -257,12 +257,12 @@ body {
 .sidebar.collapsed .nav-badge,
 .sidebar.collapsed .sidebar-user-info { display: none !important; }
 
-.sidebar.collapsed .sidebar-header { justify-content: center; padding: 16px 8px; }
-.sidebar.collapsed .sidebar-user    { justify-content: center; padding: 10px 8px; }
+.sidebar.collapsed .sidebar-header { justify-content: center; padding: 11px 8px; }
+.sidebar.collapsed .sidebar-user    { justify-content: center; padding: 7px 8px; }
 
 .sidebar.collapsed .nav-item {
   justify-content: center;
-  padding: 10px;
+  padding: 7px;
   margin: 1px 6px;
 }
 .sidebar.collapsed .nav-item.active::before { display: none; }
