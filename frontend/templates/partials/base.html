@@ -53,7 +53,7 @@
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index'] %}
     {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
-    {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal'] %}
+    {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs'] %}
 
     <!-- Overview -->
@@ -166,6 +166,10 @@
       <div class="nav-group-body">
         <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
           <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+        </a>
+        <a href="/trading" data-tooltip="Trading" class="nav-item {% if active == 'trading' %}active{% endif %}">
+          <i class="bi bi-currency-exchange"></i><span class="nav-text">Trading</span>
+          <span class="badge-tag" style="font-size:9px">LIVE</span>
         </a>
         <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
           <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>

@@ -66,6 +66,7 @@ def _register_blueprints(app):
     from app.api.v1.predictions import predictions_bp
     from app.api.v1.risk import risk_bp
     from app.api.v1.journal import journal_bp
+    from app.api.v1.trading import trading_bp
     from app.views import views_bp
 
     app.register_blueprint(auth_bp, url_prefix="/api/v1/auth")
@@ -82,6 +83,7 @@ def _register_blueprints(app):
     app.register_blueprint(predictions_bp, url_prefix="/api/v1/predictions")
     app.register_blueprint(risk_bp, url_prefix="/api/v1/risk")
     app.register_blueprint(journal_bp, url_prefix="/api/v1/journal")
+    app.register_blueprint(trading_bp, url_prefix="/api/v1/trading")
     app.register_blueprint(views_bp)
 
 

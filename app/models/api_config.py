@@ -67,6 +67,33 @@ class APIConfig(db.Model):
         "iex_cloud":            {"base_url": "https://cloud.iexapis.com/stable"},
     }
 
+    def set_api_key(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.api_key_encrypted = encrypt_value(plaintext) if plaintext else ""
+
+    def set_api_secret(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.api_secret_encrypted = encrypt_value(plaintext) if plaintext else ""
+
+    def get_api_key(self) -> str | None:
+        """Decrypt the stored key. Falls back to the raw stored value if it
+        doesn't look encrypted (legacy plaintext rows created before
+        encryption was added) so existing configs keep working."""
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.api_key_encrypted:
+            return None
+        if not is_encrypted(self.api_key_encrypted):
+            return self.api_key_encrypted
+        return decrypt_value(self.api_key_encrypted)
+
+    def get_api_secret(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.api_secret_encrypted:
+            return None
+        if not is_encrypted(self.api_secret_encrypted):
+            return self.api_secret_encrypted
+        return decrypt_value(self.api_secret_encrypted)
+
     def to_dict(self, reveal_keys=False):
         return {
             "id":               self.id,

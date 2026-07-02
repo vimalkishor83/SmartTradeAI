@@ -107,6 +107,11 @@ def auto_generate():
     return render_template("dashboard/auto_generate.html")
 
 
+@views_bp.route("/trading")
+def trading():
+    return render_template("dashboard/trading.html")
+
+
 @views_bp.route("/briefing")
 def briefing():
     return render_template("dashboard/briefing.html")

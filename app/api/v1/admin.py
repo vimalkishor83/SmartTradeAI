@@ -144,8 +144,6 @@ def create_api_config():
         base_url         = data.get("base_url", ""),
         websocket_url    = data.get("websocket_url", ""),
         auth_type        = data.get("auth_type", "api_key"),
-        api_key_encrypted    = data.get("api_key", ""),
-        api_secret_encrypted = data.get("api_secret", ""),
         access_token     = data.get("access_token", ""),
         refresh_token    = data.get("refresh_token", ""),
         rate_limit       = int(data.get("rate_limit", 60)),
@@ -155,6 +153,8 @@ def create_api_config():
         is_active        = True,
         status           = "active",
     )
+    if data.get("api_key"):    cfg.set_api_key(data["api_key"])
+    if data.get("api_secret"): cfg.set_api_secret(data["api_secret"])
     db.session.add(cfg)
     db.session.commit()
     return jsonify(cfg.to_dict()), 201
@@ -185,8 +185,8 @@ def update_api_config(cfg_id):
             setattr(cfg, attr, data[k])
 
     # Only update credentials if supplied
-    if data.get("api_key"):    cfg.api_key_encrypted    = data["api_key"]
-    if data.get("api_secret"): cfg.api_secret_encrypted = data["api_secret"]
+    if data.get("api_key"):    cfg.set_api_key(data["api_key"])
+    if data.get("api_secret"): cfg.set_api_secret(data["api_secret"])
     if data.get("access_token"):  cfg.access_token  = data["access_token"]
     if data.get("refresh_token"): cfg.refresh_token = data["refresh_token"]
 
@@ -358,8 +358,10 @@ def _test_connection(cfg: APIConfig) -> dict:
 
     headers = {}
     if cfg.auth_type == "api_key" and cfg.api_key_encrypted:
-        headers["X-MBX-APIKEY"] = cfg.api_key_encrypted   # Binance style
-        headers["X-API-KEY"]    = cfg.api_key_encrypted
+        api_key = cfg.get_api_key()
+        if api_key:
+            headers["X-MBX-APIKEY"] = api_key   # Binance style
+            headers["X-API-KEY"]    = api_key
     if cfg.auth_type == "token" and cfg.access_token:
         headers["Authorization"] = f"Bearer {cfg.access_token}"
 

@@ -46,5 +46,8 @@ redis==5.0.1
 pyotp==2.10.0
 qrcode[pil]==8.2
 
+# Encryption (trading API key/secret at rest) — must satisfy py-vapid's >=46 constraint
+cryptography>=46,<47
+
 # Web Push Notifications
 pywebpush==2.3.0
