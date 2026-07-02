@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin />
   <link href="/static/vendor/bootstrap.min.css" rel="stylesheet" />
   <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/css/main.css" />
+  <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version('css/main.css') }}" />
   <link rel="manifest" href="/static/manifest.json">
   <meta name="theme-color" content="#6366f1">
   <meta name="mobile-web-app-capable" content="yes">
@@ -356,7 +356,7 @@
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/chart.umd.min.js"></script>
 <script src="/static/vendor/socket.io.min.js"></script>
-<script src="/static/js/app.js"></script>
+<script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
 {% block extra_js %}{% endblock %}
 
 <script>

@@ -21,8 +21,24 @@ def create_app(config_class=None):
     _init_scheduler(app)
     _configure_logging(app)
     _start_streams(app)
+    _register_asset_versioning(app)
 
     return app
+
+
+def _register_asset_versioning(app):
+    """Cache-busting for static assets: {{ asset_version('css/main.css') }} appends
+    the file's mtime as a ?v= query param, so browsers auto-fetch fresh CSS/JS on
+    every deploy instead of serving a stale cached copy indefinitely."""
+    @app.context_processor
+    def _inject_asset_version():
+        def asset_version(rel_path):
+            full_path = os.path.join(app.static_folder, rel_path)
+            try:
+                return str(int(os.path.getmtime(full_path)))
+            except OSError:
+                return "1"
+        return {"asset_version": asset_version}
 
 
 def _init_extensions(app):
