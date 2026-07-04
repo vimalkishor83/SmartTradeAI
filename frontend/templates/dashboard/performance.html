@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Portfolio</span>
     <h1 class="page-title">My Performance</h1>
     <p class="page-subtitle">Aggregated stats from your closed signals</p>
   </div>
@@ -154,10 +155,13 @@
 {% block extra_js %}
 <script>
 let _tfChart = null, _typeChart = null, _pnlChart = null, _mktChart = null;
+let _chartGridClr = 'rgba(255,255,255,0.04)';
 
 function _chartDefaults() {
   if (typeof Chart === 'undefined') return;
-  Chart.defaults.color       = '#64748b';
+  const muted = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#64748b';
+  _chartGridClr = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || _chartGridClr;
+  Chart.defaults.color       = muted;
   Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
   Chart.defaults.font.size   = 12;
 }
@@ -222,7 +226,7 @@ function _buildTfChart(rows) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: { min: 0, max: 100, ticks: { callback: v => v + '%', stepSize: 25 }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { min: 0, max: 100, ticks: { callback: v => v + '%', stepSize: 25 }, grid: { color: _chartGridClr } },
         x: { grid: { display: false } },
       },
     },
@@ -283,7 +287,7 @@ function _buildDailyPnl(rows) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { callback: v => v + '%' }, grid: { color: _chartGridClr } },
         x: { grid: { display: false }, ticks: { maxTicksLimit: 8 } },
       },
     },
@@ -313,7 +317,7 @@ function _buildMktChart(rows) {
       responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        x: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: _chartGridClr } },
         y: { grid: { display: false } },
       },
     },

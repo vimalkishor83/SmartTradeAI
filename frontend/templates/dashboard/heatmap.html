@@ -24,7 +24,7 @@
   position: relative;
   overflow: hidden;
 }
-.hm-tile:hover { transform:scale(1.04); box-shadow:0 4px 20px rgba(0,0,0,.35); border-color:rgba(255,255,255,.15); }
+.hm-tile:hover { transform:scale(1.04); box-shadow:0 4px 20px rgba(0,0,0,.35); border-color:var(--border-hover); }
 .hm-tile::before {
   content:''; position:absolute; inset:0;
   background:inherit; filter:brightness(1.15);
@@ -63,12 +63,12 @@
 .market-group-header {
   font-size:10px; font-weight:800; letter-spacing:1px; text-transform:uppercase;
   color:var(--text-muted); margin-bottom:8px; padding-bottom:6px;
-  border-bottom:1px solid rgba(255,255,255,0.06);
+  border-bottom:1px solid var(--border);
 }
 
 .skeleton-tile {
   border-radius:10px; height:90px;
-  background:linear-gradient(90deg,var(--border) 25%,rgba(255,255,255,0.05) 50%,var(--border) 75%);
+  background:linear-gradient(90deg,var(--border) 25%,var(--bg-card-hover) 50%,var(--border) 75%);
   background-size:200% 100%;
   animation: shimmer 1.4s infinite;
 }
@@ -79,6 +79,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Signals & Tools</span>
     <h1 class="page-title">Market Heatmap</h1>
     <p class="page-subtitle">All assets color-coded by 24h price change</p>
   </div>

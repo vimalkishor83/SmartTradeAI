@@ -7,7 +7,7 @@
   <meta name="description" content="AI-powered trading signals platform" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin />
   <link href="/static/vendor/bootstrap.min.css" rel="stylesheet" />
   <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version('css/main.css') }}" />
@@ -154,6 +154,9 @@
         <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
           <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
         </a>
+        <a href="/economic-calendar" data-tooltip="Economic Calendar" class="nav-item {% if active == 'economic_calendar' %}active{% endif %}">
+          <i class="bi bi-calendar-event"></i><span class="nav-text">Economic Calendar</span>
+        </a>
       </div>
     </div>
 
@@ -258,6 +261,12 @@
     </div>
 
     <div class="navbar-right">
+      <!-- Live clock (IST) -->
+      <div class="topbar-clock d-none d-lg-flex" id="topbarClock" title="Current time (IST)">
+        <span id="clockDate"></span>
+        <span id="clockTime"></span>
+      </div>
+
       <!-- WebSocket status -->
       <div class="ws-status" id="wsStatusBadge" title="Live data connection">
         <span class="ws-dot" id="wsDot"></span>
@@ -368,6 +377,21 @@
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/static/sw.js').catch(() => {});
 }
+
+// ── Live topbar clock (IST) ────────────────────────────────────────
+(function () {
+  const dateEl = document.getElementById('clockDate');
+  const timeEl = document.getElementById('clockTime');
+  if (!dateEl || !timeEl) return;
+  const IST = { timeZone: 'Asia/Kolkata' };
+  function tick() {
+    const now = new Date();
+    dateEl.textContent = now.toLocaleDateString('en-GB', { ...IST, day: '2-digit', month: 'short' });
+    timeEl.textContent = now.toLocaleTimeString('en-GB', { ...IST, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) + ' IST';
+  }
+  tick();
+  setInterval(tick, 1000);
+})();
 
 // ── Sidebar collapse / expand ──────────────────────────────────────
 (function () {

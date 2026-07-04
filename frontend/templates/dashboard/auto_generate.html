@@ -4,8 +4,39 @@
 {% block breadcrumb %}<i class="bi bi-robot me-2"></i> Auto Generate{% endblock %}
 
 {% block content %}
+<style>
+  .ag-dropdown-menu {
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border) !important;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    max-height: 190px;
+    min-width: 220px !important;
+    overflow-y: auto;
+    padding-bottom: 4px !important;
+  }
+  .ag-dropdown-item {
+    color: var(--text-primary) !important;
+    background: transparent !important;
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 13px;
+  }
+  .ag-dropdown-item:hover, .ag-dropdown-item:focus {
+    background: var(--bg-secondary) !important;
+    color: var(--text-primary) !important;
+  }
+  .ag-dropdown-item input.form-check-input {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border);
+  }
+  .ag-dropdown-item input.form-check-input:checked {
+    background-color: var(--accent, #6366f1);
+    border-color: var(--accent, #6366f1);
+  }
+</style>
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Signals & Tools</span>
     <h1 class="page-title">Auto Generate Signals</h1>
     <p class="page-subtitle">Configure and run automatic signal generation on a schedule</p>
   </div>
@@ -19,38 +50,42 @@
 </div>
 
 <!-- ── CONFIG + CONTROLS ──────────────────────────────────── -->
-<div class="row g-3 mb-4">
+<div class="row g-3 mb-4 align-items-start">
   <!-- Config card -->
   <div class="col-lg-8">
-    <div class="section-card h-100">
+    <div class="section-card">
       <div class="section-card-header">
         <span class="section-card-title"><i class="bi bi-gear-fill text-accent"></i> Generation Settings</span>
       </div>
       <div class="section-card-body">
         <div class="row g-3">
           <div class="col-md-4">
-            <label class="form-label">Market</label>
-            <select class="form-select" id="cfgMarket">
-              <option value="">All Markets</option>
-              <option value="crypto">Crypto</option>
-              <option value="forex">Forex</option>
-              <option value="gold">Gold</option>
-              <option value="silver">Silver</option>
-              <option value="indian_stock">Indian Stocks</option>
-              <option value="index">Indices</option>
-            </select>
+            <label class="form-label">Markets</label>
+            <div class="dropdown" id="cfgMarketDropdown">
+              <button class="form-select text-start" type="button" id="cfgMarketBtn" data-bs-toggle="dropdown" aria-expanded="false" style="cursor:pointer">
+                <span id="cfgMarketLabel">All Markets</span>
+              </button>
+              <div class="dropdown-menu ag-dropdown-menu p-2" id="cfgMarketMenu"></div>
+            </div>
+            <div class="fs-xs text-muted mt-1">None selected = all markets.</div>
           </div>
           <div class="col-md-4">
-            <label class="form-label">Timeframe</label>
-            <select class="form-select" id="cfgTimeframe">
-              <option value="1m">1 Minute</option>
-              <option value="5m">5 Minutes</option>
-              <option value="15m">15 Minutes</option>
-              <option value="30m">30 Minutes</option>
-              <option value="1h" selected>1 Hour</option>
-              <option value="4h">4 Hours</option>
-              <option value="1d">Daily</option>
-            </select>
+            <label class="form-label">Timeframe(s)</label>
+            <div class="dropdown" id="cfgTimeframeDropdown">
+              <button class="form-select text-start" type="button" id="cfgTimeframeBtn" data-bs-toggle="dropdown" aria-expanded="false" style="cursor:pointer">
+                <span id="cfgTimeframeLabel">1 Hour</span>
+              </button>
+              <div class="dropdown-menu ag-dropdown-menu p-2" id="cfgTimeframeMenu">
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="1m"> 1 Minute</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="5m"> 5 Minutes</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="15m"> 15 Minutes</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="30m"> 30 Minutes</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="1h" checked> 1 Hour</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="4h"> 4 Hours</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="1d"> Daily</label>
+              </div>
+            </div>
+            <div class="fs-xs text-muted mt-1">Select one or more timeframes.</div>
           </div>
           <div class="col-md-4">
             <label class="form-label">Signal Filter</label>
@@ -91,6 +126,23 @@
               <option value="50">50 signals</option>
             </select>
           </div>
+          <div class="col-md-8">
+            <label class="form-label d-flex align-items-center justify-content-between">
+              <span>Assets <span class="text-muted fw-400">(optional — narrows the Markets selection)</span></span>
+              <button class="btn btn-outline-light btn-sm fs-xs py-0" id="clearAssetsBtn">Clear</button>
+            </label>
+            <div class="dropdown" id="cfgAssetDropdown">
+              <button class="form-select text-start" type="button" id="cfgAssetBtn" data-bs-toggle="dropdown" aria-expanded="false" style="cursor:pointer">
+                <span id="assetPickCount">All active assets (no selection)</span>
+              </button>
+              <div class="dropdown-menu ag-dropdown-menu p-2" id="cfgAssetMenu" style="min-width:320px;max-height:320px">
+                <input type="text" class="form-control form-control-sm mb-2" id="assetPickSearch" placeholder="Search symbol...">
+                <div id="assetPickerGrid" style="max-height:230px;overflow-y:auto">
+                  <div class="text-muted fs-xs px-2">Loading assets…</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -98,47 +150,47 @@
 
   <!-- Stats card -->
   <div class="col-lg-4">
-    <div class="section-card h-100">
+    <div class="section-card">
       <div class="section-card-header">
         <span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent"></i> Session Stats</span>
         <button class="btn btn-outline-light btn-sm fs-xs" id="clearStatsBtn">Clear</button>
       </div>
       <div class="section-card-body">
         <div class="row g-2">
-          <div class="col-6">
+          <div class="col-4">
             <div class="quick-stat">
-              <div class="qs-label">Total Generated</div>
+              <div class="qs-label">Generated</div>
               <div class="qs-value text-accent" id="statGenerated">0</div>
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-4">
             <div class="quick-stat">
               <div class="qs-label">Runs</div>
               <div class="qs-value" id="statRuns">0</div>
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-4">
+            <div class="quick-stat">
+              <div class="qs-label">Errors</div>
+              <div class="qs-value text-red" id="statErrors">0</div>
+            </div>
+          </div>
+          <div class="col-4">
             <div class="quick-stat">
               <div class="qs-label">BUY</div>
               <div class="qs-value text-green" id="statBuy">0</div>
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-4">
             <div class="quick-stat">
               <div class="qs-label">SELL</div>
               <div class="qs-value text-red" id="statSell">0</div>
             </div>
           </div>
-          <div class="col-6">
+          <div class="col-4">
             <div class="quick-stat">
               <div class="qs-label">HOLD</div>
               <div class="qs-value text-yellow" id="statHold">0</div>
-            </div>
-          </div>
-          <div class="col-6">
-            <div class="quick-stat">
-              <div class="qs-label">Errors</div>
-              <div class="qs-value text-red" id="statErrors">0</div>
             </div>
           </div>
         </div>
@@ -158,13 +210,20 @@
     style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
     <i class="bi bi-play-fill me-2"></i>Start Generating
   </button>
-  <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
+  <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--yellow);color:#1a1a1a;border:none;border-radius:10px;font-size:15px">
+    <i class="bi bi-pause-fill me-2"></i>Pause
+  </button>
+  <button class="btn btn-lg px-4 fw-700" id="hardStopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
     <i class="bi bi-stop-fill me-2"></i>Stop
   </button>
   <button class="btn btn-outline-light btn-sm" id="runOnceBtn">
     <i class="bi bi-skip-forward-fill me-1"></i>Run Once Now
   </button>
+  <button class="btn btn-outline-light btn-sm" id="saveConfigBtn">
+    <i class="bi bi-save-fill me-1"></i>Save Configuration
+  </button>
   <span class="text-muted fs-xs" id="lastRunLabel"></span>
+  <span class="text-success fs-xs" id="saveConfirmLabel" style="display:none"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>
 </div>
 
 <!-- ── GENERATED SIGNALS TABLE ───────────────────────────── -->
@@ -230,24 +289,24 @@ let _pollTimer   = null;
 let _lastLogLen  = 0;
 let _lastGenCount = 0;
 let _tableSignals = [];
+let _selectedAssetIds = new Set();
+let _formSyncedFromServer = false;
 
 /* ── Persist / restore config ────────────────────────────── */
 function saveConfig() {
   localStorage.setItem(AG_KEY, JSON.stringify({
-    market:    document.getElementById('cfgMarket').value,
-    timeframe: document.getElementById('cfgTimeframe').value,
-    filter:    document.getElementById('cfgFilter').value,
-    interval:  document.getElementById('cfgInterval').value,
-    conf:      document.getElementById('cfgConf').value,
-    maxSig:    document.getElementById('cfgMax').value,
+    markets:    getSelectedMarkets(),
+    timeframes: getSelectedTimeframes(),
+    filter:     document.getElementById('cfgFilter').value,
+    interval:   document.getElementById('cfgInterval').value,
+    conf:       document.getElementById('cfgConf').value,
+    maxSig:     document.getElementById('cfgMax').value,
   }));
 }
 
 function loadConfig() {
   try {
     const c = JSON.parse(localStorage.getItem(AG_KEY) || '{}');
-    if (c.market)    document.getElementById('cfgMarket').value    = c.market;
-    if (c.timeframe) document.getElementById('cfgTimeframe').value = c.timeframe;
     if (c.filter)    document.getElementById('cfgFilter').value    = c.filter;
     if (c.interval)  document.getElementById('cfgInterval').value  = c.interval;
     if (c.conf !== undefined) {
@@ -255,28 +314,156 @@ function loadConfig() {
       document.getElementById('cfgConfVal').textContent = c.conf + '%';
     }
     if (c.maxSig)    document.getElementById('cfgMax').value = c.maxSig;
+    if (c.timeframes?.length) setSelectedTimeframes(c.timeframes);
+    // markets are applied after loadAssetPicker() populates the menu
+    window._pendingMarkets = c.markets || [];
   } catch(e) {}
 }
 
+/* ── Timeframe multi-select dropdown ─────────────────────── */
+const TF_LABELS = {'1m':'1 Minute','5m':'5 Minutes','15m':'15 Minutes','30m':'30 Minutes','1h':'1 Hour','4h':'4 Hours','1d':'Daily'};
+
+function getSelectedTimeframes() {
+  return Array.from(document.querySelectorAll('.tf-pick-cb:checked')).map(cb => cb.value);
+}
+
+function setSelectedTimeframes(tfs) {
+  const set = new Set(tfs);
+  document.querySelectorAll('.tf-pick-cb').forEach(cb => { cb.checked = set.has(cb.value); });
+  updateTimeframeLabel();
+}
+
+function updateTimeframeLabel() {
+  const sel = getSelectedTimeframes();
+  const label = document.getElementById('cfgTimeframeLabel');
+  if (!sel.length) { label.textContent = '1 Hour'; return; }
+  label.textContent = sel.length === 1 ? TF_LABELS[sel[0]] : `${sel.length} timeframes selected`;
+}
+
+/* ── Market multi-select dropdown ────────────────────────── */
+const MARKET_LABELS = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
+  indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
+
+function getSelectedMarkets() {
+  return Array.from(document.querySelectorAll('.market-pick-cb:checked')).map(cb => cb.value);
+}
+
+function setSelectedMarkets(markets) {
+  const set = new Set(markets);
+  document.querySelectorAll('.market-pick-cb').forEach(cb => { cb.checked = set.has(cb.value); });
+  updateMarketLabel();
+}
+
+function updateMarketLabel() {
+  const sel = getSelectedMarkets();
+  const label = document.getElementById('cfgMarketLabel');
+  if (!sel.length) { label.textContent = 'All Markets'; return; }
+  label.textContent = sel.length === 1 ? (MARKET_LABELS[sel[0]] || sel[0]) : `${sel.length} markets selected`;
+}
+
+/* ── Asset + market picker ───────────────────────────────── */
+let _allAssets = [];
+
+async function loadAssetPicker() {
+  const data = await API.get('/signals/auto-generate/watchlist');
+  if (!data) return;
+
+  // Populate market checkbox menu
+  const marketMenu = document.getElementById('cfgMarketMenu');
+  marketMenu.innerHTML = (data.markets || []).map(m => `
+    <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2">
+      <input type="checkbox" class="form-check-input m-0 market-pick-cb" value="${m}"> ${MARKET_LABELS[m] || m}
+    </label>`).join('');
+  marketMenu.querySelectorAll('.market-pick-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      updateMarketLabel();
+      // Drop any selected assets that no longer belong to the selected markets
+      const markets = new Set(getSelectedMarkets());
+      if (markets.size) {
+        const valid = new Set(_allAssets.filter(a => markets.has(a.market)).map(a => a.id));
+        _selectedAssetIds = new Set([..._selectedAssetIds].filter(id => valid.has(id)));
+      }
+      renderAssetPicker();
+    });
+  });
+  const initialMarkets = (window._pendingMarkets?.length ? window._pendingMarkets : (data.selected_markets || []));
+  setSelectedMarkets(initialMarkets);
+
+  document.querySelectorAll('.tf-pick-cb').forEach(cb => {
+    cb.addEventListener('change', updateTimeframeLabel);
+  });
+  if (data.selected_timeframes?.length) setSelectedTimeframes(data.selected_timeframes);
+
+  // Store assets, render filtered by current market selection
+  _allAssets = data.assets || [];
+  _selectedAssetIds = new Set(data.selected_asset_ids || []);
+  renderAssetPicker();
+
+  document.getElementById('assetPickSearch')?.addEventListener('input', renderAssetPicker);
+}
+
+function renderAssetPicker() {
+  const grid = document.getElementById('assetPickerGrid');
+  const search = (document.getElementById('assetPickSearch')?.value || '').trim().toUpperCase();
+  const markets = new Set(getSelectedMarkets());
+
+  let list = markets.size ? _allAssets.filter(a => markets.has(a.market)) : _allAssets;
+  if (search) list = list.filter(a => a.symbol.toUpperCase().includes(search) || (a.name || '').toUpperCase().includes(search));
+
+  if (!list.length) {
+    grid.innerHTML = '<div class="text-muted fs-xs px-2">No assets match</div>';
+  } else {
+    grid.innerHTML = list.map(a => `
+      <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2" title="${a.name || ''}">
+        <input type="checkbox" class="form-check-input m-0 asset-pick-cb" value="${a.id}" ${_selectedAssetIds.has(a.id) ? 'checked' : ''}>
+        <span style="color:var(--text-primary)">${a.symbol}</span>
+        <span class="text-muted" style="font-size:10px">${(a.market||'').replace('_',' ')}</span>
+      </label>`).join('');
+    grid.querySelectorAll('.asset-pick-cb').forEach(cb => {
+      cb.addEventListener('change', () => {
+        const id = parseInt(cb.value);
+        if (cb.checked) _selectedAssetIds.add(id); else _selectedAssetIds.delete(id);
+        updateAssetPickCount();
+      });
+    });
+  }
+  updateAssetPickCount();
+}
+
+function updateAssetPickCount() {
+  const el = document.getElementById('assetPickCount');
+  el.textContent = _selectedAssetIds.size
+    ? `${_selectedAssetIds.size} asset(s) selected`
+    : 'All active assets (no selection)';
+}
+
 /* ── Status / UI ─────────────────────────────────────────── */
+let _everRan = false;
+
 function setRunningUI(running) {
-  document.getElementById('startBtn').style.display   = running ? 'none' : 'inline-flex';
+  const startBtn = document.getElementById('startBtn');
+  startBtn.style.display = running ? 'none' : 'inline-flex';
+  startBtn.innerHTML = _everRan
+    ? '<i class="bi bi-play-fill me-2"></i>Resume'
+    : '<i class="bi bi-play-fill me-2"></i>Start Generating';
   document.getElementById('stopBtn').style.display    = running ? 'inline-flex' : 'none';
   document.getElementById('runOnceBtn').disabled      = running;
   const dot   = document.getElementById('statusDot');
   const lbl   = document.getElementById('statusLabel');
   const badge = document.getElementById('navAutoGenBadge');
   if (running) {
+    _everRan = true;
     dot.style.background = 'var(--green)';
     dot.style.animation  = '';
     lbl.textContent      = 'Running…';
     if (badge) badge.style.display = 'inline-block';
   } else {
-    dot.style.background = 'var(--text-muted)';
+    dot.style.background = _everRan ? 'var(--yellow)' : 'var(--text-muted)';
     dot.style.animation  = 'none';
-    lbl.textContent      = 'Idle';
+    lbl.textContent      = _everRan ? 'Paused' : 'Idle';
     if (badge) badge.style.display = 'none';
   }
+  document.getElementById('hardStopBtn').style.display = (running || _everRan) ? 'inline-flex' : 'none';
 }
 
 /* ── Render server log lines ─────────────────────────────── */
@@ -323,6 +510,7 @@ async function pollStatus() {
   const data = await API.get('/signals/auto-generate/status');
   if (!data) return;
 
+  if (data.runs > 0 || data.last_run_at) _everRan = true;
   setRunningUI(data.running);
 
   document.getElementById('statGenerated').textContent = data.generated ?? 0;
@@ -341,11 +529,16 @@ async function pollStatus() {
   updateCountdown(data.next_run_at);
   renderLog(data.log);
 
-  // Sync form fields to running config (so coming back to page shows correct state)
-  if (data.running) {
-    document.getElementById('cfgMarket').value    = data.market    || '';
-    document.getElementById('cfgTimeframe').value = data.timeframe || '1h';
-    document.getElementById('cfgInterval').value  = data.interval_minutes ?? 5;
+  // Sync form fields to the saved server config — but only once, on the first
+  // poll after page load. Re-syncing on every poll (every 3s) was overwriting
+  // in-progress checkbox edits before the user could click Save/Start.
+  if (!_formSyncedFromServer) {
+    _formSyncedFromServer = true;
+    if (data.running) {
+      setSelectedMarkets(data.markets || []);
+      setSelectedTimeframes(data.timeframes && data.timeframes.length ? data.timeframes : ['1h']);
+      document.getElementById('cfgInterval').value = data.interval_minutes ?? 5;
+    }
   }
 
   // Reload signals table if new ones were generated this run
@@ -357,10 +550,11 @@ async function pollStatus() {
 
 /* ── Load recent signals into table ─────────────────────── */
 async function loadRecentSignals() {
-  const market    = document.getElementById('cfgMarket').value;
-  const timeframe = document.getElementById('cfgTimeframe').value;
-  const params    = { timeframe, per_page: 20, page: 1 };
-  if (market) params.market = market;
+  const markets    = getSelectedMarkets();
+  const timeframes = getSelectedTimeframes();
+  const params     = { per_page: 20, page: 1 };
+  if (timeframes.length === 1) params.timeframe = timeframes[0];
+  if (markets.length === 1) params.market = markets[0];
 
   const data = await API.get('/signals/', params);
   if (!data?.signals?.length) return;
@@ -378,7 +572,7 @@ async function loadRecentSignals() {
     const d       = s.generated_at ? new Date(s.generated_at) : null;
     const tStr    = d ? d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
     return `<tr>
-      <td style="color:#7a8fa8;font-size:11px;white-space:nowrap">${tStr}</td>
+      <td style="color:var(--text-muted);font-size:11px;white-space:nowrap">${tStr}</td>
       <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>
       <td><span class="badge-tag">${(s.market||'').replace('_',' ')}</span></td>
       <td><span class="badge-tag">${s.timeframe}</span></td>
@@ -389,7 +583,7 @@ async function loadRecentSignals() {
       <td><span style="font-weight:700;color:${rrColor}">${rrText}</span></td>
       <td style="min-width:100px">
         <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div>
-        <div style="color:#94a3b8;font-size:11px">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
+        <div style="color:var(--text-muted);font-size:11px">${conf.toFixed(0)}% · ${s.confidence_label||''}</div>
       </td>`;
   }).join('');
 }
@@ -402,8 +596,9 @@ async function startGeneration() {
   saveConfig();
 
   const payload = {
-    market:           document.getElementById('cfgMarket').value,
-    timeframe:        document.getElementById('cfgTimeframe').value,
+    markets:          getSelectedMarkets(),
+    asset_ids:        Array.from(_selectedAssetIds),
+    timeframes:       getSelectedTimeframes(),
     signal_filter:    document.getElementById('cfgFilter').value,
     min_confidence:   parseInt(document.getElementById('cfgConf').value),
     max_per_run:      parseInt(document.getElementById('cfgMax').value),
@@ -425,12 +620,26 @@ async function startGeneration() {
   }
 }
 
-/* ── Stop ────────────────────────────────────────────────── */
-async function stopGeneration() {
+/* ── Pause (keeps config, can Resume) ────────────────────── */
+async function pauseGeneration() {
   const res = await API.post('/signals/auto-generate/stop');
   if (res?.status === 'stopped') {
     setRunningUI(false);
     document.getElementById('nextRunWrap').style.display = 'none';
+    Toast.show('Auto generation paused — click Resume to continue', 'info');
+  }
+}
+
+/* ── Hard Stop (fully resets session back to Idle) ───────── */
+async function hardStopGeneration() {
+  const res = await API.post('/signals/auto-generate/stop');
+  if (res?.status === 'stopped') {
+    _everRan = false;
+    setRunningUI(false);
+    document.getElementById('nextRunWrap').style.display = 'none';
+    ['statGenerated','statRuns','statBuy','statSell','statHold','statErrors']
+      .forEach(id => { const el = document.getElementById(id); if (el) el.textContent = '0'; });
+    document.getElementById('lastRunLabel').textContent = '';
     Toast.show('Auto generation stopped', 'info');
   }
 }
@@ -443,8 +652,9 @@ async function runOnce() {
   saveConfig();
 
   const payload = {
-    market:          document.getElementById('cfgMarket').value,
-    timeframe:       document.getElementById('cfgTimeframe').value,
+    markets:         getSelectedMarkets(),
+    asset_ids:       Array.from(_selectedAssetIds),
+    timeframes:      getSelectedTimeframes(),
     signal_filter:   document.getElementById('cfgFilter').value,
     min_confidence:  parseInt(document.getElementById('cfgConf').value),
     max_per_run:     parseInt(document.getElementById('cfgMax').value),
@@ -458,17 +668,99 @@ async function runOnce() {
   btn.innerHTML = '<i class="bi bi-skip-forward-fill me-1"></i>Run Once Now';
 }
 
+/* ── Save Configuration (persist without starting) ───────── */
+async function saveConfiguration() {
+  const btn = document.getElementById('saveConfigBtn');
+  btn.disabled = true;
+  saveConfig();
+
+  const payload = {
+    markets:          getSelectedMarkets(),
+    asset_ids:        Array.from(_selectedAssetIds),
+    timeframes:       getSelectedTimeframes(),
+    signal_filter:    document.getElementById('cfgFilter').value,
+    min_confidence:   parseInt(document.getElementById('cfgConf').value),
+    max_per_run:      parseInt(document.getElementById('cfgMax').value),
+    interval_minutes: parseInt(document.getElementById('cfgInterval').value),
+  };
+
+  const res = await API.post('/signals/auto-generate/save', payload);
+  btn.disabled = false;
+  if (res?.status === 'saved') {
+    Toast.show('Configuration saved', 'success');
+    const confirm = document.getElementById('saveConfirmLabel');
+    confirm.style.display = 'inline';
+    setTimeout(() => { confirm.style.display = 'none'; }, 2500);
+  } else {
+    Toast.show('Failed to save configuration', 'error');
+  }
+}
+
 /* ── Init ────────────────────────────────────────────────── */
 document.addEventListener('app:ready', () => {
   loadConfig();
+  loadAssetPicker();
+
+  document.getElementById('clearAssetsBtn')?.addEventListener('click', () => {
+    _selectedAssetIds.clear();
+    document.querySelectorAll('.asset-pick-cb').forEach(cb => { cb.checked = false; });
+    updateAssetPickCount();
+  });
+
+  document.getElementById('assetPickSearch')?.addEventListener('click', e => e.stopPropagation());
 
   document.getElementById('cfgConf').addEventListener('input', function() {
     document.getElementById('cfgConfVal').textContent = this.value + '%';
   });
 
-  document.getElementById('startBtn').addEventListener('click',   startGeneration);
-  document.getElementById('stopBtn').addEventListener('click',    stopGeneration);
-  document.getElementById('runOnceBtn').addEventListener('click', runOnce);
+  document.getElementById('startBtn').addEventListener('click',      startGeneration);
+  document.getElementById('stopBtn').addEventListener('click',       pauseGeneration);
+  document.getElementById('hardStopBtn').addEventListener('click',   hardStopGeneration);
+  document.getElementById('runOnceBtn').addEventListener('click',    runOnce);
+  document.getElementById('saveConfigBtn').addEventListener('click', saveConfiguration);
+
+  // Keep dropdown open while clicking checkboxes inside it
+  document.querySelectorAll('#cfgMarketMenu, #cfgTimeframeMenu, #cfgAssetMenu').forEach(menu => {
+    menu.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Fix: .section-card has overflow:hidden which clips dropdown menus.
+  // Reparent the open menu to <body> with fixed positioning so it escapes the clip.
+  document.querySelectorAll('#cfgMarketDropdown, #cfgTimeframeDropdown, #cfgAssetDropdown').forEach(wrap => {
+    const btn  = wrap.querySelector('[data-bs-toggle="dropdown"]');
+    const menu = wrap.querySelector('.dropdown-menu');
+    const homeParent = menu.parentElement;
+    let placeholder = null;
+
+    wrap.addEventListener('show.bs.dropdown', () => {
+      const r = btn.getBoundingClientRect();
+      placeholder = document.createComment('dropdown-anchor');
+      homeParent.insertBefore(placeholder, menu);
+      document.body.appendChild(menu);
+      menu.style.position = 'fixed';
+      menu.style.top   = `${r.bottom + 4}px`;
+      menu.style.left  = `${r.left}px`;
+      menu.style.width = `${Math.max(r.width, 260)}px`;
+      menu.style.zIndex = 3000;
+    });
+
+    wrap.addEventListener('shown.bs.dropdown', () => {
+      menu.querySelector('#assetPickSearch')?.focus();
+    });
+
+    wrap.addEventListener('hide.bs.dropdown', () => {
+      if (placeholder) {
+        homeParent.insertBefore(menu, placeholder);
+        placeholder.remove();
+        placeholder = null;
+      }
+      menu.style.position = '';
+      menu.style.top = '';
+      menu.style.left = '';
+      menu.style.width = '';
+      menu.style.zIndex = '';
+    });
+  });
 
   document.getElementById('clearLogBtn')?.addEventListener('click', () => {
     document.getElementById('runLog').innerHTML = '';

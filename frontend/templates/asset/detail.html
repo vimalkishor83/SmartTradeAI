@@ -96,7 +96,7 @@
     background: transparent;
   }
   .tab-nav .nav-link.active {
-    color: #ffffff;
+    color: var(--text-primary);
     border-bottom-color: var(--accent);
   }
 
@@ -118,6 +118,15 @@
   .market-badge.commodity { background: rgba(251,191,36,.15); color: #fbbf24; }
   .market-badge.indian_stock { background: rgba(16,185,129,.15); color: #10b981; }
   .market-badge.index    { background: rgba(59,130,246,.15);  color: #60a5fa; }
+
+  /* #checklistFab is position:fixed, same bottom-right corner as the
+     right-column Quick Stats card — on narrower viewports it can sit on
+     top of that card's content. Center it instead of pinning to the
+     right-hand corner so it never shares a screen region with that column. */
+  #checklistFab { bottom: 28px; left: 50%; transform: translateX(-50%); padding: 12px 20px; font-size: 14px; }
+  @media (max-width: 1200px) {
+    #checklistFab { bottom: 16px; padding: 10px 16px; font-size: 13px; }
+  }
 </style>
 {% endblock %}
 
@@ -265,6 +274,24 @@
         </div>
       </div>
 
+      <!-- AI Prediction -->
+      <div class="section-card mb-3" style="padding:14px">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="fw-600 fs-sm">
+            <i class="bi bi-cpu me-1 text-accent"></i>AI Prediction
+          </div>
+          <span class="badge-tag" style="font-size:9px">PRO</span>
+        </div>
+        <div id="aiPredictionContent">
+          <div class="text-center py-2">
+            <button class="btn btn-outline-light btn-sm w-100" onclick="loadAiPrediction()" id="runAiPredBtn">
+              <i class="bi bi-cpu me-1"></i>Run AI Prediction
+            </button>
+            <div class="text-muted fs-xs mt-2">Runs 5m–1D ensemble models — ~30s total</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Quick Stats -->
       <div class="section-card" style="padding:14px">
         <div class="fw-600 fs-sm mb-3">
@@ -313,9 +340,9 @@
 
 <!-- ── Pre-Trade Checklist floating button ──────────── -->
 <button id="checklistFab" onclick="openChecklist()"
-  style="position:fixed;bottom:28px;right:28px;z-index:1050;
+  style="position:fixed;z-index:1050;
          background:var(--accent);color:#fff;border:none;border-radius:50px;
-         padding:12px 20px;font-size:14px;font-weight:700;cursor:pointer;
+         font-weight:700;cursor:pointer;
          box-shadow:0 4px 20px rgba(0,0,0,.4);display:flex;align-items:center;gap:8px">
   <i class="bi bi-clipboard-check"></i> Pre-Trade Check
 </button>
@@ -642,7 +669,7 @@ async function loadIndicators() {
 
     // RSI: red >70, green <30, neutral white
     if (key === 'rsi') {
-      const clr = n > 70 ? '#ef4444' : n < 30 ? '#10b981' : '#fff';
+      const clr = n > 70 ? '#ef4444' : n < 30 ? '#10b981' : 'var(--text-primary)';
       const lbl = n > 70 ? ' OB' : n < 30 ? ' OS' : '';
       return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}${lbl}</span>`;
     }
@@ -658,7 +685,7 @@ async function loadIndicators() {
     }
     // Stoch RSI: overbought/oversold coloring
     if (key === 'stoch_rsi_k' || key === 'stoch_rsi_d') {
-      const clr = n > 80 ? '#ef4444' : n < 20 ? '#10b981' : '#fff';
+      const clr = n > 80 ? '#ef4444' : n < 20 ? '#10b981' : 'var(--text-primary)';
       return `<span style="color:${clr};font-weight:700">${n.toFixed(2)}</span>`;
     }
     // OBV: just white (no meaningful +/- threshold)
@@ -751,7 +778,7 @@ async function loadAssetSignals() {
     const rr      = parseFloat(s.risk_reward) || 0;
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-secondary)';
     return `<tr>
-      <td class="fs-xs" style="white-space:nowrap;color:#fff">${shortTime(s.generated_at)}</td>
+      <td class="fs-xs" style="white-space:nowrap;color:var(--text-primary)">${shortTime(s.generated_at)}</td>
       <td><span class="badge-tag">${s.timeframe || '—'}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
@@ -798,6 +825,74 @@ async function loadSentiment() {
     </div>
     ${data.sources ? `<div class="text-muted fs-xs mt-2">Based on ${data.sources} sources</div>` : ''}
   `;
+}
+
+/* ── AI Prediction (on-demand — trains live models per timeframe) ─ */
+const AI_PRED_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'];
+
+function _aiPredRowHtml(tf, state) {
+  // state: 'pending' | 'loading' | data-object | 'error'
+  const tfLabel = tf.toUpperCase();
+  if (state === 'pending') {
+    return `<tr id="aiPredRow_${tf}"><td class="fs-xs text-muted">${tfLabel}</td><td colspan="3" class="fs-xs text-muted text-end">Queued…</td></tr>`;
+  }
+  if (state === 'loading') {
+    return `<tr id="aiPredRow_${tf}"><td class="fs-xs text-muted">${tfLabel}</td><td colspan="3" class="fs-xs text-end"><span class="spinner-border spinner-border-sm text-accent" style="width:12px;height:12px"></span> Analyzing…</td></tr>`;
+  }
+  if (state === 'error') {
+    return `<tr id="aiPredRow_${tf}"><td class="fs-xs text-muted">${tfLabel}</td><td colspan="3" class="fs-xs text-muted text-end">Unavailable</td></tr>`;
+  }
+  const dir    = (state.predicted_direction || '').toUpperCase();
+  const dirCls = dir === 'UP' || dir === 'BULLISH' ? 'text-green' : dir === 'DOWN' || dir === 'BEARISH' ? 'text-red' : 'text-yellow';
+  const conf   = parseFloat(state.confidence || 0).toFixed(0);
+  return `<tr id="aiPredRow_${tf}">
+    <td class="fs-xs fw-600">${tfLabel}</td>
+    <td class="fs-xs fw-700 ${dirCls}">${dir || '—'}</td>
+    <td class="fs-xs text-muted text-end">${conf}%</td>
+    <td class="fs-xs text-muted text-end">${state.predicted_target != null ? formatPrice(state.predicted_target) : '—'}</td>
+  </tr>`;
+}
+
+async function loadAiPrediction() {
+  const el = document.getElementById('aiPredictionContent');
+  if (!el) return;
+
+  el.innerHTML = `
+    <table class="w-100" style="border-collapse:collapse">
+      <thead>
+        <tr>
+          <th class="fs-xs text-muted text-start" style="font-weight:600">TF</th>
+          <th class="fs-xs text-muted text-start" style="font-weight:600">Dir</th>
+          <th class="fs-xs text-muted text-end" style="font-weight:600">Conf</th>
+          <th class="fs-xs text-muted text-end" style="font-weight:600">Target</th>
+        </tr>
+      </thead>
+      <tbody id="aiPredTbody">
+        ${AI_PRED_TFS.map(tf => _aiPredRowHtml(tf, 'pending')).join('')}
+      </tbody>
+    </table>
+    <div class="text-muted fs-xs mt-2" id="aiPredStatus">Running across ${AI_PRED_TFS.length} timeframes…</div>`;
+
+  // Fetch sequentially — each trains a model server-side (~5s), so running
+  // them in parallel wouldn't actually speed things up (CPU-bound) and would
+  // just make all rows spin at once with no incremental feedback.
+  for (const tf of AI_PRED_TFS) {
+    const row = document.getElementById(`aiPredRow_${tf}`);
+    if (row) row.outerHTML = _aiPredRowHtml(tf, 'loading');
+
+    const data = await API.get(`/predictions/${ASSET_ID}`, { timeframe: tf });
+    const rowNow = document.getElementById(`aiPredRow_${tf}`);
+    if (!rowNow) continue; // user navigated away / re-triggered
+
+    if (!data || data.error) {
+      rowNow.outerHTML = _aiPredRowHtml(tf, 'error');
+    } else {
+      rowNow.outerHTML = _aiPredRowHtml(tf, data);
+    }
+  }
+
+  const statusEl = document.getElementById('aiPredStatus');
+  if (statusEl) statusEl.textContent = 'Ensemble model · updated just now';
 }
 
 /* ── Init ─────────────────────────────────────────────── */

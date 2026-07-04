@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Analysis</span>
     <h1 class="page-title">Signal Performance Analytics</h1>
     <p class="page-subtitle">Historical win rates, R:R analysis, and performance breakdowns</p>
   </div>
@@ -163,11 +164,17 @@ function winRateColor(rate) {
   return 'var(--red, #ef4444)';
 }
 
+function _themeColor(varName, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(varName).trim() || fallback;
+}
+
 function buildMarketChart(data) {
   const ctx = document.getElementById('chartMarket').getContext('2d');
   if (_marketChart) _marketChart.destroy();
   const labels = data.map(d => d.market);
   const rates  = data.map(d => d.win_rate);
+  const mutedClr = _themeColor('--text-secondary', '#95a2b8');
+  const gridClr  = _themeColor('--border', 'rgba(255,255,255,0.08)');
   _marketChart = new Chart(ctx, {
     type: 'bar',
     data: {
@@ -175,7 +182,7 @@ function buildMarketChart(data) {
       datasets: [{
         label: 'Win Rate %',
         data: rates,
-        backgroundColor: rates.map(r => r >= 60 ? 'rgba(34,197,94,0.75)' : r >= 45 ? 'rgba(234,179,8,0.75)' : 'rgba(239,68,68,0.75)'),
+        backgroundColor: rates.map(r => r >= 60 ? 'rgba(16,185,129,0.75)' : r >= 45 ? 'rgba(245,158,11,0.75)' : 'rgba(244,63,94,0.75)'),
         borderRadius: 6,
       }]
     },
@@ -183,8 +190,8 @@ function buildMarketChart(data) {
       responsive: true,
       plugins: { legend: { display: false } },
       scales: {
-        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', color: 'var(--text-secondary)' }, grid: { color: 'var(--border)' } },
-        x: { ticks: { color: 'var(--text-secondary)' }, grid: { display: false } },
+        y: { beginAtZero: true, max: 100, ticks: { callback: v => v + '%', color: mutedClr }, grid: { color: gridClr } },
+        x: { ticks: { color: mutedClr }, grid: { display: false } },
       }
     }
   });
@@ -195,20 +202,21 @@ function buildTypeChart(data) {
   if (_typeChart) _typeChart.destroy();
   const labels = data.map(d => d.signal_type);
   const totals = data.map(d => d.total);
+  const mutedClr = _themeColor('--text-secondary', '#95a2b8');
   _typeChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
       datasets: [{
         data: totals,
-        backgroundColor: ['rgba(34,197,94,0.8)','rgba(239,68,68,0.8)','rgba(234,179,8,0.8)','rgba(139,92,246,0.8)'],
+        backgroundColor: ['rgba(16,185,129,0.85)','rgba(244,63,94,0.85)','rgba(245,158,11,0.85)','rgba(139,92,246,0.85)'],
         borderWidth: 0,
       }]
     },
     options: {
       responsive: true,
       plugins: {
-        legend: { position: 'bottom', labels: { color: 'var(--text-secondary)', padding: 12 } }
+        legend: { position: 'bottom', labels: { color: mutedClr, padding: 12 } }
       }
     }
   });

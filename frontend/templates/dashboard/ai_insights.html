@@ -43,6 +43,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Signals & Tools</span>
     <h1 class="page-title">AI Prediction Engine</h1>
     <p class="page-subtitle">Ensemble ML predictions: Random Forest + XGBoost + LightGBM + LSTM</p>
   </div>
@@ -143,11 +144,18 @@
 <script>
 const TF_LABEL = {'1m':'1 Min','5m':'5 Min','15m':'15 Min','30m':'30 Min','1h':'1 Hour','2h':'2 Hours','4h':'4 Hours','1d':'Daily'};
 
+const MARKET_LABELS = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
+  indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
+
 async function loadAssets() {
   const data = await API.get('/assets/');
   if (!data?.assets) return;
-  document.getElementById('aiAsset').innerHTML =
-    data.assets.map(a => `<option value="${a.id}">${a.symbol} — ${a.name}</option>`).join('');
+  const byMarket = {};
+  data.assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
+  document.getElementById('aiAsset').innerHTML = Object.keys(byMarket).sort().map(m => `
+    <optgroup label="${MARKET_LABELS[m] || m}">
+      ${byMarket[m].map(a => `<option value="${a.id}">${a.symbol} — ${a.name}</option>`).join('')}
+    </optgroup>`).join('');
 }
 
 function setAllTfs(val) {

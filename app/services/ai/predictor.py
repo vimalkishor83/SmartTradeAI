@@ -455,6 +455,25 @@ class AIPredictor:
         else:
             self._pred_cache.clear()
 
+    def has_ready_model(self, asset_symbol: str, timeframe: str) -> bool:
+        """True if a prediction can be served WITHOUT training inline — i.e. the
+        in-process prediction cache is warm, or a fresh (< _RETRAIN_AFTER) model
+        file already exists on disk. Used by the API to stay non-blocking: if this
+        returns False, the endpoint returns a fast 'warming up' response and lets
+        the background prewarm job train the model instead of blocking the request."""
+        cache_key = f"{asset_symbol}_{timeframe}"
+        cached = self._pred_cache.get(cache_key)
+        if cached and (time.time() - cached[1]) < _PRED_TTL.get(timeframe, 3600):
+            return True
+        for prefix in ("rf_", "xgb_", "lgb_"):
+            p = _model_path(f"{prefix}{cache_key}")
+            try:
+                if p.exists() and (time.time() - p.stat().st_mtime) < _RETRAIN_AFTER:
+                    return True
+            except Exception:
+                pass
+        return False
+
     def force_retrain(self, asset_symbol: str, timeframe: str):
         """Delete cached model files for a symbol+TF, forcing retrain on next predict()."""
         cache_key = f"{asset_symbol}_{timeframe}"

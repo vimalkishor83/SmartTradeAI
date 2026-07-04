@@ -338,11 +338,9 @@ def live_prices():
 @limiter.exempt
 @cache.cached(timeout=180, key_prefix="market_heatmap")
 def get_heatmap():
-    # Limit to key assets for speed — full heatmap would be too slow without paid APIs
-    KEY_SYMBOLS = ["BTCUSDT","ETHUSDT","SOLUSDT","BNBUSDT","XRPUSDT",
-                   "EURUSD","USDINR","XAUUSD","XAGUSD",
-                   "NIFTY50","BANKNIFTY","SENSEX","RELIANCE","TCS","INFY"]
-    assets = Asset.query.filter(Asset.symbol.in_(KEY_SYMBOLS), Asset.is_active == True).all()
+    # All active assets, pulled live from the DB so newly added/removed assets
+    # show up automatically without a code change.
+    assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
     heatmap = []
     for asset in assets:
         try:

@@ -297,6 +297,24 @@ function formatTime(iso) {
   });
 }
 
+// Relative "time ago" for live-feed scanning (e.g. "3m ago", "2h ago").
+// Falls back to an absolute IST date for anything older than ~7 days.
+function relativeTime(iso) {
+  if (!iso) return '—';
+  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  const then = new Date(str), now = new Date();
+  const secs = Math.max(0, Math.floor((now - then) / 1000));
+  if (secs < 45)   return 'just now';
+  if (secs < 90)   return '1m ago';
+  const mins = Math.floor(secs / 60);
+  if (mins < 60)   return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)    return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 7)    return days + 'd ago';
+  return then.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+}
+
 function formatChange(val) {
   if (val === null || val === undefined) return '<span class="text-muted">—</span>';
   const cls  = val >= 0 ? 'text-green' : 'text-red';
@@ -340,16 +358,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  // Sidebar collapse
-  const sidebar      = document.getElementById('sidebar');
-  const mainWrapper  = document.getElementById('mainWrapper');
-  document.getElementById('sidebarToggle')?.addEventListener('click', () => {
-    sidebar?.classList.toggle('collapsed');
-    mainWrapper?.classList.toggle('expanded');
-  });
-  document.getElementById('mobileSidebarToggle')?.addEventListener('click', () => {
-    sidebar?.classList.toggle('mobile-open');
-  });
+  // Sidebar collapse/expand is wired in partials/base.html's inline script
+  // (handles desktop collapse + mobile drawer + localStorage persistence + icon swap).
+  // Do not attach duplicate listeners here — two listeners on the same button
+  // toggle the class on then off, making the button appear to do nothing.
 
   // Notification bell
   const notifBell     = document.getElementById('notifBell');

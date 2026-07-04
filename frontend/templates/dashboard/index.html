@@ -181,11 +181,11 @@
         <div class="gauge-value mb-1" id="sentimentScore" style="color:var(--green)">—</div>
         <div class="gauge-label" id="sentimentLabel">Loading…</div>
         <div class="mt-3 px-2">
-          <div class="d-flex justify-content-between mb-1" style="font-size:10px;color:var(--text-muted)">
-            <span>Bearish</span><span>Neutral</span><span>Bullish</span>
+          <div class="sentiment-track">
+            <div class="sentiment-marker" id="sentimentBar" style="--pos:50%"></div>
           </div>
-          <div class="confidence-bar" style="height:8px">
-            <div class="confidence-fill" id="sentimentBar" style="width:50%"></div>
+          <div class="sentiment-scale">
+            <span>Bearish</span><span>Neutral</span><span>Bullish</span>
           </div>
         </div>
         <div class="row g-2 mt-3" id="sentimentStats"></div>

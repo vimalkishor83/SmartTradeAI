@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header mb-4">
   <div>
+    <span class="page-eyebrow">Admin</span>
     <h1 class="page-title">API Configurations</h1>
     <p class="text-muted mb-0">Manage data providers and broker connections per market</p>
   </div>
@@ -244,7 +245,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h6 class="modal-title" id="logsModalTitle">API Logs</h6>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body p-0" id="logsModalBody">
         <div class="text-center py-3 text-muted">Loading…</div>
@@ -311,7 +312,7 @@
   padding: .3rem .5rem; border-radius: 6px; cursor: pointer; transition: all .15s;
   flex-shrink: 0;
 }
-.cfg-close:hover { background: rgba(255,255,255,.1); color: var(--text-primary); }
+.cfg-close:hover { background: var(--glass); color: var(--text-primary); }
 
 /* Scrollable body */
 .cfg-body {
@@ -463,14 +464,13 @@
 
 @keyframes cfgFadeIn { from { opacity:0 } to { opacity:1 } }</style>
 
-<!-- Keep logs modal dark -->
 <style>
 #logsModal .modal-content { background:var(--card-bg)!important;border:1px solid var(--border)!important;color:var(--text-primary)!important; }
 #logsModal .modal-header  { background:var(--bg-secondary)!important;border-color:var(--border)!important; }
 
 /* Config table */
 .api-row { border-bottom:1px solid var(--border);transition:background .15s; }
-.api-row:hover { background:rgba(255,255,255,.03); }
+.api-row:hover { background:var(--glass); }
 .api-row:last-child { border-bottom:none; }
 .status-dot { width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0 }
 

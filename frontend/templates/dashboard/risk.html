@@ -18,7 +18,8 @@
   }
   .account-bar .field-group { display: flex; flex-direction: column; gap: 4px; }
   .account-bar label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: .05em; }
-  .account-bar .input-with-prefix { display: flex; align-items: center; }
+  .account-bar .input-with-prefix,
+  .account-bar .input-with-suffix { display: flex; align-items: center; }
   .account-bar .input-prefix {
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -115,7 +116,8 @@
 
 {% block content %}
 <div class="page-header">
-  <div><h1 class="page-title">Risk Management</h1><p class="page-subtitle">Position sizing and risk-reward calculator</p></div>
+  <div><span class="page-eyebrow">Portfolio</span>
+<h1 class="page-title">Risk Management</h1><p class="page-subtitle">Position sizing and risk-reward calculator</p></div>
 </div>
 
 <!-- ── My Account Bar ──────────────────────────────────── -->

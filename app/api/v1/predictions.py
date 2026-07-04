@@ -26,6 +26,27 @@ def get_prediction(asset_id):
     if existing:
         return jsonify(existing.to_dict()), 200
 
+    # ── Non-blocking: never train a model inside a user request ──────────────
+    # Training a cold model takes ~100s and would hang the AI Insights page
+    # (which fires several of these in parallel). Predictions are produced by
+    # the background `prewarm_ai_cache` job and cached above. If none is ready
+    # yet, return a fast "warming up" response so the UI shows a neutral
+    # placeholder instead of blocking. The prediction appears on the next poll
+    # once the background job (or an already-cached model) fills it in.
+    if not ai_predictor.has_ready_model(asset.symbol, timeframe):
+        return jsonify({
+            "asset_id":            asset.id,
+            "timeframe":           timeframe,
+            "model_name":          "warming_up",
+            "predicted_direction": "neutral",
+            "bullish_probability": 50.0,
+            "bearish_probability": 50.0,
+            "confidence":          0.0,
+            "predicted_target":    None,
+            "predicted_stop":      None,
+            "warming_up":          True,
+        }), 202
+
     df = market_fetcher.fetch(asset, timeframe, 220)
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503

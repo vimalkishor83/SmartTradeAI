@@ -1,0 +1,111 @@
+{% extends "partials/base.html" %}
+{% block title %}Economic Calendar — SmartTrade AI{% endblock %}
+{% set active = 'economic_calendar' %}
+{% block breadcrumb %}<i class="bi bi-calendar-event me-2"></i>Economic Calendar{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">Analysis</span>
+    <h1 class="page-title"><i class="bi bi-calendar-event text-accent me-2"></i>Economic Calendar</h1>
+    <p class="page-subtitle">Upcoming high, medium and low impact events — all times in IST</p>
+  </div>
+  <div class="d-flex gap-2 align-items-center">
+    <select class="form-select form-select-sm" id="calDayFilter" style="width:auto">
+      <option value="today" selected>Today</option>
+      <option value="week">Next 7 Days</option>
+      <option value="all">Next 14 Days</option>
+    </select>
+    <button class="btn btn-primary btn-sm px-3" onclick="loadCalendar()">
+      <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+    </button>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-calendar-event text-accent"></i> Events</span>
+    <div class="d-flex gap-2">
+      <span class="badge-tag" id="calCountHigh">0 High</span>
+      <span class="badge-tag" id="calCountMedium">0 Medium</span>
+      <span class="badge-tag" id="calCountLow">0 Low</span>
+    </div>
+  </div>
+  <div class="section-card-body" id="calendarBody">
+    <div class="text-muted fs-sm">Loading...</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function loadCalendar() {
+  const data = await API.get('/news/economic-calendar');
+  const events = data?.events || [];
+  const el = document.getElementById('calendarBody');
+  if (!el) return;
+
+  const now = new Date();
+  const range = document.getElementById('calDayFilter').value;
+  const daysAhead = range === 'today' ? 1 : range === 'week' ? 7 : 14;
+  const cutoff = new Date(now.getTime() + daysAhead * 86400000);
+
+  const filtered = events.filter(e => {
+    if (!e.event_time) return false;
+    const evDate = new Date(e.event_time + 'Z');
+    if (evDate < now) return false;
+    if (range === 'today') {
+      return e.event_time.slice(0, 10) === now.toISOString().slice(0, 10);
+    }
+    return evDate <= cutoff;
+  }).sort((a, b) => new Date(a.event_time) - new Date(b.event_time));
+
+  const byImpact = { high: [], medium: [], low: [] };
+  filtered.forEach(e => {
+    const imp = (e.impact || 'low').toLowerCase();
+    (byImpact[imp] || byImpact.low).push(e);
+  });
+
+  document.getElementById('calCountHigh').textContent   = `${byImpact.high.length} High`;
+  document.getElementById('calCountMedium').textContent = `${byImpact.medium.length} Medium`;
+  document.getElementById('calCountLow').textContent    = `${byImpact.low.length} Low`;
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-3 text-center"><i class="bi bi-check-circle text-green me-2"></i>No events in this range</div>';
+    return;
+  }
+
+  function eventRow(e) {
+    const d = new Date(e.event_time + 'Z');
+    const dateStr = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
+    const time = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+    return `<div class="event-row">
+      <div style="flex:1">
+        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${e.title || '—'}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${dateStr}, ${time} IST &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
+      </div>
+    </div>`;
+  }
+
+  const cols = [
+    { key: 'high',   label: 'HIGH',   cls: 'impact-high' },
+    { key: 'medium', label: 'MEDIUM', cls: 'impact-medium' },
+    { key: 'low',    label: 'LOW',    cls: 'impact-low' },
+  ];
+
+  el.innerHTML = `<div class="row g-3">${cols.map(c => `
+    <div class="col-md-4">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <span class="event-impact ${c.cls}">${c.label}</span>
+        <span class="text-muted fs-xs">${byImpact[c.key].length}</span>
+      </div>
+      <div style="max-height:70vh;overflow-y:auto">
+        ${byImpact[c.key].length ? byImpact[c.key].map(eventRow).join('') : '<div class="text-muted fs-xs">None</div>'}
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+document.getElementById('calDayFilter')?.addEventListener('change', loadCalendar);
+document.addEventListener('app:ready', loadCalendar);
+</script>
+{% endblock %}

@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Signals & Tools</span>
     <h1 class="page-title">Strategy Backtesting</h1>
     <p class="page-subtitle">Test your strategies on historical data with full statistics</p>
   </div>
@@ -20,7 +21,9 @@
       <div class="section-card-body">
         <div class="mb-3">
           <label class="form-label">Asset Symbol</label>
-          <input type="text" class="form-control" id="btSymbol" placeholder="BTCUSDT, NIFTY50..." />
+          <select class="form-select" id="btSymbol">
+            <option value="">Loading assets…</option>
+          </select>
         </div>
         <div class="mb-3">
           <label class="form-label">Timeframe</label>
@@ -224,7 +227,8 @@ function showResults(data, isLive) {
     const rCurve = data.trades_data.map(t => { cumR += (t.r || 0); return parseFloat(cumR.toFixed(3)); });
     datasets.push({ label: 'Cumulative R', data: rCurve, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
     // Zero benchmark
-    datasets.push({ label: 'Breakeven', data: rCurve.map(() => 0), borderColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0 });
+    const _breakevenClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || 'rgba(148,163,184,0.4)';
+    datasets.push({ label: 'Breakeven', data: rCurve.map(() => 0), borderColor: _breakevenClr, borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0 });
   } else if (data.equity_curve?.length) {
     const equity = data.equity_curve;
     // Buy-and-hold benchmark: scale from first to last equity value linearly
@@ -233,15 +237,17 @@ function showResults(data, isLive) {
     datasets.push({ label: 'Buy & Hold', data: bah, borderColor: 'rgba(148,163,184,0.4)', borderWidth: 1, borderDash: [5,5], fill: false, pointRadius: 0 });
   }
 
+  const _mutedClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8';
+  const _gridClr  = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(255,255,255,0.04)';
   equityChart = new Chart(ctx, {
     type: 'line',
     data: { labels: datasets[0]?.data?.map((_, i) => i) || [], datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: datasets.length > 1, labels: { color: '#94a3b8', boxWidth: 14, font: { size: 11 } } } },
+      plugins: { legend: { display: datasets.length > 1, labels: { color: _mutedClr, boxWidth: 14, font: { size: 11 } } } },
       scales: {
         x: { display: false },
-        y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.04)' } },
+        y: { ticks: { color: _mutedClr }, grid: { color: _gridClr } },
       },
     },
   });
@@ -262,6 +268,27 @@ function showResults(data, isLive) {
     </tr>`).join('');
 }
 
-document.addEventListener('app:ready', loadHistory);
+async function loadAssetOptions() {
+  const sel = document.getElementById('btSymbol');
+  const data = await API.get('/assets/');
+  if (!data?.assets?.length) {
+    sel.innerHTML = '<option value="">No assets found</option>';
+    return;
+  }
+  const marketLabels = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
+    indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
+  const byMarket = {};
+  data.assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
+
+  sel.innerHTML = Object.keys(byMarket).sort().map(m => `
+    <optgroup label="${marketLabels[m] || m}">
+      ${byMarket[m].map(a => `<option value="${a.symbol}">${a.symbol} — ${a.name}</option>`).join('')}
+    </optgroup>`).join('');
+}
+
+document.addEventListener('app:ready', () => {
+  loadHistory();
+  loadAssetOptions();
+});
 </script>
 {% endblock %}

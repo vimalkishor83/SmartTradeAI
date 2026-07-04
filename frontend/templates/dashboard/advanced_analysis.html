@@ -74,7 +74,6 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ── Right panel ── */
-.aa-right { display: flex; flex-direction: column; gap: 14px; }
 .aa-card {
   background: var(--bg-secondary); border: 1px solid var(--border);
   border-radius: 12px; padding: 14px 16px;
@@ -84,6 +83,22 @@
   color: var(--text-muted); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
 }
 .aa-card-title i { font-size: 13px; }
+
+/* ── Right panel tabs ── */
+.aa-tabs {
+  display: flex; gap: 4px; padding-bottom: 12px; margin-bottom: 12px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.aa-tab {
+  flex: 1; background: transparent; border: 1px solid transparent; color: var(--text-muted);
+  border-radius: 8px; padding: 7px 0; font-size: 14px; cursor: pointer; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.aa-tab:hover { color: var(--text-primary); background: var(--glass); }
+.aa-tab.active { background: var(--accent); color: #fff; }
+.aa-tab-body { flex: 1; overflow-y: auto; min-height: 0; }
+.aa-panel { display: none; }
+.aa-panel.active { display: block; }
 
 /* ── Trend badge ── */
 .trend-badge {
@@ -116,7 +131,7 @@
   text-transform: uppercase; padding: 4px 6px; border-bottom: 1px solid var(--border);
   text-align: left;
 }
-.fib-table td { padding: 5px 6px; border-bottom: 1px solid rgba(255,255,255,.03); color: #fff; }
+.fib-table td { padding: 5px 6px; border-bottom: 1px solid var(--border); color: var(--text-primary); }
 .fib-table tr:last-child td { border-bottom: none; }
 .fib-table tr.nearest td { background: rgba(99,102,241,.12); }
 .fib-ext { color: var(--purple); font-size: 10px; margin-left: 3px; }
@@ -133,7 +148,7 @@
 .liq-section-title.sell { color: var(--red); }
 .liq-item {
   display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,.03);
+  font-size: 12px; padding: 4px 0; border-bottom: 1px solid var(--border);
 }
 .liq-item:last-child { border-bottom: none; }
 .str-badge {
@@ -180,13 +195,19 @@
 .vp-wrap { display: flex; flex-direction: column; gap: 3px; }
 .vp-row { display: flex; align-items: center; gap: 6px; font-size: 10px; }
 .vp-label { color: var(--text-muted); width: 62px; text-align: right; flex-shrink: 0; }
-.vp-bar-bg { flex: 1; height: 10px; background: rgba(255,255,255,.05); border-radius: 3px; overflow: hidden; }
+.vp-bar-bg { flex: 1; height: 10px; background: var(--bg-secondary); border-radius: 3px; overflow: hidden; }
 .vp-bar-fill { height: 100%; border-radius: 3px; background: rgba(99,102,241,.5); transition: width .4s; }
 .vp-bar-fill.poc { background: var(--accent); }
 
 /* ── Empty states ── */
 .aa-empty { text-align: center; color: var(--text-muted); font-size: 12px; padding: 16px 0; }
 .aa-empty i { display: block; font-size: 1.6rem; opacity: .3; margin-bottom: 6px; }
+.aa-skeleton { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.aa-skel-line {
+  height: 10px; border-radius: 4px; background: linear-gradient(90deg, var(--border) 25%, var(--bg-card-hover) 37%, var(--border) 63%);
+  background-size: 400% 100%; animation: aa-shimmer 1.4s ease infinite;
+}
+@keyframes aa-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
 </style>
 {% endblock %}
 
@@ -236,59 +257,71 @@
       </div>
     </div>
 
-    <!-- Right panel -->
+    <!-- Right panel — tabbed, height-matched to chart -->
     <div class="col-lg-3">
-      <div class="aa-right" id="aaRight">
+      <div class="aa-card" id="aaRight" style="height:620px; display:flex; flex-direction:column">
 
-        <!-- Market Structure -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-diagram-3"></i> Market Structure</div>
-          <div id="structTrend"></div>
-          <div class="struct-list" id="structList">
-            <div class="aa-empty"><i class="bi bi-diagram-3"></i>No data yet</div>
-          </div>
+        <div class="aa-tabs" id="aaTabs">
+          <button class="aa-tab active" data-panel="struct" title="Market Structure"><i class="bi bi-diagram-3"></i></button>
+          <button class="aa-tab" data-panel="fib" title="Fibonacci Levels"><i class="bi bi-rulers"></i></button>
+          <button class="aa-tab" data-panel="liq" title="Liquidity Pools"><i class="bi bi-droplet-fill"></i></button>
+          <button class="aa-tab" data-panel="fvg" title="Fair Value Gaps"><i class="bi bi-layout-split"></i></button>
+          <button class="aa-tab" data-panel="ob" title="Order Blocks"><i class="bi bi-bounding-box"></i></button>
+          <button class="aa-tab" data-panel="vp" title="Volume Profile"><i class="bi bi-bar-chart-horizontal-fill"></i></button>
         </div>
 
-        <!-- Fibonacci -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-rulers"></i> Fibonacci Levels</div>
-          <div id="fibTable">
-            <div class="aa-empty"><i class="bi bi-rulers"></i>No data yet</div>
-          </div>
-        </div>
+        <div class="aa-tab-body">
 
-        <!-- Liquidity -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-droplet-fill"></i> Liquidity Pools</div>
-          <div id="liqPanel">
-            <div class="aa-empty"><i class="bi bi-droplet-fill"></i>No data yet</div>
+          <!-- Market Structure -->
+          <div class="aa-panel active" data-panel="struct">
+            <div class="aa-card-title"><i class="bi bi-diagram-3"></i> Market Structure</div>
+            <div id="structTrend"></div>
+            <div class="struct-list" id="structList">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:60%"></div><div class="aa-skel-line" style="width:90%"></div><div class="aa-skel-line" style="width:75%"></div></div>
+            </div>
           </div>
-        </div>
 
-        <!-- FVG -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-layout-split"></i> Fair Value Gaps</div>
-          <div id="fvgList">
-            <div class="aa-empty"><i class="bi bi-layout-split"></i>No data yet</div>
+          <!-- Fibonacci -->
+          <div class="aa-panel" data-panel="fib">
+            <div class="aa-card-title"><i class="bi bi-rulers"></i> Fibonacci Levels</div>
+            <div id="fibTable">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:85%"></div><div class="aa-skel-line" style="width:70%"></div><div class="aa-skel-line" style="width:95%"></div><div class="aa-skel-line" style="width:65%"></div></div>
+            </div>
           </div>
-        </div>
 
-        <!-- Order Blocks -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-bounding-box"></i> Order Blocks</div>
-          <div id="obList">
-            <div class="aa-empty"><i class="bi bi-bounding-box"></i>No data yet</div>
+          <!-- Liquidity -->
+          <div class="aa-panel" data-panel="liq">
+            <div class="aa-card-title"><i class="bi bi-droplet-fill"></i> Liquidity Pools</div>
+            <div id="liqPanel">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:80%"></div><div class="aa-skel-line" style="width:60%"></div></div>
+            </div>
           </div>
-        </div>
 
-        <!-- Volume Profile -->
-        <div class="aa-card">
-          <div class="aa-card-title"><i class="bi bi-bar-chart-horizontal-fill"></i> Volume Profile</div>
-          <div id="vpChart">
-            <div class="aa-empty"><i class="bi bi-bar-chart-horizontal-fill"></i>No data yet</div>
+          <!-- FVG -->
+          <div class="aa-panel" data-panel="fvg">
+            <div class="aa-card-title"><i class="bi bi-layout-split"></i> Fair Value Gaps</div>
+            <div id="fvgList">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:70%"></div><div class="aa-skel-line" style="width:90%"></div></div>
+            </div>
           </div>
-        </div>
 
+          <!-- Order Blocks -->
+          <div class="aa-panel" data-panel="ob">
+            <div class="aa-card-title"><i class="bi bi-bounding-box"></i> Order Blocks</div>
+            <div id="obList">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:75%"></div><div class="aa-skel-line" style="width:55%"></div></div>
+            </div>
+          </div>
+
+          <!-- Volume Profile -->
+          <div class="aa-panel" data-panel="vp">
+            <div class="aa-card-title"><i class="bi bi-bar-chart-horizontal-fill"></i> Volume Profile</div>
+            <div id="vpChart">
+              <div class="aa-skeleton"><div class="aa-skel-line" style="width:50%"></div><div class="aa-skel-line" style="width:80%"></div><div class="aa-skel-line" style="width:65%"></div></div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
   </div>
@@ -371,6 +404,15 @@ async function loadAssets() {
       opt.textContent = `${a.symbol} — ${a.name} (${a.market})`;
       sel.appendChild(opt);
     });
+
+    // Auto-select a sensible default (prefer BTCUSDT, else first asset) and
+    // run analysis immediately so the page never shows a fully blank state.
+    if (assets.length) {
+      const preferred = assets.find(a => a.symbol === 'BTCUSDT') || assets[0];
+      sel.value = preferred.id;
+      document.getElementById('btnAnalyze').disabled = false;
+      runAnalysis();
+    }
   } catch(e) {
     console.error('Assets load failed', e);
   }
@@ -607,7 +649,7 @@ function renderFibPanel(fib, close) {
     const distCls = pct >= 0 ? 'dist-pos' : 'dist-neg';
     return `<tr class="${cls}">
       <td>${lvl.label}${extTag}</td>
-      <td style="color:#fff">${fmtPrice(lvl.price)}</td>
+      <td style="color:var(--text-primary)">${fmtPrice(lvl.price)}</td>
       <td class="${distCls}">${fmtPct(pct)}</td>
     </tr>`;
   }).join('');
@@ -630,7 +672,7 @@ function renderLiqPanel(liq) {
       <div class="liq-section-title sell"><i class="bi bi-caret-up-fill"></i>Sell-side (${liq.sell_side.length})</div>`;
     liq.sell_side.forEach(l => {
       html += `<div class="liq-item">
-        <span style="color:#fff">${fmtPrice(l.price)}</span>
+        <span style="color:var(--text-primary)">${fmtPrice(l.price)}</span>
         <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
         <span class="str-badge ${l.strength}">${l.strength}</span>
       </div>`;
@@ -642,7 +684,7 @@ function renderLiqPanel(liq) {
       <div class="liq-section-title buy"><i class="bi bi-caret-down-fill"></i>Buy-side (${liq.buy_side.length})</div>`;
     liq.buy_side.forEach(l => {
       html += `<div class="liq-item">
-        <span style="color:#fff">${fmtPrice(l.price)}</span>
+        <span style="color:var(--text-primary)">${fmtPrice(l.price)}</span>
         <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
         <span class="str-badge ${l.strength}">${l.strength}</span>
       </div>`;
@@ -715,6 +757,14 @@ function showToast(msg, type) {
 // ── Wire up controls ───────────────────────────────────────────
 document.getElementById('aaAssetSelect').addEventListener('change', function() {
   document.getElementById('btnAnalyze').disabled = !this.value;
+});
+
+document.querySelectorAll('.aa-tab').forEach(tab => {
+  tab.addEventListener('click', function() {
+    const panelKey = this.dataset.panel;
+    document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === this));
+    document.querySelectorAll('.aa-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === panelKey));
+  });
 });
 
 document.querySelectorAll('.tf-btn').forEach(btn => {

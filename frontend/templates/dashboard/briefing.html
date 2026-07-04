@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Overview</span>
     <h1 class="page-title"><i class="bi bi-sunrise text-accent me-2"></i>Morning Briefing</h1>
     <p class="page-subtitle">Your daily trading snapshot — updated on load</p>
   </div>
@@ -20,6 +21,58 @@
     <div class="d-flex flex-wrap align-items-center gap-3">
       <div class="briefing-date" id="briefDate">—</div>
       <div class="d-flex gap-2 flex-wrap" id="marketStatusBadges"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Section: Portfolio Snapshot + Auto Generate Status -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-wallet2 text-accent"></i> Portfolio Snapshot</span>
+        <a href="/portfolio" class="btn btn-sm btn-outline-light">View Portfolio</a>
+      </div>
+      <div class="section-card-body" id="portfolioSnapshot">
+        <div class="text-muted fs-sm">Loading...</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-robot text-accent"></i> Auto Generate</span>
+        <a href="/auto-generate" class="btn btn-sm btn-outline-light">Manage</a>
+      </div>
+      <div class="section-card-body" id="autoGenSnapshot">
+        <div class="text-muted fs-sm">Loading...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Section: Watchlist + Market Sentiment -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-star-fill text-accent"></i> Watchlist</span>
+        <a href="/watchlist" class="btn btn-sm btn-outline-light">View All</a>
+      </div>
+      <div class="section-card-body" id="watchlistSnapshot">
+        <div class="text-muted fs-sm">Loading...</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-6">
+    <div class="section-card h-100">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-graph-up-arrow text-accent"></i> Market Sentiment</span>
+        <span class="text-muted fs-xs">From heatmap data</span>
+      </div>
+      <div class="section-card-body" id="sentimentSnapshot">
+        <div class="text-muted fs-sm">Loading...</div>
+      </div>
     </div>
   </div>
 </div>
@@ -51,8 +104,11 @@
 <!-- Section 3: Economic Events -->
 <div class="section-card mb-3">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-calendar-event text-accent"></i> Today's Economic Events</span>
-    <span class="badge-tag" id="eventDateLabel"></span>
+    <span class="section-card-title"><i class="bi bi-calendar-event text-accent"></i> Today's Economic Events <span class="text-muted fs-xs">(next 5)</span></span>
+    <div class="d-flex align-items-center gap-2">
+      <span class="badge-tag" id="eventDateLabel"></span>
+      <a href="/economic-calendar" class="btn btn-sm btn-outline-light">Full Calendar</a>
+    </div>
   </div>
   <div class="section-card-body" id="eventsBody">
     <div class="text-muted fs-sm">Loading...</div>
@@ -158,34 +214,45 @@ async function loadEvents() {
   const data = await API.get('/news/economic-calendar');
   const events = data?.events || [];
 
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
 
   const labelEl = document.getElementById('eventDateLabel');
-  if (labelEl) labelEl.textContent = today.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (labelEl) labelEl.textContent = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · IST';
 
-  const todayEvents = events.filter(e => {
-    const evDate = (e.event_time || '').slice(0, 10);
-    return evDate === todayStr;
-  });
+  // Only today's events that haven't happened yet, ranked by impact then time
+  const impactRank = { high: 0, medium: 1, low: 2 };
+  const upcomingEvents = events
+    .filter(e => {
+      if (!e.event_time) return false;
+      const evDate = new Date(e.event_time + 'Z');
+      return e.event_time.slice(0, 10) === todayStr && evDate >= now;
+    })
+    .sort((a, b) => {
+      const ra = impactRank[(a.impact || 'low').toLowerCase()] ?? 2;
+      const rb = impactRank[(b.impact || 'low').toLowerCase()] ?? 2;
+      if (ra !== rb) return ra - rb;
+      return new Date(a.event_time) - new Date(b.event_time);
+    })
+    .slice(0, 5);
 
   const el = document.getElementById('eventsBody');
   if (!el) return;
 
-  if (!todayEvents.length) {
-    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-check-circle text-green me-2"></i>No major economic events today — good day to trade</div>';
+  if (!upcomingEvents.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-check-circle text-green me-2"></i>No more events today — good day to trade</div>';
     return;
   }
 
   const impactClass = { high: 'impact-high', medium: 'impact-medium', low: 'impact-low' };
-  el.innerHTML = todayEvents.map(e => {
+  el.innerHTML = upcomingEvents.map(e => {
     const imp = (e.impact || 'low').toLowerCase();
-    const time = e.event_time ? new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '—';
+    const time = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
     return `<div class="event-row">
       <span class="event-impact ${impactClass[imp] || 'impact-low'}">${(e.impact || 'LOW').toUpperCase()}</span>
       <div style="flex:1">
         <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${e.title || '—'}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${time} &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${time} IST &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
       </div>
     </div>`;
   }).join('');
@@ -278,9 +345,197 @@ async function loadPositions() {
   </div>`;
 }
 
+/* ── Portfolio Snapshot ───────────────────────── */
+async function loadPortfolioSnapshot() {
+  const [portData, summaryData] = await Promise.all([
+    API.get('/portfolio/'),
+    API.get('/signals/summary'),
+  ]);
+
+  const el = document.getElementById('portfolioSnapshot');
+  if (!el) return;
+
+  const p = portData?.portfolio;
+  if (!p || !portData.holdings?.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>No open positions. <a href="/portfolio" style="color:var(--accent)">Add to your portfolio</a></div>';
+    return;
+  }
+
+  const pnl = p.total_pnl || 0;
+  const pnlPct = p.total_pnl_pct || 0;
+  const pnlCls = pnl >= 0 ? 'text-green' : 'text-red';
+  const arrow = pnl >= 0 ? '▲' : '▼';
+  const winRate = summaryData?.win_rate ?? null;
+
+  el.innerHTML = `
+    <div class="row g-2 text-center">
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">Current Value</div>
+        <div class="qs-value">${formatPrice(p.total_current)}</div>
+      </div></div>
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">P&amp;L</div>
+        <div class="qs-value ${pnlCls}">${arrow} ${Math.abs(pnlPct).toFixed(2)}%</div>
+      </div></div>
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">Win Rate</div>
+        <div class="qs-value">${winRate != null ? winRate.toFixed(1) + '%' : '—'}</div>
+      </div></div>
+    </div>
+    <div class="text-muted fs-xs mt-2 text-center">${portData.holdings.length} open position(s) · Invested ${formatPrice(p.total_invested)}</div>`;
+}
+
+/* ── Auto Generate Snapshot ───────────────────── */
+async function loadAutoGenSnapshot() {
+  const data = await API.get('/signals/auto-generate/status');
+  const el = document.getElementById('autoGenSnapshot');
+  if (!el) return;
+  if (!data) { el.innerHTML = '<div class="text-muted fs-sm">Unavailable</div>'; return; }
+
+  if (!data.running) {
+    el.innerHTML = `<div class="text-muted fs-sm py-2"><i class="bi bi-pause-circle me-2"></i>Not running.
+      <a href="/auto-generate" style="color:var(--accent)">Start Auto Generate</a></div>`;
+    return;
+  }
+
+  const tfLabel = (data.timeframes || []).join(', ') || '—';
+  const lastRun = data.last_run_at
+    ? new Date(data.last_run_at + 'Z').toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '—';
+
+  el.innerHTML = `
+    <div class="d-flex align-items-center gap-2 mb-2">
+      <span class="live-dot" style="background:var(--green)"></span>
+      <span class="fw-600 fs-sm">Running</span>
+      <span class="badge-tag ms-auto">${tfLabel}</span>
+    </div>
+    <div class="row g-2 text-center">
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">Generated</div>
+        <div class="qs-value text-accent">${data.generated ?? 0}</div>
+      </div></div>
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">Runs</div>
+        <div class="qs-value">${data.runs ?? 0}</div>
+      </div></div>
+      <div class="col-4"><div class="quick-stat">
+        <div class="qs-label">Last Run</div>
+        <div class="qs-value" style="font-size:14px">${lastRun}</div>
+      </div></div>
+    </div>`;
+}
+
+/* ── Watchlist Snapshot ───────────────────────── */
+async function loadWatchlistSnapshot() {
+  const [wlData, heatmapData] = await Promise.all([
+    API.get('/watchlist/'),
+    API.get('/market-data/heatmap'),
+  ]);
+
+  const el = document.getElementById('watchlistSnapshot');
+  if (!el) return;
+
+  const items = (wlData?.watchlists || []).flatMap(wl => wl.items || []);
+  if (!items.length) {
+    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>Your watchlist is empty. <a href="/watchlist" style="color:var(--accent)">Add assets</a></div>';
+    return;
+  }
+
+  const priceMap = {};
+  (heatmapData?.heatmap || []).forEach(h => { priceMap[h.symbol] = h; });
+
+  el.innerHTML = items.slice(0, 6).map(i => {
+    const h = priceMap[i.symbol];
+    const chg = h?.change_pct ?? null;
+    const up = (chg ?? 0) >= 0;
+    return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid var(--border)">
+      <div>
+        <span class="fw-700">${i.symbol}</span>
+        <span class="text-muted fs-xs ms-1">${(i.market || '').replace('_', ' ')}</span>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span style="font-size:13px">${h?.price != null ? formatPrice(h.price) : '—'}</span>
+        <span class="${up ? 'text-green' : 'text-red'}" style="font-size:12px;min-width:55px;text-align:right">
+          ${chg != null ? (up ? '▲' : '▼') + ' ' + Math.abs(chg).toFixed(2) + '%' : '—'}
+        </span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Market Sentiment Snapshot ────────────────── */
+async function loadSentimentSnapshot() {
+  const data = await API.get('/market-data/heatmap');
+  const el = document.getElementById('sentimentSnapshot');
+  if (!el) return;
+
+  const items = data?.heatmap || [];
+  if (!items.length) { el.innerHTML = '<div class="text-muted fs-sm">No data</div>'; return; }
+
+  const up = items.filter(i => (i.change_pct || 0) > 0).length;
+  const down = items.filter(i => (i.change_pct || 0) < 0).length;
+
+  function scoreFor(list) {
+    const avg = list.reduce((sum, i) => sum + (i.change_pct || 0), 0) / list.length;
+    return Math.max(0, Math.min(100, Math.round(50 + avg * 8)));
+  }
+  function labelFor(score) {
+    return score >= 70 ? 'Bullish' : score >= 55 ? 'Slightly Bullish' : score >= 45 ? 'Neutral' : score >= 30 ? 'Slightly Bearish' : 'Bearish';
+  }
+  function colorFor(score) {
+    return score >= 55 ? 'var(--green)' : score <= 45 ? 'var(--red)' : 'var(--yellow)';
+  }
+
+  const score = scoreFor(items);
+  const label = labelFor(score);
+  const color = colorFor(score);
+
+  const marketLabels = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
+    indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
+  const byMarket = {};
+  items.forEach(i => { (byMarket[i.market] ||= []).push(i); });
+
+  const marketRows = Object.keys(byMarket).sort().map(m => {
+    const s = scoreFor(byMarket[m]);
+    const c = colorFor(s);
+    return `<div class="d-flex align-items-center gap-2 py-1">
+      <span style="min-width:100px;font-size:12px;color:var(--text-secondary)">${marketLabels[m] || m}</span>
+      <div class="confidence-bar" style="height:5px;flex:1">
+        <div class="confidence-fill" style="width:${s}%;background:${c}"></div>
+      </div>
+      <span style="min-width:32px;text-align:right;font-size:12px;font-weight:700;color:${c}">${s}</span>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="text-center mb-2">
+      <div class="fw-800" style="font-size:32px;color:${color}">${score}</div>
+      <div class="fw-600" style="color:${color}">${label}</div>
+    </div>
+    <div class="confidence-bar mb-3" style="height:6px">
+      <div class="confidence-fill" style="width:${score}%;background:${color}"></div>
+    </div>
+    <div class="row g-2 text-center mb-3">
+      <div class="col-6"><div class="quick-stat">
+        <div class="qs-label">Advancing</div>
+        <div class="qs-value text-green">${up}</div>
+      </div></div>
+      <div class="col-6"><div class="quick-stat">
+        <div class="qs-label">Declining</div>
+        <div class="qs-value text-red">${down}</div>
+      </div></div>
+    </div>
+    <div class="text-muted fs-xs mb-1">By Market</div>
+    ${marketRows}`;
+}
+
 /* ── Init ─────────────────────────────────────── */
 function loadAll() {
   renderDateAndStatus();
+  loadPortfolioSnapshot();
+  loadAutoGenSnapshot();
+  loadWatchlistSnapshot();
+  loadSentimentSnapshot();
   loadMovers();
   loadEvents();
   loadSignals();

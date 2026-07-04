@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Analysis</span>
     <h1 class="page-title">Technical Analysis Summary</h1>
     <p class="page-subtitle">Indicator-based ratings across timeframes &amp; live OHLCV quotes</p>
   </div>
@@ -277,7 +278,7 @@ async function loadData(showSpinner = true) {
         <div class="spinner-border spinner-border-sm me-2"></div>
         <span id="loadMsg">Loading from cache...</span>
         <div style="font-size:11px;margin-top:6px;color:var(--text-muted)" id="loadHint"></div>
-        <div style="margin:16px auto 0;max-width:220px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+        <div style="margin:16px auto 0;max-width:220px;height:3px;background:var(--border);border-radius:2px;overflow:hidden">
           <div id="loadBar" style="height:3px;width:0%;background:var(--accent);border-radius:2px;transition:width 1s linear"></div>
         </div>
       </div>`;
@@ -400,7 +401,7 @@ async function loadAiData(showSpinner = true) {
         <div class="spinner-border spinner-border-sm me-2"></div>
         <span id="aiLoadMsg">Running ML models...</span>
         <div style="font-size:11px;margin-top:6px;color:var(--text-muted)" id="aiLoadHint">Ensemble: RF + XGBoost + LightGBM + LSTM</div>
-        <div style="margin:16px auto 0;max-width:220px;height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden">
+        <div style="margin:16px auto 0;max-width:220px;height:3px;background:var(--border);border-radius:2px;overflow:hidden">
           <div id="aiLoadBar" style="height:3px;width:0%;background:var(--accent);border-radius:2px;transition:width 1s linear"></div>
         </div>
       </div>`;

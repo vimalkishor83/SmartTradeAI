@@ -23,7 +23,7 @@
   font-size:10px; font-weight:800; letter-spacing:.8px; text-transform:uppercase;
   color:var(--text-muted); border-bottom:1px solid var(--border); white-space:nowrap;
 }
-.perf-table td { padding:10px 14px; border-bottom:1px solid rgba(255,255,255,0.04); vertical-align:middle; }
+.perf-table td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
 .perf-table tbody tr:hover { background:rgba(99,102,241,0.06); }
 .perf-table tbody tr:last-child td { border-bottom:none; }
 
@@ -55,6 +55,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Analysis</span>
     <h1 class="page-title">Model Performance</h1>
     <p class="page-subtitle">Prediction accuracy tracking — evaluated against actual price movement after expiry</p>
   </div>
@@ -275,6 +276,9 @@ function renderTrend(trend) {
     return;
   }
 
+  const _mutedClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8';
+  const _gridClr  = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(255,255,255,0.04)';
+
   _trendChart = new Chart(ctx, {
     type: 'line',
     data: {
@@ -302,11 +306,11 @@ function renderTrend(trend) {
         }
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        x: { grid: { color: _gridClr }, ticks: { color: _mutedClr, font: { size: 10 } } },
         y: {
           min: 0, max: 100,
-          grid: { color: 'rgba(255,255,255,0.04)' },
-          ticks: { color: '#94a3b8', font: { size: 10 }, callback: v => v + '%' }
+          grid: { color: _gridClr },
+          ticks: { color: _mutedClr, font: { size: 10 }, callback: v => v + '%' }
         }
       }
     }

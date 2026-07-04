@@ -212,3 +212,13 @@ def remove_from_watchlist(item_id):
     db.session.delete(item)
     db.session.commit()
     return jsonify({"message": "Removed"}), 200
+
+
+@watchlist_bp.route("/<int:wl_id>", methods=["DELETE"])
+@login_required
+def delete_watchlist(wl_id):
+    user_id = get_jwt_identity()
+    wl = Watchlist.query.filter_by(id=wl_id, user_id=user_id).first_or_404()
+    db.session.delete(wl)
+    db.session.commit()
+    return jsonify({"message": "Watchlist deleted"}), 200

@@ -5,14 +5,20 @@
 
 {% block content %}
 <div class="page-header">
-  <div><h1 class="page-title">Watchlist</h1></div>
-  <div class="d-flex gap-2">
+  <div><span class="page-eyebrow">Portfolio</span>
+<h1 class="page-title">Watchlist</h1></div>
+  <div class="d-flex gap-2 align-items-center">
     <button class="btn btn-sm btn-outline-secondary" id="viewListBtn" onclick="switchView('list')">
       <i class="bi bi-list-ul me-1"></i>List View
     </button>
     <button class="btn btn-sm btn-primary" id="viewContextBtn" onclick="switchView('context')">
       <i class="bi bi-grid-3x3-gap me-1"></i>Context View
     </button>
+    <div class="btn-group btn-group-sm" id="cardSizeGroup" role="group" style="display:none">
+      <button class="btn btn-outline-secondary" data-size="sm" onclick="setCardSize('sm')" title="Small">S</button>
+      <button class="btn btn-outline-secondary active" data-size="md" onclick="setCardSize('md')" title="Medium">M</button>
+      <button class="btn btn-outline-secondary" data-size="lg" onclick="setCardSize('lg')" title="Large">L</button>
+    </div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
       <i class="bi bi-plus-circle me-1"></i> New List
     </button>
@@ -20,14 +26,14 @@
 </div>
 
 <!-- ── List View ─────────────────────────────────────────────────────────── -->
-<div id="listView">
+<div id="listView" style="display:none">
   <div class="row g-4" id="watchlistsContainer">
     <div class="col-12 text-center py-4 text-muted">Loading watchlists...</div>
   </div>
 </div>
 
 <!-- ── Context View ──────────────────────────────────────────────────────── -->
-<div id="contextView" style="display:none">
+<div id="contextView">
   <div class="row g-3" id="contextGrid">
     <div class="col-12 text-center py-5 text-muted">
       <i class="bi bi-hourglass-split d-block mb-2" style="font-size:32px"></i>
@@ -42,7 +48,7 @@
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
         <h6 class="modal-title">New Watchlist</h6>
-        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="text" class="form-control mb-3" id="wlName" placeholder="My Crypto" />
@@ -58,7 +64,7 @@
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
         <h6 class="modal-title">Add Asset</h6>
-        <button class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="addAssetWlId" />
@@ -74,7 +80,8 @@
 {% block extra_js %}
 <script>
 let _contextLoaded = false;
-let _currentView = 'list';
+let _currentView = 'context';
+let _cardSize = 'md';
 
 function switchView(view) {
   _currentView = view;
@@ -84,6 +91,7 @@ function switchView(view) {
   document.getElementById('viewListBtn').classList.toggle('btn-outline-secondary', view !== 'list');
   document.getElementById('viewContextBtn').classList.toggle('btn-primary',       view === 'context');
   document.getElementById('viewContextBtn').classList.toggle('btn-outline-secondary', view !== 'context');
+  document.getElementById('cardSizeGroup').style.display = view === 'context' ? 'inline-flex' : 'none';
 
   if (view === 'context' && !_contextLoaded) {
     _contextLoaded = true;
@@ -107,7 +115,10 @@ async function loadWatchlists() {
       <div class="section-card">
         <div class="section-card-header">
           <span class="section-card-title">${wl.is_pinned ? '📌 ' : ''}${wl.name}</span>
-          <button class="btn btn-sm btn-outline-light" onclick="openAddAsset(${wl.id})"><i class="bi bi-plus"></i></button>
+          <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-light" onclick="openAddAsset(${wl.id})" title="Add asset"><i class="bi bi-plus"></i></button>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteWatchlist(${wl.id}, '${wl.name.replace(/'/g, "\\'")}')" title="Delete watchlist"><i class="bi bi-trash"></i></button>
+          </div>
         </div>
         <div>
           ${wl.items?.length ? wl.items.map(item => `
@@ -150,6 +161,15 @@ async function removeItem(id) {
   if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
 }
 
+async function deleteWatchlist(id, name) {
+  if (!confirm(`Delete watchlist "${name}"? This removes all assets in it too.`)) return;
+  await API.delete(`/watchlist/${id}`);
+  Toast.show('Watchlist deleted', 'success');
+  loadWatchlists();
+  _contextLoaded = false;
+  if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+}
+
 document.getElementById('createWl').addEventListener('click', async () => {
   const name = document.getElementById('wlName').value;
   if (!name) return;
@@ -181,6 +201,12 @@ async function loadContextView() {
   grid.innerHTML = data.context.map(item => _buildContextCard(item)).join('');
 }
 
+function setCardSize(size) {
+  _cardSize = size;
+  document.querySelectorAll('#cardSizeGroup button').forEach(b => b.classList.toggle('active', b.dataset.size === size));
+  if (_contextLoaded) loadContextView();
+}
+
 function _confBadgeClass(score) {
   if (!score) return '';
   if (score.includes('3/3 BUY') || score.includes('3/3 SELL')) return score.includes('BUY') ? 'text-bg-success' : 'text-bg-danger';
@@ -204,7 +230,8 @@ function _buildContextCard(item) {
     const isSell = item.confluence_score.includes('SELL');
     const is3    = item.confluence_score.startsWith('3/3');
     const bg     = is3 && isBuy ? 'var(--green)' : is3 && isSell ? 'var(--red)' : 'var(--border)';
-    confluenceBadge = `<span style="background:${bg};color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${item.confluence_score}</span>`;
+    const fg     = is3 && (isBuy || isSell) ? '#fff' : 'var(--text-secondary)';
+    confluenceBadge = `<span style="background:${bg};color:${fg};font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${item.confluence_score}</span>`;
   }
 
   let lastSigStr = '—';
@@ -223,6 +250,51 @@ function _buildContextCard(item) {
     ? `Distance to SL: ${Math.abs(((item.last_signal_stop_loss - item.current_price) / item.current_price) * 100).toFixed(2)}%`
     : '';
 
+  // ── Small: compact single-line card, more per row ──────────────
+  if (_cardSize === 'sm') {
+    return `<div class="col-6 col-md-3 col-xl-2">
+      <div class="section-card h-100" style="cursor:default;padding:10px 12px" title="${slHover}">
+        <div class="d-flex justify-content-between align-items-center">
+          <span style="font-weight:800;font-size:13px;color:var(--text-primary)">${item.symbol}</span>
+          ${confluenceBadge}
+        </div>
+        <div style="font-size:15px;font-weight:800;color:var(--text-primary);margin-top:4px">${priceStr}</div>
+        <div>${changeStr}</div>
+      </div>
+    </div>`;
+  }
+
+  // ── Large: fewer per row, bigger text, more detail spacing ─────
+  if (_cardSize === 'lg') {
+    return `<div class="col-12 col-md-6">
+      <div class="section-card h-100" style="cursor:default" title="${slHover}">
+        <div class="d-flex justify-content-between align-items-start p-4 pb-2">
+          <div>
+            <div style="font-weight:800;font-size:22px;color:var(--text-primary)">${item.symbol}</div>
+            <span style="background:var(--bg-secondary);color:var(--text-muted);font-size:11px;padding:3px 8px;border-radius:9px">${mktLabel}</span>
+          </div>
+          <div>${confluenceBadge}</div>
+        </div>
+        <div class="px-4 py-3">
+          <div style="font-size:32px;font-weight:800;color:var(--text-primary)">${priceStr}</div>
+          <div style="font-size:15px">${changeStr}</div>
+        </div>
+        <div class="px-4 pb-4" style="font-size:13px;color:var(--text-muted);border-top:1px solid var(--border);padding-top:12px;margin-top:6px">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <i class="bi bi-lightning-charge-fill" style="color:var(--accent);font-size:12px"></i>
+            <span>Last signal: ${lastSigStr}</span>
+          </div>
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-bell-fill" style="color:var(--yellow);font-size:12px"></i>
+            <span>${alertStr}</span>
+          </div>
+          ${slHover ? `<div class="mt-2" style="color:var(--red);font-size:12px"><i class="bi bi-shield-exclamation me-1"></i>${slHover}</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ── Medium: default ─────────────────────────────────────────────
   return `<div class="col-sm-6 col-lg-4 col-xl-3">
     <div class="section-card h-100" style="cursor:default" title="${slHover}">
       <!-- Top row -->
@@ -261,6 +333,9 @@ function _elapsed(iso) {
   return Math.round(diff / 86400) + 'd ago';
 }
 
-document.addEventListener('app:ready', loadWatchlists);
+document.addEventListener('app:ready', () => {
+  loadWatchlists();
+  switchView('context');
+});
 </script>
 {% endblock %}

@@ -13,44 +13,44 @@ from sqlalchemy.orm import joinedload
 import logging
 import csv
 import io
-import json
-import os
 
 logger = logging.getLogger(__name__)
 
 signals_bp = Blueprint("signals", __name__)
 
-# ── Persist auto-generate state across restarts ───────────────────────────────
-_AG_STATE_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "ag_state.json")
-
-# Keys persisted to disk (runtime counters excluded)
+# ── Persist auto-generate state across restarts (DB-backed singleton row) ─────
 _AG_PERSIST_KEYS = (
-    "running", "asset_ids", "timeframes", "signal_filter",
+    "running", "asset_ids", "markets", "timeframes", "signal_filter",
     "min_confidence", "max_per_run", "interval_minutes", "telegram_on_signal",
 )
 
 def _ag_save():
     try:
-        payload = {k: _AG_STATE[k] for k in _AG_PERSIST_KEYS}
-        with open(_AG_STATE_FILE, "w") as f:
-            json.dump(payload, f)
+        from app.models.auto_generate_config import AutoGenerateConfig
+        row = AutoGenerateConfig.query.first()
+        if row is None:
+            row = AutoGenerateConfig()
+            db.session.add(row)
+        for k in _AG_PERSIST_KEYS:
+            setattr(row, k, _AG_STATE[k])
+        db.session.commit()
     except Exception:
-        pass
+        db.session.rollback()
 
 def _ag_load():
     try:
-        if os.path.exists(_AG_STATE_FILE):
-            with open(_AG_STATE_FILE) as f:
-                return json.load(f)
+        from app.models.auto_generate_config import AutoGenerateConfig
+        row = AutoGenerateConfig.query.first()
+        return row.to_dict() if row else None
     except Exception:
-        pass
-    return None
+        return None
 
 # ── Server-side Auto Generate state ──────────────────────────────────────────
 _AG_STATE = {
     # Watchlist config
     "running":           False,
-    "asset_ids":         [],       # list of Asset.id — empty = all active
+    "asset_ids":         [],       # list of Asset.id — empty = all active (within selected markets)
+    "markets":           [],       # list of market strings — empty = all markets
     "timeframes":        ["1h"],   # list of timeframe strings
     "signal_filter":     "all",
     "min_confidence":    0,
@@ -105,14 +105,17 @@ def _run_auto_generate(app):
         min_conf    = _AG_STATE["min_confidence"]
         max_per     = _AG_STATE["max_per_run"]
         timeframes  = _AG_STATE["timeframes"] or ["1h"]
-        asset_ids   = _AG_STATE["asset_ids"]  # empty = all active
+        asset_ids   = _AG_STATE["asset_ids"]  # empty = all active (within markets)
+        markets     = _AG_STATE.get("markets") or []  # empty = all markets
         tg_on_sig   = _AG_STATE["telegram_on_signal"]
 
-        # Resolve watchlist assets
+        # Resolve watchlist assets — asset_ids and markets combine as AND filters
+        asset_q = Asset.query.filter_by(is_active=True)
+        if markets:
+            asset_q = asset_q.filter(Asset.market.in_(markets))
         if asset_ids:
-            assets = Asset.query.filter(Asset.id.in_(asset_ids), Asset.is_active == True).all()
-        else:
-            assets = Asset.query.filter_by(is_active=True).all()
+            asset_q = asset_q.filter(Asset.id.in_(asset_ids))
+        assets = asset_q.all()
 
         combos = len(assets) * len(timeframes)
         _AG_STATE["runs"] += 1
@@ -250,26 +253,54 @@ def _run_auto_generate(app):
                 threading.Thread(target=_send_failure_alert, daemon=True).start()
 
 
+def _parse_ag_config(data):
+    """Shared parsing for auto-generate config payloads (start/save/run-once)."""
+    raw_tfs = data.get("timeframes") or data.get("timeframe", "1h")
+    timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
+
+    raw_markets = data.get("markets") or data.get("market") or []
+    markets = raw_markets if isinstance(raw_markets, list) else ([raw_markets] if raw_markets else [])
+    markets = [m for m in markets if m]  # drop empty strings
+
+    asset_ids = data.get("asset_ids", [])
+
+    return {
+        "asset_ids":          [int(x) for x in asset_ids],
+        "markets":            markets,
+        "timeframes":         timeframes,
+        "signal_filter":      data.get("signal_filter", "all"),
+        "min_confidence":     float(data.get("min_confidence", 0)),
+        "max_per_run":        int(data.get("max_per_run", 0)),
+        "interval_minutes":   int(data.get("interval_minutes", 5)),
+        "telegram_on_signal": bool(data.get("telegram_on_signal", True)),
+    }
+
+
+@signals_bp.route("/auto-generate/save", methods=["POST"])
+@login_required
+def ag_save_config():
+    """Persist Auto Generate settings to the DB without starting the scheduler."""
+    data = request.get_json() or {}
+    _AG_STATE.update(_parse_ag_config(data))
+    _ag_save()
+    _ag_log("Configuration saved")
+    return jsonify({"status": "saved", **_parse_ag_config(data)}), 200
+
+
 @signals_bp.route("/auto-generate/start", methods=["POST"])
 @login_required
 def ag_start():
     from app.extensions import scheduler
     data = request.get_json() or {}
 
-    # Support both legacy single-value and new multi-value params
-    raw_tfs = data.get("timeframes") or data.get("timeframe", "1h")
-    timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
-    asset_ids  = data.get("asset_ids", [])  # [] means all active assets
+    cfg = _parse_ag_config(data)
+    timeframes = cfg["timeframes"]
+    asset_ids  = cfg["asset_ids"]
+    markets    = cfg["markets"]
 
     _AG_STATE.update({
-        "running":           True,
-        "asset_ids":         [int(x) for x in asset_ids],
-        "timeframes":        timeframes,
-        "signal_filter":     data.get("signal_filter", "all"),
-        "min_confidence":    float(data.get("min_confidence", 0)),
-        "max_per_run":       int(data.get("max_per_run", 0)),
-        "interval_minutes":  int(data.get("interval_minutes", 5)),
-        "telegram_on_signal": bool(data.get("telegram_on_signal", True)),
+        **cfg,
+        "running": True,
         "runs": 0, "generated": 0, "errors": 0,
         "buy": 0, "sell": 0, "hold": 0,
         "last_run_at": None, "log": [],
@@ -298,8 +329,12 @@ def ag_start():
 
     _ag_save()
     n_assets = len(asset_ids) if asset_ids else "all"
-    _ag_log(f"Auto Generate started — {n_assets} assets × {timeframes} every {interval}min")
-    return jsonify({"status": "started", "asset_ids": _AG_STATE["asset_ids"], "timeframes": timeframes}), 200
+    mkt_label = "/".join(markets) if markets else "all markets"
+    _ag_log(f"Auto Generate started — {n_assets} assets ({mkt_label}) × {timeframes} every {interval}min")
+    return jsonify({
+        "status": "started", "asset_ids": _AG_STATE["asset_ids"],
+        "markets": markets, "timeframes": timeframes,
+    }), 200
 
 
 @signals_bp.route("/auto-generate/stop", methods=["POST"])
@@ -323,6 +358,7 @@ def ag_status():
     return jsonify({
         "running":            _AG_STATE["running"],
         "asset_ids":          _AG_STATE["asset_ids"],
+        "markets":            _AG_STATE.get("markets") or [],
         "timeframes":         _AG_STATE["timeframes"],
         "signal_filter":      _AG_STATE["signal_filter"],
         "min_confidence":     _AG_STATE["min_confidence"],
@@ -352,7 +388,9 @@ def ag_watchlist():
             {**a.to_dict(), "selected": a.id in selected}
             for a in assets
         ],
+        "markets": Asset.MARKETS,
         "selected_asset_ids": _AG_STATE["asset_ids"],
+        "selected_markets": _AG_STATE.get("markets") or [],
         "selected_timeframes": _AG_STATE["timeframes"],
         "running": _AG_STATE["running"],
     }), 200
@@ -367,6 +405,9 @@ def ag_run_once():
         _AG_STATE["timeframes"] = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
     if "asset_ids" in data:
         _AG_STATE["asset_ids"] = [int(x) for x in data["asset_ids"]]
+    if "markets" in data or "market" in data:
+        raw_markets = data.get("markets") or data.get("market") or []
+        _AG_STATE["markets"] = raw_markets if isinstance(raw_markets, list) else ([raw_markets] if raw_markets else [])
     if "signal_filter" in data:
         _AG_STATE["signal_filter"] = data["signal_filter"]
     if "min_confidence" in data:

@@ -218,8 +218,8 @@ async function loadSentiment() {
   }
   if (labelEl) labelEl.textContent = label;
   if (barEl) {
-    barEl.style.width      = score + '%';
-    barEl.style.background = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--yellow)';
+    // Gradient Fear/Neutral/Greed track: position the marker via --pos.
+    barEl.style.setProperty('--pos', Math.max(0, Math.min(100, score)) + '%');
   }
 
   const statsEl = document.getElementById('sentimentStats');
@@ -329,7 +329,7 @@ function _renderSignals(signals) {
       </td>
       <td style="font-weight:700;color:${rrColor}">${rrText}</td>
       <td>
-        <div class="text-muted fs-xs" style="white-space:nowrap">${shortTime(s.generated_at)}</div>
+        <div class="text-muted fs-xs" style="white-space:nowrap" title="${shortTime(s.generated_at)}">${typeof relativeTime==='function'?relativeTime(s.generated_at):shortTime(s.generated_at)}</div>
         <div id="dspk_${s.id}" style="line-height:0;margin-top:4px"></div>
         <div id="conf_${s.id}" style="font-size:10px;color:var(--text-muted);margin-top:3px"></div>
       </td>

@@ -3,6 +3,7 @@ import os
 from flask import Flask
 from app.config import get_config
 from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler
+from app.extensions import configure_sqlite_concurrency
 
 
 def create_app(config_class=None):
@@ -16,10 +17,11 @@ def create_app(config_class=None):
     app.config.from_object(cfg)
 
     _init_extensions(app)
+    configure_sqlite_concurrency(app)
     _register_blueprints(app)
     _init_db(app)
-    _init_scheduler(app)
     _configure_logging(app)
+    _init_scheduler(app)
     _start_streams(app)
     _register_asset_versioning(app)
 
@@ -359,22 +361,34 @@ def _seed_initial_data(app):
 
 
 def _init_scheduler(app):
-    from app.tasks.signal_tasks import register_signal_jobs
     from app.tasks.data_tasks import register_data_jobs
     from app.tasks.notification_tasks import register_notification_jobs
     from app.services.data.collector import register_collector_job
 
     with app.app_context():
         register_collector_job(scheduler, app)
-        register_signal_jobs(scheduler, app)
+        # NOTE: The legacy all-asset signal jobs (register_signal_jobs) are
+        # intentionally NOT registered. Signals are generated ONLY from the
+        # user's saved Auto-Generate configuration (the `user_auto_generate`
+        # job, wired via _resume_auto_generate / the /auto-generate API), so
+        # the app never produces signals for assets outside that config.
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)
+
+        # Defensively remove any legacy per-timeframe signal jobs left in a
+        # persistent jobstore from before this change.
+        for tf in ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"):
+            try:
+                scheduler.remove_job(f"signals_{tf}")
+            except Exception:
+                pass
 
     if not scheduler.running:
         scheduler.start()
 
     # Auto-resume auto-generate if it was running before server restart
-    _resume_auto_generate(app)
+    with app.app_context():
+        _resume_auto_generate(app)
 
 
 def _resume_auto_generate(app):
@@ -390,6 +404,7 @@ def _resume_auto_generate(app):
         _AG_STATE.update({
             "running":            True,
             "asset_ids":          saved.get("asset_ids", []),
+            "markets":            saved.get("markets", []),
             "timeframes":         timeframes,
             "signal_filter":      saved.get("signal_filter", "all"),
             "min_confidence":     float(saved.get("min_confidence", 0)),

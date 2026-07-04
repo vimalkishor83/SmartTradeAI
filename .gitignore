@@ -8,3 +8,7 @@
 .venv/
 venv/
 instance/
+
+# Generated ML model artifacts (regenerated on demand, not source)
+data/models/
+*.pkl

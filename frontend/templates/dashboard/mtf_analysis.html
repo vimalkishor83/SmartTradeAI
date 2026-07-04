@@ -6,6 +6,7 @@
 {% block content %}
 <div class="page-header">
   <div>
+    <span class="page-eyebrow">Analysis</span>
     <h1 class="page-title">Multi-Timeframe Analysis</h1>
     <p class="page-subtitle">Latest signal per asset across all timeframes — spot confluences instantly</p>
   </div>
@@ -91,7 +92,7 @@ function cellContent(cell) {
   const sellPct = total ? Math.round((cell.sell||0) / total * 100) : 0;
   return `<div style="text-align:center">
     <div style="font-size:12px;font-weight:800;color:${s.text};letter-spacing:.4px">${cell.signal_type}</div>
-    <div style="margin-top:4px;height:4px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;display:flex">
+    <div style="margin-top:4px;height:4px;background:var(--border);border-radius:2px;overflow:hidden;display:flex">
       <div style="height:4px;width:${buyPct}%;background:#10b981"></div>
       <div style="height:4px;width:${sellPct}%;background:#ef4444"></div>
     </div>
@@ -119,7 +120,7 @@ function renderMatrix() {
     </tr></thead><tbody>`;
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
-    html += `<tr><td colspan="${TFS.length+3}" style="background:rgba(255,255,255,0.03);padding:5px 12px;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase">${mktLabel(mkt)}</td></tr>`;
+    html += `<tr><td colspan="${TFS.length+3}" style="background:var(--bg-secondary);padding:5px 12px;font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:.8px;text-transform:uppercase">${mktLabel(mkt)}</td></tr>`;
 
     assets.forEach(a => {
       const row  = _matrix[a.id] || {};

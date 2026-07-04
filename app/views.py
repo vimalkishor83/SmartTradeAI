@@ -117,6 +117,11 @@ def briefing():
     return render_template("dashboard/briefing.html")
 
 
+@views_bp.route("/economic-calendar")
+def economic_calendar_page():
+    return render_template("dashboard/economic_calendar.html")
+
+
 @views_bp.route("/mtf-analysis")
 def mtf_analysis():
     return render_template("dashboard/mtf_analysis.html")
