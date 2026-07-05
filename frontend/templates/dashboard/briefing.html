@@ -4,544 +4,164 @@
 {% block breadcrumb %}<i class="bi bi-sunrise me-2"></i>Morning Briefing{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <span class="page-eyebrow">Overview</span>
-    <h1 class="page-title"><i class="bi bi-sunrise text-accent me-2"></i>Morning Briefing</h1>
-    <p class="page-subtitle">Your daily trading snapshot — updated on load</p>
+<!-- Header -->
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-sunrise text-accent me-2"></i>Morning Briefing</h1>
+    <p class="page-subtitle mb-0" id="briefSubtitle">Your daily trading snapshot — loading…</p>
   </div>
-  <button class="btn btn-primary btn-sm px-3" onclick="loadAll()">
-    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-  </button>
-</div>
-
-<!-- Section 1: Date + Market Status -->
-<div class="section-card mb-3">
-  <div class="section-card-body py-3">
-    <div class="d-flex flex-wrap align-items-center gap-3">
-      <div class="briefing-date" id="briefDate">—</div>
-      <div class="d-flex gap-2 flex-wrap" id="marketStatusBadges"></div>
-    </div>
+  <div class="dash-header-actions">
+    <button class="btn btn-sm btn-primary px-3" id="briefRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    <button class="btn btn-sm btn-outline-secondary px-3" id="briefShare"><i class="bi bi-share me-1"></i>Share Briefing</button>
   </div>
 </div>
 
-<!-- Section: Portfolio Snapshot + Auto Generate Status -->
+<!-- 5 state cards -->
+<div class="brief-state-row mb-3" id="stateRow">
+  <div class="brief-state"><div class="bs-label">Market Regime</div><div class="bs-value" id="bsRegime">—</div></div>
+  <div class="brief-state"><div class="bs-label">Volatility</div><div class="bs-value" id="bsVol">—</div></div>
+  <div class="brief-state"><div class="bs-label">Sentiment</div><div class="bs-value" id="bsSentiment">—</div></div>
+  <div class="brief-state"><div class="bs-label">Risk Environment</div><div class="bs-value" id="bsRisk">—</div></div>
+  <div class="brief-state"><div class="bs-label">Global Clarity</div><div class="bs-value" id="bsClarity">—</div></div>
+</div>
+
+<!-- Row 1: Market Summary | Key Headlines | Economic Calendar -->
 <div class="row g-3 mb-3">
-  <div class="col-lg-6">
+  <div class="col-lg-4">
     <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-wallet2 text-accent"></i> Portfolio Snapshot</span>
-        <a href="/portfolio" class="btn btn-sm btn-outline-light">View Portfolio</a>
-      </div>
-      <div class="section-card-body" id="portfolioSnapshot">
-        <div class="text-muted fs-sm">Loading...</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-robot text-accent"></i> Auto Generate</span>
-        <a href="/auto-generate" class="btn btn-sm btn-outline-light">Manage</a>
-      </div>
-      <div class="section-card-body" id="autoGenSnapshot">
-        <div class="text-muted fs-sm">Loading...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Section: Watchlist + Market Sentiment -->
-<div class="row g-3 mb-3">
-  <div class="col-lg-6">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-star-fill text-accent"></i> Watchlist</span>
-        <a href="/watchlist" class="btn btn-sm btn-outline-light">View All</a>
-      </div>
-      <div class="section-card-body" id="watchlistSnapshot">
-        <div class="text-muted fs-sm">Loading...</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-6">
-    <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-graph-up-arrow text-accent"></i> Market Sentiment</span>
-        <span class="text-muted fs-xs">From heatmap data</span>
-      </div>
-      <div class="section-card-body" id="sentimentSnapshot">
-        <div class="text-muted fs-sm">Loading...</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Section 2: Overnight Movers -->
-<div class="section-card mb-3">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-arrow-left-right text-accent"></i> Overnight Movers</span>
-    <span class="text-muted fs-xs">From heatmap data</span>
-  </div>
-  <div class="section-card-body">
-    <div class="row g-3">
-      <div class="col-md-6">
-        <div class="section-sub-title text-green"><i class="bi bi-arrow-up-circle-fill me-1"></i>Top Gainers</div>
-        <div id="gainersGrid" class="d-flex flex-column gap-2">
-          <div class="text-muted fs-sm">Loading...</div>
-        </div>
-      </div>
-      <div class="col-md-6">
-        <div class="section-sub-title text-red"><i class="bi bi-arrow-down-circle-fill me-1"></i>Top Losers</div>
-        <div id="losersGrid" class="d-flex flex-column gap-2">
-          <div class="text-muted fs-sm">Loading...</div>
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-globe2 text-accent me-1"></i>Market Summary</span></div>
+      <div class="section-card-body">
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+          <div class="breadth-stats">
+            <div class="breadth-stat"><div class="bst-label text-green">Advancing</div><div class="bst-value" id="advCount">—</div><div class="bst-sub" id="advPct">—</div></div>
+            <div class="breadth-stat"><div class="bst-label text-red">Declining</div><div class="bst-value" id="decCount">—</div><div class="bst-sub" id="decPct">—</div></div>
+            <div class="breadth-stat"><div class="bst-label text-muted">Unchanged</div><div class="bst-value" id="unchCount">—</div><div class="bst-sub" id="unchPct">—</div></div>
+          </div>
+          <div class="breadth-donut">
+            <canvas id="breadthDonut" width="120" height="120"></canvas>
+            <div class="breadth-center"><div class="breadth-pct" id="breadthPct">—</div><div class="breadth-lbl" id="breadthLbl">—</div></div>
+          </div>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Section 3: Economic Events -->
-<div class="section-card mb-3">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-calendar-event text-accent"></i> Today's Economic Events <span class="text-muted fs-xs">(next 5)</span></span>
-    <div class="d-flex align-items-center gap-2">
-      <span class="badge-tag" id="eventDateLabel"></span>
-      <a href="/economic-calendar" class="btn btn-sm btn-outline-light">Full Calendar</a>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-newspaper text-accent me-1"></i>Key Headlines</span></div>
+      <div class="section-card-body" id="headlinesBody"><div class="text-muted fs-sm">Loading…</div></div>
+      <div class="px-3 pb-2"><a href="/news" class="text-accent fs-xs" style="text-decoration:none">View All News →</a></div>
     </div>
   </div>
-  <div class="section-card-body" id="eventsBody">
-    <div class="text-muted fs-sm">Loading...</div>
-  </div>
-</div>
 
-<!-- Section 4: Top Signals -->
-<div class="section-card mb-3">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent"></i> Top Signals <span class="text-muted fs-xs">(last 6 hrs, ≥70% confidence)</span></span>
-    <span class="dot-live"></span><span class="text-muted fs-xs">Live</span>
-  </div>
-  <div class="section-card-body">
-    <div id="signalsGrid" class="row g-2">
-      <div class="text-muted fs-sm col-12">Loading...</div>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calendar-event text-accent me-1"></i>Economic Calendar</span><a href="/economic-calendar" class="text-accent fs-xs" style="text-decoration:none">View Calendar →</a></div>
+      <div class="table-responsive">
+        <table class="smart-table brief-econ"><thead><tr><th>Time</th><th>Event</th><th>Impact</th><th>Prev</th><th>Forecast</th></tr></thead>
+          <tbody id="econBody"><tr><td colspan="5" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+        </table>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Section 5: Open Positions -->
-<div class="section-card mb-3">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent"></i> Your Open Positions</span>
-    <a href="/portfolio" class="btn btn-sm btn-outline-light">View Portfolio</a>
+<!-- Row 2: Overnight Movers | Market Sentiment -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-7">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-arrow-left-right text-accent me-1"></i>Overnight Market Movers</span></div>
+      <div class="section-card-body">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <div class="section-sub-title text-green mb-2"><i class="bi bi-arrow-up-circle-fill me-1"></i>Top Gainers</div>
+            <table class="smart-table brief-movers"><thead><tr><th>Asset</th><th>Price</th><th>Change</th></tr></thead><tbody id="gainersBody"></tbody></table>
+          </div>
+          <div class="col-md-6">
+            <div class="section-sub-title text-red mb-2"><i class="bi bi-arrow-down-circle-fill me-1"></i>Top Losers</div>
+            <table class="smart-table brief-movers"><thead><tr><th>Asset</th><th>Price</th><th>Change</th></tr></thead><tbody id="losersBody"></tbody></table>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="section-card-body" id="positionsBody">
-    <div class="text-muted fs-sm">Loading...</div>
+
+  <div class="col-lg-5">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-speedometer2 text-accent me-1"></i>Market Sentiment</span><span class="text-muted fs-xs">From market data</span></div>
+      <div class="section-card-body">
+        <div class="row g-3 align-items-center">
+          <div class="col-5 text-center">
+            <div class="sent-gauge"><canvas id="sentGauge" width="150" height="90"></canvas><div class="sent-gauge-val" id="sentScore">—</div></div>
+            <div class="sent-gauge-lbl" id="sentLabel">—</div>
+          </div>
+          <div class="col-7">
+            <div class="fs-xs text-muted mb-2">By Market</div>
+            <div id="sentByMarket"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 3: Crypto Snapshot | Key Levels | AI Insight -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-currency-bitcoin text-accent me-1"></i>Crypto Market Snapshot</span><a href="/markets/crypto" class="text-accent fs-xs" style="text-decoration:none">View Crypto →</a></div>
+      <div class="table-responsive">
+        <table class="smart-table brief-crypto"><thead><tr><th>Asset</th><th>Price</th><th>24h Change</th><th>Trend (7D)</th></tr></thead>
+          <tbody id="cryptoBody"><tr><td colspan="4" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent me-1"></i>Key Levels to Watch</span></div>
+      <div class="px-3 pt-2"><div class="level-tabs" id="levelTabs"></div></div>
+      <div class="section-card-body d-flex gap-3">
+        <div class="levels-list" id="levelsList" style="min-width:130px"></div>
+        <div style="flex:1"><div id="levelChart" class="level-chart"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightbulb text-accent me-1"></i>AI Insight Summary</span><a href="/ai-insights" class="text-accent fs-xs" style="text-decoration:none">View Insights →</a></div>
+      <div class="section-card-body" id="insightsBody"><div class="text-muted fs-sm">Analysing…</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer: Today at a Glance + Upcoming Events -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="today-summary mb-0">
+      <div class="ts-title"><i class="bi bi-clipboard-data text-accent me-1"></i>Today at a Glance</div>
+      <div class="ts-item"><span class="ts-label">Signals Generated</span><span class="ts-value" id="glGenerated">—</span></div>
+      <div class="ts-item"><span class="ts-label">New Signals</span><span class="ts-value text-blue" id="glNew">—</span></div>
+      <div class="ts-item"><span class="ts-label">Closed Signals</span><span class="ts-value" id="glClosed">—</span></div>
+      <div class="ts-item"><span class="ts-label">Winning Signals</span><span class="ts-value text-green" id="glWin">—</span></div>
+      <div class="ts-item"><span class="ts-label">Win Rate</span><span class="ts-value" id="glWinRate">—</span></div>
+      <div class="ts-item"><span class="ts-label">Total P&amp;L</span><span class="ts-value" id="glPnl">—</span></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card h-100 mb-0">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calendar-check text-accent me-1"></i>Upcoming Events</span></div>
+      <div class="section-card-body d-flex align-items-center justify-content-between gap-2" id="upcomingBody">
+        <div class="text-muted fs-sm">Loading…</div>
+        <a href="/economic-calendar" class="btn btn-sm btn-outline-secondary" style="white-space:nowrap">View Full Calendar</a>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-/* ── Date & Market Status ─────────────────────── */
-function renderDateAndStatus() {
-  const now = new Date();
-  const dateEl = document.getElementById('briefDate');
-  if (dateEl) {
-    dateEl.textContent = now.toLocaleDateString('en-GB', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-    });
-  }
-
-  const badgesEl = document.getElementById('marketStatusBadges');
-  if (!badgesEl) return;
-
-  // Crypto: always open
-  const cryptoHtml = `<span class="market-status-badge status-open">
-    <i class="bi bi-circle-fill" style="font-size:7px"></i> Crypto OPEN
-  </span>`;
-
-  // NSE: open 9:15–15:30 IST Mon–Fri
-  const ist = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-  const day = ist.getDay(); // 0=Sun,6=Sat
-  const h = ist.getHours(), m = ist.getMinutes();
-  const inMins = h * 60 + m;
-  const nseOpen = day >= 1 && day <= 5 && inMins >= 555 && inMins < 930; // 9:15=555, 15:30=930
-  const nseHtml = `<span class="market-status-badge ${nseOpen ? 'status-open' : 'status-closed'}">
-    <i class="bi bi-circle-fill" style="font-size:7px"></i> NSE ${nseOpen ? 'OPEN' : 'CLOSED'}
-  </span>`;
-
-  // Forex: closed Sat/Sun UTC
-  const utcDay = now.getUTCDay();
-  const forexOpen = utcDay >= 1 && utcDay <= 5;
-  const forexHtml = `<span class="market-status-badge ${forexOpen ? 'status-open' : 'status-closed'}">
-    <i class="bi bi-circle-fill" style="font-size:7px"></i> Forex ${forexOpen ? 'OPEN' : 'CLOSED'}
-  </span>`;
-
-  badgesEl.innerHTML = cryptoHtml + nseHtml + forexHtml;
-}
-
-/* ── Movers ───────────────────────────────────── */
-async function loadMovers() {
-  const data = await API.get('/market-data/heatmap');
-  const items = data?.heatmap || [];
-
-  const sorted = [...items].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
-  const gainers = sorted.slice(0, 5);
-  const losers  = sorted.slice(-5).reverse();
-
-  function moverCard(item) {
-    const up = item.change_pct >= 0;
-    const arrow = up ? '▲' : '▼';
-    const cls   = up ? 'mover-up' : 'mover-down';
-    return `<div class="mover-card">
-      <div>
-        <div class="mover-sym">${item.symbol}</div>
-        <div class="mover-name">${item.name || ''}</div>
-        <div class="mover-price">${item.price != null ? formatPrice(item.price) : '—'}</div>
-      </div>
-      <div class="mover-chg ${cls}">${arrow} ${Math.abs(item.change_pct || 0).toFixed(2)}%</div>
-    </div>`;
-  }
-
-  const gEl = document.getElementById('gainersGrid');
-  const lEl = document.getElementById('losersGrid');
-  if (gEl) gEl.innerHTML = gainers.length ? gainers.map(moverCard).join('') : '<div class="text-muted fs-sm">No data</div>';
-  if (lEl) lEl.innerHTML = losers.length  ? losers.map(moverCard).join('')  : '<div class="text-muted fs-sm">No data</div>';
-}
-
-/* ── Economic Events ──────────────────────────── */
-async function loadEvents() {
-  const data = await API.get('/news/economic-calendar');
-  const events = data?.events || [];
-
-  const now = new Date();
-  const todayStr = now.toISOString().slice(0, 10);
-
-  const labelEl = document.getElementById('eventDateLabel');
-  if (labelEl) labelEl.textContent = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ' · IST';
-
-  // Only today's events that haven't happened yet, ranked by impact then time
-  const impactRank = { high: 0, medium: 1, low: 2 };
-  const upcomingEvents = events
-    .filter(e => {
-      if (!e.event_time) return false;
-      const evDate = new Date(e.event_time + 'Z');
-      return e.event_time.slice(0, 10) === todayStr && evDate >= now;
-    })
-    .sort((a, b) => {
-      const ra = impactRank[(a.impact || 'low').toLowerCase()] ?? 2;
-      const rb = impactRank[(b.impact || 'low').toLowerCase()] ?? 2;
-      if (ra !== rb) return ra - rb;
-      return new Date(a.event_time) - new Date(b.event_time);
-    })
-    .slice(0, 5);
-
-  const el = document.getElementById('eventsBody');
-  if (!el) return;
-
-  if (!upcomingEvents.length) {
-    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-check-circle text-green me-2"></i>No more events today — good day to trade</div>';
-    return;
-  }
-
-  const impactClass = { high: 'impact-high', medium: 'impact-medium', low: 'impact-low' };
-  el.innerHTML = upcomingEvents.map(e => {
-    const imp = (e.impact || 'low').toLowerCase();
-    const time = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
-    return `<div class="event-row">
-      <span class="event-impact ${impactClass[imp] || 'impact-low'}">${(e.impact || 'LOW').toUpperCase()}</span>
-      <div style="flex:1">
-        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${e.title || '—'}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${time} IST &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-/* ── Signals ──────────────────────────────────── */
-async function loadSignals() {
-  const data = await API.get('/signals/', { per_page: 6, min_confidence: 70 });
-  const signals = data?.signals || [];
-
-  const el = document.getElementById('signalsGrid');
-  if (!el) return;
-
-  if (!signals.length) {
-    el.innerHTML = '<div class="text-muted fs-sm col-12">No high-confidence signals in the last 6 hours</div>';
-    return;
-  }
-
-  function timeAgo(iso) {
-    if (!iso) return '—';
-    const secs = Math.floor((Date.now() - new Date(iso)) / 1000);
-    if (secs < 60)   return `${secs}s ago`;
-    if (secs < 3600) return `${Math.floor(secs/60)}m ago`;
-    return `${Math.floor(secs/3600)}h ago`;
-  }
-
-  const sigClsMap = { BUY: 'text-green', SELL: 'text-red', HOLD: 'text-muted', EXIT: 'text-purple' };
-  const sigBgMap  = { BUY: 'rgba(16,185,129,0.15)', SELL: 'rgba(239,68,68,0.15)', HOLD: 'rgba(100,116,139,0.1)', EXIT: 'rgba(139,92,246,0.15)' };
-
-  el.innerHTML = signals.map(s => {
-    const cls = sigClsMap[s.signal_type] || '';
-    const bg  = sigBgMap[s.signal_type]  || '';
-    const conf = (s.confidence_score || 0).toFixed(0);
-    return `<div class="col-md-6 col-lg-4">
-      <a href="/asset/${s.asset_id}" class="signal-mini-card">
-        <div class="d-flex justify-content-between align-items-start mb-1">
-          <div class="fw-700" style="font-size:14px">${s.asset || '—'}</div>
-          <span style="padding:2px 10px;border-radius:12px;font-size:11px;font-weight:700;background:${bg};color:${cls.replace('text-','var(--')})">${s.signal_type}</span>
-        </div>
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="badge-tag">${s.timeframe || '—'}</span>
-          <span style="font-size:11px;color:var(--text-muted)">${timeAgo(s.generated_at)}</span>
-        </div>
-        <div class="mt-2">
-          <div class="confidence-bar" style="height:5px">
-            <div class="confidence-fill" style="width:${conf}%;background:${conf>=85?'var(--green)':conf>=70?'var(--accent)':'var(--yellow)'}"></div>
-          </div>
-          <div style="font-size:10px;color:var(--text-muted);margin-top:3px">${conf}% confidence</div>
-        </div>
-      </a>
-    </div>`;
-  }).join('');
-}
-
-/* ── Positions ────────────────────────────────── */
-async function loadPositions() {
-  const data = await API.get('/portfolio/');
-  const holdings = data?.holdings || [];
-
-  const el = document.getElementById('positionsBody');
-  if (!el) return;
-
-  if (!holdings.length) {
-    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>No open positions. <a href="/portfolio" style="color:var(--accent)">Add to your portfolio</a></div>';
-    return;
-  }
-
-  el.innerHTML = `<div class="table-responsive">
-    <table class="smart-table">
-      <thead><tr>
-        <th>Asset</th><th>Qty</th><th>Buy Price</th><th>Invested</th><th>P&amp;L</th><th>Notes</th>
-      </tr></thead>
-      <tbody>
-        ${holdings.map(h => {
-          const pnl = h.unrealized_pnl || 0;
-          const pnlPct = h.unrealized_pnl_pct || 0;
-          const pnlCls = pnl >= 0 ? 'pnl-positive' : 'pnl-negative';
-          const arrow  = pnl >= 0 ? '▲' : '▼';
-          return `<tr>
-            <td><span class="fw-700">${h.symbol || h.asset || '—'}</span></td>
-            <td>${h.quantity != null ? h.quantity : '—'}</td>
-            <td>${h.buy_price != null ? formatPrice(h.buy_price) : '—'}</td>
-            <td>${h.invested_value != null ? formatPrice(h.invested_value) : '—'}</td>
-            <td class="${pnlCls}">${arrow} ${Math.abs(pnlPct).toFixed(2)}%</td>
-            <td style="color:var(--text-muted);font-size:11px">${h.notes || '—'}</td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  </div>`;
-}
-
-/* ── Portfolio Snapshot ───────────────────────── */
-async function loadPortfolioSnapshot() {
-  const [portData, summaryData] = await Promise.all([
-    API.get('/portfolio/'),
-    API.get('/signals/summary'),
-  ]);
-
-  const el = document.getElementById('portfolioSnapshot');
-  if (!el) return;
-
-  const p = portData?.portfolio;
-  if (!p || !portData.holdings?.length) {
-    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>No open positions. <a href="/portfolio" style="color:var(--accent)">Add to your portfolio</a></div>';
-    return;
-  }
-
-  const pnl = p.total_pnl || 0;
-  const pnlPct = p.total_pnl_pct || 0;
-  const pnlCls = pnl >= 0 ? 'text-green' : 'text-red';
-  const arrow = pnl >= 0 ? '▲' : '▼';
-  const winRate = summaryData?.win_rate ?? null;
-
-  el.innerHTML = `
-    <div class="row g-2 text-center">
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">Current Value</div>
-        <div class="qs-value">${formatPrice(p.total_current)}</div>
-      </div></div>
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">P&amp;L</div>
-        <div class="qs-value ${pnlCls}">${arrow} ${Math.abs(pnlPct).toFixed(2)}%</div>
-      </div></div>
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">Win Rate</div>
-        <div class="qs-value">${winRate != null ? winRate.toFixed(1) + '%' : '—'}</div>
-      </div></div>
-    </div>
-    <div class="text-muted fs-xs mt-2 text-center">${portData.holdings.length} open position(s) · Invested ${formatPrice(p.total_invested)}</div>`;
-}
-
-/* ── Auto Generate Snapshot ───────────────────── */
-async function loadAutoGenSnapshot() {
-  const data = await API.get('/signals/auto-generate/status');
-  const el = document.getElementById('autoGenSnapshot');
-  if (!el) return;
-  if (!data) { el.innerHTML = '<div class="text-muted fs-sm">Unavailable</div>'; return; }
-
-  if (!data.running) {
-    el.innerHTML = `<div class="text-muted fs-sm py-2"><i class="bi bi-pause-circle me-2"></i>Not running.
-      <a href="/auto-generate" style="color:var(--accent)">Start Auto Generate</a></div>`;
-    return;
-  }
-
-  const tfLabel = (data.timeframes || []).join(', ') || '—';
-  const lastRun = data.last_run_at
-    ? new Date(data.last_run_at + 'Z').toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false })
-    : '—';
-
-  el.innerHTML = `
-    <div class="d-flex align-items-center gap-2 mb-2">
-      <span class="live-dot" style="background:var(--green)"></span>
-      <span class="fw-600 fs-sm">Running</span>
-      <span class="badge-tag ms-auto">${tfLabel}</span>
-    </div>
-    <div class="row g-2 text-center">
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">Generated</div>
-        <div class="qs-value text-accent">${data.generated ?? 0}</div>
-      </div></div>
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">Runs</div>
-        <div class="qs-value">${data.runs ?? 0}</div>
-      </div></div>
-      <div class="col-4"><div class="quick-stat">
-        <div class="qs-label">Last Run</div>
-        <div class="qs-value" style="font-size:14px">${lastRun}</div>
-      </div></div>
-    </div>`;
-}
-
-/* ── Watchlist Snapshot ───────────────────────── */
-async function loadWatchlistSnapshot() {
-  const [wlData, heatmapData] = await Promise.all([
-    API.get('/watchlist/'),
-    API.get('/market-data/heatmap'),
-  ]);
-
-  const el = document.getElementById('watchlistSnapshot');
-  if (!el) return;
-
-  const items = (wlData?.watchlists || []).flatMap(wl => wl.items || []);
-  if (!items.length) {
-    el.innerHTML = '<div class="text-muted fs-sm py-2"><i class="bi bi-info-circle me-2"></i>Your watchlist is empty. <a href="/watchlist" style="color:var(--accent)">Add assets</a></div>';
-    return;
-  }
-
-  const priceMap = {};
-  (heatmapData?.heatmap || []).forEach(h => { priceMap[h.symbol] = h; });
-
-  el.innerHTML = items.slice(0, 6).map(i => {
-    const h = priceMap[i.symbol];
-    const chg = h?.change_pct ?? null;
-    const up = (chg ?? 0) >= 0;
-    return `<div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid var(--border)">
-      <div>
-        <span class="fw-700">${i.symbol}</span>
-        <span class="text-muted fs-xs ms-1">${(i.market || '').replace('_', ' ')}</span>
-      </div>
-      <div class="d-flex align-items-center gap-2">
-        <span style="font-size:13px">${h?.price != null ? formatPrice(h.price) : '—'}</span>
-        <span class="${up ? 'text-green' : 'text-red'}" style="font-size:12px;min-width:55px;text-align:right">
-          ${chg != null ? (up ? '▲' : '▼') + ' ' + Math.abs(chg).toFixed(2) + '%' : '—'}
-        </span>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-/* ── Market Sentiment Snapshot ────────────────── */
-async function loadSentimentSnapshot() {
-  const data = await API.get('/market-data/heatmap');
-  const el = document.getElementById('sentimentSnapshot');
-  if (!el) return;
-
-  const items = data?.heatmap || [];
-  if (!items.length) { el.innerHTML = '<div class="text-muted fs-sm">No data</div>'; return; }
-
-  const up = items.filter(i => (i.change_pct || 0) > 0).length;
-  const down = items.filter(i => (i.change_pct || 0) < 0).length;
-
-  function scoreFor(list) {
-    const avg = list.reduce((sum, i) => sum + (i.change_pct || 0), 0) / list.length;
-    return Math.max(0, Math.min(100, Math.round(50 + avg * 8)));
-  }
-  function labelFor(score) {
-    return score >= 70 ? 'Bullish' : score >= 55 ? 'Slightly Bullish' : score >= 45 ? 'Neutral' : score >= 30 ? 'Slightly Bearish' : 'Bearish';
-  }
-  function colorFor(score) {
-    return score >= 55 ? 'var(--green)' : score <= 45 ? 'var(--red)' : 'var(--yellow)';
-  }
-
-  const score = scoreFor(items);
-  const label = labelFor(score);
-  const color = colorFor(score);
-
-  const marketLabels = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
-    indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
-  const byMarket = {};
-  items.forEach(i => { (byMarket[i.market] ||= []).push(i); });
-
-  const marketRows = Object.keys(byMarket).sort().map(m => {
-    const s = scoreFor(byMarket[m]);
-    const c = colorFor(s);
-    return `<div class="d-flex align-items-center gap-2 py-1">
-      <span style="min-width:100px;font-size:12px;color:var(--text-secondary)">${marketLabels[m] || m}</span>
-      <div class="confidence-bar" style="height:5px;flex:1">
-        <div class="confidence-fill" style="width:${s}%;background:${c}"></div>
-      </div>
-      <span style="min-width:32px;text-align:right;font-size:12px;font-weight:700;color:${c}">${s}</span>
-    </div>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div class="text-center mb-2">
-      <div class="fw-800" style="font-size:32px;color:${color}">${score}</div>
-      <div class="fw-600" style="color:${color}">${label}</div>
-    </div>
-    <div class="confidence-bar mb-3" style="height:6px">
-      <div class="confidence-fill" style="width:${score}%;background:${color}"></div>
-    </div>
-    <div class="row g-2 text-center mb-3">
-      <div class="col-6"><div class="quick-stat">
-        <div class="qs-label">Advancing</div>
-        <div class="qs-value text-green">${up}</div>
-      </div></div>
-      <div class="col-6"><div class="quick-stat">
-        <div class="qs-label">Declining</div>
-        <div class="qs-value text-red">${down}</div>
-      </div></div>
-    </div>
-    <div class="text-muted fs-xs mb-1">By Market</div>
-    ${marketRows}`;
-}
-
-/* ── Init ─────────────────────────────────────── */
-function loadAll() {
-  renderDateAndStatus();
-  loadPortfolioSnapshot();
-  loadAutoGenSnapshot();
-  loadWatchlistSnapshot();
-  loadSentimentSnapshot();
-  loadMovers();
-  loadEvents();
-  loadSignals();
-  loadPositions();
-}
-
-document.addEventListener('app:ready', loadAll);
-</script>
+<script src="/static/js/pages/briefing.js"></script>
 {% endblock %}

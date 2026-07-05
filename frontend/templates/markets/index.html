@@ -1,125 +1,142 @@
 {% extends "partials/base.html" %}
-{% block title %}{{ market | title }} Signals — SmartTrade AI{% endblock %}
+{% block title %}Markets Overview — SmartTrade AI{% endblock %}
 {% set active = market %}
-
 {% block breadcrumb %}<i class="bi bi-bar-chart-line me-2"></i> Markets / {{ market | replace('_',' ') | title }}{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <span class="page-eyebrow">Markets</span>
-    <h1 class="page-title">{{ market | replace('_',' ') | title }} Market Signals</h1>
-    <p class="page-subtitle">AI-powered signals with confidence scores and risk levels</p>
+<!-- Header -->
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-globe2 text-accent me-2"></i>Markets Overview</h1>
+    <p class="page-subtitle mb-0">All markets in one place. AI-powered insights and real-time signals.</p>
   </div>
-  <div class="d-flex gap-2 flex-wrap align-items-center">
-    <select class="form-select form-select-sm" id="tfFilter" style="width:auto;">
-      <option value="1m">1 Min</option>
-      <option value="5m">5 Min</option>
-      <option value="15m">15 Min</option>
-      <option value="30m">30 Min</option>
-      <option value="1h" selected>1 Hour</option>
-      <option value="4h">4 Hours</option>
-      <option value="1d">Daily</option>
+  <div class="dash-header-actions">
+    <select class="form-select form-select-sm" id="tfFilter" style="width:auto">
+      <option value="15m">15 Min</option><option value="1h" selected>1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
     </select>
-    <select class="form-select form-select-sm" id="typeFilter" style="width:auto;">
-      <option value="">All Signals</option>
-      <option value="BUY">Buy</option>
-      <option value="SELL">Sell</option>
-      <option value="HOLD">Hold</option>
-      <option value="EXIT">Exit</option>
+    <select class="form-select form-select-sm" id="typeFilter" style="width:auto">
+      <option value="">All Signals</option><option value="BUY">Buy</option><option value="SELL">Sell</option><option value="HOLD">Hold</option>
     </select>
-    <div class="d-flex align-items-center gap-1">
-      <span style="color:var(--text-muted);font-size:12px">Min:</span>
-      <input type="range" class="form-range" id="minConf" min="0" max="100" value="0" style="width:80px">
-      <span class="badge-tag" id="confVal" style="min-width:36px">0%</span>
-    </div>
-    <button class="btn btn-sm btn-outline-light" onclick="loadAll()">
-      <i class="bi bi-arrow-repeat me-1"></i>Refresh
-    </button>
-    <button class="btn btn-sm btn-primary" id="genAllBtn" onclick="genAllSignals()">
-      <i class="bi bi-lightning-charge-fill me-1"></i>Generate All
-    </button>
+    <div class="search-bar" style="width:160px"><i class="bi bi-search"></i><input type="text" id="assetSearch" placeholder="Search asset…"></div>
+    <button class="btn btn-sm px-3 btn-generate" id="generateAll"><i class="bi bi-lightning-charge-fill me-1"></i>Generate All</button>
   </div>
 </div>
 
-<!-- Asset Cards + Sentiment side-by-side -->
-<div class="row g-3 mb-4">
-  <!-- Asset Cards -->
-  <div class="col-lg-9">
-    <div class="row g-3" id="assetCards">
-      <div class="col-12 text-center text-muted py-4">
-        <div class="spinner-border spinner-border-sm me-2"></div>Loading assets...
-      </div>
-    </div>
-  </div>
+<!-- Market tabs -->
+<div class="mkt-tabs mb-3" id="mktTabs">
+  <button class="mkt-tab" data-market=""><i class="bi bi-grid-3x3-gap me-1"></i>All Markets</button>
+  <button class="mkt-tab" data-market="crypto"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button>
+  <button class="mkt-tab" data-market="forex"><i class="bi bi-currency-exchange me-1"></i>Forex</button>
+  <button class="mkt-tab" data-market="commodity"><i class="bi bi-gem me-1"></i>Commodities</button>
+  <button class="mkt-tab" data-market="indian_stock"><i class="bi bi-building me-1"></i>Indian Stocks</button>
+  <button class="mkt-tab" data-market="index"><i class="bi bi-graph-up me-1"></i>Indices</button>
+</div>
 
-  <!-- Market Sentiment Card -->
-  <div class="col-lg-3">
+<!-- KPI cards -->
+<div class="kpi-grid-auto mb-3">
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Signals Generated</div><div class="kpi-value" id="kpiGen">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-diagram-3"></i></div></div><div class="kpi-change" id="kpiGenSub">today</div></div>
+  <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Active Signals</div><div class="kpi-value" id="kpiActive">—</div></div><div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div></div><div class="kpi-change" id="kpiActiveSub">live now</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="kpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="kpiWinSub">n = —</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="kpiRR">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-arrows-expand"></i></div></div><div class="kpi-change">reward per risk</div></div>
+  <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Total P&amp;L (Open)</div><div class="kpi-value" id="kpiPnl">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div></div><div class="kpi-change" id="kpiPnlSub">unrealised</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Market Sentiment</div><div class="kpi-value" id="kpiSent" style="font-size:19px">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-emoji-neutral"></i></div></div><div class="kpi-change">across markets</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Index</div><div class="kpi-value" id="kpiVol" style="font-size:19px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-activity"></i></div></div><div class="kpi-change">current regime</div></div>
+</div>
+
+<!-- Live Signals + Market Sentiment -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
     <div class="section-card h-100">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-activity text-accent"></i> Market Sentiment</span>
-        <span class="badge-tag fs-xs" id="sentimentAsset">—</span>
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals <span class="badge-tag ms-1" id="liveCount">—</span></span></div>
+      <div class="table-responsive">
+        <table class="smart-table signals-table-adv">
+          <thead><tr><th>Asset</th><th>Market</th><th>Signal</th><th>TF</th><th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>Confidence</th><th>R:R</th><th>Age</th><th>Status</th></tr></thead>
+          <tbody id="liveBody"><tr><td colspan="12" class="text-center text-muted py-5">Loading signals…</td></tr></tbody>
+        </table>
       </div>
-      <div class="section-card-body text-center">
-        <div class="gauge-value my-2" id="sentimentScore" style="font-size:48px;font-weight:900;letter-spacing:-2px;color:var(--yellow)">—</div>
-        <div class="gauge-label mb-3" id="sentimentLabel" style="font-size:15px;font-weight:700;color:var(--text-secondary)">Loading...</div>
-        <div class="confidence-bar mb-3" style="height:8px">
-          <div class="confidence-fill" id="sentimentBar" style="width:50%;background:var(--yellow);height:8px"></div>
-        </div>
-        <!-- Indicator breakdown -->
-        <div class="row g-2 mt-2" id="sentimentStats">
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">RSI</div><div class="qs-value" id="sentRSI">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">MACD</div><div class="qs-value" id="sentMACD" style="font-size:13px;text-transform:capitalize">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Trend</div><div class="qs-value" id="sentTrend" style="font-size:13px">—</div></div></div>
-          <div class="col-6"><div class="quick-stat"><div class="qs-label">Volume</div><div class="qs-value" id="sentVol" style="font-size:13px">—</div></div></div>
-        </div>
-        <button class="btn btn-outline-light btn-sm w-100 mt-3" id="refreshSentBtn">
-          <i class="bi bi-arrow-repeat me-1"></i>Refresh Sentiment
-        </button>
+      <div class="px-3 py-2" style="border-top:1px solid var(--border)"><a href="/signals" class="btn btn-sm btn-outline-secondary">View All Signals <i class="bi bi-arrow-right ms-1"></i></a></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-speedometer2 text-accent me-1"></i>Market Sentiment</span></div>
+      <div class="section-card-body">
+        <div class="text-center"><div class="sent-gauge"><canvas id="mktGauge" width="170" height="100"></canvas><div class="sent-gauge-val" id="mktSentScore">—</div></div><div class="sent-gauge-lbl" id="mktSentLabel">—</div></div>
+        <div class="sent-counts" id="sentCounts"></div>
+        <div class="fs-xs text-muted mt-3 mb-2">By Market</div>
+        <div id="mktByMarket"></div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Signal Table -->
-<div class="section-card">
-  <div class="section-card-header">
-    <span class="section-card-title">
-      <i class="bi bi-lightning-charge text-accent"></i>
-      {{ market | replace('_',' ') | title }} Signals
-    </span>
-    <span class="badge-tag" id="sigCount">—</span>
+<!-- Heatmap + Top Opportunities + AI Performance -->
+<div class="row g-3 mb-3">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent me-1"></i>Market Heatmap</span><span class="badge-tag">AI Score</span></div>
+      <div class="ai-heat-grid" id="aiHeatGrid"><div class="text-muted small p-3">Loading…</div></div>
+      <div class="ai-heat-legend px-3 pb-2">
+        <span><span class="dot" style="background:var(--green)"></span>80+ Strong Buy</span>
+        <span><span class="dot" style="background:#4ade80"></span>60-79 Buy</span>
+        <span><span class="dot" style="background:var(--yellow)"></span>40-59 Hold</span>
+        <span><span class="dot" style="background:#f87171"></span>20-39 Sell</span>
+        <span><span class="dot" style="background:var(--red)"></span>0-19 Strong Sell</span>
+      </div>
+    </div>
   </div>
-  <div class="table-responsive">
-    <table class="smart-table" id="mktSignalsTable">
-      <thead>
-        <tr>
-          <th>Asset</th><th>Signal</th><th>TF</th>
-          <th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>T3</th>
-          <th>R:R</th><th>Confidence</th><th>Time</th><th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="mktSignalsBody">
-        <tr><td colspan="12" class="text-center text-muted py-4">Loading signals...</td></tr>
-      </tbody>
-    </table>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bullseye text-accent me-1"></i>Top Opportunities</span><a href="/signals" class="text-accent fs-xs" style="text-decoration:none">View All</a></div>
+      <div class="section-card-body" id="topOpps"><div class="text-muted fs-sm">Scanning…</div></div>
+    </div>
   </div>
-  <div class="p-3 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
-    <span style="color:var(--text-muted);font-size:11px" id="sigTotal"></span>
-    <nav><ul class="pagination pagination-sm mb-0" id="mktPagination"></ul></nav>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Performance</span><span class="badge-tag">7 Days</span></div>
+      <div class="section-card-body">
+        <div class="row g-2 mb-2 text-center">
+          <div class="col-4"><div class="qs-label">Win Rate</div><div class="fw-800 text-green" id="apWin">—</div></div>
+          <div class="col-4"><div class="qs-label">Profit Factor</div><div class="fw-800" id="apPF">—</div></div>
+          <div class="col-4"><div class="qs-label">Total Trades</div><div class="fw-800" id="apTrades">—</div></div>
+        </div>
+        <div class="chart-wrapper-sm"><canvas id="apChart"></canvas></div>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- Chart Modal -->
-<div class="modal fade" id="chartModal" tabindex="-1">
-  <div class="modal-dialog modal-xl">
-    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
-      <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title" id="chartModalTitle">Chart</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<!-- Consensus + News + Events + Quick Actions -->
+<div class="row g-3">
+  <div class="col-lg-3 col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent me-1"></i>AI Model Consensus</span></div>
+      <div class="section-card-body text-center">
+        <div class="consensus-donut"><canvas id="consensusDonut" width="130" height="130"></canvas><div class="consensus-center"><div class="fw-800" id="consensusPct" style="font-size:22px">—</div><div class="fs-xs" id="consensusLbl">—</div></div></div>
+        <div id="consensusLegend" class="mt-2"></div>
       </div>
-      <div class="modal-body p-0">
-        <div id="chartContainer" style="height:500px;"></div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-newspaper text-accent me-1"></i>News Impact</span></div>
+      <div class="section-card-body" id="newsImpact"><div class="text-muted fs-sm">Loading…</div></div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-calendar-event text-accent me-1"></i>Upcoming Events</span><a href="/economic-calendar" class="text-accent fs-xs" style="text-decoration:none">View Calendar</a></div>
+      <div class="section-card-body" id="upcomingEvents"><div class="text-muted fs-sm">Loading…</div></div>
+    </div>
+  </div>
+  <div class="col-lg-3 col-md-6">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightning text-accent me-1"></i>Quick Actions</span></div>
+      <div class="section-card-body quick-actions">
+        <button class="qa-btn" id="qaGenerate"><i class="bi bi-lightning-charge-fill"></i>Generate All Signals</button>
+        <a class="qa-btn" href="/scanner"><i class="bi bi-search"></i>Run Market Scan</a>
+        <a class="qa-btn" href="/scanner"><i class="bi bi-sliders"></i>Custom Scan</a>
+        <a class="qa-btn" href="/watchlist"><i class="bi bi-star"></i>Manage Watchlist</a>
       </div>
     </div>
   </div>
@@ -127,239 +144,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-const MARKET = '{{ market }}';
-let _assets  = [];
-let _sentimentAssetId = null;
-
-/* ── Short time format ───────────────────────── */
-function shortTime(iso) {
-  if (!iso) return '—';
-  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
-  const d = new Date(str), now = new Date();
-  const IST = { timeZone: 'Asia/Kolkata' };
-  const diffH = (now - d) / 36e5;
-  if (diffH < 24) return d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
-  return d.toLocaleDateString('en-IN', { ...IST, day:'2-digit', month:'short' }) + ' ' +
-         d.toLocaleTimeString('en-IN', { ...IST, hour:'2-digit', minute:'2-digit', hour12:false });
-}
-
-/* ── Asset Cards ─────────────────────────────── */
-async function loadAssets() {
-  const data = await API.get('/assets/', { market: MARKET });
-  if (!data?.assets?.length) {
-    document.getElementById('assetCards').innerHTML =
-      '<div class="col-12 text-center text-muted py-4">No assets found for this market</div>';
-    return;
-  }
-
-  _assets = data.assets;
-  // Use first asset for sentiment
-  _sentimentAssetId = _assets[0]?.id;
-  document.getElementById('sentimentAsset').textContent = _assets[0]?.symbol || '—';
-
-  document.getElementById('assetCards').innerHTML = _assets.map(a => `
-    <div class="col-6 col-md-4 col-xl-3">
-      <div class="section-card p-3 h-100" style="cursor:pointer" onclick="window.location.href='/asset/${a.id}'"  title="View ${a.symbol} chart & details">
-        <div class="d-flex justify-content-between align-items-start mb-1">
-          <div>
-            <div class="fw-700" style="font-size:14px;color:var(--text-primary)">${a.symbol}</div>
-            <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
-          </div>
-          <span class="badge-tag" style="font-size:9px">${a.exchange || ''}</span>
-        </div>
-        <div class="fw-900 mt-2" style="font-size:20px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_${a.id}">
-          <span style="display:inline-block;width:80px;height:20px;background:var(--bg-secondary);border-radius:4px;animation:skeleton-loading 1.4s infinite"></span>
-        </div>
-        <div class="mt-1" style="font-size:12px" id="change_${a.id}">
-          <span style="color:var(--text-muted)">fetching...</span>
-        </div>
-        <div class="mt-2">
-          <button class="btn btn-sm w-100" style="font-size:11px;padding:3px 6px;background:rgba(99,102,241,0.12);color:var(--accent-light);border:1px solid rgba(99,102,241,0.25);border-radius:6px"
-            onclick="event.stopPropagation();genSignal('${a.symbol}')">
-            <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
-          </button>
-        </div>
-      </div>
-    </div>`).join('');
-
-  _assets.forEach(a => loadAssetPrice(a));
-  loadSignals(1);
-  loadSentiment();
-}
-
-async function loadAssetPrice(asset) {
-  const priceEl  = document.getElementById(`price_${asset.id}`);
-  const changeEl = document.getElementById(`change_${asset.id}`);
-  if (!priceEl) return;
-
-  const data = await API.get(`/assets/${asset.id}/ticker`);
-  if (data?.price) {
-    priceEl.textContent  = formatPrice(data.price);
-    priceEl.style.color  = 'var(--text-primary)';
-    const chg = data.change_pct ?? 0;
-    const cls = chg >= 0 ? 'var(--green)' : 'var(--red)';
-    const arrow = chg >= 0 ? '▲' : '▼';
-    changeEl.innerHTML = `<span style="color:${cls};font-weight:700">${arrow} ${Math.abs(chg).toFixed(2)}%</span>`;
-  } else {
-    priceEl.textContent = '—';
-    priceEl.style.color = 'var(--text-muted)';
-    changeEl.innerHTML  = '<span style="color:var(--text-muted);font-size:11px">unavailable</span>';
-  }
-}
-
-/* ── Market Sentiment ────────────────────────── */
-async function loadSentiment() {
-  if (!_sentimentAssetId) return;
-  const tf   = document.getElementById('tfFilter').value || '1h';
-  const data = await API.get(`/market-data/${_sentimentAssetId}/sentiment`, { timeframe: tf });
-  if (!data?.sentiment) return;
-
-  const s     = data.sentiment;
-  const score = s.score ?? 50;
-  const label = s.label || 'Neutral';
-  const color = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--yellow)';
-
-  document.getElementById('sentimentScore').textContent = score;
-  document.getElementById('sentimentScore').style.color = color;
-  document.getElementById('sentimentLabel').textContent = label;
-  document.getElementById('sentimentLabel').style.color = color;
-  document.getElementById('sentimentBar').style.width      = score + '%';
-  document.getElementById('sentimentBar').style.background = color;
-
-  if (s.indicators) {
-    const rsi = s.indicators.rsi;
-    const rsiColor = rsi > 70 ? 'var(--red)' : rsi < 30 ? 'var(--green)' : 'var(--yellow)';
-    const macd = s.indicators.macd_signal || '—';
-    const macdColor = macd === 'bullish' ? 'var(--green)' : macd === 'bearish' ? 'var(--red)' : 'var(--text-secondary)';
-    const trend = s.indicators.ema_trend || '—';
-    const trendColor = trend === 'bullish' ? 'var(--green)' : trend === 'bearish' ? 'var(--red)' : 'var(--text-secondary)';
-
-    const setEl = (id, val, col) => {
-      const el = document.getElementById(id);
-      if (el) { el.textContent = val; if (col) el.style.color = col; }
-    };
-    setEl('sentRSI',  rsi?.toFixed(1) || '—', rsiColor);
-    setEl('sentMACD', macd, macdColor);
-    setEl('sentTrend', trend, trendColor);
-    setEl('sentVol',  s.indicators.volume_trend || '—', 'var(--text-secondary)');
-  }
-}
-
-/* ── Signals Table ───────────────────────────── */
-async function loadSignals(page = 1) {
-  const tf   = document.getElementById('tfFilter').value;
-  const type = document.getElementById('typeFilter').value;
-  const conf = document.getElementById('minConf').value;
-
-  const params = { market: MARKET, timeframe: tf, page, per_page: 20, min_confidence: conf };
-  if (type) params.signal_type = type;
-
-  const data = await API.get('/signals/', params);
-  if (!data) return;
-
-  document.getElementById('sigCount').textContent = `${data.total ?? 0} signals`;
-  document.getElementById('sigTotal').textContent = `${data.total ?? 0} total · page ${data.page ?? 1}/${data.pages ?? 1}`;
-
-  const tbody = document.getElementById('mktSignalsBody');
-  if (!data.signals?.length) {
-    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-muted py-5">
-      <i class="bi bi-inbox fs-3 d-block mb-2"></i>
-      No signals yet — click "Generate Signal" on any asset card above, or use "Generate All"
-    </td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = data.signals.map(s => {
-    const rr      = parseFloat(s.risk_reward) || 0;
-    const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-muted)';
-    const conf2   = s.confidence_score || 0;
-    const confClr = conf2 >= 85 ? 'var(--green)' : conf2 >= 70 ? 'var(--accent-light)' : conf2 >= 55 ? 'var(--yellow)' : 'var(--red)';
-    return `<tr>
-      <td><a href="/asset/${s.asset_id}" style="color:var(--text-primary);text-decoration:none;font-weight:700" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-primary)'">${s.asset}</a></td>
-      <td>${signalBadge(s.signal_type)}</td>
-      <td><span class="badge-tag">${s.timeframe}</span></td>
-      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price, MARKET)}</td>
-      <td class="text-red">${formatPrice(s.stop_loss, MARKET)}</td>
-      <td class="text-green">${formatPrice(s.target1, MARKET)}</td>
-      <td class="text-green">${formatPrice(s.target2, MARKET)}</td>
-      <td class="text-green">${formatPrice(s.target3, MARKET)}</td>
-      <td><span style="font-weight:700;color:${rrColor}">${rr.toFixed(1)}x</span></td>
-      <td style="min-width:110px">
-        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf2}%;background:${confClr}"></div></div>
-        <div style="font-size:11px;color:var(--text-muted)">${conf2.toFixed(0)}% · ${s.confidence_label || ''}</div>
-      </td>
-      <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${shortTime(s.generated_at)}</td>
-      <td>
-        <button class="btn btn-sm" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px"
-          onclick="genSignal('${s.asset}','${s.timeframe}')" title="Regenerate">
-          <i class="bi bi-arrow-repeat"></i>
-        </button>
-      </td>
-    </tr>`;
-  }).join('');
-
-  // Pagination
-  const pages = data.pages ?? 1;
-  const pag   = document.getElementById('mktPagination');
-  let html = '';
-  if (page > 1) html += `<li class="page-item"><a class="page-link" href="#" onclick="loadSignals(${page-1});return false">‹</a></li>`;
-  for (let i = 1; i <= Math.min(pages, 8); i++)
-    html += `<li class="page-item ${i===page?'active':''}"><a class="page-link" href="#" onclick="loadSignals(${i});return false">${i}</a></li>`;
-  if (page < pages) html += `<li class="page-item"><a class="page-link" href="#" onclick="loadSignals(${page+1});return false">›</a></li>`;
-  pag.innerHTML = html;
-}
-
-/* ── Generate Signal ─────────────────────────── */
-async function genSignal(symbol, timeframe) {
-  const tf = timeframe || document.getElementById('tfFilter').value;
-  Toast.show(`Generating ${tf} signal for ${symbol}...`, 'info', 2000);
-  const res = await API.post('/signals/generate', { symbol, timeframe: tf });
-  if (res?.signal_type) {
-    Toast.show(`${res.signal_type} signal for ${symbol} — ${(res.confidence_score??0).toFixed(0)}% confidence`, 'success');
-    loadSignals(1);
-  } else {
-    Toast.show(res?.error || 'Signal generation failed — data may be unavailable', 'warning');
-  }
-}
-
-async function genAllSignals() {
-  const btn = document.getElementById('genAllBtn');
-  const tf  = document.getElementById('tfFilter').value;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
-  let count = 0;
-  for (const a of _assets) {
-    const res = await API.post('/signals/generate', { symbol: a.symbol, timeframe: tf });
-    if (res?.signal_type) count++;
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i>Generate All';
-  Toast.show(`${count} signals generated for ${MARKET}`, 'success');
-  loadSignals(1);
-}
-
-/* ── Chart Modal → navigate to asset detail page ── */
-function openChart(assetId, symbol) {
-  window.location.href = `/asset/${assetId}`;
-}
-
-/* ── Init ────────────────────────────────────── */
-function loadAll() { loadAssets(); }
-
-document.addEventListener('app:ready', () => {
-  loadAll();
-  document.getElementById('tfFilter').addEventListener('change',  () => { loadSignals(1); loadSentiment(); });
-  document.getElementById('typeFilter').addEventListener('change', () => loadSignals(1));
-  let _confTimer;
-  document.getElementById('minConf').addEventListener('input', function() {
-    document.getElementById('confVal').textContent = this.value + '%';
-    clearTimeout(_confTimer);
-    _confTimer = setTimeout(() => loadSignals(1), 350);
-  });
-  document.getElementById('refreshSentBtn').addEventListener('click', loadSentiment);
-  setInterval(() => loadSignals(1), 60000);
-  setInterval(() => _assets.forEach(a => loadAssetPrice(a)), 30000);
-});
-</script>
+<script>const MARKET = '{{ market }}';</script>
+<script src="/static/js/pages/markets.js"></script>
 {% endblock %}

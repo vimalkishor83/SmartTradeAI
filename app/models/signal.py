@@ -36,6 +36,9 @@ class Signal(db.Model):
     patterns = db.Column(db.JSON, default=list)
     reasoning = db.Column(db.Text)
 
+    # Market regime at generation time (trend × volatility), e.g. "uptrend_normal"
+    regime = db.Column(db.String(30))
+
     generated_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -91,6 +94,7 @@ class Signal(db.Model):
             "pnl_pct": self.pnl_pct,
             "patterns": self.patterns,
             "reasoning": self.reasoning,
+            "regime": self.regime,
             "generated_at": self.generated_at.isoformat(),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }

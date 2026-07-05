@@ -169,14 +169,16 @@ class DeltaStreamManager:
             with self._app.app_context():
                 from app.websocket.events import broadcast_ticker
                 broadcast_ticker(symbol, tick)
-        except Exception:
-            pass
-        # Real-time TP/SL check — close signals the moment price crosses a level
+        except Exception as e:
+            logger.debug(f"DeltaStream ticker broadcast failed [{symbol}]: {e}")
+        # Real-time TP/SL check — close signals the moment price crosses a level.
+        # A failure here means a signal may not close on time, so it is logged
+        # (debug, to avoid per-tick spam) rather than silently swallowed.
         try:
             from app.tasks.data_tasks import check_signals_for_price
             check_signals_for_price(symbol, tick["price"], self._app)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"DeltaStream real-time TP/SL check failed [{symbol}]: {e}")
 
 
 delta_stream = DeltaStreamManager()

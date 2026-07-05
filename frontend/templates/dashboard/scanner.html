@@ -1,192 +1,97 @@
-﻿{% extends "partials/base.html" %}
-{% block title %}Scanner — SmartTrade AI{% endblock %}
+{% extends "partials/base.html" %}
+{% block title %}Market Scanner — SmartTrade AI{% endblock %}
 {% set active = 'scanner' %}
-{% block breadcrumb %}<i class="bi bi-radar me-2"></i> Scanner{% endblock %}
+{% block breadcrumb %}<i class="bi bi-search me-2"></i> Signals & Tools / Market Scanner{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <span class="page-eyebrow">Signals & Tools</span>
-    <h1 class="page-title">Market Scanner</h1>
-    <p class="page-subtitle">Screen all markets with technical filters in real-time</p>
+<!-- Header -->
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-bullseye text-accent me-2"></i>Market Scanner</h1>
+    <p class="page-subtitle mb-0">Screen all markets with technical filters in real-time</p>
+  </div>
+  <div class="dash-header-actions">
+    <button class="btn btn-sm btn-outline-secondary px-3" id="savePreset"><i class="bi bi-bookmark me-1"></i>Save Scan Preset</button>
+    <button class="btn btn-sm px-3 btn-generate" id="runScan"><i class="bi bi-play-fill me-1"></i>Run Scan</button>
   </div>
 </div>
 
-<!-- Info -->
-<div class="section-card mb-4" style="border-color:rgba(99,102,241,0.25);background:rgba(99,102,241,0.04)">
-  <div class="section-card-body py-2 d-flex align-items-center gap-3">
-    <i class="bi bi-info-circle text-accent" style="font-size:18px;flex-shrink:0"></i>
-    <span class="fs-sm text-muted">Select your filters, choose a market and timeframe, then click <strong class="text-primary">Run Scan</strong> to find matching assets. Click <strong class="text-primary">Signal</strong> on any result to generate a detailed signal.</span>
-  </div>
+<!-- KPI cards -->
+<div class="kpi-grid-auto mb-3">
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Scan Results</div><div class="kpi-value" id="kpiResults">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-sliders"></i></div></div><div class="kpi-change" id="kpiResultsSub">matches</div></div>
+  <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Strong Signals</div><div class="kpi-value text-green" id="kpiStrong">—</div></div><div class="kpi-icon text-green"><i class="bi bi-diamond-fill"></i></div></div><div class="kpi-change">high conviction</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="kpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="kpiWinSub">n = —</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="kpiRR">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-arrows-expand"></i></div></div><div class="kpi-change">reward per risk</div></div>
+  <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Total P&amp;L (Open)</div><div class="kpi-value" id="kpiPnl">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div></div><div class="kpi-change" id="kpiPnlSub">unrealised</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Market Sentiment</div><div class="kpi-value" id="kpiSent" style="font-size:18px">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-emoji-neutral"></i></div></div><div class="kpi-change" id="kpiSentSub">bull/bear</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Index</div><div class="kpi-value" id="kpiVol" style="font-size:18px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-triangle"></i></div></div><div class="kpi-change" id="kpiVolSub">current regime</div></div>
 </div>
 
-<!-- Scan Config -->
-<div class="section-card mb-4">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-funnel-fill text-accent"></i> Scan Filters</span>
-    <button class="btn btn-primary btn-sm px-4" id="runScan">
-      <i class="bi bi-play-fill me-1"></i>Run Scan
-    </button>
-  </div>
+<!-- Scan Filters -->
+<div class="section-card mb-3">
+  <div class="section-card-header"><span class="section-card-title"><i class="bi bi-funnel text-accent me-1"></i>Scan Filters</span></div>
   <div class="section-card-body">
-    <div class="row g-3 mb-4">
-      <div class="col-md-3">
-        <label class="form-label">Market</label>
-        <select class="form-select" id="scanMarket">
-          <option value="">All Markets</option>
-          <option value="crypto">Crypto</option>
-          <option value="forex">Forex</option>
-          <option value="indian_stock">Indian Stocks</option>
-          <option value="index">Indices</option>
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <label class="scan-lbl">Market</label>
+        <select class="form-select form-select-sm" id="scanMarket">
+          <option value="">All Markets</option><option value="crypto">Crypto</option><option value="forex">Forex</option>
+          <option value="commodity">Commodities</option><option value="indian_stock">Indian Stocks</option><option value="index">Indices</option>
+        </select>
+        <div class="scan-hint">Crypto, Forex, Commodities, Indian Stocks, Indices</div>
+      </div>
+      <div class="col-md-4">
+        <label class="scan-lbl">Timeframe</label>
+        <select class="form-select form-select-sm" id="scanTf">
+          <option value="15m">15 Min</option><option value="1h" selected>1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
         </select>
       </div>
-      <div class="col-md-3">
-        <label class="form-label">Timeframe</label>
-        <select class="form-select" id="scanTf">
-          <option value="15m">15 Minutes</option>
-          <option value="30m">30 Minutes</option>
-          <option value="1h" selected>1 Hour</option>
-          <option value="4h">4 Hours</option>
-          <option value="1d">Daily</option>
-        </select>
-      </div>
-      <div class="col-md-6">
-        <label class="form-label">Min Confidence</label>
-        <div class="d-flex align-items-center gap-3">
-          <input type="range" class="form-range" id="scanConf" min="0" max="100" value="60" style="flex:1" />
-          <span class="badge-tag" id="scanConfVal" style="min-width:44px">60%</span>
+      <div class="col-md-4">
+        <label class="scan-lbl">Min Confidence</label>
+        <div class="d-flex align-items-center gap-2">
+          <input type="range" class="form-range" id="scanConf" min="0" max="100" value="60">
+          <span class="badge-tag" id="scanConfVal" style="min-width:40px">60%</span>
         </div>
       </div>
     </div>
-
-    <label class="form-label mb-2">Signal Filters <span class="text-muted fs-xs">(select one or more)</span></label>
-    <div class="d-flex flex-wrap gap-2" id="filterBtns"></div>
+    <label class="scan-lbl">Signal Filters <span class="text-muted" style="font-weight:400;text-transform:none">(select one or more)</span></label>
+    <div class="scan-chips" id="scanChips">
+      <button class="scan-chip c-green" data-f="strong_buy">Strong Buy</button>
+      <button class="scan-chip c-green" data-f="buy">Buy</button>
+      <button class="scan-chip c-red" data-f="strong_sell">Strong Sell</button>
+      <button class="scan-chip c-red" data-f="sell">Sell</button>
+      <button class="scan-chip c-yellow" data-f="breakout">Breakout</button>
+      <button class="scan-chip c-red" data-f="breakdown">Breakdown</button>
+      <button class="scan-chip c-blue" data-f="volume_spike">Volume Spike</button>
+      <button class="scan-chip c-green" data-f="rsi_oversold">RSI Oversold</button>
+      <button class="scan-chip c-red" data-f="rsi_overbought">RSI Overbought</button>
+      <button class="scan-chip c-green" data-f="gap_up">Gap Up</button>
+      <button class="scan-chip c-red" data-f="gap_down">Gap Down</button>
+      <button class="scan-chip c-yellow" data-f="52w_high">52W High</button>
+      <button class="scan-chip c-yellow" data-f="52w_low">52W Low</button>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-3">
+      <button class="btn btn-sm btn-outline-secondary" id="advToggle"><i class="bi bi-chevron-right me-1"></i>Advanced Filters</button>
+      <button class="btn btn-sm btn-outline-secondary" id="clearFilters">Clear All</button>
+    </div>
   </div>
 </div>
 
-<!-- Results -->
+<!-- Scan Results -->
 <div class="section-card">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-table text-accent"></i> Scan Results</span>
-    <span class="badge-tag" id="resultCount">0 results</span>
+    <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Scan Results <span class="badge-tag ms-1" id="resultCount">0 results</span></span>
+    <button class="btn btn-xs btn-outline-secondary" id="dlResults" title="Download CSV"><i class="bi bi-download"></i></button>
   </div>
   <div class="table-responsive">
-    <table class="smart-table">
-      <thead>
-        <tr>
-          <th>Symbol</th><th>Market</th><th>Price</th><th>Change</th>
-          <th>RSI</th><th>Volume</th><th>Matched Filters</th><th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="scanResults">
-        <tr>
-          <td colspan="8" class="text-center text-muted py-5">
-            <i class="bi bi-radar d-block mb-2" style="font-size:28px"></i>
-            Configure your filters and click "Run Scan" to find opportunities
-          </td>
-        </tr>
-      </tbody>
+    <table class="smart-table signals-table-adv">
+      <thead><tr><th></th><th>Symbol</th><th>Market</th><th>Price</th><th>Change</th><th>RSI</th><th>Volume</th><th>Signal</th><th>Confidence</th><th>Matched Filters</th><th>Action</th></tr></thead>
+      <tbody id="scanBody"><tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-search d-block mb-2" style="font-size:26px;opacity:.4"></i>Set filters and click <strong class="text-accent">Run Scan</strong></td></tr></tbody>
     </table>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
-<script>
-const FILTERS = [
-  { id: 'strong_buy',     label: 'Strong Buy',     cls: 'btn-outline-success' },
-  { id: 'strong_sell',    label: 'Strong Sell',    cls: 'btn-outline-danger'  },
-  { id: 'breakout',       label: 'Breakout',       cls: 'btn-outline-warning' },
-  { id: 'breakdown',      label: 'Breakdown',      cls: 'btn-outline-danger'  },
-  { id: 'volume_spike',   label: 'Volume Spike',   cls: 'btn-outline-info'    },
-  { id: 'rsi_oversold',   label: 'RSI Oversold',   cls: 'btn-outline-success' },
-  { id: 'rsi_overbought', label: 'RSI Overbought', cls: 'btn-outline-danger'  },
-  { id: 'gap_up',         label: 'Gap Up',         cls: 'btn-outline-success' },
-  { id: 'gap_down',       label: 'Gap Down',       cls: 'btn-outline-danger'  },
-  { id: '52w_high',       label: '52W High',       cls: 'btn-outline-warning' },
-  { id: '52w_low',        label: '52W Low',        cls: 'btn-outline-warning' },
-];
-
-const selectedFilters = new Set(['strong_buy']);
-
-document.addEventListener('app:ready', () => {
-  const container = document.getElementById('filterBtns');
-  FILTERS.forEach(f => {
-    const btn = document.createElement('button');
-    btn.className = `btn btn-sm ${f.cls} ${selectedFilters.has(f.id) ? 'active' : ''}`;
-    btn.textContent = f.label;
-    btn.dataset.filter = f.id;
-    btn.style.borderRadius = '7px';
-    btn.style.fontWeight = '600';
-    btn.addEventListener('click', () => {
-      if (selectedFilters.has(f.id)) { selectedFilters.delete(f.id); btn.classList.remove('active'); }
-      else                           { selectedFilters.add(f.id);    btn.classList.add('active');    }
-    });
-    container.appendChild(btn);
-  });
-
-  document.getElementById('runScan').addEventListener('click', runScan);
-  document.getElementById('scanConf').addEventListener('input', function() {
-    document.getElementById('scanConfVal').textContent = this.value + '%';
-  });
-});
-
-async function runScan() {
-  const btn = document.getElementById('runScan');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Scanning...';
-
-  const res = await API.post('/scanner/run', {
-    filters:        [...selectedFilters],
-    market:         document.getElementById('scanMarket').value,
-    timeframe:      document.getElementById('scanTf').value,
-    min_confidence: parseInt(document.getElementById('scanConf').value),
-  });
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Scan';
-
-  if (!res?.results) { Toast.show('Scan failed — try again', 'error'); return; }
-
-  document.getElementById('resultCount').textContent = `${res.count || 0} results`;
-  const tbody = document.getElementById('scanResults');
-
-  if (!res.results?.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-5">
-      <i class="bi bi-search d-block mb-2" style="font-size:28px"></i>
-      No assets matched your filters. Try relaxing the criteria.
-    </td></tr>`;
-    return;
-  }
-
-  tbody.innerHTML = res.results.map(r => {
-    const rsiCls  = r.rsi > 70 ? 'text-red' : r.rsi < 30 ? 'text-green' : 'text-yellow';
-    const chgCls  = (r.change_pct||0) >= 0 ? 'text-green' : 'text-red';
-    const arrow   = (r.change_pct||0) >= 0 ? '▲' : '▼';
-    return `<tr>
-      <td><strong>${r.symbol}</strong><br><small class="text-muted fs-xs">${r.name||''}</small></td>
-      <td><span class="badge-tag">${r.market||''}</span></td>
-      <td class="fw-700">${formatPrice(r.price)}</td>
-      <td class="${chgCls} fw-700">${arrow} ${Math.abs(r.change_pct||0).toFixed(2)}%</td>
-      <td><span class="${rsiCls} fw-700">${r.rsi?.toFixed(1) || '—'}</span></td>
-      <td class="text-muted fs-xs">${r.volume ? r.volume.toLocaleString('en-IN',{maximumFractionDigits:0}) : '—'}</td>
-      <td>${r.matched_filters?.map(f=>`<span class="badge-tag me-1">${f.replace(/_/g,' ')}</span>`).join('')||'—'}</td>
-      <td>
-        <button class="btn btn-sm btn-primary" onclick="generateSignal('${r.symbol}')">
-          <i class="bi bi-lightning-charge-fill me-1"></i>Signal
-        </button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-async function generateSignal(symbol) {
-  Toast.show(`Generating signal for ${symbol}...`, 'info', 2000);
-  const res = await API.post('/signals/generate', {
-    symbol, timeframe: document.getElementById('scanTf').value
-  });
-  if (res?.signal_type) Toast.show(`${res.signal_type} signal for ${symbol}! Conf: ${(res.confidence_score||0).toFixed(0)}%`, 'success');
-  else Toast.show(res?.error || 'Signal generation failed', 'warning');
-}
-</script>
+<script src="/static/js/pages/scanner.js"></script>
 {% endblock %}

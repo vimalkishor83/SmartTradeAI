@@ -176,7 +176,7 @@ def _run_auto_generate(app):
                            if k in ["signal_type","entry_price","stop_loss","target1","target2","target3",
                                     "risk_reward","confidence_score","confidence_label","trend_score",
                                     "momentum_score","volume_score","pattern_score","ai_score",
-                                    "indicators","patterns","reasoning","expires_at"]},
+                                    "indicators","patterns","reasoning","regime","expires_at"]},
                     )
                     db.session.add(sig)
                     db.session.flush()
@@ -804,13 +804,96 @@ def generate_signal():
            if k in ["signal_type", "entry_price", "stop_loss", "target1", "target2", "target3",
                     "risk_reward", "confidence_score", "confidence_label", "trend_score",
                     "momentum_score", "volume_score", "pattern_score", "ai_score",
-                    "indicators", "patterns", "reasoning", "expires_at"]},
+                    "indicators", "patterns", "reasoning", "regime", "expires_at"]},
     )
     signal.set_confidence_label()
     db.session.add(signal)
     db.session.commit()
 
     return jsonify(signal.to_dict()), 201
+
+
+@signals_bp.route("/performance", methods=["GET"])
+@login_required
+def signal_performance():
+    """Signal outcome analytics from closed signal history.
+
+    Returns per asset × timeframe win rate, average P&L, and profit factor, plus a
+    **confidence-calibration** breakdown (do higher-confidence signals actually win
+    more?) — the key measure of whether the confidence score is trustworthy.
+
+    Query params: ?days=<lookback, default 90> &market=<optional filter>
+    """
+    try:
+        days = int(request.args.get("days", 90))
+    except (TypeError, ValueError):
+        days = 90
+    market = request.args.get("market")
+
+    cutoff = datetime.utcnow() - timedelta(days=days)
+    q = SignalHistory.query.filter(SignalHistory.closed_at >= cutoff)
+    rows = q.all()
+
+    # Asset map (for symbol/market labels + optional market filter)
+    asset_ids = {r.asset_id for r in rows if r.asset_id}
+    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()} if asset_ids else {}
+    if market:
+        rows = [r for r in rows if (a := assets_map.get(r.asset_id)) and a.market == market]
+
+    def _stats(items):
+        total = len(items)
+        wins = [r for r in items if r.outcome == "win"]
+        losses = [r for r in items if r.outcome == "loss"]
+        gross_win = sum((r.pnl_pct or 0) for r in wins)
+        gross_loss = abs(sum((r.pnl_pct or 0) for r in losses))
+        return {
+            "total": total,
+            "wins": len(wins),
+            "losses": len(losses),
+            "win_rate": round(len(wins) / total * 100, 1) if total else 0,
+            "avg_pnl_pct": round(sum((r.pnl_pct or 0) for r in items) / total, 3) if total else 0,
+            "profit_factor": round(gross_win / gross_loss, 2) if gross_loss > 0
+                             else (None if gross_win > 0 else 0),   # None = no losing trades
+        }
+
+    # ── Overall ──
+    overall = _stats(rows)
+
+    # ── Per asset × timeframe ──
+    from collections import defaultdict
+    buckets: dict[tuple, list] = defaultdict(list)
+    for r in rows:
+        buckets[(r.asset_id, r.timeframe)].append(r)
+    by_asset_tf = []
+    for (aid, tf), items in buckets.items():
+        a = assets_map.get(aid)
+        s = _stats(items)
+        s.update({"asset": a.symbol if a else str(aid),
+                  "market": a.market if a else None, "timeframe": tf})
+        by_asset_tf.append(s)
+    by_asset_tf.sort(key=lambda x: (-x["total"], -x["win_rate"]))
+
+    # ── Confidence calibration: does an 80%-confidence signal win ~80%? ──
+    conf_bands = [(0, 60, "Weak"), (60, 75, "Moderate"), (75, 90, "Strong"), (90, 101, "Very Strong")]
+    calibration = []
+    for lo, hi, label in conf_bands:
+        band = [r for r in rows if lo <= (r.confidence_score or 0) < hi]
+        decisive = [r for r in band if r.outcome in ("win", "loss")]
+        actual_win = round(sum(1 for r in decisive if r.outcome == "win") / len(decisive) * 100, 1) \
+                     if decisive else None
+        calibration.append({
+            "band": label, "range": f"{lo}-{hi - 1}",
+            "signals": len(band),
+            "actual_win_rate": actual_win,   # compare against the band midpoint
+            "expected_win_rate": (lo + hi) // 2,
+        })
+
+    return jsonify({
+        "lookback_days": days,
+        "overall": overall,
+        "by_asset_timeframe": by_asset_tf[:50],
+        "calibration": calibration,
+    }), 200
 
 
 @signals_bp.route("/summary", methods=["GET"])

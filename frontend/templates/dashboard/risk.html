@@ -115,10 +115,48 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div><span class="page-eyebrow">Portfolio</span>
-<h1 class="page-title">Risk Management</h1><p class="page-subtitle">Position sizing and risk-reward calculator</p></div>
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <span class="page-eyebrow">Portfolio</span>
+    <h1 class="page-title mb-1"><i class="bi bi-shield-check text-accent me-2"></i>Risk Management</h1>
+    <p class="page-subtitle mb-0">Position sizing and risk-reward calculator</p>
+  </div>
 </div>
+
+<!-- Risk context KPIs -->
+<div class="kpi-grid-auto mb-3" style="grid-template-columns:repeat(4,1fr)">
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Account Size</div><div class="kpi-value" id="rkAcct">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-wallet2"></i></div></div><div class="kpi-change">trading capital</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Risk / Trade</div><div class="kpi-value text-yellow" id="rkRisk">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-percent"></i></div></div><div class="kpi-change">of account</div></div>
+  <div class="kpi-card red"><div class="kpi-top"><div><div class="kpi-label">Max Risk / Trade</div><div class="kpi-value text-red" id="rkMaxRisk">—</div></div><div class="kpi-icon text-red"><i class="bi bi-exclamation-triangle"></i></div></div><div class="kpi-change">capital at risk</div></div>
+  <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="rkWin">—</div></div><div class="kpi-icon text-green"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="rkWinSub">historical</div></div>
+</div>
+
+<script>
+(function () {
+  const fmtINR = n => '₹' + (Math.round(n)).toLocaleString('en-IN');
+  function rkUpdate() {
+    const acct = parseFloat(document.getElementById('accAccountSize')?.value) || 0;
+    const risk = parseFloat(document.getElementById('accRiskPct')?.value) || 0;
+    const s = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    s('rkAcct', fmtINR(acct));
+    s('rkRisk', risk.toFixed(1) + '%');
+    s('rkMaxRisk', fmtINR(acct * risk / 100));
+  }
+  async function rkWinRate() {
+    if (typeof API === 'undefined') return;
+    const perf = await API.get('/signals/performance').catch(() => null);
+    const ov = perf?.overall || {};
+    const w = document.getElementById('rkWin'); if (w && ov.win_rate != null) w.textContent = ov.win_rate.toFixed(1) + '%';
+    const sub = document.getElementById('rkWinSub'); if (sub) sub.textContent = 'n = ' + (ov.total ?? 0);
+  }
+  function init() {
+    rkUpdate(); rkWinRate();
+    ['accAccountSize', 'accRiskPct'].forEach(id => document.getElementById(id)?.addEventListener('input', rkUpdate));
+  }
+  document.addEventListener('app:ready', init);
+  setTimeout(init, 1200);
+})();
+</script>
 
 <!-- ── My Account Bar ──────────────────────────────────── -->
 <div class="account-bar" id="accountBar">

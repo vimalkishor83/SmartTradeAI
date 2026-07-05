@@ -34,19 +34,28 @@
     border-color: var(--accent, #6366f1);
   }
 </style>
-<div class="page-header">
-  <div>
-    <span class="page-eyebrow">Signals & Tools</span>
-    <h1 class="page-title">Auto Generate Signals</h1>
-    <p class="page-subtitle">Configure and run automatic signal generation on a schedule</p>
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-robot text-accent me-2"></i>Auto Generate Signals</h1>
+    <p class="page-subtitle mb-0">Configure and run automatic signal generation on a schedule</p>
   </div>
-  <!-- Status pill -->
-  <div class="d-flex align-items-center gap-3">
-    <div id="globalStatus" class="d-flex align-items-center gap-2 px-3 py-2 rounded-3" style="background:var(--bg-card);border:1px solid var(--border)">
+  <div class="dash-header-actions">
+    <div id="globalStatus" class="ag-status-pill">
       <span class="live-dot" id="statusDot" style="background:var(--text-muted);animation:none"></span>
       <span id="statusLabel" class="fw-600 fs-sm">Idle</span>
     </div>
   </div>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-grid-auto mb-3">
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Signals Generated</div><div class="kpi-value" id="agKpiGen">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-diagram-3"></i></div></div><div class="kpi-change">this session</div></div>
+  <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Active Signals</div><div class="kpi-value text-green" id="agKpiActive">—</div></div><div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div></div><div class="kpi-change">live now</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="agKpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="agKpiWinSub">n = —</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="agKpiRR">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-arrows-expand"></i></div></div><div class="kpi-change">reward per risk</div></div>
+  <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Total P&amp;L (Open)</div><div class="kpi-value" id="agKpiPnl">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div></div><div class="kpi-change" id="agKpiPnlSub">unrealised</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Market Sentiment</div><div class="kpi-value" id="agKpiSent" style="font-size:18px">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-emoji-neutral"></i></div></div><div class="kpi-change">across markets</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Index</div><div class="kpi-value" id="agKpiVol" style="font-size:18px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-activity"></i></div></div><div class="kpi-change">current regime</div></div>
 </div>
 
 <!-- ── CONFIG + CONTROLS ──────────────────────────────────── -->
@@ -146,6 +155,69 @@
         </div>
       </div>
     </div>
+
+    <!-- ── START / STOP ── -->
+    <div class="d-flex gap-3 my-3 align-items-center flex-wrap">
+      <button class="btn btn-lg px-5 fw-700" id="startBtn"
+        style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
+        <i class="bi bi-play-fill me-2"></i>Start Generating
+      </button>
+      <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--yellow);color:#1a1a1a;border:none;border-radius:10px;font-size:15px">
+        <i class="bi bi-pause-fill me-2"></i>Pause
+      </button>
+      <button class="btn btn-lg px-4 fw-700" id="hardStopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
+        <i class="bi bi-stop-fill me-2"></i>Stop
+      </button>
+      <button class="btn btn-outline-light btn-sm" id="runOnceBtn">
+        <i class="bi bi-skip-forward-fill me-1"></i>Run Once Now
+      </button>
+      <button class="btn btn-outline-light btn-sm" id="saveConfigBtn">
+        <i class="bi bi-save-fill me-1"></i>Save Configuration
+      </button>
+      <span class="text-muted fs-xs" id="lastRunLabel"></span>
+      <span class="text-success fs-xs" id="saveConfirmLabel" style="display:none"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>
+    </div>
+
+    <!-- ── GENERATED SIGNALS TABLE ── -->
+    <div class="section-card mb-3">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-table text-accent"></i> Generated Signals — This Session</span>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="badge-tag" id="tableCount">0 signals</span>
+          <button class="btn btn-outline-light btn-sm fs-xs" id="clearTableBtn">Clear Table</button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="smart-table">
+          <thead>
+            <tr>
+              <th>Time</th><th>Asset</th><th>Market</th><th>TF</th><th>Signal</th>
+              <th>Entry</th><th>Stop Loss</th><th>T1</th><th>R:R</th><th>Confidence</th>
+            </tr>
+          </thead>
+          <tbody id="signalsTableBody">
+            <tr id="emptyRow">
+              <td colspan="10" class="text-center py-5 text-muted">
+                <i class="bi bi-robot d-block mb-2" style="font-size:28px;opacity:0.4"></i>
+                Configure settings above and click <strong>Start Generating</strong>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── RUN LOG ── -->
+    <div class="section-card">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-terminal text-accent"></i> Run Log</span>
+        <button class="btn btn-outline-light btn-sm fs-xs" id="clearLogBtn">Clear Log</button>
+      </div>
+      <div id="runLog"
+        style="max-height:220px;overflow-y:auto;padding:12px 16px;font-size:12px;font-family:'Courier New',monospace;background:var(--bg-secondary);line-height:1.7">
+        <span class="text-muted">Waiting to start...</span>
+      </div>
+    </div>
   </div>
 
   <!-- Stats card -->
@@ -201,71 +273,99 @@
         </div>
       </div>
     </div>
-  </div>
-</div>
 
-<!-- ── START / STOP ───────────────────────────────────────── -->
-<div class="d-flex gap-3 mb-4 align-items-center flex-wrap">
-  <button class="btn btn-lg px-5 fw-700" id="startBtn"
-    style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
-    <i class="bi bi-play-fill me-2"></i>Start Generating
-  </button>
-  <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--yellow);color:#1a1a1a;border:none;border-radius:10px;font-size:15px">
-    <i class="bi bi-pause-fill me-2"></i>Pause
-  </button>
-  <button class="btn btn-lg px-4 fw-700" id="hardStopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
-    <i class="bi bi-stop-fill me-2"></i>Stop
-  </button>
-  <button class="btn btn-outline-light btn-sm" id="runOnceBtn">
-    <i class="bi bi-skip-forward-fill me-1"></i>Run Once Now
-  </button>
-  <button class="btn btn-outline-light btn-sm" id="saveConfigBtn">
-    <i class="bi bi-save-fill me-1"></i>Save Configuration
-  </button>
-  <span class="text-muted fs-xs" id="lastRunLabel"></span>
-  <span class="text-success fs-xs" id="saveConfirmLabel" style="display:none"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>
-</div>
+    <!-- Market Sentiment -->
+    <div class="section-card mt-3">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-activity text-accent"></i> Market Sentiment</span></div>
+      <div class="section-card-body">
+        <div class="ag-sent-scale"><span class="text-red">Bearish</span><span class="text-yellow">Neutral</span><span class="text-green">Bullish</span></div>
+        <div class="ag-sent-bar"><div class="ag-sent-marker" id="agSentMarker" style="left:50%"></div></div>
+        <div class="text-center mt-2"><div class="fw-800" id="agSentScore" style="font-size:30px;line-height:1">—</div><div class="fw-600" id="agSentLabel">—</div></div>
+        <div class="d-flex justify-content-between mt-2 fs-xs"><span class="text-green">Bull <span id="agBull">—</span></span><span class="text-red">Bear <span id="agBear">—</span></span></div>
+      </div>
+    </div>
 
-<!-- ── GENERATED SIGNALS TABLE ───────────────────────────── -->
-<div class="section-card mb-3">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-table text-accent"></i> Generated Signals — This Session</span>
-    <div class="d-flex gap-2 align-items-center">
-      <span class="badge-tag" id="tableCount">0 signals</span>
-      <button class="btn btn-outline-light btn-sm fs-xs" id="clearTableBtn">Clear Table</button>
+    <!-- AI Prediction -->
+    <div class="section-card mt-3">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent"></i> AI Prediction</span><span class="badge-tag">PRO</span></div>
+      <div class="section-card-body text-center">
+        <a href="/ai-insights" class="btn btn-sm w-100 btn-generate" style="background:linear-gradient(135deg,#6366f1,#4f46e5)"><i class="bi bi-magic me-1"></i>Run AI Prediction</a>
+        <div class="fs-xs text-muted mt-2">Runs 5m–1D ensemble models — ~30s total</div>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="section-card mt-3">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-info-circle text-accent"></i> Quick Stats</span></div>
+      <div class="section-card-body">
+        <div class="ag-qs-row"><span class="ag-qs-k">Market</span><span class="ag-qs-v" id="agQsMarket">All Markets</span></div>
+        <div class="ag-qs-row"><span class="ag-qs-k">Data Source</span><span class="ag-qs-v">Real-time</span></div>
+        <div class="ag-qs-row"><span class="ag-qs-k">Last Update</span><span class="ag-qs-v" id="agQsUpdate">—</span></div>
+        <div class="ag-qs-row"><span class="ag-qs-k">Status</span><span class="ag-qs-v" id="agQsStatus">—</span></div>
+      </div>
     </div>
   </div>
-  <div class="table-responsive">
-    <table class="smart-table">
-      <thead>
-        <tr>
-          <th>Time</th><th>Asset</th><th>Market</th><th>TF</th><th>Signal</th>
-          <th>Entry</th><th>Stop Loss</th><th>T1</th><th>R:R</th><th>Confidence</th>
-        </tr>
-      </thead>
-      <tbody id="signalsTableBody">
-        <tr id="emptyRow">
-          <td colspan="10" class="text-center py-5 text-muted">
-            <i class="bi bi-robot d-block mb-2" style="font-size:28px;opacity:0.4"></i>
-            Configure settings above and click <strong>Start Generating</strong>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
 </div>
 
-<!-- ── RUN LOG ────────────────────────────────────────────── -->
-<div class="section-card">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-terminal text-accent"></i> Run Log</span>
-    <button class="btn btn-outline-light btn-sm fs-xs" id="clearLogBtn">Clear Log</button>
-  </div>
-  <div id="runLog"
-    style="max-height:220px;overflow-y:auto;padding:12px 16px;font-size:12px;font-family:'Courier New',monospace;background:var(--bg-secondary);line-height:1.7">
-    <span class="text-muted">Waiting to start...</span>
-  </div>
-</div>
+<!-- (buttons / table / run log relocated into the left column below) -->
+
+<script>
+/* Populate the enhanced KPI strip, sentiment bar and quick-stats.
+   Purely additive — does not touch the auto-generate control logic. */
+(function () {
+  const S = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = v; };
+  async function agEnhance() {
+    if (typeof API === 'undefined') return;
+    const [summary, perf, pnl, heat, hist] = await Promise.all([
+      API.get('/signals/summary'), API.get('/signals/performance'),
+      API.get('/signals/open-pnl'), API.get('/market-data/heatmap'),
+      API.get('/signals/history', { per_page: 100 }),
+    ]);
+    const ov = perf?.overall || {};
+    const buy = summary?.buy_today ?? 0, sell = summary?.sell_today ?? 0, hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
+    S('agKpiGen', buy + sell + hold + exit);
+    S('agKpiActive', summary?.open_alerts ?? (buy + sell + hold + exit));
+    S('agKpiWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
+    S('agKpiWinSub', 'n = ' + (ov.total ?? 0));
+    if (Array.isArray(pnl) && pnl.length) {
+      const avg = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0) / pnl.length;
+      const el = document.getElementById('agKpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
+      S('agKpiPnlSub', pnl.length + ' open');
+    }
+    // Avg R:R (payoff) from closed history
+    const pnls = (hist?.history || []).map(h => h.pnl_pct || 0);
+    const wins = pnls.filter(p => p > 0), losses = pnls.filter(p => p < 0);
+    const aw = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0;
+    const al = losses.length ? Math.abs(losses.reduce((a, b) => a + b, 0) / losses.length) : 0;
+    S('agKpiRR', al > 0 ? '1:' + (aw / al).toFixed(2) : '—');
+    // Sentiment + volatility
+    const rows = heat?.heatmap || [];
+    if (rows.length) {
+      const ch = rows.map(r => r.change_pct || 0); const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
+      const std = Math.sqrt(ch.reduce((a, b) => a + (b - avg) ** 2, 0) / ch.length);
+      const score = Math.round(Math.max(0, Math.min(100, 50 + avg * 12)));
+      const slbl = score >= 55 ? 'Bullish' : score >= 45 ? 'Neutral' : 'Bearish';
+      const se = document.getElementById('agKpiSent'); if (se) { se.textContent = `${slbl} (${score})`; se.className = 'kpi-value ' + (score >= 55 ? 'text-green' : score >= 45 ? 'text-yellow' : 'text-red'); }
+      const vlbl = std > 2 ? 'High' : std > 1 ? 'Moderate' : 'Low';
+      const ve = document.getElementById('agKpiVol'); if (ve) { ve.textContent = vlbl; ve.className = 'kpi-value ' + (std > 2 ? 'text-red' : std > 1 ? 'text-yellow' : 'text-green'); }
+      // sidebar sentiment bar
+      const mk = document.getElementById('agSentMarker'); if (mk) mk.style.left = score + '%';
+      const ss = document.getElementById('agSentScore'); if (ss) { ss.textContent = score; ss.style.color = score >= 55 ? 'var(--green)' : score >= 45 ? 'var(--yellow)' : 'var(--red)'; }
+      S('agSentLabel', slbl);
+      const bull = rows.filter(r => (r.change_pct || 0) > 0.1).length, bear = rows.filter(r => (r.change_pct || 0) < -0.1).length;
+      S('agBull', Math.round(bull / rows.length * 100) + '%'); S('agBear', Math.round(bear / rows.length * 100) + '%');
+    }
+    // quick stats
+    S('agQsMarket', document.getElementById('cfgMarketLabel')?.textContent || 'All Markets');
+    S('agQsUpdate', new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) + ' IST');
+    S('agQsStatus', document.getElementById('statusLabel')?.textContent || '—');
+  }
+  document.addEventListener('app:ready', agEnhance);
+  // Fallback: the inline script may register after app:ready has already fired,
+  // so also kick off shortly after load (agEnhance is idempotent).
+  setTimeout(function () { agEnhance(); setInterval(agEnhance, 60000); }, 1200);
+})();
+</script>
 {% endblock %}
 
 {% block extra_js %}

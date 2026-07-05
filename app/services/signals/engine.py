@@ -152,6 +152,7 @@ class SignalEngine:
                 "reasoning":         " | ".join(reasons),
                 "volatility_regime": vol_regime,
                 "higher_tf_bias":    higher_bias,
+                "regime":            self._regime_label(higher_bias, vol_regime, raw_direction),
                 "expires_at":        datetime.utcnow() + timedelta(minutes=expiry_min),
             }
 
@@ -168,6 +169,24 @@ class SignalEngine:
             return True  # 24/7 market (crypto)
         now_utc = datetime.now(timezone.utc).hour
         return any(start <= now_utc < end for start, end in windows)
+
+    # ──────────────────────────────────────────────────────
+    # Combined market-regime label (trend × volatility)
+    # ──────────────────────────────────────────────────────
+    @staticmethod
+    def _regime_label(higher_bias: str | None, vol_regime: str, direction: str) -> str:
+        """A discrete regime tag combining macro trend and volatility, e.g.
+        'uptrend_normal', 'downtrend_elevated', 'sideways_normal'.
+
+        Trend is taken from the higher-timeframe bias when known, else inferred
+        from the signal direction. Additive metadata only — it does not change
+        which signals are produced, so it has no effect on win rate."""
+        trend = {"bullish": "uptrend", "bearish": "downtrend"}.get(higher_bias or "")
+        if trend is None:
+            # no higher-TF context — fall back to the signal's own direction
+            trend = {"BUY": "uptrend", "SELL": "downtrend"}.get(direction, "sideways")
+        vol = vol_regime if vol_regime in ("normal", "elevated") else "normal"
+        return f"{trend}_{vol}"
 
     # ──────────────────────────────────────────────────────
     # Stage 2 — Volatility regime gate

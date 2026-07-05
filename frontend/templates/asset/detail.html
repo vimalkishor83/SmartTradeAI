@@ -414,6 +414,104 @@
     </div>
   </div>
 </div>
+
+<!-- ══ Bottom row: Heatmap / Top Opportunities / AI Performance ══ -->
+<div class="row g-3 mt-1" id="adBottomRow">
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent me-1"></i>Market Heatmap</span><span class="badge-tag">AI Score</span></div>
+      <div class="ai-heat-grid" id="adHeatGrid"><div class="text-muted small p-3">Loading…</div></div>
+      <div class="ai-heat-legend px-3 pb-2">
+        <span><span class="dot" style="background:var(--green)"></span>80+ Strong Buy</span>
+        <span><span class="dot" style="background:#4ade80"></span>60-79 Buy</span>
+        <span><span class="dot" style="background:var(--yellow)"></span>40-59 Hold</span>
+        <span><span class="dot" style="background:#f87171"></span>20-39 Sell</span>
+        <span><span class="dot" style="background:var(--red)"></span>0-19 Strong Sell</span>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bullseye text-accent me-1"></i>Top Opportunities</span><a href="/signals" class="text-accent fs-xs" style="text-decoration:none">View All</a></div>
+      <div class="section-card-body" id="adTopOpps"><div class="text-muted fs-sm">Scanning…</div></div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Performance</span><span class="badge-tag">7 Days</span></div>
+      <div class="section-card-body">
+        <div class="row g-2 mb-2 text-center">
+          <div class="col-4"><div class="qs-label">Win Rate</div><div class="fw-800 text-green" id="adApWin">—</div></div>
+          <div class="col-4"><div class="qs-label">Profit Factor</div><div class="fw-800" id="adApPF">—</div></div>
+          <div class="col-4"><div class="qs-label">Total Trades</div><div class="fw-800" id="adApTrades">—</div></div>
+        </div>
+        <div class="chart-wrapper-sm"><canvas id="adApChart"></canvas></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Asset-detail bottom row — additive, reuses shared endpoints. */
+(function () {
+  const _cv = (n, f) => (getComputedStyle(document.documentElement).getPropertyValue(n) || f).trim();
+  const S = (id, v) => { const el = document.getElementById(id); if (el && v != null) el.textContent = v; };
+  let _adAp = null;
+
+  async function adHeat() {
+    const grid = document.getElementById('adHeatGrid'); if (!grid || typeof API === 'undefined') return;
+    const sig = await API.get('/signals/', { per_page: 40 });
+    const bySym = {};
+    (sig?.signals || []).forEach(s => { const k = s.asset; if (!bySym[k] || (s.confidence_score || 0) > bySym[k].confidence_score) bySym[k] = s; });
+    let items = Object.values(bySym).map(s => { const c = s.confidence_score || 0; const score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50; return { symbol: s.asset, id: s.asset_id, score: Math.round(score) }; });
+    items = items.sort((a, b) => b.score - a.score).slice(0, 10);
+    if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI data</div>'; return; }
+    grid.innerHTML = items.map(it => {
+      const s = it.score; const label = s >= 80 ? 'STRONG BUY' : s >= 60 ? 'BUY' : s >= 40 ? 'HOLD' : s >= 20 ? 'SELL' : 'STRONG SELL';
+      const bg = s >= 80 ? 'rgba(16,185,129,.22)' : s >= 60 ? 'rgba(74,222,128,.16)' : s >= 40 ? 'rgba(245,158,11,.16)' : s >= 20 ? 'rgba(248,113,113,.16)' : 'rgba(239,68,68,.22)';
+      const bd = s >= 60 ? 'var(--green)' : s >= 40 ? 'var(--yellow)' : 'var(--red)';
+      return `<div class="ai-heat-cell" style="background:${bg};border-color:${bd}33" onclick="location='/asset/${it.id}'"><div class="ahc-sym">${it.symbol}</div><div class="ahc-score" style="color:${bd}">${s}</div><div class="ahc-lbl">${label}</div></div>`;
+    }).join('');
+  }
+
+  async function adOpps() {
+    const el = document.getElementById('adTopOpps'); if (!el) return;
+    const data = await API.get('/signals/', { per_page: 20 });
+    const seen = new Set();
+    const top = (data?.signals || []).filter(s => { if (!s.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
+      .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0)).slice(0, 5);
+    if (!top.length) { el.innerHTML = '<div class="text-muted fs-sm">No opportunities</div>'; return; }
+    el.innerHTML = top.map((s, i) => { const conf = s.confidence_score || 0; const rr = parseFloat(s.risk_reward);
+      return `<div class="opp-list-row" onclick="location='/asset/${s.asset_id}'"><span class="opp-rank">${i + 1}</span><span class="opp-list-name">${s.asset}</span>${typeof signalBadge === 'function' ? signalBadge(s.signal_type) : ''}<span class="opp-list-conf" style="color:${conf >= 70 ? 'var(--green)' : 'var(--yellow)'}">${conf.toFixed(0)}%</span><span class="opp-list-rr">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span id="adopk_${s.id}" class="opp-list-spark"></span></div>`;
+    }).join('');
+    top.forEach(s => { const e = document.getElementById(`adopk_${s.id}`); if (e && typeof Sparkline !== 'undefined') Sparkline.load(e, s.asset_id, s.timeframe || '1h'); });
+  }
+
+  async function adPerf() {
+    const [perf, hist] = await Promise.all([API.get('/signals/performance'), API.get('/signals/history', { per_page: 100 })]);
+    const ov = perf?.overall || {};
+    S('adApWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
+    S('adApPF', ov.profit_factor != null ? (+ov.profit_factor).toFixed(2) : '—');
+    S('adApTrades', ov.total ?? '—');
+    const rows = (hist?.history || []).slice().reverse();
+    if (!rows.length) return;
+    const byDay = {}; rows.forEach(r => { const d = (r.closed_at || '').slice(0, 10); if (d) (byDay[d] = byDay[d] || []).push(r); });
+    const days = Object.keys(byDay).sort().slice(-7);
+    const wr = days.map(d => { const a = byDay[d]; return Math.round(a.filter(x => (x.pnl_pct || 0) > 0).length / a.length * 100); });
+    const rr = days.map(d => { const a = byDay[d]; const w = a.filter(x => (x.pnl_pct || 0) > 0).map(x => x.pnl_pct); const l = a.filter(x => (x.pnl_pct || 0) < 0).map(x => Math.abs(x.pnl_pct)); const aw = w.length ? w.reduce((p, q) => p + q, 0) / w.length : 0; const al = l.length ? l.reduce((p, q) => p + q, 0) / l.length : 1; return +(aw / al).toFixed(2); });
+    const ctx = document.getElementById('adApChart'); if (!ctx || typeof Chart === 'undefined') return;
+    if (_adAp) _adAp.destroy();
+    _adAp = new Chart(ctx, { type: 'line', data: { labels: days.map(d => d.slice(5)), datasets: [
+      { label: 'Win Rate', data: wr, borderColor: _cv('--green', '#10b981'), yAxisID: 'y', tension: .3, pointRadius: 2, borderWidth: 2 },
+      { label: 'Avg R:R', data: rr, borderColor: _cv('--accent', '#6366f1'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 } ] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } }, scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, y1: { position: 'right', min: 0, grid: { display: false } } } } });
+  }
+
+  function adBottom() { if (typeof API === 'undefined') return; adHeat(); adOpps(); adPerf(); }
+  document.addEventListener('app:ready', adBottom);
+  setTimeout(adBottom, 1400);
+})();
+</script>
 {% endblock %}
 
 {% block extra_js %}

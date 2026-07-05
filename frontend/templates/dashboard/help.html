@@ -3,6 +3,31 @@
 {% block breadcrumb %}<i class="bi bi-question-circle me-1"></i> Help & FAQ{% endblock %}
 
 {% block content %}
+<style>
+/* ── Help & FAQ — scoped color accents ─────────────────────────── */
+.help-doc .section-card{border-left:3px solid var(--accent);position:relative;overflow:hidden}
+.help-doc .section-card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--accent),transparent);opacity:.5}
+.help-doc .section-card-header{background:linear-gradient(90deg,rgba(99,102,241,.10),transparent);
+  border-bottom:1px solid var(--border)}
+.help-doc .section-card-title{font-size:1.05rem}
+/* colored sub-headings inside each section */
+.help-doc .section-card-body h6{color:var(--accent-light);font-weight:700;letter-spacing:.01em;
+  display:flex;align-items:center;gap:7px;margin-top:1rem}
+.help-doc .section-card-body h6::before{content:"";width:6px;height:6px;border-radius:2px;
+  background:var(--accent);flex-shrink:0}
+.help-doc .section-card-body h6:first-child{margin-top:0}
+/* keep bullet key-terms readable + lively */
+.help-doc .section-card-body strong{color:var(--text-primary)}
+.help-doc li{margin-bottom:.3rem}
+/* per-section left-border tints keyed off the header icon colour */
+.help-doc #signals,.help-doc #scanner{border-left-color:var(--yellow)}
+.help-doc #ta-summary{border-left-color:var(--blue,#3b82f6)}
+.help-doc #mtf,.help-doc #risk{border-left-color:var(--green)}
+.help-doc #signals .section-card-header,.help-doc #scanner .section-card-header{background:linear-gradient(90deg,rgba(245,158,11,.10),transparent)}
+.help-doc #mtf .section-card-header,.help-doc #risk .section-card-header{background:linear-gradient(90deg,rgba(16,185,129,.10),transparent)}
+</style>
+<div class="help-doc">
 <div class="page-header mb-4">
   <div>
     <span class="page-eyebrow">Account</span>
@@ -341,6 +366,7 @@
 
   </div>
 </div>
+</div><!-- /.help-doc -->
 
 {% endblock %}
 
