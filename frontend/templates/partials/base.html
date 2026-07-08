@@ -85,7 +85,7 @@
         <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
           <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
         </a>
-        <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active == 'commodities' or active == 'gold' or active == 'silver' %}active{% endif %}">
+        <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active in ['commodity', 'commodities', 'gold', 'silver'] %}active{% endif %}">
           <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
         </a>
         <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">

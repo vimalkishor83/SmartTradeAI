@@ -12,7 +12,8 @@
   </div>
   <div class="dash-header-actions">
     <select class="form-select form-select-sm" id="tfFilter" style="width:auto">
-      <option value="15m">15 Min</option><option value="1h" selected>1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
+      <option value="" selected>All Timeframes</option>
+      <option value="15m">15 Min</option><option value="30m">30 Min</option><option value="1h">1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
     </select>
     <select class="form-select form-select-sm" id="typeFilter" style="width:auto">
       <option value="">All Signals</option><option value="BUY">Buy</option><option value="SELL">Sell</option><option value="HOLD">Hold</option>
@@ -43,34 +44,7 @@
   <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Index</div><div class="kpi-value" id="kpiVol" style="font-size:19px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-activity"></i></div></div><div class="kpi-change">current regime</div></div>
 </div>
 
-<!-- Live Signals + Market Sentiment -->
-<div class="row g-3 mb-3">
-  <div class="col-xl-8">
-    <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals <span class="badge-tag ms-1" id="liveCount">—</span></span></div>
-      <div class="table-responsive">
-        <table class="smart-table signals-table-adv">
-          <thead><tr><th>Asset</th><th>Market</th><th>Signal</th><th>TF</th><th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>Confidence</th><th>R:R</th><th>Age</th><th>Status</th></tr></thead>
-          <tbody id="liveBody"><tr><td colspan="12" class="text-center text-muted py-5">Loading signals…</td></tr></tbody>
-        </table>
-      </div>
-      <div class="px-3 py-2" style="border-top:1px solid var(--border)"><a href="/signals" class="btn btn-sm btn-outline-secondary">View All Signals <i class="bi bi-arrow-right ms-1"></i></a></div>
-    </div>
-  </div>
-  <div class="col-xl-4">
-    <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-speedometer2 text-accent me-1"></i>Market Sentiment</span></div>
-      <div class="section-card-body">
-        <div class="text-center"><div class="sent-gauge"><canvas id="mktGauge" width="170" height="100"></canvas><div class="sent-gauge-val" id="mktSentScore">—</div></div><div class="sent-gauge-lbl" id="mktSentLabel">—</div></div>
-        <div class="sent-counts" id="sentCounts"></div>
-        <div class="fs-xs text-muted mt-3 mb-2">By Market</div>
-        <div id="mktByMarket"></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Heatmap + Top Opportunities + AI Performance -->
+<!-- Row 1: Market Heatmap + AI Performance + Market Sentiment -->
 <div class="row g-3 mb-3">
   <div class="col-lg-4">
     <div class="section-card h-100">
@@ -87,12 +61,6 @@
   </div>
   <div class="col-lg-4">
     <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bullseye text-accent me-1"></i>Top Opportunities</span><a href="/signals" class="text-accent fs-xs" style="text-decoration:none">View All</a></div>
-      <div class="section-card-body" id="topOpps"><div class="text-muted fs-sm">Scanning…</div></div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Performance</span><span class="badge-tag">7 Days</span></div>
       <div class="section-card-body">
         <div class="row g-2 mb-2 text-center">
@@ -102,6 +70,39 @@
         </div>
         <div class="chart-wrapper-sm"><canvas id="apChart"></canvas></div>
       </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-speedometer2 text-accent me-1"></i>Market Sentiment</span></div>
+      <div class="section-card-body">
+        <div class="text-center"><div class="sent-gauge"><canvas id="mktGauge" width="170" height="100"></canvas><div class="sent-gauge-val" id="mktSentScore">—</div></div><div class="sent-gauge-lbl" id="mktSentLabel">—</div></div>
+        <div class="sent-counts" id="sentCounts"></div>
+        <div class="fs-xs text-muted mt-3 mb-2">By Market</div>
+        <div id="mktByMarket"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Row 2: Live Signals + Top Opportunities -->
+<div class="row g-3 mb-3">
+  <div class="col-xl-8">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals <span class="badge-tag ms-1" id="liveCount">—</span></span></div>
+      <div class="table-responsive">
+        <table class="smart-table signals-table-adv">
+          <thead><tr><th>Asset</th><th>Market</th><th>Signal</th><th>TF</th><th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>Confidence</th><th>R:R</th><th>Age</th><th>Status</th></tr></thead>
+          <tbody id="liveBody"><tr><td colspan="12" class="text-center text-muted py-5">Loading signals…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="px-3 py-2" style="border-top:1px solid var(--border)"><a href="/signals" class="btn btn-sm btn-outline-secondary">View All Signals <i class="bi bi-arrow-right ms-1"></i></a></div>
+    </div>
+  </div>
+  <div class="col-xl-4">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bullseye text-accent me-1"></i>Top Opportunities</span><a href="/signals" class="text-accent fs-xs" style="text-decoration:none">View All</a></div>
+      <div class="section-card-body" id="topOpps"><div class="text-muted fs-sm">Scanning…</div></div>
     </div>
   </div>
 </div>

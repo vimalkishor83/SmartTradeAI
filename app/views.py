@@ -31,8 +31,11 @@ def register():
 
 @views_bp.route("/markets/<market>")
 def markets(market):
+    # Normalize the plural URL slug to the canonical data slug so Commodities
+    # uses the same Markets Overview (index.html) as every other market and its
+    # tab / signal filter (market=commodity) line up.
     if market == "commodities":
-        return render_template("markets/commodities.html", market="commodities")
+        market = "commodity"
     return render_template("markets/index.html", market=market)
 
 

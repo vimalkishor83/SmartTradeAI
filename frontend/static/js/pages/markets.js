@@ -26,8 +26,9 @@ async function loadKPIs() {
     mset('kpiPnlSub', pnl.length + ' open');
   } else mset('kpiPnl', '—');
 
-  // sentiment + volatility from heatmap
-  const rows = heat?.heatmap || [];
+  // sentiment + volatility from heatmap — scoped to the selected market tab
+  // (All Markets -> whole market; a specific tab -> that market only)
+  const rows = (heat?.heatmap || []).filter(r => !_filter || r.market === _filter);
   if (rows.length) {
     const ch = rows.map(r => r.change_pct || 0);
     const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
@@ -54,9 +55,15 @@ function loadSentimentPanel(rows, score, label) {
     <div class="sc-item sc-bull"><div class="sc-lbl">Bullish</div><div class="sc-val">${bull}</div></div>
     <div class="sc-item sc-neu"><div class="sc-lbl">Neutral</div><div class="sc-val">${neu}</div></div>
     <div class="sc-item sc-bear"><div class="sc-lbl">Bearish</div><div class="sc-val">${bear}</div></div>`;
-  const markets = {}; rows.forEach(r => { (markets[r.market] = markets[r.market] || []).push(r.change_pct || 0); });
+  // "By Market" breakdown only makes sense on the All-Markets view; hide it
+  // (and its label) when a single market tab is selected.
   const bm = document.getElementById('mktByMarket');
-  if (bm) bm.innerHTML = Object.entries(markets).map(([m, arr]) => {
+  const bmLabel = bm ? bm.previousElementSibling : null;
+  const showByMarket = !_filter;
+  if (bm) bm.style.display = showByMarket ? '' : 'none';
+  if (bmLabel && bmLabel.textContent.trim().toLowerCase() === 'by market') bmLabel.style.display = showByMarket ? '' : 'none';
+  const markets = {}; rows.forEach(r => { (markets[r.market] = markets[r.market] || []).push(r.change_pct || 0); });
+  if (bm && showByMarket) bm.innerHTML = Object.entries(markets).map(([m, arr]) => {
     const a = arr.reduce((x, y) => x + y, 0) / arr.length; const sc = Math.round(Math.max(5, Math.min(95, 50 + a * 12)));
     const clr = sc >= 55 ? 'var(--green)' : sc >= 45 ? 'var(--yellow)' : 'var(--red)';
     return `<div class="sbm-row"><span class="sbm-name">${mktLabel(m)}</span><div class="sbm-track"><div class="sbm-fill" style="width:${sc}%;background:${clr}"></div></div><span class="sbm-val">${sc}</span></div>`;
@@ -80,7 +87,7 @@ async function loadLiveSignals() {
   _liveSignals = data?.signals || [];
   mset('liveCount', (data?.total || 0) + ' active');
   loadTopOpps(_liveSignals);
-  loadConsensus(_liveSignals);
+  // consensus is computed from the full scored universe in loadAiHeat()
   const tb = document.getElementById('liveBody');
   if (!tb) return;
   const search = (document.getElementById('assetSearch')?.value || '').toLowerCase();
@@ -131,26 +138,47 @@ function loadTopOpps(signals) {
 }
 
 /* ── AI Score Heatmap ──
-   Scores each asset from its live signal (BUY→confidence, SELL→100-confidence,
-   HOLD→50), which reflects the AI's directional conviction. Falls back to the
-   ai-summary model output when no signal exists for an asset. */
+   Shows EVERY asset in the selected market, each with a score. Score source,
+   in priority order: (1) live signal conviction (BUY→conf, SELL→100-conf,
+   HOLD→50), (2) AI model prediction from ai-summary, (3) price-change fallback
+   so no asset is ever missing a score. */
 async function loadAiHeat() {
   const grid = document.getElementById('aiHeatGrid'); if (!grid) return;
   const params = { per_page: 40 }; if (_filter) params.market = _filter;
-  const [sig, ai] = await Promise.all([API.get('/signals/', params), API.get('/market-data/ai-summary')]);
-  // best (highest-confidence) signal per asset
+  const [sig, ai, heat] = await Promise.all([
+    API.get('/signals/', params), API.get('/market-data/ai-summary'), API.get('/market-data/heatmap'),
+  ]);
+  // best (highest-confidence) active signal per symbol
   const bySym = {};
-  (sig?.signals || []).forEach(s => { if (!bySym[s.symbol || s.asset] || (s.confidence_score || 0) > bySym[s.symbol || s.asset].confidence_score) bySym[s.symbol || s.asset] = s; });
-  let items = Object.values(bySym).map(s => {
-    const c = s.confidence_score || 0;
-    const score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50;
-    return { symbol: s.asset, id: s.asset_id, score: Math.round(score) };
+  (sig?.signals || []).forEach(s => { const k = s.asset; if (!bySym[k] || (s.confidence_score || 0) > bySym[k].confidence_score) bySym[k] = s; });
+  // AI-model prediction per symbol
+  const aiMap = {}; (ai?.assets || []).forEach(a => { aiMap[a.symbol] = a; });
+  // universe = every asset in the market (from the live heatmap feed)
+  const universe = (heat?.heatmap || []).filter(r => !_filter || r.market === _filter);
+  let items = universe.map(r => {
+    let score;
+    const s = bySym[r.symbol];
+    if (s) {                                                  // 1) live signal
+      const c = s.confidence_score || 0;
+      score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50;
+    } else {                                                  // 2) AI prediction
+      const a = aiMap[r.symbol];
+      const tf = a && (a.tf?.['1h'] || Object.values(a.tf || {})[0]);
+      if (tf && tf.confidence != null) {
+        score = tf.direction === 'bullish' ? tf.confidence : tf.direction === 'bearish' ? 100 - tf.confidence : 50;
+      } else {                                                // 3) price-change fallback
+        score = 50 + (r.change_pct || 0) * 8;
+      }
+    }
+    return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, score))) };
   });
-  if (!items.length) { // fallback to ai-summary
+  if (!items.length) { // last-resort fallback to ai-summary universe
     let assets = ai?.assets || []; if (_filter) assets = assets.filter(a => a.market === _filter);
     items = assets.map(a => { const tf = a.tf?.['1h'] || Object.values(a.tf || {})[0] || {}; return { symbol: a.symbol, id: a.id, score: Math.round(tf.confidence ?? 50) }; });
   }
-  items = items.sort((a, b) => b.score - a.score).slice(0, 15);
+  items = items.sort((a, b) => b.score - a.score);
+  loadConsensus(items);                 // consensus from every scored asset
+  items = items.slice(0, 24);
   if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI data</div>'; return; }
   grid.innerHTML = items.map(it => {
     const score = it.score;
@@ -163,10 +191,12 @@ async function loadAiHeat() {
 }
 
 /* ── AI Model Consensus donut ── */
-function loadConsensus(signals) {
-  const buy = signals.filter(s => s.signal_type === 'BUY').length;
-  const sell = signals.filter(s => s.signal_type === 'SELL').length;
-  const hold = signals.filter(s => s.signal_type === 'HOLD' || s.signal_type === 'EXIT').length;
+// items: scored asset universe [{score}] from the AI heatmap (buy>=60, hold 40-59, sell<40)
+function loadConsensus(items) {
+  const scored = (items || []).filter(x => typeof x.score === 'number');
+  const buy = scored.filter(x => x.score >= 60).length;
+  const hold = scored.filter(x => x.score >= 40 && x.score < 60).length;
+  const sell = scored.filter(x => x.score < 40).length;
   const tot = buy + sell + hold || 1;
   const pct = Math.round(buy / tot * 100);
   mset('consensusPct', pct + '%');

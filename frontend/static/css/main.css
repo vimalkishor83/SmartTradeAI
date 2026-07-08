@@ -2172,3 +2172,11 @@ select option { background: var(--bg-secondary); color: var(--text-primary); }
 /* white data cells app-wide (standing rule) */
 .smart-table tbody td{color:#fff}
 .smart-table tbody td .text-muted,.smart-table tbody td small.text-muted{color:var(--text-muted)}
+
+/* ═══ Key Levels asset picker ═════════════════════════════════════ */
+.kl-config{margin:8px 14px 0;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--bg-secondary)}
+.kl-config-title{font-size:12px;font-weight:700;color:var(--text-primary);margin-bottom:8px}
+.kl-config-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:6px 12px;max-height:180px;overflow-y:auto;margin-bottom:10px}
+.kl-chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;white-space:nowrap}
+.kl-chk input{accent-color:var(--accent);cursor:pointer}
+.kl-config-actions{display:flex;gap:8px}

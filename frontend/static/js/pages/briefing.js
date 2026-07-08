@@ -146,17 +146,59 @@ function loadCrypto(rows) {
 function _abbrev(n) { if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n); }
 
 /* ── Key Levels to Watch ──────────────────────────────────────── */
+const KL_KEY = 'briefing_key_levels';   // localStorage: user's chosen assets
+let _allLevelRows = [];
+
+function _klSaved() {
+  try { const v = JSON.parse(localStorage.getItem(KL_KEY)); return (Array.isArray(v) && v.length) ? v : null; }
+  catch (_) { return null; }
+}
+
 function loadLevels(rows) {
-  const pref = ['BTCUSDT', 'ETHUSDT', 'XAUUSD', 'NIFTY50'];
-  _levelAssets = pref.map(sym => rows.find(r => r.symbol === sym)).filter(Boolean);
+  _allLevelRows = rows;
+  const wanted = _klSaved() || ['BTCUSDT', 'ETHUSDT', 'XAUUSD', 'NIFTY50'];
+  _levelAssets = wanted.map(sym => rows.find(r => r.symbol === sym)).filter(Boolean);
   if (!_levelAssets.length) _levelAssets = rows.slice(0, 4);
+  _renderLevelTabs();
+  if (_levelAssets[0]) _renderLevels(_levelAssets[0].symbol);
+}
+
+function _renderLevelTabs() {
   const tabs = document.getElementById('levelTabs');
-  if (tabs) tabs.innerHTML = _levelAssets.map((a, i) => `<button class="level-tab ${i === 0 ? 'active' : ''}" data-sym="${a.symbol}">${a.symbol}</button>`).join('');
-  document.querySelectorAll('.level-tab').forEach(t => t.addEventListener('click', () => {
-    document.querySelectorAll('.level-tab').forEach(x => x.classList.remove('active'));
+  if (!tabs) return;
+  tabs.innerHTML = _levelAssets.map((a, i) => `<button class="level-tab ${i === 0 ? 'active' : ''}" data-sym="${a.symbol}">${a.symbol}</button>`).join('');
+  tabs.querySelectorAll('.level-tab').forEach(t => t.addEventListener('click', () => {
+    tabs.querySelectorAll('.level-tab').forEach(x => x.classList.remove('active'));
     t.classList.add('active'); _renderLevels(t.dataset.sym);
   }));
-  if (_levelAssets[0]) _renderLevels(_levelAssets[0].symbol);
+}
+
+function _openKlConfig() {
+  const panel = document.getElementById('klConfigPanel');
+  if (!panel) return;
+  if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }   // toggle off
+  const selected = new Set(_levelAssets.map(a => a.symbol));
+  const syms = _allLevelRows.map(r => r.symbol);
+  panel.innerHTML = `
+    <div class="kl-config-title">Choose assets to show <span class="text-muted">(up to 6)</span></div>
+    <div class="kl-config-grid">${syms.map(s =>
+      `<label class="kl-chk"><input type="checkbox" value="${s}" ${selected.has(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
+    <div class="kl-config-actions">
+      <button class="btn btn-sm btn-primary" id="klSave"><i class="bi bi-check2 me-1"></i>Save</button>
+      <button class="btn btn-sm btn-outline-secondary" id="klCancel">Cancel</button>
+    </div>`;
+  panel.style.display = 'block';
+  document.getElementById('klCancel').addEventListener('click', () => { panel.style.display = 'none'; });
+  document.getElementById('klSave').addEventListener('click', () => {
+    const picked = [...panel.querySelectorAll('input:checked')].map(i => i.value).slice(0, 6);
+    if (!picked.length) { if (typeof toast === 'function') toast('Pick at least one asset', 'info'); return; }
+    localStorage.setItem(KL_KEY, JSON.stringify(picked));
+    _levelAssets = picked.map(sym => _allLevelRows.find(r => r.symbol === sym)).filter(Boolean);
+    _renderLevelTabs();
+    if (_levelAssets[0]) _renderLevels(_levelAssets[0].symbol);
+    panel.style.display = 'none';
+    if (typeof toast === 'function') toast('Key Levels assets updated', 'success');
+  });
 }
 
 async function _renderLevels(sym) {
@@ -303,5 +345,6 @@ document.addEventListener('app:ready', () => {
   loadAll();
   document.getElementById('briefRefresh')?.addEventListener('click', loadAll);
   document.getElementById('briefShare')?.addEventListener('click', shareBriefing);
+  document.getElementById('klConfigBtn')?.addEventListener('click', _openKlConfig);
   setInterval(loadAll, 120000);
 });

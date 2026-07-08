@@ -120,7 +120,11 @@
 
   <div class="col-lg-4">
     <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent me-1"></i>Key Levels to Watch</span></div>
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent me-1"></i>Key Levels to Watch</span>
+        <button class="btn btn-sm btn-outline-secondary" id="klConfigBtn" title="Choose which assets to show"><i class="bi bi-gear"></i></button>
+      </div>
+      <div id="klConfigPanel" class="kl-config" style="display:none"></div>
       <div class="px-3 pt-2"><div class="level-tabs" id="levelTabs"></div></div>
       <div class="section-card-body d-flex gap-3">
         <div class="levels-list" id="levelsList" style="min-width:130px"></div>
