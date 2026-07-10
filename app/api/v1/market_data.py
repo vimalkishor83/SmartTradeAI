@@ -1,7 +1,7 @@
 ﻿from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
-from app.auth.decorators import login_required
+from app.auth.decorators import login_required, subscription_feature_required
 from app.services.data.fetcher import market_fetcher
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.sentiment.engine import calculate_sentiment
@@ -336,6 +336,7 @@ def ema_summary_history():
 
 @market_data_bp.route("/ai-summary", methods=["GET"])
 @login_required
+@subscription_feature_required("ai_enabled")
 @limiter.limit("10 per minute;60 per hour")
 def ai_summary():
     """Batch AI predictions for all assets × key timeframes — powers the AI Ratings grid."""

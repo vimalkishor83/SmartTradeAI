@@ -40,7 +40,7 @@ def run_scan():
             continue
         try:
             ind = calculate_all_indicators(df)
-            match = _apply_filters(df, ind, filters)
+            match = _apply_filters(df, ind, filters, timeframe)
             if match:
                 close = float(df["close"].iloc[-1])
                 prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else close
@@ -60,7 +60,7 @@ def run_scan():
     return jsonify({"results": results, "count": len(results)}), 200
 
 
-def _apply_filters(df, ind, filters) -> list:
+def _apply_filters(df, ind, filters, timeframe: str = "1d") -> list:
     matched = []
     close = float(df["close"].iloc[-1])
     open_ = float(df["open"].iloc[-1])
@@ -86,8 +86,13 @@ def _apply_filters(df, ind, filters) -> list:
         "volume_spike": avg_vol > 0 and curr_vol > avg_vol * 2,
         "52w_high": close >= high_52 * 0.98,
         "52w_low": close <= low_52 * 1.02,
-        "gap_up": open_ > prev_close * 1.01,
-        "gap_down": open_ < prev_close * 0.99,
+        # A "gap" is conventionally an overnight/session gap, only
+        # meaningful on the daily timeframe — the previous "candle" close vs
+        # this candle's open on an intraday timeframe (5m/1h/etc.) is just
+        # ordinary intra-session price drift, not a gap by any trader's
+        # definition, and was flooding intraday scans with false positives.
+        "gap_up": timeframe == "1d" and open_ > prev_close * 1.01,
+        "gap_down": timeframe == "1d" and open_ < prev_close * 0.99,
         "rsi_oversold": rsi < 30,
         "rsi_overbought": rsi > 70,
     }
