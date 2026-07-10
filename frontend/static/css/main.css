@@ -113,6 +113,16 @@
   --card-bg:       var(--bg-card);
   --input-bg:      var(--bg-secondary);
   --surface-2:     var(--bg-secondary);
+
+  /* --green/--red/--yellow are tuned bright/pastel "for pop on dark
+     surfaces" (see their :root definitions) — on white cards those same
+     hues drop below WCAG AA contrast (e.g. --yellow #f5b544 on its own
+     --yellow-bg tint is ~1.8:1). Darken all three for light theme so every
+     rule built on these tokens (badges, heatmap tiles, signal/risk pills)
+     inherits legible text without needing a per-selector fix. */
+  --green:  #0f9d6e;
+  --red:    #dc2626;
+  --yellow: #b45309;
 }
 
 /* Light-theme contrast fixes for pastel status text that was tuned for a dark
@@ -1190,6 +1200,10 @@ select option { background: #131920; color: #e8edf5; }
 .badge.bg-danger   { background: rgba(239,68,68,0.2) !important;   color: #f87171 !important; border: 1px solid rgba(239,68,68,0.35) !important; }
 .badge.bg-warning  { background: rgba(245,158,11,0.2) !important;  color: #fbbf24 !important; border: 1px solid rgba(245,158,11,0.35) !important; }
 .badge.bg-info     { background: rgba(59,130,246,0.2) !important;  color: #93c5fd !important; border: 1px solid rgba(59,130,246,0.35) !important; }
+[data-theme="light"] .badge.bg-success { color: #0f9d6e !important; }
+[data-theme="light"] .badge.bg-danger  { color: #dc2626 !important; }
+[data-theme="light"] .badge.bg-warning { color: #b45309 !important; }
+[data-theme="light"] .badge.bg-info    { color: #1d4ed8 !important; }
 .badge.bg-primary  { background: rgba(99,102,241,0.2) !important;  color: var(--accent-light) !important; border: 1px solid rgba(99,102,241,0.35) !important; }
 .bg-glass { background: var(--bg-secondary) !important; color: var(--text-secondary) !important; border: 1px solid var(--border) !important; }
 
@@ -1617,6 +1631,13 @@ select option { background: #131920; color: #e8edf5; }
 .market-badge.commodity   { background: rgba(251,191,36,.15); color: #fbbf24; }
 .market-badge.indian_stock { background: rgba(16,185,129,.15); color: #10b981; }
 .market-badge.index       { background: rgba(59,130,246,.15);  color: #60a5fa; }
+[data-theme="light"] .market-badge.crypto,
+[data-theme="light"] .market-badge.gold,
+[data-theme="light"] .market-badge.silver,
+[data-theme="light"] .market-badge.commodity { color: #92400e; }
+[data-theme="light"] .market-badge.forex     { color: #4338ca; }
+[data-theme="light"] .market-badge.indian_stock { color: #047857; }
+[data-theme="light"] .market-badge.index     { color: #1d4ed8; }
 
 /* ════════════════════════════════════════════════════════════
    INFO / ALERT BOXES
@@ -2140,6 +2161,9 @@ select option { background: var(--bg-secondary); color: var(--text-primary); }
 .scan-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
 .scan-chip{background:var(--bg-input);border:1px solid var(--border);color:var(--text-secondary);font-size:12px;font-weight:600;padding:6px 13px;border-radius:8px;cursor:pointer;transition:.15s}
 .scan-chip.c-green{color:#4ade80}.scan-chip.c-red{color:#f87171}.scan-chip.c-yellow{color:#fbbf24}.scan-chip.c-blue{color:var(--accent-light)}
+[data-theme="light"] .scan-chip.c-green{color:#0f9d6e}
+[data-theme="light"] .scan-chip.c-red{color:#dc2626}
+[data-theme="light"] .scan-chip.c-yellow{color:#b45309}
 .scan-chip:hover{border-color:currentColor}
 .scan-chip.active{background:currentColor;border-color:currentColor}
 .scan-chip.active{color:#fff!important}
