@@ -117,21 +117,39 @@ def _delta_live_symbols() -> set[str]:
     cached = _delta_live_symbols._cache
     if cached and now - cached[1] < 600:  # 10 min TTL
         return cached[0]
-    try:
-        resp = requests.get(
-            "https://api.india.delta.exchange/v2/products",
-            params={"contract_types": "perpetual_futures"},
-            timeout=8,
-        )
-        resp.raise_for_status()
-        symbols = {
-            p["symbol"] for p in resp.json().get("result", [])
-            if p.get("symbol", "").endswith("USD") and p.get("state") == "live"
-        }
-        _delta_live_symbols._cache = (symbols, now)
-        return symbols
-    except Exception:
-        return cached[0] if cached else set()
+
+    # A cold-start cache miss (cached is None, e.g. right after process
+    # start) with no retry meant a single transient network blip made
+    # to_delta_symbol() return None for EVERY crypto symbol for every
+    # request that happened to land in that instant — a brief request-level
+    # blackout, not the 10-minute one the cache TTL alone might suggest
+    # (a failure never populates the cache, so the very next call retries
+    # immediately). Still worth a couple of quick retries within this one
+    # call so a single transient failure doesn't surface as "symbol not
+    # tradeable" to whichever requests happen to be in flight at that moment.
+    attempts = 1 if cached else 3
+    last_err = None
+    for attempt in range(attempts):
+        try:
+            resp = requests.get(
+                "https://api.india.delta.exchange/v2/products",
+                params={"contract_types": "perpetual_futures"},
+                timeout=8,
+            )
+            resp.raise_for_status()
+            symbols = {
+                p["symbol"] for p in resp.json().get("result", [])
+                if p.get("symbol", "").endswith("USD") and p.get("state") == "live"
+            }
+            _delta_live_symbols._cache = (symbols, now)
+            return symbols
+        except Exception as e:
+            last_err = e
+            if attempt < attempts - 1:
+                time.sleep(0.5 * (attempt + 1))
+
+    logger.debug(f"Delta symbol list fetch failed after {attempts} attempt(s): {last_err}")
+    return cached[0] if cached else set()
 
 
 _delta_live_symbols._cache = None
@@ -520,15 +538,28 @@ class MarketDataFetcher:
     def __init__(self):
         self.delta = DeltaExchangeFetcher()
         self.yahoo = YahooFetcher()
+        self.binance = BinanceFetcher()
 
     def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if asset.market == "crypto":
-            return self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
+            df = self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
+            if df is not None:
+                return df
+            # Delta was the sole crypto data source with no fallback — a
+            # Delta outage or a symbol it delists zeroed out ALL crypto data
+            # simultaneously, even though a fully-implemented Binance
+            # fetcher (public, no key needed) already existed unused.
+            # Binance's own symbol convention matches ours (BTCUSDT) with no
+            # translation needed, unlike Delta's BTCUSD.
+            return self.binance.fetch_ohlcv(asset.symbol, timeframe, limit)
         return self.yahoo.fetch_ohlcv(asset.symbol, timeframe, limit)
 
     def fetch_ticker(self, asset) -> dict | None:
         if asset.market == "crypto":
-            return self.delta.fetch_ticker(asset.symbol)
+            ticker = self.delta.fetch_ticker(asset.symbol)
+            if ticker is not None:
+                return ticker
+            return self.binance.fetch_ticker(asset.symbol)
         if not _YF_AVAILABLE:
             return None
         try:
@@ -552,9 +583,12 @@ class MarketDataFetcher:
 
         results: dict[str, dict[str, pd.DataFrame]] = {a.symbol: {} for a in assets}
 
-        # ── Delta Exchange: parallel per (symbol, tf) ────────────
+        # ── Delta Exchange: parallel per (symbol, tf), Binance fallback ──
         def _delta_fetch(asset, tf):
-            return asset.symbol, tf, self.delta.fetch_ohlcv(asset.symbol, tf, limit)
+            df = self.delta.fetch_ohlcv(asset.symbol, tf, limit)
+            if df is None:
+                df = self.binance.fetch_ohlcv(asset.symbol, tf, limit)
+            return asset.symbol, tf, df
 
         if delta_assets:
             with ThreadPoolExecutor(max_workers=min(20, len(delta_assets) * len(timeframes))) as ex:

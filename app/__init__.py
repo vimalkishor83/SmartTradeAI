@@ -170,6 +170,10 @@ def _migrate_columns(app):
         ("users",      "approval_status",      "TEXT    DEFAULT 'approved'"),
         ("watchlist_items", "alert_set_at_price", "REAL"),
         ("predictions", "entry_price", "REAL"),
+        ("watchlists",      "updated_at", "DATETIME"),
+        ("watchlist_items", "updated_at", "DATETIME"),
+        ("portfolios",      "updated_at", "DATETIME"),
+        ("portfolio_items", "updated_at", "DATETIME"),
         ("users",      "account_size",         "REAL    DEFAULT 100000.0"),
         ("users",      "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
         ("users",      "min_confidence_filter","INTEGER DEFAULT 60"),
@@ -213,6 +217,9 @@ def _migrate_columns(app):
         ("system_logs",    "idx_sys_logs_level_time",   "level, created_at"),
         ("journal_entries","idx_journal_user_date",     "user_id, trade_date"),
         ("api_logs",       "idx_api_logs_config_time",  "api_config_id, created_at"),
+        ("backtests",      "idx_backtests_user_created","user_id, created_at"),
+        ("predictions",    "idx_predictions_asset_tf",  "asset_id, timeframe, predicted_at"),
+        ("news",           "idx_news_published",        "published_at"),
     ]
 
     with app.app_context():

@@ -14,7 +14,8 @@ class News(db.Model):
     sentiment = db.Column(db.String(20))  # positive, negative, neutral
     sentiment_score = db.Column(db.Float)
     related_assets = db.Column(db.JSON, default=list)
-    published_at = db.Column(db.DateTime)
+    # Indexed: get_news() orders by published_at.desc() on every /news/ call.
+    published_at = db.Column(db.DateTime, index=True)
     fetched_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):

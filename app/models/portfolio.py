@@ -11,6 +11,7 @@ class Portfolio(db.Model):
     capital = db.Column(db.Float, default=0)
     currency = db.Column(db.String(10), default="INR")
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     items = db.relationship("PortfolioItem", backref="portfolio", lazy="dynamic", cascade="all, delete-orphan")
 
@@ -36,6 +37,10 @@ class PortfolioItem(db.Model):
     target = db.Column(db.Float)
     buy_date = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.String(255))
+    # Previously had no timestamp at all besides buy_date (the position's
+    # own entry date, not a row-modification audit trail) — made it
+    # impossible to tell when a position's stop/target/notes were last edited.
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     asset = db.relationship("Asset")
 

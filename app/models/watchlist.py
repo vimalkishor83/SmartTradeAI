@@ -11,6 +11,7 @@ class Watchlist(db.Model):
     description = db.Column(db.String(255))
     is_pinned = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     items = db.relationship("WatchlistItem", backref="watchlist", lazy="dynamic", cascade="all, delete-orphan")
 
@@ -29,5 +30,8 @@ class WatchlistItem(db.Model):
     alert_set_at_price = db.Column(db.Float)
     notes = db.Column(db.String(255))
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # Tracks alert-price edits — previously untracked, making it impossible
+    # to tell when/whether a user last changed their alert target.
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     asset = db.relationship("Asset")

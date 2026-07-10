@@ -6,7 +6,11 @@ class Backtest(db.Model):
     __tablename__ = "backtests"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    # Indexed: list_backtests() filters by user_id and sorts by created_at on
+    # every call (app/api/v1/backtesting.py) — Signal/Notification/AuditLog
+    # already have equivalent indexes for the same access pattern; Backtest
+    # was missing them.
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"))
     strategy_name = db.Column(db.String(100))
     timeframe = db.Column(db.String(10))
@@ -37,7 +41,7 @@ class Backtest(db.Model):
     equity_curve = db.Column(db.JSON, default=list)
     trades_data = db.Column(db.JSON, default=list)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     completed_at = db.Column(db.DateTime)
 
     asset = db.relationship("Asset")

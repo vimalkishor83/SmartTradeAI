@@ -6,8 +6,12 @@ class Prediction(db.Model):
     __tablename__ = "predictions"
 
     id = db.Column(db.Integer, primary_key=True)
-    asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
-    timeframe = db.Column(db.String(10), nullable=False)
+    # Composite index: get_prediction() (app/api/v1/predictions.py) filters
+    # on exactly (asset_id, timeframe, predicted_at range) on every call to
+    # a frequently-hit endpoint. Signal has an equivalent index
+    # (idx_signals_asset_tf) for the same pattern; Prediction didn't.
+    asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False, index=True)
+    timeframe = db.Column(db.String(10), nullable=False, index=True)
     model_name = db.Column(db.String(50))  # random_forest, xgboost, lgbm, lstm, ensemble
     bullish_probability = db.Column(db.Float)
     bearish_probability = db.Column(db.Float)
