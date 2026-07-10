@@ -22,6 +22,11 @@ class WatchlistItem(db.Model):
     watchlist_id = db.Column(db.Integer, db.ForeignKey("watchlists.id"), nullable=False)
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
     alert_price = db.Column(db.Float)
+    # Price at the moment the alert was set — lets the checker fire only on
+    # an actual *crossing* (price moves from one side of alert_price to the
+    # other, relative to where it started) instead of firing unconditionally
+    # the moment current_price is compared against alert_price at all.
+    alert_set_at_price = db.Column(db.Float)
     notes = db.Column(db.String(255))
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
 

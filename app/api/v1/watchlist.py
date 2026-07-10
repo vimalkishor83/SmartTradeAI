@@ -75,8 +75,22 @@ def add_to_watchlist(wl_id):
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
 
+    alert_price = data.get("alert_price")
+    alert_set_at_price = None
+    if alert_price:
+        # Record the price at the moment the alert is set so the checker can
+        # tell whether the current price has actually *crossed* alert_price
+        # (moved from one side to the other) rather than just comparing.
+        try:
+            from app.services.data.fetcher import market_fetcher
+            ticker = market_fetcher.fetch_ticker(asset)
+            if ticker and ticker.get("price"):
+                alert_set_at_price = float(ticker["price"])
+        except Exception:
+            pass
+
     item = WatchlistItem(watchlist_id=wl.id, asset_id=asset.id,
-                         alert_price=data.get("alert_price"))
+                         alert_price=alert_price, alert_set_at_price=alert_set_at_price)
     db.session.add(item)
     db.session.commit()
     return jsonify({"id": item.id, "symbol": asset.symbol}), 201

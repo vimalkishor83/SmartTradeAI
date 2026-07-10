@@ -144,6 +144,7 @@ def _init_db(app):
     with app.app_context():
         from app.models.user import UserAssetPreference  # ensure model is registered
         from app.models.journal import JournalEntry       # ensure journal table is created
+        from app.models.api_config import UserBrokerCredential  # ensure table is created
 
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):
@@ -167,6 +168,8 @@ def _migrate_columns(app):
     """Add new columns and indexes to existing tables (SQLite safe — skips if already present)."""
     column_migrations = [
         ("users",      "approval_status",      "TEXT    DEFAULT 'approved'"),
+        ("watchlist_items", "alert_set_at_price", "REAL"),
+        ("predictions", "entry_price", "REAL"),
         ("users",      "account_size",         "REAL    DEFAULT 100000.0"),
         ("users",      "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
         ("users",      "min_confidence_filter","INTEGER DEFAULT 60"),

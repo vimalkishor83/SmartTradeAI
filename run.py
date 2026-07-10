@@ -11,7 +11,15 @@ if __name__ == "__main__":
         app,
         host="0.0.0.0",
         port=port,
-        debug=os.environ.get("FLASK_ENV") == "development",
+        # Derive from the already-resolved app config instead of
+        # re-deriving from the raw FLASK_ENV env var — config.py defaults
+        # FLASK_ENV to "development" when unset, but this comparison did
+        # not, so leaving FLASK_ENV unset picked DevelopmentConfig
+        # (DEBUG=True) while still passing debug=False here. socketio.run()
+        # applies that debug flag back onto app.config["DEBUG"], silently
+        # flipping it to False at runtime regardless of which config class
+        # was actually loaded.
+        debug=app.config.get("DEBUG", False),
         use_reloader=False,
         log_output=True,
         allow_unsafe_werkzeug=True,

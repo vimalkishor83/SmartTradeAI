@@ -294,6 +294,7 @@ def prewarm_ai_cache(app):
                             predicted_direction=result["predicted_direction"],
                             predicted_target=result.get("predicted_target"),
                             predicted_stop=result.get("predicted_stop"),
+                            entry_price=float(df["close"].iloc[-1]),
                             confidence=result["confidence"],
                             valid_until=datetime.utcnow() + timedelta(hours=4),
                         )
@@ -365,9 +366,11 @@ def evaluate_expired_predictions(app):
                 if current_price is None:
                     continue
 
-                # Need a reference price at prediction time — use predicted_target/predicted_stop
-                # as a proxy for entry price around prediction time
-                ref_price = pred.predicted_target or pred.predicted_stop
+                # Reference price at prediction time: entry_price is the real
+                # close price captured when the prediction was made. Older
+                # rows created before this field existed fall back to the
+                # predicted_target/predicted_stop proxy used previously.
+                ref_price = pred.entry_price or pred.predicted_target or pred.predicted_stop
                 if not ref_price:
                     # Fallback: compare bullish vs bearish probability shift
                     pred.was_correct = (
@@ -679,9 +682,25 @@ def check_watchlist_alerts(app):
                 alert_price = float(item.alert_price)
                 symbol = asset.symbol
 
-                # Check if alert has been crossed (either direction)
-                # We store a flag by setting alert_price to None after firing
-                if current_price >= alert_price or current_price <= alert_price:
+                # Fire only on an actual *crossing*: the price must have
+                # started on one side of alert_price (at alert_set_at_price)
+                # and now be on the other side. Without this, comparing
+                # current_price against alert_price alone is a tautology
+                # (current_price is always either >= or <= alert_price) and
+                # every alert fired immediately on the very next poll,
+                # regardless of direction. Legacy rows with no
+                # alert_set_at_price recorded fall back to firing once the
+                # price is observed on either side, same as before.
+                if item.alert_set_at_price is not None:
+                    started_below = item.alert_set_at_price < alert_price
+                    crossed = (
+                        (started_below and current_price >= alert_price) or
+                        (not started_below and current_price <= alert_price)
+                    )
+                else:
+                    crossed = current_price >= alert_price or current_price <= alert_price
+
+                if crossed:
                     # Determine the watchlist owner
                     watchlist = Watchlist.query.get(item.watchlist_id)
                     if not watchlist:
@@ -750,6 +769,12 @@ def nightly_cleanup(app):
         week_ago   = now - timedelta(days=7)
         month_ago  = now - timedelta(days=30)
         two_months = now - timedelta(days=60)
+        # Audit logs (security/compliance trail: logins, signups, admin
+        # actions, account deletions) need to outlive routine system/debug
+        # logs by a lot — incident investigations and abuse reports often
+        # come in well after a week. System logs stay at 7 days (pure
+        # operational noise); audit logs get a full year.
+        audit_retention = now - timedelta(days=365)
 
         stats = {}
         try:
@@ -757,8 +782,8 @@ def nightly_cleanup(app):
             n = SystemLog.query.filter(SystemLog.created_at < week_ago).delete()
             stats["system_logs"] = n
 
-            # 2. Audit logs older than 7 days
-            n = AuditLog.query.filter(AuditLog.created_at < week_ago).delete()
+            # 2. Audit logs older than 1 year
+            n = AuditLog.query.filter(AuditLog.created_at < audit_retention).delete()
             stats["audit_logs"] = n
 
             # 3. Old news articles

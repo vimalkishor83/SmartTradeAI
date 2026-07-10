@@ -14,6 +14,12 @@ class Prediction(db.Model):
     predicted_direction = db.Column(db.String(10))  # bullish, bearish, neutral
     predicted_target = db.Column(db.Float)
     predicted_stop = db.Column(db.Float)
+    # The actual close price at the moment the prediction was made — the
+    # correct reference point for evaluating accuracy later. Previously
+    # missing entirely; evaluate_expired_predictions() fell back to using
+    # predicted_target/predicted_stop as a proxy "entry price", which isn't
+    # what those fields represent and skewed reported model accuracy.
+    entry_price = db.Column(db.Float)
     confidence = db.Column(db.Float)
     features_used = db.Column(db.JSON, default=list)
     predicted_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -34,6 +40,7 @@ class Prediction(db.Model):
             "bearish_probability": self.bearish_probability,
             "predicted_direction": self.predicted_direction,
             "predicted_target": self.predicted_target,
+            "entry_price": self.entry_price,
             "confidence": self.confidence,
             "predicted_at": self.predicted_at.isoformat(),
         }

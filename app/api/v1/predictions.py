@@ -63,6 +63,7 @@ def get_prediction(asset_id):
         predicted_direction=result["predicted_direction"],
         predicted_target=result["predicted_target"],
         predicted_stop=result["predicted_stop"],
+        entry_price=float(df["close"].iloc[-1]),
         confidence=result["confidence"],
         valid_until=datetime.utcnow() + timedelta(hours=4),
     )

@@ -254,6 +254,88 @@ def me():
     return jsonify(user.to_dict()), 200
 
 
+@auth_bp.route("/me/export", methods=["GET"])
+@login_required
+def export_my_data():
+    """Full personal-data export (GDPR/CCPA-style right to portability) —
+    every table that stores this user's data, as one JSON document."""
+    from app.models.watchlist import Watchlist
+    from app.models.portfolio import Portfolio
+    from app.models.backtest import Backtest
+    from app.models.journal import JournalEntry
+    from app.models.notification import Notification
+    from app.models.audit import AuditLog
+    from app.models.api_config import UserBrokerCredential
+
+    user = get_current_user()
+
+    watchlists = []
+    for wl in Watchlist.query.filter_by(user_id=user.id).all():
+        watchlists.append({
+            "name": wl.name,
+            "items": [{"symbol": i.asset.symbol if i.asset else None,
+                       "alert_price": i.alert_price} for i in wl.items.all()],
+        })
+
+    broker = UserBrokerCredential.query.filter_by(user_id=user.id).first()
+
+    export = {
+        "account": user.to_dict(),
+        "watchlists": watchlists,
+        "portfolio": [p.to_dict() for p in Portfolio.query.filter_by(user_id=user.id).all()],
+        "backtests": [b.to_dict() for b in Backtest.query.filter_by(user_id=user.id).all()],
+        "journal_entries": [j.to_dict() for j in JournalEntry.query.filter_by(user_id=user.id).all()],
+        "notifications": [n.to_dict() for n in Notification.query.filter_by(user_id=user.id).all()],
+        "audit_log": [{
+            "action": a.action, "resource": a.resource, "status": a.status,
+            "ip_address": a.ip_address, "created_at": a.created_at.isoformat() if a.created_at else None,
+        } for a in AuditLog.query.filter_by(user_id=user.id).all()],
+        # Broker connection status only — never the encrypted key/secret itself.
+        "broker_connection": {"provider": broker.provider, "is_active": broker.is_active} if broker else None,
+    }
+
+    _audit(user.id, "data_exported", "user", str(user.id))
+    return jsonify(export), 200
+
+
+@auth_bp.route("/me", methods=["DELETE"])
+@login_required
+def delete_my_account():
+    """Self-service account deletion. Requires current password confirmation
+    (prevents a hijacked session / CSRF-adjacent mistake from nuking an
+    account silently). Cascade-related tables (Watchlist, Portfolio,
+    Notification, Backtest) are removed via the User model's
+    cascade='all, delete-orphan' relationships; tables without a declared
+    relationship (JournalEntry, UserAssetPreference, UserBrokerCredential,
+    AuditLog) are deleted explicitly here first so the final user delete
+    doesn't fail on a lingering foreign key."""
+    from app.models.journal import JournalEntry
+    from app.models.user import UserAssetPreference
+    from app.models.api_config import UserBrokerCredential
+    from app.models.audit import AuditLog
+
+    user = get_current_user()
+    data = request.get_json() or {}
+    if not user.check_password(data.get("password", "")):
+        return jsonify({"error": "Password incorrect"}), 403
+
+    user_id = user.id
+    JournalEntry.query.filter_by(user_id=user_id).delete()
+    UserAssetPreference.query.filter_by(user_id=user_id).delete()
+    UserBrokerCredential.query.filter_by(user_id=user_id).delete()
+    # Audit rows keep user_id nullable specifically so a deletion audit trail
+    # can survive the account itself being removed — null the FK, don't delete.
+    AuditLog.query.filter_by(user_id=user_id).update({"user_id": None})
+
+    _audit(None, "account_deleted", "user", str(user_id))
+    db.session.delete(user)
+    db.session.commit()
+
+    response = jsonify({"message": "Account deleted"})
+    unset_jwt_cookies(response)
+    return response, 200
+
+
 @auth_bp.route("/me", methods=["PUT"])
 @login_required
 def update_profile():

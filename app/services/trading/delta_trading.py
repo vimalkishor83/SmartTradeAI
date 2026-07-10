@@ -171,28 +171,31 @@ class DeltaTradingClient:
                               body={"leverage": leverage})
 
 
-def get_configured_client() -> DeltaTradingClient:
-    """Load the active Delta Exchange trading APIConfig from the DB and
-    build a client. Raises DeltaTradingError with a clear message if none
-    is configured — callers surface this directly to the UI rather than a
-    generic 500."""
-    from app.models.api_config import APIConfig
+def get_configured_client(user_id: int) -> DeltaTradingClient:
+    """Load the CURRENT USER's own Delta Exchange trading credentials and
+    build a client. Every user brings their own key/secret — trading is
+    non-custodial and one user's credentials are never used to place
+    another user's order. Raises DeltaTradingError with a clear message if
+    the user hasn't connected an account yet — callers surface this
+    directly to the UI rather than a generic 500."""
+    from app.models.api_config import UserBrokerCredential
 
-    cfg = APIConfig.query.filter_by(
-        provider="delta_exchange", market="crypto", is_active=True
-    ).order_by(APIConfig.is_default.desc(), APIConfig.priority.desc()).first()
+    cred = UserBrokerCredential.query.filter_by(
+        user_id=user_id, provider="delta_exchange", is_active=True
+    ).first()
 
-    if not cfg:
+    if not cred:
         raise DeltaTradingError(
-            "No Delta Exchange API config found. Add one in Admin → API Configs."
+            "You haven't connected a Delta Exchange account yet. "
+            "Add your API key/secret in Settings → Broker Connection."
         )
 
-    api_key = cfg.get_api_key()
-    api_secret = cfg.get_api_secret()
+    api_key = cred.get_api_key()
+    api_secret = cred.get_api_secret()
     if not api_key or not api_secret:
         raise DeltaTradingError(
-            "Delta Exchange API config is missing a key/secret with trading "
-            "permission. Add your real credentials in Admin → API Configs."
+            "Your Delta Exchange connection is missing a key/secret with trading "
+            "permission. Reconnect it in Settings → Broker Connection."
         )
 
     return DeltaTradingClient(api_key, api_secret)

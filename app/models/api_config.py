@@ -123,6 +123,73 @@ class APIConfig(db.Model):
         }
 
 
+class UserBrokerCredential(db.Model):
+    """Per-user broker API credentials (currently Delta Exchange India only —
+    see app/services/trading/delta_trading.py). Deliberately a separate table
+    from APIConfig: APIConfig is shared/admin-managed data-feed & platform
+    trading config (market data providers, the old single shared trading
+    account), while this table is personal, per-user, non-custodial trading
+    credentials — one user's key can never be used to place another user's
+    order."""
+    __tablename__ = "user_broker_credentials"
+
+    id       = db.Column(db.Integer, primary_key=True)
+    user_id  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    provider = db.Column(db.String(50), nullable=False, default="delta_exchange")
+
+    api_key_encrypted    = db.Column(db.Text)
+    api_secret_encrypted = db.Column(db.Text)
+
+    is_active         = db.Column(db.Boolean, default=True)
+    connection_status = db.Column(db.String(20), default="unknown")  # ok, error, unknown
+    last_sync         = db.Column(db.DateTime)
+    last_latency_ms   = db.Column(db.Integer)
+    last_error         = db.Column(db.Text)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (db.UniqueConstraint("user_id", "provider", name="uq_user_broker_provider"),)
+
+    def set_api_key(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.api_key_encrypted = encrypt_value(plaintext) if plaintext else ""
+
+    def set_api_secret(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.api_secret_encrypted = encrypt_value(plaintext) if plaintext else ""
+
+    def get_api_key(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.api_key_encrypted:
+            return None
+        if not is_encrypted(self.api_key_encrypted):
+            return self.api_key_encrypted
+        return decrypt_value(self.api_key_encrypted)
+
+    def get_api_secret(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.api_secret_encrypted:
+            return None
+        if not is_encrypted(self.api_secret_encrypted):
+            return self.api_secret_encrypted
+        return decrypt_value(self.api_secret_encrypted)
+
+    def to_dict(self):
+        return {
+            "id":                self.id,
+            "provider":          self.provider,
+            "is_active":         self.is_active,
+            "connection_status": self.connection_status,
+            "last_sync":         self.last_sync.isoformat() if self.last_sync else None,
+            "last_latency_ms":   self.last_latency_ms,
+            "last_error":        self.last_error,
+            "has_key":           bool(self.api_key_encrypted),
+            "has_secret":        bool(self.api_secret_encrypted),
+            "created_at":        self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class APILog(db.Model):
     __tablename__ = "api_logs"
 

@@ -12,8 +12,18 @@ def send_pending_notifications(app):
         from datetime import datetime
 
         pending = Notification.query.filter_by(is_sent=False).limit(50).all()
+        if not pending:
+            return
+
+        # Batch-fetch every referenced user in one query instead of one
+        # SELECT per notification (was a straightforward N+1 — with users in
+        # the thousands and >50 pending notifications per poll, this alone
+        # was 50 extra round-trips every 30 seconds).
+        user_ids = {n.user_id for n in pending}
+        users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
+
         for notif in pending:
-            user = User.query.get(notif.user_id)
+            user = users_by_id.get(notif.user_id)
             if not user:
                 continue
             try:
@@ -30,29 +40,13 @@ def send_pending_notifications(app):
 
 
 def _send_email(to_email: str, subject: str, body: str):
-    try:
-        import smtplib
-        from email.mime.text import MIMEText
-        from flask import current_app
-
-        msg = MIMEText(body, "html")
-        msg["Subject"] = subject
-        msg["From"] = current_app.config.get("MAIL_DEFAULT_SENDER")
-        msg["To"] = to_email
-
-        server = smtplib.SMTP(
-            current_app.config.get("MAIL_SERVER", "smtp.gmail.com"),
-            current_app.config.get("MAIL_PORT", 587),
-        )
-        server.starttls()
-        server.login(
-            current_app.config.get("MAIL_USERNAME"),
-            current_app.config.get("MAIL_PASSWORD"),
-        )
-        server.send_message(msg)
-        server.quit()
-    except Exception as e:
-        logger.error(f"Email send error: {e}")
+    # Routed through the shared mailer service (Flask-Mail) so this respects
+    # MAIL_SUPPRESS_SEND the same way verification/reset emails do — this
+    # previously duplicated its own raw smtplib connection with no
+    # suppression, so every deploy without SMTP creds configured logged a
+    # noisy "Email send error" on every single pending notification.
+    from app.services.mailer import send_email
+    send_email(to_email, subject, body)
 
 
 def _send_telegram(chat_id: str, text: str):

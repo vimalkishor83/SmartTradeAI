@@ -16,18 +16,36 @@
   </div>
 </div>
 
-<!-- Not-connected banner -->
+<!-- Not-connected banner: self-service, per-user broker connect -->
 <div class="section-card mb-4 d-none" id="notConnectedBanner">
   <div class="section-card-body text-center py-5">
     <i class="bi bi-plug d-block mb-3" style="font-size:2.5rem;color:var(--text-muted);opacity:.4"></i>
-    <h5 class="mb-2">Not connected to Delta Exchange</h5>
+    <h5 class="mb-2">Connect your own Delta Exchange account</h5>
     <p class="text-muted mb-3" style="max-width:480px;margin:0 auto">
-      Add your Delta Exchange India API key and secret (with trading permission) in
-      Admin → API Configs to place real orders on your account.
+      Trading is non-custodial — your API key/secret is encrypted and used only to place
+      orders on your own account. SmartTrade AI never holds your funds.
     </p>
-    <a href="/admin/api-configs" class="btn btn-primary btn-sm">
-      <i class="bi bi-gear me-1"></i>Go to API Configs
-    </a>
+    <form id="connectBrokerForm" style="max-width:360px;margin:0 auto" class="text-start">
+      <div class="mb-2">
+        <label class="form-label fs-xs">API Key</label>
+        <input type="text" class="form-control form-control-sm" id="brokerApiKey" required autocomplete="off" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label fs-xs">API Secret</label>
+        <input type="password" class="form-control form-control-sm" id="brokerApiSecret" required autocomplete="off" />
+      </div>
+      <button type="submit" class="btn btn-primary btn-sm w-100" id="connectBrokerBtn">
+        <i class="bi bi-link-45deg me-1"></i>Connect Account
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Connected: manage/disconnect -->
+<div class="section-card mb-3 d-none" id="brokerConnectedCard">
+  <div class="section-card-body d-flex justify-content-between align-items-center py-3">
+    <div class="fs-sm"><i class="bi bi-shield-check text-green me-1"></i>Your Delta Exchange account is connected</div>
+    <button class="btn btn-sm btn-outline-danger" id="disconnectBrokerBtn"><i class="bi bi-x-circle me-1"></i>Disconnect</button>
   </div>
 </div>
 
@@ -182,14 +200,46 @@ async function checkConnection() {
   if (connected) {
     badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--green)"></i>Connected';
     document.getElementById('notConnectedBanner').classList.add('d-none');
+    document.getElementById('brokerConnectedCard').classList.remove('d-none');
     document.getElementById('tradingContent').classList.remove('d-none');
     loadAll();
   } else {
     badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--red)"></i>Not Connected';
     document.getElementById('notConnectedBanner').classList.remove('d-none');
+    document.getElementById('brokerConnectedCard').classList.add('d-none');
     document.getElementById('tradingContent').classList.add('d-none');
   }
 }
+
+document.getElementById('connectBrokerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('connectBrokerBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Connecting…';
+
+  const res = await API.post('/trading/broker/connect', {
+    api_key: document.getElementById('brokerApiKey').value.trim(),
+    api_secret: document.getElementById('brokerApiSecret').value.trim(),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Connect Account';
+
+  if (res?.message) {
+    Toast.show('Broker connected — checking connection…', 'success');
+    e.target.reset();
+    checkConnection();
+  } else {
+    Toast.show(res?.error || 'Failed to connect broker', 'error');
+  }
+});
+
+document.getElementById('disconnectBrokerBtn').addEventListener('click', async () => {
+  if (!confirm('Disconnect your Delta Exchange account? You can reconnect any time.')) return;
+  await API.post('/trading/broker/disconnect', {});
+  Toast.show('Broker disconnected', 'success');
+  checkConnection();
+});
 
 async function loadAll() {
   loadBalances();

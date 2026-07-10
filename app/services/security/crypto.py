@@ -16,10 +16,23 @@ from flask import current_app
 
 _SALT = b"smarttradeai-apiconfig-v1"  # static salt — fine for PBKDF2 keyed off a secret app key
 
+_INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-in-production", ""}
+
 
 def _fernet() -> Fernet:
-    secret = current_app.config.get("SECRET_KEY", "dev-secret-key-change-in-production").encode()
-    key = hashlib.pbkdf2_hmac("sha256", secret, _SALT, 100_000, dklen=32)
+    # ENCRYPTION_KEY is a dedicated secret for at-rest credentials (defined in
+    # config, previously unused) — kept separate from SECRET_KEY so rotating
+    # the JWT/session secret doesn't also break every stored broker
+    # credential. Falls back to SECRET_KEY only if ENCRYPTION_KEY isn't set,
+    # for backwards compatibility with rows encrypted before this change.
+    secret = current_app.config.get("ENCRYPTION_KEY") or current_app.config.get("SECRET_KEY", "")
+    if not current_app.config.get("DEBUG", True) and secret in _INSECURE_DEFAULTS:
+        raise RuntimeError(
+            "Refusing to encrypt/decrypt credentials in production with no real "
+            "ENCRYPTION_KEY or SECRET_KEY configured. Set ENCRYPTION_KEY to a random "
+            "value before storing any broker API keys."
+        )
+    key = hashlib.pbkdf2_hmac("sha256", secret.encode(), _SALT, 100_000, dklen=32)
     return Fernet(base64.urlsafe_b64encode(key))
 
 
