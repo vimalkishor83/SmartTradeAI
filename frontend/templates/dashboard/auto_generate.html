@@ -157,7 +157,11 @@
     </div>
 
     <!-- ── START / STOP ── -->
-    <div class="d-flex gap-3 my-3 align-items-center flex-wrap">
+    <!-- Auto Generate controls a single platform-wide engine (shared across
+         every user), not a per-user setting — only admins can start/stop/
+         reconfigure it. Non-admins still see /auto-generate/status (below)
+         so the page isn't blank, just without controls. -->
+    <div class="d-flex gap-3 my-3 align-items-center flex-wrap d-none" id="agAdminControls">
       <button class="btn btn-lg px-5 fw-700" id="startBtn"
         style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
         <i class="bi bi-play-fill me-2"></i>Start Generating
@@ -176,6 +180,9 @@
       </button>
       <span class="text-muted fs-xs" id="lastRunLabel"></span>
       <span class="text-success fs-xs" id="saveConfirmLabel" style="display:none"><i class="bi bi-check-circle-fill me-1"></i>Saved</span>
+    </div>
+    <div class="alert alert-info py-2 fs-sm my-3" id="agNonAdminNotice">
+      <i class="bi bi-info-circle me-1"></i>Auto Generate is a platform-wide engine managed by admins. You can view its current status below.
     </div>
 
     <!-- ── GENERATED SIGNALS TABLE ── -->
@@ -798,6 +805,10 @@ async function saveConfiguration() {
 
 /* ── Init ────────────────────────────────────────────────── */
 document.addEventListener('app:ready', () => {
+  const isAdmin = Auth.user?.role === 'admin';
+  document.getElementById('agAdminControls').classList.toggle('d-none', !isAdmin);
+  document.getElementById('agNonAdminNotice').classList.toggle('d-none', isAdmin);
+
   loadConfig();
   loadAssetPicker();
 

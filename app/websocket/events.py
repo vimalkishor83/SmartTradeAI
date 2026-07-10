@@ -21,6 +21,14 @@ def on_connect():
         user = User.query.get(data["sub"])
         if not user or not user.is_active:
             return False
+        # Auto-join the user's own notification room using the identity
+        # already verified right above — subscribe_notifications previously
+        # re-decoded request.args["token"] independently (redundant, since
+        # it's the same handshake-time token) and failed *silently* on any
+        # error, meaning a client could believe it was subscribed to live
+        # notifications when it never actually joined the room. Joining here
+        # removes that whole separate, fragile path.
+        join_room(f"user_{user.id}")
         logger.info(f"WS connected: user {user.username}")
         emit("connected", {"status": "ok", "user": user.username})
     except Exception as e:
@@ -69,17 +77,11 @@ def unsubscribe_all_tickers():
 
 @socketio.on("subscribe_notifications")
 def subscribe_notifications():
-    """Client subscribes to its own notification room (keyed by session)."""
-    token = request.args.get("token")
-    if not token:
-        return
-    try:
-        from flask_jwt_extended import decode_token
-        data = decode_token(token)
-        user_id = data["sub"]
-        join_room(f"user_{user_id}")
-    except Exception:
-        pass
+    """No-op kept for backward compatibility with any cached frontend build
+    still emitting this event — the user's notification room is now joined
+    automatically in on_connect(), using the identity already verified at
+    handshake time rather than re-decoding the token independently."""
+    pass
 
 
 def broadcast_signal(signal_dict):

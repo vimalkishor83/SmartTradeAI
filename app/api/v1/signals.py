@@ -4,7 +4,7 @@ from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
 from app.models.user import User
 from app.extensions import db, cache
-from app.auth.decorators import login_required
+from app.auth.decorators import login_required, admin_required
 from app.services.signals.engine import signal_engine
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
@@ -277,7 +277,7 @@ def _parse_ag_config(data):
 
 
 @signals_bp.route("/auto-generate/save", methods=["POST"])
-@login_required
+@admin_required
 def ag_save_config():
     """Persist Auto Generate settings to the DB without starting the scheduler."""
     data = request.get_json() or {}
@@ -288,7 +288,7 @@ def ag_save_config():
 
 
 @signals_bp.route("/auto-generate/start", methods=["POST"])
-@login_required
+@admin_required
 def ag_start():
     from app.extensions import scheduler
     data = request.get_json() or {}
@@ -338,7 +338,7 @@ def ag_start():
 
 
 @signals_bp.route("/auto-generate/stop", methods=["POST"])
-@login_required
+@admin_required
 def ag_stop():
     from app.extensions import scheduler
     _AG_STATE["running"] = False
@@ -397,7 +397,7 @@ def ag_watchlist():
 
 
 @signals_bp.route("/auto-generate/run-once", methods=["POST"])
-@login_required
+@admin_required
 def ag_run_once():
     data = request.get_json() or {}
     raw_tfs = data.get("timeframes") or data.get("timeframe")
@@ -813,14 +813,19 @@ def generate_signal():
     return jsonify(signal.to_dict()), 201
 
 
-@signals_bp.route("/performance", methods=["GET"])
+@signals_bp.route("/performance/by-asset", methods=["GET"])
 @login_required
 def signal_performance():
-    """Signal outcome analytics from closed signal history.
+    """Signal outcome analytics from closed signal history, broken down by
+    asset x timeframe with a configurable lookback window.
 
-    Returns per asset × timeframe win rate, average P&L, and profit factor, plus a
-    **confidence-calibration** breakdown (do higher-confidence signals actually win
-    more?) — the key measure of whether the confidence score is trustworthy.
+    NOTE: this used to be registered at the same URL as get_performance()
+    below (both were "/performance") — Flask only ever routes to the
+    later-registered view function for a given rule, so this one was
+    completely unreachable dead code. Moved to its own path; the
+    calibration data it computed is now merged into get_performance()
+    (see _confidence_calibration_bands) since that's what the dashboard
+    actually calls.
 
     Query params: ?days=<lookback, default 90> &market=<optional filter>
     """
@@ -1284,6 +1289,15 @@ def get_performance():
     except Exception:
         hourly_win_rate = []
 
+    # ── Confidence calibration: does an 80%-confidence signal actually win ~80%? ──
+    # This used to live in a second, separately-registered `/performance`
+    # route (`signal_performance`, now `_confidence_calibration_bands` below)
+    # that Flask silently never routed to — both functions were bound to the
+    # exact same URL rule, so only the later-registered one (this one) was
+    # ever reachable, and the dashboard's Confidence Calibration chart
+    # (dashboard.js `perf?.calibration`) always rendered empty.
+    calibration = _confidence_calibration_bands()
+
     return jsonify({
         "overall": {
             "total_closed": total_closed,
@@ -1298,9 +1312,33 @@ def get_performance():
         "by_timeframe": by_timeframe,
         "by_signal_type": by_signal_type,
         "by_confidence": by_confidence,
+        "calibration": calibration,
         "daily_pnl": daily_pnl,
         "hourly_win_rate": hourly_win_rate,
     }), 200
+
+
+def _confidence_calibration_bands():
+    """Do higher-confidence signals actually win more? Buckets closed
+    signals by confidence band and compares actual win rate to the band's
+    expected midpoint — the key measure of whether the confidence score is
+    trustworthy. Extracted from the old signal_performance() so it can feed
+    both /performance and any future dedicated endpoint."""
+    rows = SignalHistory.query.all()
+    conf_bands = [(0, 60, "Weak"), (60, 75, "Moderate"), (75, 90, "Strong"), (90, 101, "Very Strong")]
+    calibration = []
+    for lo, hi, label in conf_bands:
+        band = [r for r in rows if lo <= (r.confidence_score or 0) < hi]
+        decisive = [r for r in band if r.outcome in ("win", "loss")]
+        actual_win = round(sum(1 for r in decisive if r.outcome == "win") / len(decisive) * 100, 1) \
+                     if decisive else None
+        calibration.append({
+            "band": label, "range": f"{lo}-{hi - 1}",
+            "signals": len(band),
+            "actual_win_rate": actual_win,
+            "expected_win_rate": (lo + hi) // 2,
+        })
+    return calibration
 
 
 # ─── Backtest & Proof-of-Performance ──────────────────────────────────────────

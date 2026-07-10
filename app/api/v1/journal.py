@@ -16,7 +16,11 @@ def _auto_pnl(data):
     entry = data.get("entry_price")
     exit_ = data.get("exit_price")
     direction = (data.get("direction") or "BUY").upper()
-    qty = data.get("quantity") or 1
+    # A legitimate quantity of 0 (e.g. a paper trade with no size) must
+    # produce a pnl_amount of 0, not silently be treated as quantity=1 —
+    # only missing/unspecified quantity defaults to 1.
+    raw_qty = data.get("quantity")
+    qty = 1 if raw_qty is None else raw_qty
 
     if entry and exit_:
         if direction == "BUY":

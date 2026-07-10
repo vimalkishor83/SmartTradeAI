@@ -175,16 +175,38 @@ def place_order():
     if not our_symbol or not side or not size:
         return jsonify({"error": "symbol, side and size are required"}), 400
 
+    if side not in ("buy", "sell"):
+        return jsonify({"error": "side must be 'buy' or 'sell'"}), 400
+
+    if order_type not in ("limit_order", "market_order"):
+        return jsonify({"error": "order_type must be 'limit_order' or 'market_order'"}), 400
+
+    try:
+        size_int = int(size)
+    except (TypeError, ValueError):
+        return jsonify({"error": "size must be a whole number of contracts"}), 400
+    if size_int <= 0:
+        return jsonify({"error": "size must be greater than zero"}), 400
+
+    leverage_int = None
+    if leverage:
+        try:
+            leverage_int = int(leverage)
+        except (TypeError, ValueError):
+            return jsonify({"error": "leverage must be a whole number"}), 400
+        if leverage_int <= 0:
+            return jsonify({"error": "leverage must be greater than zero"}), 400
+
     delta_symbol = to_delta_symbol(our_symbol)
     if not delta_symbol:
         return jsonify({"error": f"{our_symbol} is not a tradeable Delta Exchange symbol"}), 400
 
     try:
         product_id = client.get_product_id(delta_symbol)
-        if leverage:
-            client.set_leverage(product_id, int(leverage))
+        if leverage_int:
+            client.set_leverage(product_id, leverage_int)
         result = client.place_order(
-            product_id=product_id, side=side, size=int(size), order_type=order_type,
+            product_id=product_id, side=side, size=size_int, order_type=order_type,
             limit_price=limit_price, stop_price=stop_price, reduce_only=reduce_only,
         )
         return jsonify({"order": result}), 201

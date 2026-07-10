@@ -70,11 +70,20 @@ def add_position():
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
 
+    try:
+        quantity = float(data.get("quantity"))
+        buy_price = float(data.get("buy_price"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "quantity and buy_price must be numbers"}), 400
+
+    if quantity <= 0 or buy_price <= 0:
+        return jsonify({"error": "quantity and buy_price must be greater than zero"}), 400
+
     item = PortfolioItem(
         portfolio_id=portfolio.id,
         asset_id=asset.id,
-        quantity=float(data["quantity"]),
-        buy_price=float(data["buy_price"]),
+        quantity=quantity,
+        buy_price=buy_price,
         stop_loss=data.get("stop_loss"),
         target=data.get("target"),
         notes=data.get("notes"),
