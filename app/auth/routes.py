@@ -14,12 +14,25 @@ auth_bp = Blueprint("auth", __name__)
 
 
 @auth_bp.route("/register", methods=["POST"])
-@limiter.limit("5 per minute")
+@limiter.limit("3 per minute;15 per hour")
 def register():
-    data = request.get_json()
+    data = request.get_json() or {}
+
+    # Honeypot: a hidden form field real users never fill in. Bots that
+    # blindly fill every input on the page get silently accepted-and-ignored
+    # (no error, so the bot doesn't learn its submission was rejected) rather
+    # than actually creating an account.
+    if (data.get("website") or "").strip():
+        return jsonify({
+            "message": "Registration successful — your account is pending admin approval.",
+        }), 201
+
     required = ["username", "email", "password"]
     if not all(k in data for k in required):
         return jsonify({"error": "Missing required fields"}), 400
+
+    if not data.get("accept_terms"):
+        return jsonify({"error": "You must accept the Terms of Service and Privacy Policy"}), 400
 
     if User.query.filter_by(username=data["username"]).first():
         return jsonify({"error": "Username already taken"}), 409
@@ -46,12 +59,21 @@ def register():
 
     _audit(user.id, "register", "user", str(user.id))
 
+    from app.services.tokens import make_verify_token
+    from app.services.mailer import send_verification_email, send_admin_new_signup_alert
+    send_verification_email(user, make_verify_token(user.id))
+
+    admin_role = Role.query.filter_by(name="admin").first()
+    if admin_role:
+        admin_emails = [u.email for u in User.query.filter_by(role_id=admin_role.id).all()]
+        send_admin_new_signup_alert(admin_emails, user)
+
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))
 
     return jsonify({
-        "message": "Registration successful — your account is pending admin approval. "
-                    "You can log in now, but full access unlocks once approved.",
+        "message": "Registration successful — check your email to verify your address. "
+                    "Your account is also pending admin approval before full access unlocks.",
         "access_token": access_token,
         "refresh_token": refresh_token,
         "user": user.to_dict(),
@@ -67,9 +89,15 @@ def login():
 
     user = User.query.filter_by(email=data["email"]).first()
     if not user or not user.check_password(data["password"]):
+        # Audited even though the account may not exist / user_id is None —
+        # gives the admin a signal for credential-stuffing/brute-force
+        # patterns (repeated failures against one email or from one IP),
+        # which the audit log couldn't previously show at all.
+        _audit(user.id if user else None, "login_failed", "user", data.get("email", ""), status="failed")
         return jsonify({"error": "Invalid credentials"}), 401
 
     if not user.is_active:
+        _audit(user.id, "login_failed", "user", str(user.id), status="failed")
         return jsonify({"error": "Account is disabled"}), 403
 
     # ── 2FA check ──────────────────────────────────────────────────────────────
@@ -140,6 +168,83 @@ def refresh():
     user_id = get_jwt_identity()
     access_token = create_access_token(identity=user_id)
     return jsonify({"access_token": access_token}), 200
+
+
+# ── Email verification ─────────────────────────────────────────────────────
+
+@auth_bp.route("/verify-email", methods=["POST"])
+@limiter.limit("10 per minute")
+def verify_email():
+    from app.services.tokens import read_verify_token
+    token = (request.get_json() or {}).get("token", "")
+    user_id = read_verify_token(token)
+    if not user_id:
+        return jsonify({"error": "Invalid or expired verification link"}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Invalid or expired verification link"}), 400
+
+    user.is_verified = True
+    db.session.commit()
+    _audit(user.id, "email_verified", "user", str(user.id))
+    return jsonify({"message": "Email verified successfully"}), 200
+
+
+@auth_bp.route("/resend-verification", methods=["POST"])
+@login_required
+@limiter.limit("3 per minute")
+def resend_verification():
+    user = get_current_user()
+    if user.is_verified:
+        return jsonify({"message": "Email already verified"}), 200
+
+    from app.services.tokens import make_verify_token
+    from app.services.mailer import send_verification_email
+    send_verification_email(user, make_verify_token(user.id))
+    return jsonify({"message": "Verification email sent"}), 200
+
+
+# ── Password reset ─────────────────────────────────────────────────────────
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+@limiter.limit("3 per minute;10 per hour")
+def forgot_password():
+    email = (request.get_json() or {}).get("email", "")
+    user = User.query.filter_by(email=email).first()
+    # Always return the same response whether or not the email exists —
+    # otherwise this endpoint becomes a way to enumerate registered emails.
+    if user:
+        from app.services.tokens import make_reset_token
+        from app.services.mailer import send_password_reset_email
+        send_password_reset_email(user, make_reset_token(user.id))
+        _audit(user.id, "password_reset_requested", "user", str(user.id))
+    return jsonify({"message": "If that email is registered, a reset link has been sent."}), 200
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+@limiter.limit("5 per minute")
+def reset_password():
+    from app.services.tokens import read_reset_token
+    data = request.get_json() or {}
+    token = data.get("token", "")
+    new_password = data.get("password", "")
+
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    user_id = read_reset_token(token)
+    if not user_id:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+
+    user.set_password(new_password)
+    db.session.commit()
+    _audit(user.id, "password_reset", "user", str(user.id))
+    return jsonify({"message": "Password reset successfully — you can now log in."}), 200
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -213,7 +318,7 @@ def save_asset_preferences():
     return jsonify({"message": "Preferences saved"}), 200
 
 
-def _audit(user_id, action, resource, resource_id):
+def _audit(user_id, action, resource, resource_id, status="success"):
     try:
         log = AuditLog(
             user_id=user_id,
@@ -222,6 +327,7 @@ def _audit(user_id, action, resource, resource_id):
             resource_id=resource_id,
             ip_address=request.remote_addr,
             user_agent=request.headers.get("User-Agent", ""),
+            status=status,
         )
         db.session.add(log)
         db.session.commit()

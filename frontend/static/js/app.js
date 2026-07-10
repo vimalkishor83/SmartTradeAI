@@ -2,7 +2,7 @@
    SmartTrade AI Platform — Core App JS
    ═══════════════════════════════════════════════ */
 
-const PUBLIC_ROUTES = ['/login', '/register'];
+const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password', '/verify-email', '/terms', '/privacy'];
 const IS_PUBLIC = PUBLIC_ROUTES.includes(window.location.pathname);
 
 // Expose global confidence threshold early — updated properly after Auth.init()

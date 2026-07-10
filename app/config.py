@@ -27,7 +27,12 @@ class Config:
     CACHE_REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
     RATELIMIT_DEFAULT = "2000 per day;500 per hour;60 per minute"
-    RATELIMIT_STORAGE_URL = os.environ.get("REDIS_URL", "memory://")
+    # NOTE: Flask-Limiter reads RATELIMIT_STORAGE_URI (not _URL) — this was
+    # previously named _URL, which Flask-Limiter silently ignores, so the
+    # limiter was *always* running on in-memory storage even when REDIS_URL
+    # was set. In-memory storage means limits reset on every restart and
+    # aren't shared across multiple worker processes.
+    RATELIMIT_STORAGE_URI = os.environ.get("REDIS_URL", "memory://")
 
     SOCKETIO_ASYNC_MODE = "threading"
 
@@ -44,10 +49,15 @@ class Config:
     # Email
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
-    MAIL_USE_TLS = True
+    MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@smarttradeai.com")
+    # No SMTP credentials configured yet? Suppress actual sending and log the
+    # email instead (see app/services/mailer.py) so registration/reset flows
+    # keep working end-to-end before you've wired up a real mail provider.
+    MAIL_SUPPRESS_SEND = not bool(MAIL_USERNAME and MAIL_PASSWORD)
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://127.0.0.1:5000")
 
     # Telegram
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")

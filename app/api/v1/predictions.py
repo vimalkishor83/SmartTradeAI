@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.models.prediction import Prediction
 from app.extensions import db, cache, limiter
-from app.auth.decorators import login_required, premium_required
+from app.auth.decorators import login_required, premium_required, subscription_feature_required
 from app.services.ai.predictor import ai_predictor
 from app.services.data.fetcher import market_fetcher
 from sqlalchemy import func
@@ -13,6 +13,7 @@ predictions_bp = Blueprint("predictions", __name__)
 
 @predictions_bp.route("/<int:asset_id>", methods=["GET"])
 @premium_required
+@subscription_feature_required("ai_enabled")
 @limiter.limit("30 per minute;200 per hour")
 def get_prediction(asset_id):
     asset = Asset.query.get_or_404(asset_id)

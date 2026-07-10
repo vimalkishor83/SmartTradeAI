@@ -1,0 +1,38 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Privacy Policy — SmartTrade AI{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container" style="max-width:720px">
+  <div class="auth-card text-start">
+    <h2 class="fw-bold mb-3">Privacy Policy</h2>
+    <p class="text-muted small">
+      <strong>Placeholder document — this is not a legally reviewed Privacy Policy.</strong>
+      Replace this page with a real policy drafted or reviewed by a lawyer before taking real users
+      or payments in production, and adjust it to match your actual data handling practices and
+      applicable regulations (e.g. GDPR, CCPA) for the regions you serve.
+    </p>
+    <hr>
+    <h3 class="h6 fw-bold mt-4">1. What We Collect</h3>
+    <p class="text-muted small">Account details you provide (username, email, name), trading
+      preferences and settings, and usage data (login times, IP address, audit trail of actions)
+      needed to operate and secure the platform.</p>
+    <h3 class="h6 fw-bold mt-4">2. Broker API Keys</h3>
+    <p class="text-muted small">If you connect a broker/exchange account, API credentials are
+      encrypted at rest and used solely to place orders and fetch data on your behalf, per your
+      configuration.</p>
+    <h3 class="h6 fw-bold mt-4">3. How We Use Data</h3>
+    <p class="text-muted small">To provide the service, secure your account, improve signal
+      accuracy, and communicate important account or security notices.</p>
+    <h3 class="h6 fw-bold mt-4">4. Data Sharing</h3>
+    <p class="text-muted small">We do not sell your personal data. Data is not shared with third
+      parties except as needed to operate the service (e.g. email delivery) or as required by law.</p>
+    <h3 class="h6 fw-bold mt-4">5. Your Rights</h3>
+    <p class="text-muted small">You may request access to, correction of, or deletion of your
+      account data at any time by contacting support.</p>
+    <div class="text-center mt-4">
+      <a href="/register" class="text-accent small fw-semibold">Back to Registration</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

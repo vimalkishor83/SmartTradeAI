@@ -3,7 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
 from app.models.backtest import Backtest
 from app.models.asset import Asset
-from app.auth.decorators import login_required, premium_required
+from app.auth.decorators import login_required, premium_required, subscription_feature_required
 from app.services.backtesting.engine import backtest_engine
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime
@@ -22,6 +22,7 @@ def list_backtests():
 
 @backtesting_bp.route("/run", methods=["POST"])
 @premium_required
+@subscription_feature_required("backtesting_enabled")
 def run_backtest():
     user_id = get_jwt_identity()
     data = request.get_json()

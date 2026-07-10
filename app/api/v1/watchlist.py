@@ -4,6 +4,7 @@ from app.extensions import db, cache
 from app.models.watchlist import Watchlist, WatchlistItem
 from app.models.asset import Asset
 from app.models.signal import Signal
+from app.models.user import User
 from app.auth.decorators import login_required
 from datetime import datetime, timedelta
 
@@ -49,6 +50,26 @@ def add_to_watchlist(wl_id):
     user_id = get_jwt_identity()
     wl = Watchlist.query.filter_by(id=wl_id, user_id=user_id).first_or_404()
     data = request.get_json()
+
+    user = User.query.get(int(user_id))
+    sub = user.subscription if user else None
+    if sub:
+        total_items = (WatchlistItem.query.join(Watchlist)
+                       .filter(Watchlist.user_id == user_id).count())
+        if total_items >= sub.max_watchlist:
+            return jsonify({
+                "error": f"Watchlist limit reached ({sub.max_watchlist} items on the "
+                         f"{sub.name} plan). Remove an item or upgrade your plan.",
+            }), 403
+        if data.get("alert_price"):
+            total_alerts = (WatchlistItem.query.join(Watchlist)
+                            .filter(Watchlist.user_id == user_id,
+                                    WatchlistItem.alert_price.isnot(None)).count())
+            if total_alerts >= sub.max_alerts:
+                return jsonify({
+                    "error": f"Alert limit reached ({sub.max_alerts} alerts on the "
+                             f"{sub.name} plan). Remove an alert or upgrade your plan.",
+                }), 403
 
     asset = Asset.query.filter_by(symbol=data.get("symbol")).first()
     if not asset:

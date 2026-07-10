@@ -29,6 +29,31 @@ def register():
     return render_template("auth/register.html")
 
 
+@views_bp.route("/forgot-password")
+def forgot_password():
+    return render_template("auth/forgot_password.html")
+
+
+@views_bp.route("/reset-password")
+def reset_password():
+    return render_template("auth/reset_password.html")
+
+
+@views_bp.route("/verify-email")
+def verify_email():
+    return render_template("auth/verify_email.html")
+
+
+@views_bp.route("/terms")
+def terms():
+    return render_template("legal/terms.html")
+
+
+@views_bp.route("/privacy")
+def privacy():
+    return render_template("legal/privacy.html")
+
+
 @views_bp.route("/markets/<market>")
 def markets(market):
     # Normalize the plural URL slug to the canonical data slug so Commodities

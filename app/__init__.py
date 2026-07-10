@@ -2,7 +2,7 @@ import logging
 import os
 from flask import Flask
 from app.config import get_config
-from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors
+from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors, mail
 from app.extensions import configure_sqlite_concurrency
 
 
@@ -97,6 +97,7 @@ def _init_extensions(app):
     socketio.init_app(app, cors_allowed_origins=cors_origins, async_mode="threading")
     limiter.init_app(app)
     cache.init_app(app)
+    mail.init_app(app)
 
 
 def _register_blueprints(app):

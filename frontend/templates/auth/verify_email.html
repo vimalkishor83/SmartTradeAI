@@ -1,0 +1,62 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Verify Email — SmartTrade AI{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container">
+  <div class="auth-card text-center">
+    <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
+      <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
+      <span class="fs-4 fw-bold">SmartTrade <span class="text-accent">AI</span></span>
+    </div>
+    <div id="veIcon" class="mb-3" style="font-size:42px"><i class="bi bi-hourglass-split text-accent"></i></div>
+    <h2 class="fw-bold" id="veTitle">Verifying your email…</h2>
+    <p class="text-muted small" id="veMessage">Please wait a moment.</p>
+    <a href="/login" class="btn btn-primary mt-2 d-none" id="veLoginBtn">Go to Sign In</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(async function() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('token') || '';
+  const icon = document.getElementById('veIcon');
+  const title = document.getElementById('veTitle');
+  const message = document.getElementById('veMessage');
+  const loginBtn = document.getElementById('veLoginBtn');
+
+  if (!token) {
+    icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
+    title.textContent = 'Invalid link';
+    message.textContent = 'This verification link is missing its token.';
+    loginBtn.classList.remove('d-none');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/v1/auth/verify-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      icon.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+      title.textContent = 'Email verified!';
+      message.textContent = data.message || 'Your email has been verified.';
+    } else {
+      icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
+      title.textContent = 'Verification failed';
+      message.textContent = data.error || 'This link may have expired.';
+    }
+  } catch (err) {
+    icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
+    title.textContent = 'Network error';
+    message.textContent = 'Could not reach the server.';
+  }
+  loginBtn.classList.remove('d-none');
+})();
+</script>
+{% endblock %}

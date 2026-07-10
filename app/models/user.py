@@ -100,6 +100,7 @@ class User(db.Model):
             "subscription": self.subscription.name if self.subscription else "free",
             "is_active": self.is_active,
             "approval_status": self.approval_status,
+            "is_verified": self.is_verified,
             "theme": self.theme,
             "account_size": self.account_size or 100000.0,
             "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,

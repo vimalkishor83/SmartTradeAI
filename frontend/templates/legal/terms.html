@@ -1,0 +1,36 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Terms of Service — SmartTrade AI{% endblock %}
+
+{% block auth_content %}
+<div class="auth-container" style="max-width:720px">
+  <div class="auth-card text-start">
+    <h2 class="fw-bold mb-3">Terms of Service</h2>
+    <p class="text-muted small">
+      <strong>Placeholder document — this is not a legally reviewed Terms of Service.</strong>
+      Replace this page with real terms drafted or reviewed by a lawyer before taking real users
+      or payments in production.
+    </p>
+    <hr>
+    <h3 class="h6 fw-bold mt-4">1. No Financial Advice</h3>
+    <p class="text-muted small">SmartTrade AI provides algorithmic trading signals and analysis for
+      informational purposes only. Nothing on this platform constitutes financial, investment, or
+      trading advice. You are solely responsible for your own trading decisions.</p>
+    <h3 class="h6 fw-bold mt-4">2. Account Approval</h3>
+    <p class="text-muted small">New accounts are subject to admin review and may be restricted,
+      suspended, or rejected at our discretion.</p>
+    <h3 class="h6 fw-bold mt-4">3. Non-Custodial Broker Connections</h3>
+    <p class="text-muted small">Any broker/exchange API keys you connect remain under your control.
+      SmartTrade AI does not hold, custody, or have withdrawal access to your funds.</p>
+    <h3 class="h6 fw-bold mt-4">4. No Warranty</h3>
+    <p class="text-muted small">The platform is provided "as is" without warranty of any kind,
+      including accuracy of signals, uptime, or fitness for a particular purpose.</p>
+    <h3 class="h6 fw-bold mt-4">5. Changes</h3>
+    <p class="text-muted small">These terms may change as the product evolves. Continued use after
+      a change constitutes acceptance of the updated terms.</p>
+    <div class="text-center mt-4">
+      <a href="/register" class="text-accent small fw-semibold">Back to Registration</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
