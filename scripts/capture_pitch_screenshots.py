@@ -69,7 +69,25 @@ with sync_playwright() as p:
         except Exception as e:
             print(f"NAV FAIL {route}: {e}")
             continue
-        page.wait_for_timeout(3500)
+
+        # Wait for skeleton/loading placeholders to clear instead of a fixed
+        # sleep — pages fetch their data async after the shell renders, so a
+        # short fixed wait was catching "Loading..." / "-" placeholder states.
+        try:
+            page.wait_for_function(
+                """() => {
+                    const body = document.body.innerText;
+                    const stillLoading = /Loading\\.\\.\\./.test(body);
+                    const spinners = document.querySelectorAll(
+                        '.spinner-border, .loading-spinner, [data-loading="true"]'
+                    );
+                    return !stillLoading && spinners.length === 0;
+                }""",
+                timeout=15000,
+            )
+        except Exception:
+            pass  # some pages legitimately have no data for a filter; proceed anyway
+        page.wait_for_timeout(2500)
         out_path = OUT / f"{name}.png"
         try:
             page.screenshot(path=str(out_path), full_page=True, timeout=15000)
