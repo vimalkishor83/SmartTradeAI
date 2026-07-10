@@ -160,6 +160,7 @@ def prewarm_ta_cache(app):
         from concurrent.futures import ThreadPoolExecutor
         from app.api.v1.market_data import _compute_ta_rating
         from app.api.v1.signals import _mtf_rating
+        from app.services.indicators.ema_mtf import HIGHER_TF_MAP, compute_ema921_cell
 
         ta_tfs  = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
         mtf_tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
@@ -197,6 +198,19 @@ def prewarm_ta_cache(app):
                     row["tf"][tf] = None
             return row
 
+        def _make_ema_row(asset):
+            sym = asset.symbol
+            dfs = all_data.get(sym, {})
+            row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
+            for tf in ta_tfs:
+                try:
+                    higher_tf = HIGHER_TF_MAP.get(tf)
+                    higher_df = dfs.get(higher_tf) if higher_tf else None
+                    row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df).to_dict()
+                except Exception:
+                    row["tf"][tf] = None
+            return row
+
         def _make_mtf_row(asset):
             dfs = all_data.get(asset.symbol, {})
             row = {}
@@ -213,6 +227,7 @@ def prewarm_ta_cache(app):
         with ThreadPoolExecutor(max_workers=8) as ex:
             ta_rows  = list(ex.map(_make_ta_row, assets))
             mtf_rows = list(ex.map(_make_mtf_row, assets))
+            ema_rows = list(ex.map(_make_ema_row, assets))
 
         cache.set("ta_summary_all",  {"assets": ta_rows,  "timeframes": ta_tfs},  timeout=150)
         mtf_matrix = {aid: row for aid, row in mtf_rows}
@@ -221,7 +236,8 @@ def prewarm_ta_cache(app):
             "assets": [{"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market} for a in assets],
             "timeframes": mtf_tfs,
         }, timeout=150)
-        logger.info("TA/MTF cache pre-warmed")
+        cache.set("ema_summary_all", {"assets": ema_rows, "timeframes": ta_tfs}, timeout=150)
+        logger.info("TA/MTF/EMA cache pre-warmed")
 
 
 def prewarm_ai_cache(app):
@@ -549,7 +565,7 @@ def fetch_economic_calendar(app):
         from app.models.economic import EconomicEvent
         from app.extensions import db, cache
         import requests
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         urls = [
             "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
@@ -570,15 +586,22 @@ def fetch_economic_calendar(app):
             date_str = ev.get("date", "")
             if not title or not date_str:
                 continue
-            # Parse ISO date string (e.g. "2024-01-15T13:30:00-0500")
+            # Parse ISO date string (e.g. "2024-01-15T13:30:00-05:00"). Forex
+            # Factory sends the event's own timezone offset (US Eastern) — it
+            # must be converted to UTC, not discarded, or every event lands
+            # 4-5 hours early (the bug this replaces). Naive datetimes are
+            # stored as UTC everywhere else in this app (datetime.utcnow()),
+            # so we normalize to that convention here too.
             event_time = None
             for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
                 try:
-                    dt = datetime.strptime(date_str[:19], "%Y-%m-%dT%H:%M:%S")
+                    dt = datetime.strptime(date_str, fmt)
+                    if dt.tzinfo is not None:
+                        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
                     event_time = dt
                     break
                 except ValueError:
-                    pass
+                    continue
             if not event_time:
                 continue
 

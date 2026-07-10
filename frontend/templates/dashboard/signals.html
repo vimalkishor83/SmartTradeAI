@@ -474,7 +474,7 @@ async function loadOpenPnl() {
   }).join('');
 
   const now = new Date();
-  ts.textContent = `Last updated: ${now.toLocaleTimeString('en-IN', {hour:'2-digit',minute:'2-digit',second:'2-digit'})} · Auto-refreshes every 60s`;
+  ts.textContent = `Last updated: ${now.toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit'})} · Auto-refreshes every 60s`;
 }
 
 document.addEventListener('app:ready', () => {

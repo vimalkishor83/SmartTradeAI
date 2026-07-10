@@ -147,7 +147,9 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
     volume = df["volume"] if "volume" in df.columns else pd.Series(0, index=df.index)
 
     n = len(df)
+    ema9   = calculate_ema(close, 9)   if n >= 9   else close
     ema20  = calculate_ema(close, 20)  if n >= 20  else close
+    ema21  = calculate_ema(close, 21)  if n >= 21  else close
     ema50  = calculate_ema(close, 50)  if n >= 50  else ema20
     ema100 = calculate_ema(close, 100) if n >= 100 else ema50
     ema200 = calculate_ema(close, 200) if n >= 200 else ema100
@@ -163,6 +165,8 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
 
     idx = -1
     return {
+        "ema9": _safe(ema9, idx),
+        "ema21": _safe(ema21, idx),
         "ema20": _safe(ema20, idx),
         "ema50": _safe(ema50, idx),
         "ema100": _safe(ema100, idx),

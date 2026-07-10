@@ -228,7 +228,7 @@ async function loadHeatmapPage() {
     if (!data?.heatmap) throw new Error('No data');
     _hmData = data.heatmap;
     document.getElementById('hmTimestamp').textContent =
-      'Updated ' + new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'});
+      'Updated ' + new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
     renderPage();
   } catch (e) {
     document.getElementById('hmBody').innerHTML =

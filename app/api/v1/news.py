@@ -49,7 +49,7 @@ def get_news():
 @login_required
 def economic_calendar():
     import requests as req
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     # Try cache first
     cached = cache.get("econ_calendar")
@@ -86,10 +86,20 @@ def economic_calendar():
             date_str = ev.get("date", "")
             if not title or not date_str:
                 continue
+            # Forex Factory sends the event's own timezone offset (US Eastern) —
+            # it must be converted to UTC, not discarded, or events land 4-5
+            # hours early. Naive datetimes are UTC everywhere else in this app.
             event_time = None
-            try:
-                event_time = datetime.strptime(date_str[:19], "%Y-%m-%dT%H:%M:%S")
-            except ValueError:
+            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+                try:
+                    dt = datetime.strptime(date_str, fmt)
+                    if dt.tzinfo is not None:
+                        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                    event_time = dt
+                    break
+                except ValueError:
+                    continue
+            if not event_time:
                 continue
 
             impact_raw = (ev.get("impact") or "").lower()

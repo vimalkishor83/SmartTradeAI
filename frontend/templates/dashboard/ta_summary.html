@@ -44,6 +44,11 @@
       <i class="bi bi-currency-dollar me-1"></i>Live Quotes
     </a>
   </li>
+  <li class="nav-item">
+    <a class="nav-link" id="tabEmaBtn" href="#" onclick="showTab('ema');return false">
+      <i class="bi bi-layers-half me-1"></i>EMA 9/21 MTF
+    </a>
+  </li>
 </ul>
 
 <!-- ── TAB 1: Technical Ratings ───────────────────────────── -->
@@ -103,27 +108,104 @@
     </div>
   </div>
 </div>
+
+<!-- ── TAB 4: EMA 9/21 Multi-Timeframe ─────────────────────── -->
+<div id="tabEma" style="display:none">
+  <!-- Legend + methodology -->
+  <div class="d-flex gap-3 mb-2 flex-wrap align-items-center justify-content-between">
+    <div class="d-flex gap-3 flex-wrap align-items-center">
+      <span style="font-size:11px;color:var(--text-muted)">Rating:</span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#10b981"></span><span style="font-size:12px;color:var(--text-secondary)">Strong Buy</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#6ee7b7"></span><span style="font-size:12px;color:var(--text-secondary)">Buy</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#64748b"></span><span style="font-size:12px;color:var(--text-secondary)">Neutral</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#fca5a5"></span><span style="font-size:12px;color:var(--text-secondary)">Sell</span></span>
+      <span class="d-flex align-items-center gap-1"><span class="rating-dot" style="background:#ef4444"></span><span style="font-size:12px;color:var(--text-secondary)">Strong Sell</span></span>
+    </div>
+    <span style="font-size:11px;color:var(--text-muted)" id="emaLastUpdated">—</span>
+  </div>
+  <div class="fs-xs text-muted mb-3" style="line-height:1.5;max-width:900px">
+    <i class="bi bi-info-circle me-1"></i>
+    Each cell reads <strong>EMA9 vs EMA21</strong> on that column's timeframe (bullish when EMA9 &gt; EMA21
+    <em>and</em> price has reclaimed EMA9; bearish the mirror), then checks the same EMA9/21 cross on the
+    next-higher timeframe for confirmation — <strong>5m→15m, 15m→30m, 30m→1h, 1h→2h, 2h→4h, 4h→1d</strong>.
+    Both timeframes agreeing = Strong Buy/Sell; only the base timeframe confirming = Buy/Sell;
+    timeframes disagreeing = reported as Neutral rather than guessing. Click any cell for the exact numbers.
+  </div>
+
+  <!-- History scrubber: step back through past bars per-column for backtesting/analysis -->
+  <div class="ema-scrub-bar mb-3">
+    <span class="ema-scrub-label"><i class="bi bi-clock-history me-1"></i>History</span>
+    <button class="btn btn-sm btn-outline-light" id="emaOlderBtn" title="Step back">
+      <i class="bi bi-skip-backward-fill me-1"></i>Older
+    </button>
+    <select class="form-select form-select-sm" id="emaStepSize" style="width:auto" title="Bars per step">
+      <option value="1">1 bar</option>
+      <option value="5" selected>5 bars</option>
+      <option value="10">10 bars</option>
+      <option value="20">20 bars</option>
+      <option value="50">50 bars</option>
+    </select>
+    <button class="btn btn-sm btn-outline-light" id="emaNewerBtn" title="Step forward" disabled>
+      Newer<i class="bi bi-skip-forward-fill ms-1"></i>
+    </button>
+    <span class="badge-tag" id="emaBarsBackLabel">Live</span>
+    <div class="d-flex align-items-center gap-1 ms-1">
+      <input type="number" class="form-control form-control-sm" id="emaJumpInput" placeholder="bars back" min="0" max="170" style="width:96px">
+      <button class="btn btn-sm btn-outline-light" id="emaJumpBtn">Go</button>
+    </div>
+    <button class="btn btn-sm btn-primary ms-auto" id="emaLiveBtn" disabled>
+      <i class="bi bi-broadcast me-1"></i>Jump to Live
+    </button>
+  </div>
+  <div class="fs-xs text-muted mb-3" id="emaScrubHint" style="display:none">
+    <i class="bi bi-info-circle me-1"></i>
+    Viewing a past point in time — each column shows what its EMA9/21 read (and higher-TF confirmation)
+    looked like <strong id="emaScrubHintN"></strong> back on that column's own timeframe. Auto-refresh is
+    paused while browsing history.
+  </div>
+
+  <div class="section-card">
+    <div class="table-responsive" id="emaRatingsWrap">
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span>Select this tab to load EMA 9/21 data...</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Click-to-inspect popover for EMA 9/21 cells -->
+<div id="emaDetailPopover" class="ema-popover" style="display:none"></div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 const TA_TFS    = ['5m','15m','30m','1h','2h','4h','1d'];
 const AI_TFS    = ['5m','15m','1h','4h','1d'];
+const EMA_TFS   = TA_TFS;                                   // same ladder used by the EMA 9/21 MTF grid
+const HIGHER_TF_LABEL = {'5m':'15m','15m':'30m','30m':'1h','1h':'2h','2h':'4h','4h':'1d','1d':null};
 let _data       = [];
 let _aiData     = [];
+let _emaData    = [];
 let _aiLoaded   = false;
+let _emaLoaded  = false;
 let _currentTab = 'ratings';
+let _emaBarsBack = 0;   // 0 = live; >0 = N bars back (per-column, its own timeframe)
 
 function showTab(tab) {
   _currentTab = tab;
   document.getElementById('tabRatings').style.display = tab === 'ratings' ? 'block' : 'none';
   document.getElementById('tabAi').style.display      = tab === 'ai'      ? 'block' : 'none';
   document.getElementById('tabQuotes').style.display  = tab === 'quotes'  ? 'block' : 'none';
+  document.getElementById('tabEma').style.display     = tab === 'ema'     ? 'block' : 'none';
   document.getElementById('tabRatingsBtn').classList.toggle('active', tab === 'ratings');
   document.getElementById('tabAiBtn').classList.toggle('active',      tab === 'ai');
   document.getElementById('tabQuotesBtn').classList.toggle('active',  tab === 'quotes');
+  document.getElementById('tabEmaBtn').classList.toggle('active',     tab === 'ema');
   if (tab === 'ai' && !_aiLoaded) loadAiData(true);
-  if (tab !== 'ai' && _data.length) renderBoth();
+  if (tab === 'ema' && !_emaLoaded) loadEmaData(true);
+  if (tab !== 'ai' && tab !== 'ema' && _data.length) renderBoth();
+  hideEmaDetail();
 }
 
 const LABEL_MAP = {
@@ -256,7 +338,7 @@ function renderBoth() {
   renderQuotes();
   const now = new Date();
   document.getElementById('lastUpdated').textContent =
-    'Updated ' + now.toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit', hour12:false});
+    'Updated ' + now.toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit', hour12:false});
 }
 
 function tfLabel(tf) {
@@ -431,21 +513,221 @@ async function loadAiData(showSpinner = true) {
   }
 }
 
+// ── EMA 9/21 Multi-Timeframe ──────────────────────────────────────
+
+// Cell data is looked up by index rather than embedded as JSON in the HTML
+// attribute — simpler escaping story and lighter markup for a ~150-cell grid.
+let _emaCellRegistry = [];
+
+function emaCell(cell, symbol, tf) {
+  if (!cell) return `<span class="ta-cell ta-loading">—</span>`;
+  const cls = LABEL_MAP[cell.rating] || 'ta-neutral';
+  const flag = cell.conflicting ? ' <i class="bi bi-exclamation-triangle-fill" style="font-size:9px;opacity:.8"></i>' : '';
+  const idx = _emaCellRegistry.push({ cell, symbol }) - 1;
+  return `<span class="ta-cell ${cls}" style="cursor:pointer" onclick="showEmaDetail(event, ${idx})">
+    ${cell.rating}${flag}
+  </span>`;
+}
+
+function renderEmaRatings() {
+  const wrap = document.getElementById('emaRatingsWrap');
+  if (!_emaData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+  _emaCellRegistry = [];
+
+  const byMarket = {};
+  _emaData.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
+
+  const tfHeaders = EMA_TFS.map(tf => {
+    const higher = HIGHER_TF_LABEL[tf];
+    const sub = higher ? `confirmed by ${tfLabel(higher)}` : 'no higher TF';
+    return `<th style="text-align:center;min-width:118px">${tfLabel(tf)}<div style="font-weight:400;font-size:9.5px;color:var(--text-muted);text-transform:none">${sub}</div></th>`;
+  }).join('');
+
+  let html = `<table class="smart-table" style="min-width:760px">
+    <thead><tr>
+      <th style="min-width:140px;position:sticky;left:0;background:var(--bg-card);z-index:2">Name</th>
+      ${tfHeaders}
+      <th style="text-align:center;min-width:112px">Overall</th>
+    </tr></thead><tbody>`;
+
+  for (const [mkt, assets] of Object.entries(byMarket)) {
+    html += `<tr class="asset-row-header"><td colspan="${EMA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    assets.forEach(a => {
+      const overall = overallRating(a.tf);   // same -1..1 score convention as Technical Ratings
+      html += `<tr>
+        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+        </td>
+        ${EMA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${emaCell(a.tf[tf], a.symbol, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px">
+          ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
+        </td>
+      </tr>`;
+    });
+  }
+
+  html += '</tbody></table>';
+  wrap.innerHTML = html;
+}
+
+let _emaLoadStart = 0;
+
+function _emaEndpoint() {
+  return _emaBarsBack > 0 ? '/market-data/ema-summary/history' : '/market-data/ema-summary';
+}
+function _emaParams() {
+  const market = document.getElementById('mktFilter').value;
+  return _emaBarsBack > 0 ? { market, bars_back: _emaBarsBack } : { market };
+}
+
+async function loadEmaData(showSpinner = true) {
+  // Auto (silent) refreshes only make sense for the live view — a fixed
+  // historical offset doesn't change, so skip the periodic re-fetch for it.
+  if (!showSpinner && _emaBarsBack > 0) return;
+
+  if (showSpinner) {
+    _emaLoadStart = Date.now();
+    document.getElementById('emaRatingsWrap').innerHTML = `
+      <div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+        <span id="emaLoadMsg">${_emaBarsBack > 0 ? 'Loading historical EMA9/21...' : 'Calculating EMA9/21...'}</span>
+        <div style="font-size:11px;margin-top:6px;color:var(--text-muted)">Reading each timeframe + its higher-TF confirmation</div>
+      </div>`;
+    const data = await API.get(_emaEndpoint(), _emaParams());
+    if (!data?.assets) return;
+    _emaData   = data.assets;
+    _emaLoaded = true;
+    renderEmaRatings();
+    const elapsed = ((Date.now() - _emaLoadStart) / 1000).toFixed(1);
+    document.getElementById('emaLastUpdated').textContent =
+      _emaBarsBack > 0 ? `Historical (${elapsed}s)` : `Updated (${elapsed}s)`;
+  } else {
+    const data = await API.get(_emaEndpoint(), _emaParams());
+    if (!data?.assets) return;
+    _emaData = data.assets;
+    if (_currentTab === 'ema') renderEmaRatings();
+  }
+}
+
+function _emaUpdateScrubUI() {
+  const isLive = _emaBarsBack === 0;
+  document.getElementById('emaBarsBackLabel').textContent = isLive ? 'Live' : `${_emaBarsBack} bars back`;
+  document.getElementById('emaNewerBtn').disabled = isLive;
+  document.getElementById('emaLiveBtn').disabled  = isLive;
+  document.getElementById('emaScrubHint').style.display = isLive ? 'none' : 'block';
+  document.getElementById('emaScrubHintN').textContent = `${_emaBarsBack} bars`;
+}
+
+function emaStepOlder() {
+  const step = parseInt(document.getElementById('emaStepSize').value, 10) || 5;
+  _emaBarsBack = Math.min(170, _emaBarsBack + step);
+  _emaUpdateScrubUI();
+  loadEmaData(true);
+}
+function emaStepNewer() {
+  const step = parseInt(document.getElementById('emaStepSize').value, 10) || 5;
+  _emaBarsBack = Math.max(0, _emaBarsBack - step);
+  _emaUpdateScrubUI();
+  loadEmaData(true);
+}
+function emaJumpToLive() {
+  _emaBarsBack = 0;
+  _emaUpdateScrubUI();
+  loadEmaData(true);
+}
+function emaJumpTo() {
+  const val = parseInt(document.getElementById('emaJumpInput').value, 10);
+  if (isNaN(val) || val < 0) return;
+  _emaBarsBack = Math.min(170, val);
+  _emaUpdateScrubUI();
+  loadEmaData(true);
+}
+
+// Click-to-inspect popover: shows the exact EMA9/EMA21/close numbers (both
+// timeframes) that produced a cell's rating.
+function showEmaDetail(evt, idx) {
+  evt.stopPropagation();
+  const entry = _emaCellRegistry[idx];
+  const pop = document.getElementById('emaDetailPopover');
+  if (!pop || !entry) return;
+  const { cell, symbol } = entry;
+
+  const fmtTs = (iso) => {
+    if (!iso) return '';
+    try { return new Date(iso + (/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? '' : 'Z'))
+      .toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
+    catch (_) { return iso; }
+  };
+  const row = (r) => {
+    if (!r || r.bias === 'unavailable') return `<div class="ema-pop-row text-muted">${r ? r.timeframe : ''}: not enough data yet</div>`;
+    const biasClr = r.bias === 'bullish' ? 'var(--green)' : r.bias === 'bearish' ? 'var(--red)' : 'var(--text-secondary)';
+    return `<div class="ema-pop-row">
+      <strong>${r.timeframe}</strong>
+      <span>EMA9 <b>${r.ema9}</b></span>
+      <span>EMA21 <b>${r.ema21}</b></span>
+      <span>Price <b>${r.close}</b></span>
+      <span style="color:${biasClr};font-weight:700;text-transform:capitalize">${r.bias}</span>
+    </div>
+    <div class="ema-pop-ts">as of ${fmtTs(r.timestamp)} IST</div>`;
+  };
+
+  pop.innerHTML = `
+    <div class="ema-pop-header">
+      <strong>${symbol}</strong> — ${cell.rating}
+      <span class="ema-pop-close" onclick="hideEmaDetail()"><i class="bi bi-x-lg"></i></span>
+    </div>
+    ${row(cell.base)}
+    ${cell.higher ? row(cell.higher) : '<div class="ema-pop-row text-muted">No higher timeframe for this column</div>'}
+    ${cell.conflicting ? '<div class="ema-pop-note"><i class="bi bi-exclamation-triangle-fill me-1"></i>Timeframes disagree — reported Neutral rather than picking a side.</div>' : ''}
+  `;
+
+  const rect = evt.currentTarget.getBoundingClientRect();
+  pop.style.display = 'block';
+  const top  = window.scrollY + rect.bottom + 6;
+  let left = window.scrollX + rect.left;
+  const maxLeft = window.scrollX + document.documentElement.clientWidth - 320;
+  if (left > maxLeft) left = maxLeft;
+  pop.style.top = top + 'px';
+  pop.style.left = Math.max(8, left) + 'px';
+}
+
+function hideEmaDetail() {
+  const pop = document.getElementById('emaDetailPopover');
+  if (pop) pop.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  const pop = document.getElementById('emaDetailPopover');
+  if (pop && pop.style.display !== 'none' && !pop.contains(e.target)) hideEmaDetail();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideEmaDetail(); });
+
 document.addEventListener('app:ready', () => {
   loadData(true);
   document.getElementById('refreshBtn').addEventListener('click', () => {
-    if (_currentTab === 'ai') { _aiLoaded = false; loadAiData(true); }
+    if (_currentTab === 'ai')      { _aiLoaded = false; loadAiData(true); }
+    else if (_currentTab === 'ema') { _emaLoaded = false; loadEmaData(true); }
     else loadData(true);
   });
   document.getElementById('mktFilter').addEventListener('change', () => {
     _aiLoaded = false;
+    _emaLoaded = false;
     if (_currentTab === 'ai') loadAiData(true);
+    else if (_currentTab === 'ema') loadEmaData(true);
     else loadData(true);
   });
   setInterval(() => {
     if (_currentTab === 'ai') loadAiData(false);
+    else if (_currentTab === 'ema') loadEmaData(false);
     else loadData(false);
   }, 120000);
+
+  document.getElementById('emaOlderBtn').addEventListener('click', emaStepOlder);
+  document.getElementById('emaNewerBtn').addEventListener('click', emaStepNewer);
+  document.getElementById('emaLiveBtn').addEventListener('click', emaJumpToLive);
+  document.getElementById('emaJumpBtn').addEventListener('click', emaJumpTo);
+  document.getElementById('emaJumpInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') emaJumpTo(); });
 });
 </script>
 {% endblock %}

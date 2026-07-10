@@ -123,7 +123,15 @@ function loadTopOpps(signals) {
   const top = signals.filter(s => { if (!s.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
     .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0)).slice(0, 5);
   if (!top.length) { el.innerHTML = '<div class="text-muted fs-sm">No opportunities</div>'; return; }
-  el.innerHTML = top.map((s, i) => {
+  const head = `<div class="opp-list-row opp-list-head">
+      <span class="opp-rank">#</span>
+      <span class="opp-list-name">Asset</span>
+      <span class="opp-head-sig">Signal</span>
+      <span class="opp-list-conf">Conf</span>
+      <span class="opp-list-rr">R:R</span>
+      <span class="opp-list-spark">Trend</span>
+    </div>`;
+  el.innerHTML = head + top.map((s, i) => {
     const conf = s.confidence_score || 0; const rr = parseFloat(s.risk_reward);
     return `<div class="opp-list-row" onclick="location='/asset/${s.asset_id}'">
       <span class="opp-rank">${i + 1}</span>
@@ -247,7 +255,7 @@ async function loadNewsImpact() {
   if (!rows.length) { el.innerHTML = '<div class="text-muted fs-sm">No news</div>'; return; }
   el.innerHTML = rows.slice(0, 4).map(n => {
     const imp = n.sentiment === 'negative' ? ['High Impact', 'var(--red)'] : n.sentiment === 'positive' ? ['Positive', 'var(--green)'] : ['Neutral', 'var(--text-muted)'];
-    const t = n.published_at ? new Date(n.published_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+    const t = n.published_at ? new Date(n.published_at + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
     return `<a class="ni-row" href="${n.url || '#'}" target="_blank" rel="noopener"><span class="ni-imp" style="color:${imp[1]}">${imp[0]}</span><span class="ni-text">${(n.title || '').slice(0, 70)}</span><span class="ni-time">${t}</span></a>`;
   }).join('');
 }

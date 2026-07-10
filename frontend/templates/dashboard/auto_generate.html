@@ -623,7 +623,7 @@ async function pollStatus() {
   if (data.last_run_at) {
     const d = new Date(data.last_run_at + 'Z');
     document.getElementById('lastRunLabel').textContent =
-      `Last run: ${d.toLocaleTimeString('en-IN',{hour12:false})}`;
+      `Last run: ${d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour12:false})}`;
   }
 
   updateCountdown(data.next_run_at);
@@ -669,8 +669,8 @@ async function loadRecentSignals() {
     const rr      = parseFloat(s.risk_reward) || 0;
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : rr > 0 ? 'var(--text-secondary)' : 'var(--text-muted)';
     const rrText  = rr > 0 ? `${rr.toFixed(1)}x` : '—';
-    const d       = s.generated_at ? new Date(s.generated_at) : null;
-    const tStr    = d ? d.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
+    const d       = s.generated_at ? new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(s.generated_at) ? s.generated_at : s.generated_at + 'Z') : null;
+    const tStr    = d ? d.toLocaleTimeString('en-IN',{timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',hour12:false}) : '—';
     return `<tr>
       <td style="color:var(--text-muted);font-size:11px;white-space:nowrap">${tStr}</td>
       <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>

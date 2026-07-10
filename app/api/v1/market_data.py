@@ -208,6 +208,132 @@ def _compute_ta_rating(ind, close):
     return {"rating": label, "buy": buy, "sell": sell, "neutral": neutral, "score": round(score, 2)}
 
 
+@market_data_bp.route("/ema-summary", methods=["GET"])
+@login_required
+def ema_summary():
+    """EMA 9/21 multi-timeframe confirmation grid — each cell's rating is the
+    EMA9/21 cross on that timeframe, confirmed (or not) by the same cross on
+    the next-higher timeframe. See app/services/indicators/ema_mtf.py for the
+    exact rules; each cell carries the raw EMA9/EMA21/close numbers used."""
+    from app.auth.decorators import get_current_user
+    from app.models.user import UserAssetPreference
+    from app.services.indicators.ema_mtf import TA_TIMEFRAMES, HIGHER_TF_MAP, compute_ema921_cell
+
+    user   = get_current_user()
+    market = request.args.get("market") or "all"
+
+    # ── Serve from pre-warmed global cache (near-instant) ────────
+    global_cache = cache.get("ema_summary_all")
+    if global_cache:
+        prefs = {p.asset_id: p.enabled
+                 for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+        assets = global_cache["assets"]
+        if market != "all":
+            assets = [a for a in assets if a.get("market") == market]
+        if prefs:
+            assets = [a for a in assets if prefs.get(a["id"], True)]
+        return jsonify({
+            "assets": assets,
+            "timeframes": global_cache["timeframes"],
+            "higher_tf_map": HIGHER_TF_MAP,
+        }), 200
+
+    # ── Cold path: compute on-demand (first boot before scheduler runs) ──
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    tfs = TA_TIMEFRAMES
+    asset_q = Asset.query.filter_by(is_active=True)
+    if market != "all":
+        asset_q = asset_q.filter_by(market=market)
+    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
+    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+
+    all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
+
+    def _process_asset(asset):
+        sym = asset.symbol
+        dfs = all_data.get(sym, {})
+        row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
+        for tf in tfs:
+            try:
+                higher_tf = HIGHER_TF_MAP.get(tf)
+                higher_df = dfs.get(higher_tf) if higher_tf else None
+                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df).to_dict()
+            except Exception:
+                row["tf"][tf] = None
+        return row
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
+        result = list(ex.map(_process_asset, assets))
+
+    cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=150)
+    return jsonify({"assets": result, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP}), 200
+
+
+#: Cap on how far back a single request may scrub, per timeframe's own bars.
+#: Bounded by the 200-bar fetch below (leaves headroom for the EMA21 warm-up).
+_EMA_HISTORY_MAX_BARS_BACK = 170
+
+
+@market_data_bp.route("/ema-summary/history", methods=["GET"])
+@login_required
+def ema_summary_history():
+    """EMA 9/21 MTF grid at a past point in time — powers the "scroll back
+    through history" control on the EMA 9/21 MTF tab. Same cell shape as
+    /ema-summary; each cell also carries the exact timestamp it was read at,
+    since the base and higher timeframes land on different historical moments
+    once you're offset (an as-of / point-in-time join, never look-ahead —
+    see app/services/indicators/ema_mtf.py)."""
+    from app.auth.decorators import get_current_user
+    from app.models.user import UserAssetPreference
+    from app.services.indicators.ema_mtf import TA_TIMEFRAMES, HIGHER_TF_MAP, compute_ema921_cell
+
+    user = get_current_user()
+    market = request.args.get("market") or "all"
+    try:
+        bars_back = int(request.args.get("bars_back", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "bars_back must be an integer"}), 400
+    if bars_back < 0 or bars_back > _EMA_HISTORY_MAX_BARS_BACK:
+        return jsonify({"error": f"bars_back must be between 0 and {_EMA_HISTORY_MAX_BARS_BACK}"}), 400
+    if bars_back == 0:
+        return ema_summary()  # identical to the live endpoint
+
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    tfs = TA_TIMEFRAMES
+    asset_q = Asset.query.filter_by(is_active=True)
+    if market != "all":
+        asset_q = asset_q.filter_by(market=market)
+    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
+    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+
+    # Reuses the fetcher's own per-symbol/timeframe TTL cache, so repeated
+    # scrub steps within that window don't re-hit external market data APIs.
+    all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
+
+    def _process_asset(asset):
+        sym = asset.symbol
+        dfs = all_data.get(sym, {})
+        row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
+        for tf in tfs:
+            try:
+                higher_tf = HIGHER_TF_MAP.get(tf)
+                higher_df = dfs.get(higher_tf) if higher_tf else None
+                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, bars_back).to_dict()
+            except Exception:
+                row["tf"][tf] = None
+        return row
+
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
+        result = list(ex.map(_process_asset, assets))
+
+    return jsonify({
+        "assets": result, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP,
+        "bars_back": bars_back,
+    }), 200
+
+
 @market_data_bp.route("/ai-summary", methods=["GET"])
 @login_required
 @limiter.limit("10 per minute;60 per hour")

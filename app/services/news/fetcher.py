@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import requests
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 
 logger = logging.getLogger(__name__)
@@ -71,10 +71,16 @@ def _parse_rss(xml_text: str, related_symbols: list[str]) -> list[dict]:
             url = (item.findtext("link") or "").strip()
             summary = (item.findtext("description") or "").strip()
             pub_date_str = item.findtext("pubDate") or ""
+            # RFC-2822 pubDate carries its own offset (often GMT, sometimes not) —
+            # convert to UTC before dropping tzinfo, or a non-GMT offset would
+            # silently shift the displayed time (naive datetimes = UTC app-wide).
             published_at = None
             if pub_date_str:
                 try:
-                    published_at = parsedate_to_datetime(pub_date_str).replace(tzinfo=None)
+                    dt = parsedate_to_datetime(pub_date_str)
+                    if dt.tzinfo is not None:
+                        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                    published_at = dt
                 except Exception:
                     published_at = None
             sentiment, score = _score_sentiment(title + " " + summary)

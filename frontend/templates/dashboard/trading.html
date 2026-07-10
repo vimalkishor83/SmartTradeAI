@@ -281,7 +281,7 @@ async function loadOrderHistory() {
       <td>${o.size}</td>
       <td>${fmtNum(o.average_fill_price)}</td>
       <td><span class="badge-tag">${o.state || '—'}</span></td>
-      <td class="text-muted fs-xs">${o.created_at ? new Date(o.created_at).toLocaleString('en-IN') : '—'}</td>
+      <td class="text-muted fs-xs">${o.created_at ? new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(o.created_at) ? o.created_at : o.created_at + 'Z').toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</td>
     </tr>`).join('');
 }
 

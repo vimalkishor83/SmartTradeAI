@@ -256,7 +256,7 @@ async function loadHeadlines() {
   if (!el) return;
   if (!rows.length) { el.innerHTML = '<div class="text-muted fs-sm">No headlines available</div>'; return; }
   el.innerHTML = rows.slice(0, 6).map(n => {
-    const t = n.published_at ? new Date(n.published_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false }) : '';
+    const t = n.published_at ? new Date(n.published_at + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
     const dot = n.sentiment === 'positive' ? 'var(--green)' : n.sentiment === 'negative' ? 'var(--red)' : 'var(--text-muted)';
     return `<a class="headline-row" href="${n.url || '#'}" target="_blank" rel="noopener">
       <span class="headline-time">${t}</span>
