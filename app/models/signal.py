@@ -47,6 +47,22 @@ class Signal(db.Model):
         db.Index("idx_signals_asset_tf",       "asset_id", "timeframe"),
         db.Index("idx_signals_status_time",    "status",   "generated_at"),
         db.Index("idx_signals_asset_tf_time",  "asset_id", "timeframe", "generated_at"),
+        # Partial unique index: at most one ACTIVE signal per (asset,
+        # timeframe) at a time. generate_signals_for_timeframe() only
+        # guarded against duplicates via an in-memory snapshot taken once
+        # at job start — two overlapping job runs (APScheduler misfire, or
+        # a manual re-trigger via admin while the scheduled run is still
+        # in flight) could both pass that check before either committed,
+        # inserting two active signals for the same asset/timeframe. This
+        # index makes that impossible at the database level regardless of
+        # how many processes race — the loser's INSERT raises IntegrityError,
+        # caught and skipped in the generation job.
+        db.Index(
+            "uq_signals_active_asset_tf", "asset_id", "timeframe",
+            unique=True,
+            sqlite_where=db.text("status = 'active'"),
+            postgresql_where=db.text("status = 'active'"),
+        ),
     )
 
     SIGNAL_TYPES = ["BUY", "SELL", "HOLD", "EXIT"]

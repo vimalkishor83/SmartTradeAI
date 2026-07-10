@@ -198,13 +198,6 @@ def update_api_config(cfg_id):
     cfg  = APIConfig.query.get_or_404(cfg_id)
     data = request.get_json() or {}
 
-    if "is_default" in data and data["is_default"]:
-        APIConfig.query.filter(
-            APIConfig.market == cfg.market,
-            APIConfig.id != cfg_id,
-            APIConfig.is_default
-        ).update({"is_default": False})
-
     field_map = {
         "name": "name", "provider": "provider", "market": "market",
         "base_url": "base_url", "websocket_url": "websocket_url",
@@ -215,6 +208,21 @@ def update_api_config(cfg_id):
     for k, attr in field_map.items():
         if k in data:
             setattr(cfg, attr, data[k])
+
+    # Clear other configs' is_default AFTER applying field_map above — if the
+    # request also changes `market` in the same call, this must use the NEW
+    # market (cfg.market, now updated) so the uniqueness clear targets the
+    # market this config is actually moving into. Previously ran before the
+    # field_map loop, using the OLD market, which could leave two configs
+    # marked is_default=True in the new market (the moved one, plus whatever
+    # was already default there) — ambiguous "default" resolution for
+    # whichever fetcher code does .filter_by(is_default=True).first().
+    if "is_default" in data and data["is_default"]:
+        APIConfig.query.filter(
+            APIConfig.market == cfg.market,
+            APIConfig.id != cfg_id,
+            APIConfig.is_default
+        ).update({"is_default": False})
 
     # Only update credentials if supplied
     if data.get("api_key"):    cfg.set_api_key(data["api_key"])
@@ -419,8 +427,13 @@ def _test_connection(cfg: APIConfig) -> dict:
 
     try:
         t0  = time.time()
+        # Was previously passing cfg.api_key_encrypted — the raw ciphertext
+        # blob, not the decrypted key — which meant this connectivity test
+        # always failed auth for these three providers, and additionally
+        # sent encrypted secret material out over the wire/query-string to
+        # a third party for no reason.
         r   = requests.get(url, headers=headers, timeout=6,
-                           params={"apikey": cfg.api_key_encrypted} if cfg.provider in ("alpha_vantage", "finnhub", "twelve_data") else {})
+                           params={"apikey": cfg.get_api_key()} if cfg.provider in ("alpha_vantage", "finnhub", "twelve_data") else {})
         ms  = int((time.time() - t0) * 1000)
         result["latency_ms"] = ms
         result["reachable"]  = True

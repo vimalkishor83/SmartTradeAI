@@ -89,54 +89,67 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 result, asset = res
                 signals_to_add.append((result, asset))
 
-        # ── Batch-write all signals in one transaction ──────────────
+        # ── Write signals one at a time, not as one all-or-nothing batch ──
+        # A partial unique index (uq_signals_active_asset_tf) now enforces
+        # at most one active signal per (asset, timeframe) at the DB level —
+        # the in-memory recent_asset_ids snapshot above is only a fast-path
+        # optimization, not the actual guarantee. If two overlapping job
+        # runs (scheduler misfire, manual re-trigger) both pass that
+        # snapshot check for the same asset, whichever commits first wins;
+        # the loser's insert raises IntegrityError here and is skipped —
+        # previously this was one shared transaction, so a single duplicate
+        # would roll back and lose every OTHER legitimately-new signal in
+        # the same batch too.
         if not signals_to_add:
             return
 
-        try:
-            for result, asset in signals_to_add:
-                signal = Signal(
-                    asset_id          = asset.id,
-                    timeframe         = timeframe,
-                    signal_type       = result["signal_type"],
-                    entry_price       = result["entry_price"],
-                    stop_loss         = result["stop_loss"],
-                    target1           = result["target1"],
-                    target2           = result["target2"],
-                    target3           = result["target3"],
-                    risk_reward       = result["risk_reward"],
-                    confidence_score  = result["confidence_score"],
-                    confidence_label  = result["confidence_label"],
-                    trend_score       = result["trend_score"],
-                    momentum_score    = result["momentum_score"],
-                    volume_score      = result["volume_score"],
-                    pattern_score     = result["pattern_score"],
-                    ai_score          = result["ai_score"],
-                    indicators        = result["indicators"],
-                    patterns          = result["patterns"],
-                    reasoning         = result["reasoning"],
-                    regime            = result.get("regime"),
-                    expires_at        = result["expires_at"],
-                )
-                db.session.add(signal)
+        from sqlalchemy.exc import IntegrityError
+        from app.websocket.events import broadcast_signal
 
-            db.session.flush()
-
-            # Broadcast new signals via WebSocket (best-effort)
+        for result, asset in signals_to_add:
+            signal = Signal(
+                asset_id          = asset.id,
+                timeframe         = timeframe,
+                signal_type       = result["signal_type"],
+                entry_price       = result["entry_price"],
+                stop_loss         = result["stop_loss"],
+                target1           = result["target1"],
+                target2           = result["target2"],
+                target3           = result["target3"],
+                risk_reward       = result["risk_reward"],
+                confidence_score  = result["confidence_score"],
+                confidence_label  = result["confidence_label"],
+                trend_score       = result["trend_score"],
+                momentum_score    = result["momentum_score"],
+                volume_score      = result["volume_score"],
+                pattern_score     = result["pattern_score"],
+                ai_score          = result["ai_score"],
+                indicators        = result["indicators"],
+                patterns          = result["patterns"],
+                reasoning         = result["reasoning"],
+                regime            = result.get("regime"),
+                expires_at        = result["expires_at"],
+            )
+            db.session.add(signal)
             try:
-                from app.websocket.events import broadcast_signal
-                for signal in db.session.new:
-                    if hasattr(signal, 'to_dict'):
-                        broadcast_signal(signal.to_dict())
-            except Exception:
-                pass
+                db.session.commit()
+                generated += 1
+                try:
+                    broadcast_signal(signal.to_dict())
+                except Exception:
+                    pass  # WebSocket broadcast is best-effort
+            except IntegrityError:
+                db.session.rollback()
+                logger.debug(
+                    f"Skipped duplicate active signal [{asset.symbol}/{timeframe}] "
+                    f"— another concurrent run already created one"
+                )
+            except Exception as e:
+                db.session.rollback()
+                logger.error(f"Signal insert failed [{asset.symbol}/{timeframe}]: {e}")
 
-            db.session.commit()
-            generated = len(signals_to_add)
+        if generated:
             logger.info(f"Generated {generated} signals for {timeframe}")
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Signal batch commit failed [{timeframe}]: {e}")
 
 
 def register_signal_jobs(scheduler, app):

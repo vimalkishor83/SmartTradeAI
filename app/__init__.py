@@ -240,6 +240,27 @@ def _migrate_columns(app):
             except Exception:
                 pass  # index already exists or table not yet created
 
+        # Partial unique index: at most one active signal per (asset,
+        # timeframe) — closes the duplicate-signal race window in
+        # generate_signals_for_timeframe(). Defensively expire any existing
+        # duplicates first so the index can actually be created.
+        try:
+            cur.execute("""
+                UPDATE signals SET status = 'expired'
+                WHERE status = 'active' AND id NOT IN (
+                    SELECT MAX(id) FROM signals WHERE status = 'active'
+                    GROUP BY asset_id, timeframe
+                )
+            """)
+            cur.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_signals_active_asset_tf
+                ON signals (asset_id, timeframe)
+                WHERE status = 'active'
+            """)
+            conn.commit()
+        except Exception:
+            pass  # index already exists or table not yet created
+
         # Backfill NULL values in new api_configs columns for existing rows
         try:
             cur.execute("UPDATE api_configs SET status='active' WHERE status IS NULL")
