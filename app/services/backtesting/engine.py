@@ -195,10 +195,48 @@ class BacktestEngine:
 
             # ── Manage open position ───────────────────────────────────────
             if position:
-                closed, exit_price, exit_reason = self._manage_position(
+                closed, exit_price, exit_reason, partial_units = self._manage_position(
                     position, price, highs.iloc[i], lows.iloc[i],
                     direction, i, max_hold,
                 )
+                if partial_units:
+                    # Book P&L on the 50% scaled out at T1 right now — the
+                    # remaining units stay open and continue to SL/T2/timeout.
+                    # This used to be a documented "simplification" (see class
+                    # docstring point 6) where the SL moved to breakeven at T1
+                    # but the FULL position rode to T2 — meaning the backtest
+                    # never actually realized the T1 partial the Help page
+                    # tells users to expect ("50% closed at T1"). Every
+                    # win-rate/profit-factor number reported from a backtest
+                    # was silently overstating the T1->T2 leg's contribution.
+                    partial_fill = self._fill_price(exit_price, _opposite(position["type"]), slippage)
+                    partial_comm = partial_fill * partial_units * commission
+                    if position["type"] == "BUY":
+                        partial_gross = (partial_fill - position["fill"]) * partial_units
+                    else:
+                        partial_gross = (position["fill"] - partial_fill) * partial_units
+                    # Entry commission is prorated to the portion being closed now.
+                    partial_entry_comm = position["entry_commission"] * (partial_units / position["units"])
+                    partial_net = partial_gross - partial_comm - partial_entry_comm
+                    capital += partial_net
+                    trades.append({
+                        "entry":        round(position["fill"], 6),
+                        "exit":         round(partial_fill, 6),
+                        "type":         position["type"],
+                        "bars_held":    i - position["bar_index"],
+                        "exit_reason":  "target1_partial",
+                        "pnl_pct":      round(partial_net / (position["fill"] * partial_units) * 100, 3),
+                        "pnl":          round(partial_net, 2),
+                        "commission":   round(partial_comm + partial_entry_comm, 2),
+                        "slippage_cost":round(abs(partial_fill - exit_price) * partial_units, 2),
+                        "outcome":      "win" if partial_net > 0 else "loss",
+                        "date":         str(df.index[i]) if hasattr(df.index[i], "__str__") else str(i),
+                    })
+                    # Shrink the remaining position — the rest still tracks
+                    # toward T2/breakeven-SL/timeout with the smaller size.
+                    position["units"] -= partial_units
+                    position["entry_commission"] -= partial_entry_comm
+
                 if closed:
                     exit_fill = self._fill_price(exit_price, _opposite(position["type"]), slippage)
                     comm_cost = exit_fill * position["units"] * commission
@@ -295,13 +333,15 @@ class BacktestEngine:
         new_direction: str | None,
         bar_index: int,
         max_hold: int,
-    ) -> tuple[bool, float, str]:
+    ) -> tuple[bool, float, str, float]:
         """
-        Returns (closed, exit_price, reason).
+        Returns (closed, exit_price, reason, partial_units).
         Implements:
           - SL hit on bar high/low (intra-bar check)
-          - Partial exit at T1 + move SL to breakeven (tracked via flags)
-          - Full exit at T2
+          - Partial exit at T1: 50% of units booked now (partial_units > 0),
+            SL moved to breakeven on the remainder, position stays open
+          - Full exit at T2 (on whatever units remain — the other 50% if T1
+            already hit, or the full size if price gapped straight to T2)
           - Signal reversal closes immediately
           - Max hold timeout
         """
@@ -314,36 +354,36 @@ class BacktestEngine:
         if ptype == "BUY":
             # Stop hit (use intra-bar low)
             if low <= sl:
-                return True, sl, "stop_loss"
+                return True, sl, "stop_loss", 0.0
             # T2 hit
             if high >= t2:
-                return True, t2, "target2"
-            # T1 partial — mark it, move SL to breakeven
+                return True, t2, "target2", 0.0
+            # T1 partial — book 50% now, move SL to breakeven on the rest
             if not pos["partial_taken"] and high >= t1:
                 pos["partial_taken"]  = True
                 pos["sl_moved_to_be"] = True
                 pos["stop_loss"]      = entry    # breakeven SL
-                # Don't close — partial handled by reducing units conceptually
-                # (simplified: full position rides to T2 from here)
+                return False, t1, "target1_partial", pos["units"] * 0.5
         else:  # SELL
             if high >= sl:
-                return True, sl, "stop_loss"
+                return True, sl, "stop_loss", 0.0
             if low <= t2:
-                return True, t2, "target2"
+                return True, t2, "target2", 0.0
             if not pos["partial_taken"] and low <= t1:
                 pos["partial_taken"]  = True
                 pos["sl_moved_to_be"] = True
                 pos["stop_loss"]      = entry
+                return False, t1, "target1_partial", pos["units"] * 0.5
 
         # Signal reversal
         if new_direction and new_direction != ptype:
-            return True, price, "signal_reversal"
+            return True, price, "signal_reversal", 0.0
 
         # Max hold timeout
         if bar_index - pos["bar_index"] >= max_hold:
-            return True, price, "timeout"
+            return True, price, "timeout", 0.0
 
-        return False, price, ""
+        return False, price, "", 0.0
 
     # ── Statistics ──────────────────────────────────────────────────────────
 

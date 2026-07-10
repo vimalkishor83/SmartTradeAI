@@ -425,8 +425,10 @@ class SignalEngine:
         """
         base = sum(scores.values())   # max ~100
 
-        # Trend alignment multiplier
-        trend_pct = scores.get("trend", 0) / 30 if 30 > 0 else 0
+        # Trend alignment multiplier. MAX_TREND_SCORE (30) matches the cap
+        # applied when "trend" is first computed (round(... * 30) above).
+        MAX_TREND_SCORE = 30
+        trend_pct = scores.get("trend", 0) / MAX_TREND_SCORE
         if trend_pct >= 0.80:
             trend_mult = 1.15
         elif trend_pct >= 0.60:

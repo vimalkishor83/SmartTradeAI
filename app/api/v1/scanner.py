@@ -76,7 +76,11 @@ def _apply_filters(df, ind, filters) -> list:
 
     checks = {
         "strong_buy": ema20 > ema50 and macd_hist > 0 and 50 < rsi < 70,
-        "strong_sell": ema20 < ema50 and macd_hist < 0 and rsi < 50,
+        # Mirror of strong_buy's bounded RSI band — previously only checked
+        # `rsi < 50` with no lower bound, so it fired even at RSI=5 (deeply
+        # oversold), self-contradicting rsi_oversold (a bounce candidate, not
+        # a fresh sell signal) for the exact same asset.
+        "strong_sell": ema20 < ema50 and macd_hist < 0 and 30 < rsi < 50,
         "breakout": close > high_52 * 0.99,
         "breakdown": close < low_52 * 1.01,
         "volume_spike": avg_vol > 0 and curr_vol > avg_vol * 2,
