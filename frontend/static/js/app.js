@@ -114,6 +114,23 @@ const Auth = {
   updateUI() {
     const u = this.user;
     if (!u) return;
+
+    const banner = document.getElementById('approvalBanner');
+    if (banner) {
+      if (u.approval_status === 'pending') {
+        banner.style.display = '';
+        banner.innerHTML = '<i class="bi bi-hourglass-split me-2"></i>Your account is pending admin approval. ' +
+          'You can explore the interface, but signals, trading, portfolio, and other data features stay locked until approved.';
+        banner.className = 'approval-banner approval-banner-pending';
+      } else if (u.approval_status === 'rejected') {
+        banner.style.display = '';
+        banner.innerHTML = '<i class="bi bi-x-octagon me-2"></i>Your account access request was not approved. Contact support if you believe this is a mistake.';
+        banner.className = 'approval-banner approval-banner-rejected';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
     const initial = (u.username || 'U').charAt(0).toUpperCase();
     document.querySelectorAll('#userAvatar, #navUserAvatar').forEach(el => el.textContent = initial);
     document.querySelectorAll('#sidebarUserName, #navUserName').forEach(el => el.textContent = u.full_name || u.username);

@@ -6,9 +6,11 @@ from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 from flask_migrate import Migrate
+from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
 
 db = SQLAlchemy()
+cors = CORS()
 
 
 def configure_sqlite_concurrency(app):

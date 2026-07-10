@@ -2189,6 +2189,11 @@ select option { background: var(--bg-secondary); color: var(--text-primary); }
 .ag-qs-k{color:var(--text-muted);font-weight:600}
 .ag-qs-v{color:var(--text-primary);font-weight:700}
 
+/* ═══ Account approval banner ═══════════════════════════════════════ */
+.approval-banner{margin:0 0 16px;padding:11px 16px;border-radius:10px;font-size:13px;font-weight:600}
+.approval-banner-pending{background:var(--yellow-bg,rgba(245,158,11,.12));color:var(--yellow);border:1px solid rgba(245,158,11,.35)}
+.approval-banner-rejected{background:var(--red-bg,rgba(239,68,68,.12));color:var(--red);border:1px solid rgba(239,68,68,.35)}
+
 /* ═══ Global page polish (lifts all .page-header pages) ═══════════ */
 .page-header{padding-bottom:14px;border-bottom:1px solid var(--border)}
 .page-title{font-size:22px;letter-spacing:-.5px}

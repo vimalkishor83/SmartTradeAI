@@ -51,6 +51,9 @@ class User(db.Model):
 
     is_active = db.Column(db.Boolean, default=True)
     is_verified = db.Column(db.Boolean, default=False)
+    # "pending" (self-registered, awaiting admin review), "approved" (full
+    # access), "rejected" (blocked). Admin-created users are auto-approved.
+    approval_status = db.Column(db.String(20), default="approved", nullable=False)
     email_notifications = db.Column(db.Boolean, default=True)
     telegram_chat_id = db.Column(db.String(100))
     telegram_enabled = db.Column(db.Boolean, default=False)
@@ -96,6 +99,7 @@ class User(db.Model):
             "role": self.role.name if self.role else None,
             "subscription": self.subscription.name if self.subscription else "free",
             "is_active": self.is_active,
+            "approval_status": self.approval_status,
             "theme": self.theme,
             "account_size": self.account_size or 100000.0,
             "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,

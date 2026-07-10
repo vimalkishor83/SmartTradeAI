@@ -28,6 +28,8 @@ def dashboard():
     wins    = history.filter(SignalHistory.outcome == "win").count()
     win_rate = round(wins / total_h * 100, 1) if total_h else 0
 
+    pending_users = User.query.filter_by(approval_status="pending").count()
+
     cpu  = psutil.cpu_percent(interval=0.1)
     mem  = psutil.virtual_memory()
     disk = psutil.disk_usage("/")
@@ -40,7 +42,7 @@ def dashboard():
     last_sync   = db.session.query(db.func.max(APIConfig.last_sync)).scalar()
 
     return jsonify({
-        "users":   {"total": total_users, "active": active_users},
+        "users":   {"total": total_users, "active": active_users, "pending": pending_users},
         "signals": {"total": total_signals, "today": signals_today, "win_rate": win_rate},
         "system":  {
             "cpu_pct":       cpu,
@@ -66,13 +68,43 @@ def dashboard():
 def list_users():
     page   = int(request.args.get("page", 1))
     search = request.args.get("search", "")
+    status = request.args.get("approval_status", "")
     query  = User.query
     if search:
         query = query.filter(
             User.username.ilike(f"%{search}%") | User.email.ilike(f"%{search}%")
         )
+    if status:
+        query = query.filter(User.approval_status == status)
     users = query.order_by(User.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
     return jsonify({"users": [u.to_dict() for u in users.items], "total": users.total, "pages": users.pages}), 200
+
+
+@admin_bp.route("/users/pending", methods=["GET"])
+@admin_required
+def list_pending_users():
+    """Self-registered accounts awaiting approval — surfaced separately from
+    the main user list so the admin panel can show a pending badge/queue."""
+    users = User.query.filter_by(approval_status="pending").order_by(User.created_at.asc()).all()
+    return jsonify({"users": [u.to_dict() for u in users], "total": len(users)}), 200
+
+
+@admin_bp.route("/users/<int:user_id>/approve", methods=["POST"])
+@admin_required
+def approve_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.approval_status = "approved"
+    db.session.commit()
+    return jsonify(user.to_dict()), 200
+
+
+@admin_bp.route("/users/<int:user_id>/reject", methods=["POST"])
+@admin_required
+def reject_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.approval_status = "rejected"
+    db.session.commit()
+    return jsonify(user.to_dict()), 200
 
 
 @admin_bp.route("/users/<int:user_id>", methods=["PUT"])
@@ -80,7 +112,7 @@ def list_users():
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.get_json()
-    for f in ["is_active", "role_id", "subscription_id", "is_verified"]:
+    for f in ["is_active", "role_id", "subscription_id", "is_verified", "approval_status"]:
         if f in data:
             setattr(user, f, data[f])
     db.session.commit()

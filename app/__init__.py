@@ -2,7 +2,7 @@ import logging
 import os
 from flask import Flask
 from app.config import get_config
-from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler
+from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors
 from app.extensions import configure_sqlite_concurrency
 
 
@@ -24,8 +24,52 @@ def create_app(config_class=None):
     _init_scheduler(app)
     _start_streams(app)
     _register_asset_versioning(app)
+    _register_approval_gate(app)
 
     return app
+
+
+# API prefixes a "pending"/"rejected" self-registered user may still call —
+# account/profile management and read-only reference data, so they can see
+# their own status and fix their profile while waiting on approval. Every
+# other /api/v1/* prefix (signals, portfolio, trading, journal, etc.) is
+# blocked until an admin approves the account.
+_APPROVAL_EXEMPT_PREFIXES = (
+    "/api/v1/auth",
+    "/api/v1/system",
+)
+
+
+def _register_approval_gate(app):
+    @app.before_request
+    def _enforce_approval():
+        from flask import request, jsonify
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+
+        path = request.path
+        if not path.startswith("/api/v1/") or path.startswith(_APPROVAL_EXEMPT_PREFIXES):
+            return None
+        if request.method == "OPTIONS":
+            return None
+
+        try:
+            verify_jwt_in_request(optional=True)
+        except Exception:
+            return None  # let the route's own auth decorator handle it
+
+        user_id = get_jwt_identity()
+        if not user_id:
+            return None  # unauthenticated request — route decides (public or 401)
+
+        from app.models.user import User
+        user = User.query.get(int(user_id))
+        if user and user.approval_status != "approved":
+            return jsonify({
+                "error": "Account pending approval",
+                "approval_status": user.approval_status,
+                "message": "Your account is awaiting admin approval before you can access this feature.",
+            }), 403
+        return None
 
 
 def _register_asset_versioning(app):
@@ -48,7 +92,9 @@ def _init_extensions(app):
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
-    socketio.init_app(app, cors_allowed_origins="*", async_mode="threading")
+    cors_origins = app.config.get("CORS_ORIGINS", ["*"])
+    cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=True)
+    socketio.init_app(app, cors_allowed_origins=cors_origins, async_mode="threading")
     limiter.init_app(app)
     cache.init_app(app)
 
@@ -119,6 +165,7 @@ def _init_db(app):
 def _migrate_columns(app):
     """Add new columns and indexes to existing tables (SQLite safe — skips if already present)."""
     column_migrations = [
+        ("users",      "approval_status",      "TEXT    DEFAULT 'approved'"),
         ("users",      "account_size",         "REAL    DEFAULT 100000.0"),
         ("users",      "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
         ("users",      "min_confidence_filter","INTEGER DEFAULT 60"),

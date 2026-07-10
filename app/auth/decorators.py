@@ -45,6 +45,35 @@ def premium_required(f):
     return roles_required("admin", "premium")(f)
 
 
+def approved_required(f):
+    """Blocks endpoints that need full account access (signals, portfolio,
+    trading, etc.) for users still in the self-registration "pending" queue
+    or who were rejected. Admins bypass this — an admin account is always
+    approval_status="approved" by construction, but this also lets an admin
+    fix their own account if something goes sideways."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            verify_jwt_in_request()
+        except Exception:
+            return jsonify({"error": "Authentication required"}), 401
+
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+        if not user or not user.is_active:
+            return jsonify({"error": "User not found or inactive"}), 403
+
+        if user.approval_status != "approved":
+            return jsonify({
+                "error": "Account pending approval",
+                "approval_status": user.approval_status,
+                "message": "Your account is awaiting admin approval before you can access this feature.",
+            }), 403
+
+        return f(*args, **kwargs)
+    return decorated
+
+
 def get_current_user():
     user_id = get_jwt_identity()
     return User.query.get(int(user_id)) if user_id else None

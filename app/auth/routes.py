@@ -36,6 +36,9 @@ def register():
         last_name=data.get("last_name", ""),
         role_id=free_role.id,
         subscription_id=free_sub.id if free_sub else None,
+        # Self-registration always lands pending — an admin must approve
+        # before the account gets full access (see require_approved decorator).
+        approval_status="pending",
     )
     user.set_password(data["password"])
     db.session.add(user)
@@ -47,7 +50,8 @@ def register():
     refresh_token = create_refresh_token(identity=str(user.id))
 
     return jsonify({
-        "message": "Registration successful",
+        "message": "Registration successful — your account is pending admin approval. "
+                    "You can log in now, but full access unlocks once approved.",
         "access_token": access_token,
         "refresh_token": refresh_token,
         "user": user.to_dict(),

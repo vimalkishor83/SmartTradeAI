@@ -33,6 +33,14 @@ class Config:
 
     ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
 
+    # Comma-separated list of allowed browser origins for the REST API and
+    # Socket.IO, e.g. "https://app.example.com,https://www.example.com".
+    # Defaults to "*" (any origin) which is fine for local/dev use only.
+    CORS_ORIGINS = [o.strip() for o in os.environ.get("CORS_ORIGINS", "*").split(",") if o.strip()]
+
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+
     # Email
     MAIL_SERVER = os.environ.get("MAIL_SERVER", "smtp.gmail.com")
     MAIL_PORT = int(os.environ.get("MAIL_PORT", 587))
@@ -68,12 +76,20 @@ class DevelopmentConfig(Config):
     CACHE_TYPE = "RedisCache" if os.environ.get("REDIS_URL") else "SimpleCache"
 
 
+_INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-in-production"}
+
+
 class ProductionConfig(Config):
     DEBUG = False
-    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL")
-    CACHE_TYPE = "RedisCache"
+    # SQLite is fine here too — DATABASE_URL just needs to point at whatever
+    # engine you're running (falls back to the local sqlite file so a first
+    # deploy without DATABASE_URL set doesn't hard-crash before you've had a
+    # chance to configure it).
+    SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///smarttrade_prod.db")
+    CACHE_TYPE = "RedisCache" if os.environ.get("REDIS_URL") else "SimpleCache"
     JWT_COOKIE_SECURE = True
     JWT_COOKIE_CSRF_PROTECT = True
+    SESSION_COOKIE_SECURE = True
 
 
 class TestingConfig(Config):
@@ -91,4 +107,18 @@ config_map = {
 
 def get_config():
     env = os.environ.get("FLASK_ENV", "development")
-    return config_map.get(env, DevelopmentConfig)
+    cfg = config_map.get(env, DevelopmentConfig)
+
+    # Refuse to boot in production with the placeholder secrets — anyone can
+    # forge JWTs/sessions with these known values. Checked here (only when
+    # production config is actually selected) rather than at class-definition
+    # time, so importing app.config in dev/test never trips this.
+    if cfg is ProductionConfig and (
+        cfg.SECRET_KEY in _INSECURE_DEFAULTS or cfg.JWT_SECRET_KEY in _INSECURE_DEFAULTS
+    ):
+        raise RuntimeError(
+            "Refusing to start in production with default SECRET_KEY/JWT_SECRET_KEY. "
+            "Set real random values via the SECRET_KEY and JWT_SECRET_KEY environment "
+            "variables before deploying publicly."
+        )
+    return cfg

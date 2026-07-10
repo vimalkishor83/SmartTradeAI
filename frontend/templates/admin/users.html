@@ -10,14 +10,29 @@
   <input type="text" class="form-control" id="userSearch" placeholder="Search users..." style="width:240px" />
 </div>
 
+<div class="section-card mb-3" id="pendingUsersCard" style="display:none">
+  <div class="d-flex align-items-center justify-content-between p-3 pb-0">
+    <h2 class="h6 mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Approval
+      <span class="badge bg-warning text-dark ms-1" id="pendingCount">0</span></h2>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr><th>Username</th><th>Email</th><th>Registered</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="pendingUsersBody"></tbody>
+    </table>
+  </div>
+</div>
+
 <div class="section-card">
   <div class="table-responsive">
     <table class="smart-table">
       <thead>
         <tr><th>ID</th><th>Username</th><th>Email</th><th>Role</th><th>Plan</th>
-        <th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th></tr>
+        <th>Approval</th><th>Status</th><th>Last Login</th><th>Joined</th><th>Actions</th></tr>
       </thead>
-      <tbody id="usersBody"><tr><td colspan="9" class="text-center py-4 text-muted">Loading...</td></tr></tbody>
+      <tbody id="usersBody"><tr><td colspan="10" class="text-center py-4 text-muted">Loading...</td></tr></tbody>
     </table>
   </div>
   <div class="p-3 d-flex justify-content-between">
@@ -39,6 +54,10 @@ async function loadUsers(page = 1) {
   if (!data) return;
 
   document.getElementById('userCount').textContent = `${data.total} users`;
+  const approvalBadge = (status) => {
+    const cls = status === 'approved' ? 'bg-success' : status === 'rejected' ? 'bg-danger' : 'bg-warning text-dark';
+    return `<span class="badge ${cls}">${status || 'approved'}</span>`;
+  };
   document.getElementById('usersBody').innerHTML = data.users.map(u => `
     <tr>
       <td class="text-muted">${u.id}</td>
@@ -46,6 +65,7 @@ async function loadUsers(page = 1) {
       <td>${u.email}</td>
       <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'premium' ? 'bg-warning text-dark' : 'bg-secondary'}">${u.role}</span></td>
       <td>${u.subscription || 'free'}</td>
+      <td>${approvalBadge(u.approval_status)}</td>
       <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
       <td class="text-muted small">${u.last_login ? formatTime(u.last_login) : 'Never'}</td>
       <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
@@ -71,6 +91,42 @@ async function loadUsers(page = 1) {
   pag.innerHTML = html;
 }
 
+async function loadPendingUsers() {
+  const data = await API.get('/admin/users/pending');
+  if (!data) return;
+  const card = document.getElementById('pendingUsersCard');
+  if (!data.total) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  document.getElementById('pendingCount').textContent = data.total;
+  document.getElementById('pendingUsersBody').innerHTML = data.users.map(u => `
+    <tr>
+      <td><strong>${u.username}</strong></td>
+      <td>${u.email}</td>
+      <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-success" onclick="approveUser(${u.id})"><i class="bi bi-check-lg"></i> Approve</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="rejectUser(${u.id})"><i class="bi bi-x-lg"></i> Reject</button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+async function approveUser(id) {
+  await API.post(`/admin/users/${id}/approve`, {});
+  Toast.show('User approved', 'success');
+  loadPendingUsers();
+  loadUsers(userPage);
+}
+
+async function rejectUser(id) {
+  if (!confirm('Reject this account? They will remain blocked from full access.')) return;
+  await API.post(`/admin/users/${id}/reject`, {});
+  Toast.show('User rejected', 'success');
+  loadPendingUsers();
+  loadUsers(userPage);
+}
+
 async function toggleUser(id, active) {
   await API.put(`/admin/users/${id}`, { is_active: active });
   Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success');
@@ -89,6 +145,6 @@ document.getElementById('userSearch').addEventListener('input', () => {
   searchTimeout = setTimeout(() => loadUsers(1), 400);
 });
 
-document.addEventListener('app:ready', () => loadUsers());
+document.addEventListener('app:ready', () => { loadUsers(); loadPendingUsers(); });
 </script>
 {% endblock %}
