@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -230,8 +231,16 @@ def _save_model(key: str, model):
 # ─────────────────────────────────────────────────────────────────────────────
 class AIPredictor:
 
-    # In-process prediction cache: key → (bull_prob, ts)
+    # In-process prediction cache: key → (bull_prob, ts). Guarded by
+    # _cache_lock since this is read/written from both APScheduler
+    # background threads (prewarm jobs) and Flask request threads —
+    # unsynchronized check-then-set let concurrent threads both miss the
+    # cache and redundantly retrain/predict the same symbol+timeframe at
+    # once (wasted CPU, not a correctness bug in the value itself, since
+    # dict get/set are individually GIL-atomic — but worth locking properly
+    # to match the pattern already used by _OHLCVCache in fetcher.py).
     _pred_cache: dict[str, tuple[float, float]] = {}
+    _cache_lock = threading.Lock()
 
     def predict(self, df: pd.DataFrame, asset_symbol: str, timeframe: str) -> dict:
         """Return ensemble prediction for the latest candle."""
@@ -251,7 +260,8 @@ class AIPredictor:
         # Check in-process TTL cache before recomputing
         cache_key = f"{asset_symbol}_{timeframe}"
         ttl = _PRED_TTL.get(timeframe, 3600)
-        cached = self._pred_cache.get(cache_key)
+        with self._cache_lock:
+            cached = self._pred_cache.get(cache_key)
         if cached and (time.time() - cached[1]) < ttl:
             bull_prob = cached[0]
         else:
@@ -270,7 +280,8 @@ class AIPredictor:
                     return _default
 
                 bull_prob = self._ensemble_predict(X_train, y_train, X_pred, asset_symbol, timeframe)
-                self._pred_cache[cache_key] = (bull_prob, time.time())
+                with self._cache_lock:
+                    self._pred_cache[cache_key] = (bull_prob, time.time())
 
             except Exception as e:
                 logger.error(f"AI prediction error [{asset_symbol}/{timeframe}]: {e}")
@@ -446,14 +457,15 @@ class AIPredictor:
 
     def invalidate_cache(self, asset_symbol: str = None, timeframe: str = None):
         """Clear in-process prediction cache (call after model retrain)."""
-        if asset_symbol and timeframe:
-            self._pred_cache.pop(f"{asset_symbol}_{timeframe}", None)
-        elif asset_symbol:
-            for k in list(self._pred_cache):
-                if k.startswith(asset_symbol + "_"):
-                    del self._pred_cache[k]
-        else:
-            self._pred_cache.clear()
+        with self._cache_lock:
+            if asset_symbol and timeframe:
+                self._pred_cache.pop(f"{asset_symbol}_{timeframe}", None)
+            elif asset_symbol:
+                for k in list(self._pred_cache):
+                    if k.startswith(asset_symbol + "_"):
+                        del self._pred_cache[k]
+            else:
+                self._pred_cache.clear()
 
     def has_ready_model(self, asset_symbol: str, timeframe: str) -> bool:
         """True if a prediction can be served WITHOUT training inline — i.e. the
@@ -462,7 +474,8 @@ class AIPredictor:
         returns False, the endpoint returns a fast 'warming up' response and lets
         the background prewarm job train the model instead of blocking the request."""
         cache_key = f"{asset_symbol}_{timeframe}"
-        cached = self._pred_cache.get(cache_key)
+        with self._cache_lock:
+            cached = self._pred_cache.get(cache_key)
         if cached and (time.time() - cached[1]) < _PRED_TTL.get(timeframe, 3600):
             return True
         for prefix in ("rf_", "xgb_", "lgb_"):

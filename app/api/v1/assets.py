@@ -43,6 +43,16 @@ def get_ticker(asset_id):
     return jsonify(ticker), 200
 
 
+#: Explicit whitelist of client-settable fields — using hasattr(Asset, k)
+#: against arbitrary client JSON keys would let a caller set internal
+#: columns (id, created_at) or anything else that happens to share a name
+#: with a model attribute.
+_ASSET_EDITABLE_FIELDS = [
+    "symbol", "name", "market", "exchange", "base_currency", "quote_currency",
+    "is_active", "data_source", "pip_size", "lot_size", "min_lot",
+]
+
+
 @assets_bp.route("/", methods=["POST"])
 @admin_required
 def create_asset():
@@ -50,7 +60,17 @@ def create_asset():
     required = ["symbol", "name", "market"]
     if not all(k in data for k in required):
         return jsonify({"error": "Missing required fields"}), 400
-    asset = Asset(**{k: data[k] for k in data if hasattr(Asset, k)})
+
+    if data["market"] not in Asset.MARKETS:
+        return jsonify({"error": f"market must be one of {Asset.MARKETS}"}), 400
+
+    existing = Asset.query.filter_by(
+        symbol=data["symbol"], exchange=data.get("exchange")
+    ).first()
+    if existing:
+        return jsonify({"error": f"Asset '{data['symbol']}' already exists for this exchange"}), 409
+
+    asset = Asset(**{k: data[k] for k in data if k in _ASSET_EDITABLE_FIELDS})
     db.session.add(asset)
     db.session.commit()
     cache.delete("assets_list")
@@ -62,8 +82,12 @@ def create_asset():
 def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     data = request.get_json()
+
+    if "market" in data and data["market"] not in Asset.MARKETS:
+        return jsonify({"error": f"market must be one of {Asset.MARKETS}"}), 400
+
     for k, v in data.items():
-        if hasattr(asset, k):
+        if k in _ASSET_EDITABLE_FIELDS:
             setattr(asset, k, v)
     db.session.commit()
     cache.delete("assets_list")

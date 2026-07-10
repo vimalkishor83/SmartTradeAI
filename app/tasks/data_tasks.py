@@ -63,8 +63,8 @@ def close_and_record_signals(app):
 
                 # Expire by time first (works without price data)
                 if signal.expires_at and signal.expires_at < datetime.utcnow():
-                    signal.status = "expired"
-                    closed += 1
+                    if _claim_signal_close(signal, "expired"):
+                        closed += 1
                     continue
 
                 # Get current price (cached per asset)
@@ -81,13 +81,20 @@ def close_and_record_signals(app):
                 # Determine outcome
                 outcome = _check_outcome(signal, current_price)
                 if outcome:
+                    # Atomically claim the close before writing history — if
+                    # another job (the 15s real-time price checker, or a
+                    # prior overlapping run of this same job) already closed
+                    # this signal, rowcount is 0 and we skip recording a
+                    # second, duplicate SignalHistory row for one trade.
+                    if not _claim_signal_close(signal, outcome):
+                        continue
+
                     # Calculate P&L
                     if signal.signal_type in ("BUY", "HOLD"):
                         pnl_pct = (current_price - signal.entry_price) / signal.entry_price * 100
                     else:
                         pnl_pct = (signal.entry_price - current_price) / signal.entry_price * 100
 
-                    signal.status = outcome
                     signal.pnl_pct = round(pnl_pct, 2)
 
                     # Write to history
@@ -123,6 +130,36 @@ def close_and_record_signals(app):
         except Exception as e:
             db.session.rollback()
             logger.error(f"Signal close commit failed: {e}")
+
+
+def _claim_signal_close(signal, new_status: str) -> bool:
+    """Atomically transition a signal from "active" to a closed status.
+
+    close_and_record_signals (every 5 min), check_signals_for_price (every
+    ~15s via ticker polling, and on every real-time price push from the
+    Delta WebSocket stream) and evaluate_expired_predictions can all reach
+    the same signal around the same moment. Each of them previously did a
+    plain read-then-mutate (`signal.status = outcome`) with no guard, so if
+    two of these overlapped, both could see status="active", both compute an
+    outcome, and both insert a SignalHistory row for the same signal —
+    double-counting one trade in the win-rate/performance stats shown
+    throughout the app.
+
+    This performs the status flip as a single conditional UPDATE (`WHERE
+    id=... AND status='active'`) and returns True only if a row was actually
+    affected — i.e. this call is the one that "won" the race and should
+    proceed to write the SignalHistory row. A losing caller sees 0 rows
+    affected and skips history entirely, since the winner already recorded it.
+    """
+    from app.models.signal import Signal
+    from app.extensions import db
+
+    result = db.session.execute(
+        Signal.__table__.update()
+        .where(Signal.id == signal.id, Signal.status == "active")
+        .values(status=new_status)
+    )
+    return result.rowcount > 0
 
 
 def _check_outcome(signal, current_price):
@@ -433,8 +470,8 @@ def check_signals_for_price(symbol: str, price: float, app):
         for signal in active:
             try:
                 if signal.expires_at and signal.expires_at < now:
-                    signal.status = "expired"
-                    closed.append(signal)
+                    if _claim_signal_close(signal, "expired"):
+                        closed.append(signal)
                     continue
 
                 outcome = _check_outcome(signal, price)
@@ -442,12 +479,21 @@ def check_signals_for_price(symbol: str, price: float, app):
                     signal.current_price = price
                     continue
 
+                # Atomically claim the close before writing history — this
+                # job fires on every price tick (as often as every few
+                # seconds via the Delta WS stream), while the 5-min
+                # close_and_record_signals job and the 30-min prediction
+                # evaluator can also reach the same signal. Only the caller
+                # that actually flips status="active" -> outcome proceeds;
+                # a loser (rowcount 0) skips writing a duplicate history row.
+                if not _claim_signal_close(signal, outcome):
+                    continue
+
                 if signal.signal_type in ("BUY", "HOLD"):
                     pnl_pct = (price - signal.entry_price) / signal.entry_price * 100
                 else:
                     pnl_pct = (signal.entry_price - price) / signal.entry_price * 100
 
-                signal.status = outcome
                 signal.current_price = price
                 signal.pnl_pct = round(pnl_pct, 2)
 
