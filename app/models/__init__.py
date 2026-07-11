@@ -5,6 +5,7 @@ from app.models.signal import Signal, SignalHistory
 from app.models.prediction import Prediction
 from app.models.watchlist import Watchlist, WatchlistItem
 from app.models.portfolio import Portfolio, PortfolioItem
+from app.models.protective_order import ProtectiveOrder
 from app.models.notification import Notification
 from app.models.backtest import Backtest
 from app.models.news import News

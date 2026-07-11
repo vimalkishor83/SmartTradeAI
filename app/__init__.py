@@ -127,6 +127,7 @@ def _register_blueprints(app):
     from app.api.v1.risk import risk_bp
     from app.api.v1.journal import journal_bp
     from app.api.v1.trading import trading_bp
+    from app.api.v1.protective_orders import protective_orders_bp
     from app.api.v1.system import system_bp
     from app.frontends import frontends_bp
     from app.views import views_bp
@@ -146,6 +147,7 @@ def _register_blueprints(app):
     app.register_blueprint(risk_bp, url_prefix="/api/v1/risk")
     app.register_blueprint(journal_bp, url_prefix="/api/v1/journal")
     app.register_blueprint(trading_bp, url_prefix="/api/v1/trading")
+    app.register_blueprint(protective_orders_bp, url_prefix="/api/v1/protective-orders")
     app.register_blueprint(system_bp, url_prefix="/api/v1/system")
     app.register_blueprint(frontends_bp)
     app.register_blueprint(views_bp)
@@ -458,6 +460,7 @@ def _seed_initial_data(app):
 def _init_scheduler(app):
     from app.tasks.data_tasks import register_data_jobs
     from app.tasks.notification_tasks import register_notification_jobs
+    from app.tasks.protective_order_tasks import register_protective_order_jobs
     from app.services.data.collector import register_collector_job
 
     with app.app_context():
@@ -469,6 +472,7 @@ def _init_scheduler(app):
         # the app never produces signals for assets outside that config.
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)
+        register_protective_order_jobs(scheduler, app)
 
         # Defensively remove any legacy per-timeframe signal jobs left in a
         # persistent jobstore from before this change.
