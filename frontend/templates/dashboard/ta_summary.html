@@ -242,9 +242,22 @@ function overallRating(tf_obj) {
 
 const MKT_LABEL = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
 
+// Same targeted-update pattern as the EMA MTF and AI Ratings tabs — the
+// periodic 120s auto-refresh (loadData(false)) previously rebuilt this
+// whole table from scratch every cycle even though the asset set rarely
+// changes between refreshes.
+let _raRenderedAssetIds = null;
+
 function renderRatings() {
   const wrap = document.getElementById('ratingsWrap');
-  if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+  if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; _raRenderedAssetIds = null; return; }
+
+  const currentIds = _data.map(a => a.id).join(',');
+  if (currentIds === _raRenderedAssetIds && wrap.querySelector('table')) {
+    _updateRatingCellContents();
+    return;
+  }
+  _raRenderedAssetIds = currentIds;
 
   const byMarket = {};
   _data.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
@@ -265,8 +278,8 @@ function renderRatings() {
           <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
           <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
         </td>
-        ${TA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${ratingCell(a.tf[tf])}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px">
+        ${TA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ra-cell="${a.id}:${tf}">${ratingCell(a.tf[tf])}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ra-overall="${a.id}">
           ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
         </td>
       </tr>`;
@@ -275,6 +288,22 @@ function renderRatings() {
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+function _updateRatingCellContents() {
+  const byId = {};
+  _data.forEach(a => { byId[a.id] = a; });
+
+  document.querySelectorAll('#ratingsWrap [data-ra-cell]').forEach(td => {
+    const [assetId, tf] = td.dataset.raCell.split(':');
+    const a = byId[assetId];
+    td.innerHTML = a ? ratingCell(a.tf[tf]) : '<span class="ta-cell ta-loading">—</span>';
+  });
+  document.querySelectorAll('#ratingsWrap [data-ra-overall]').forEach(td => {
+    const a = byId[td.dataset.raOverall];
+    const overall = a ? overallRating(a.tf) : null;
+    td.innerHTML = overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>';
+  });
 }
 
 function renderQuotes() {
@@ -432,9 +461,23 @@ function aiOverall(tf_obj) {
   return { dir: 'NEUTRAL', cls: 'ai-neut', conf };
 }
 
+// Same pattern as EMA MTF tab's _emaRenderedAssetIds — the periodic 120s
+// auto-refresh previously rebuilt the whole table from scratch every time
+// even though the asset set rarely changes between refreshes, causing
+// visible flicker and losing scroll position. Same-asset-set refreshes now
+// patch cell content in place instead.
+let _aiRenderedAssetIds = null;
+
 function renderAiRatings() {
   const wrap = document.getElementById('aiRatingsWrap');
-  if (!_aiData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No predictions available</div>'; return; }
+  if (!_aiData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No predictions available</div>'; _aiRenderedAssetIds = null; return; }
+
+  const currentIds = _aiData.map(a => a.id).join(',');
+  if (currentIds === _aiRenderedAssetIds && wrap.querySelector('table')) {
+    _updateAiCellContents();
+    return;
+  }
+  _aiRenderedAssetIds = currentIds;
 
   const byMarket = {};
   _aiData.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
@@ -456,8 +499,8 @@ function renderAiRatings() {
           <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
           <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
         </td>
-        ${AI_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${aiCell(a.tf[tf], a.id, tf)}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px">
+        ${AI_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ai-cell="${a.id}:${tf}">${aiCell(a.tf[tf], a.id, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ai-overall="${a.id}">
           ${overall
             ? `<span class="ta-cell ai-cell ${overall.cls}" style="font-size:13px">
                 ${overall.dir} <span class="ai-conf">${overall.conf}%</span>
@@ -470,6 +513,26 @@ function renderAiRatings() {
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+function _updateAiCellContents() {
+  const byId = {};
+  _aiData.forEach(a => { byId[a.id] = a; });
+
+  document.querySelectorAll('#aiRatingsWrap [data-ai-cell]').forEach(td => {
+    const [assetId, tf] = td.dataset.aiCell.split(':');
+    const a = byId[assetId];
+    td.innerHTML = a ? aiCell(a.tf[tf], a.id, tf) : '<span class="ta-cell ta-loading">—</span>';
+  });
+  document.querySelectorAll('#aiRatingsWrap [data-ai-overall]').forEach(td => {
+    const a = byId[td.dataset.aiOverall];
+    const overall = a ? aiOverall(a.tf) : null;
+    td.innerHTML = overall
+      ? `<span class="ta-cell ai-cell ${overall.cls}" style="font-size:13px">
+          ${overall.dir} <span class="ai-conf">${overall.conf}%</span>
+         </span>`
+      : '<span class="ta-cell ta-loading">—</span>';
+  });
 }
 
 let _aiLoadStart = 0;

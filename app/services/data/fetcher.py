@@ -25,6 +25,28 @@ logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────────────────
+# Shared HTTP session — connection pooling / keep-alive
+# ─────────────────────────────────────────────────────────
+# DeltaExchangeFetcher/BinanceFetcher previously used bare module-level
+# requests.get(...) calls, each opening a fresh TCP+TLS handshake to the
+# same host instead of reusing a warm keep-alive connection. Both fetchers
+# run their per-(symbol,timeframe) OHLCV calls inside a ThreadPoolExecutor
+# with up to 20 concurrent workers hitting the SAME host (api.india.delta
+# .exchange / api.binance.com) every prewarm/refresh cycle — a fresh
+# handshake per call there is pure avoidable overhead (typically 50-150ms
+# of extra RTT each). A single shared, thread-safe requests.Session with a
+# larger connection pool lets urllib3 reuse connections across those
+# concurrent calls to the same host. requests.Session is documented
+# thread-safe for concurrent use across threads (each request grabs a
+# pooled connection under its own lock).
+_http_session = requests.Session()
+_http_session.mount(
+    "https://",
+    requests.adapters.HTTPAdapter(pool_connections=20, pool_maxsize=20, max_retries=0),
+)
+
+
+# ─────────────────────────────────────────────────────────
 # Retry decorator for transient network failures
 # ─────────────────────────────────────────────────────────
 def _retry(max_attempts: int = 3, backoff: float = 1.5):
@@ -131,7 +153,7 @@ def _delta_live_symbols() -> set[str]:
     last_err = None
     for attempt in range(attempts):
         try:
-            resp = requests.get(
+            resp = _http_session.get(
                 "https://api.india.delta.exchange/v2/products",
                 params={"contract_types": "perpetual_futures"},
                 timeout=8,
@@ -232,7 +254,7 @@ class BinanceFetcher:
 
         try:
             interval = self.INTERVAL.get(timeframe, "1h")
-            resp = requests.get(
+            resp = _http_session.get(
                 f"{self.BASE}/klines",
                 params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
                 timeout=10,
@@ -260,7 +282,7 @@ class BinanceFetcher:
         if not _breaker_binance.allow():
             return None
         try:
-            resp = requests.get(f"{self.BASE}/ticker/24hr", params={"symbol": symbol}, timeout=5)
+            resp = _http_session.get(f"{self.BASE}/ticker/24hr", params={"symbol": symbol}, timeout=5)
             resp.raise_for_status()
             d = resp.json()
             _breaker_binance.success()
@@ -314,7 +336,7 @@ class DeltaExchangeFetcher:
             end_ts   = int(time.time())
             start_ts = end_ts - seconds_per_candle * min(limit, 2000)
 
-            resp = requests.get(
+            resp = _http_session.get(
                 f"{self.BASE}/history/candles",
                 params={"symbol": delta_symbol, "resolution": resolution,
                         "start": start_ts, "end": end_ts},
@@ -347,7 +369,7 @@ class DeltaExchangeFetcher:
         if not _breaker_delta.allow():
             return None
         try:
-            resp = requests.get(f"{self.BASE}/tickers/{delta_symbol}", timeout=5)
+            resp = _http_session.get(f"{self.BASE}/tickers/{delta_symbol}", timeout=5)
             resp.raise_for_status()
             d = resp.json().get("result", {})
             _breaker_delta.success()
