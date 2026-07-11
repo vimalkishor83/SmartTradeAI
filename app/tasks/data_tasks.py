@@ -750,6 +750,7 @@ def check_watchlist_alerts(app):
         from app.models.watchlist import WatchlistItem, Watchlist
         from app.models.notification import Notification
         from app.models.asset import Asset
+        from app.models.user import User
         from app.services.data.fetcher import market_fetcher
         from app.extensions import db
 
@@ -759,6 +760,13 @@ def check_watchlist_alerts(app):
 
         # Build asset cache to avoid duplicate fetches
         price_cache = {}
+        # Watchlist -> owning user, batched up front to avoid a query per
+        # crossing (previously Watchlist.query.get(item.watchlist_id) ran
+        # once per triggered item inside the loop).
+        wl_ids = {i.watchlist_id for i in items}
+        watchlists_map = {w.id: w for w in Watchlist.query.filter(Watchlist.id.in_(wl_ids)).all()}
+        user_ids = {w.user_id for w in watchlists_map.values()}
+        users_map = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
         triggered = 0
 
         for item in items:
@@ -802,35 +810,64 @@ def check_watchlist_alerts(app):
 
                 if crossed:
                     # Determine the watchlist owner
-                    watchlist = Watchlist.query.get(item.watchlist_id)
+                    watchlist = watchlists_map.get(item.watchlist_id)
                     if not watchlist:
                         continue
                     user_id = watchlist.user_id
+                    user = users_map.get(user_id)
 
                     direction = "above" if current_price >= alert_price else "below"
+                    title = f"{symbol} hit your alert price"
+                    msg = (
+                        f"{symbol} crossed ₹{alert_price:.2f} — "
+                        f"current price: ₹{current_price:.2f} ({direction} alert)"
+                    )
                     notif = Notification(
                         user_id=user_id,
-                        title=f"{symbol} hit your alert price",
-                        message=(
-                            f"{symbol} crossed ₹{alert_price:.2f} — "
-                            f"current price: ₹{current_price:.2f} ({direction} alert)"
-                        ),
+                        title=title,
+                        message=msg,
                         notification_type="price_alert",
                         channel="web",
                         asset_symbol=symbol,
                     )
                     db.session.add(notif)
 
-                    # One-shot alert: clear the alert_price so it doesn't fire again
-                    item.alert_price = None
+                    if item.alert_repeat:
+                        # Re-arm: reset the crossing baseline to the price
+                        # it just fired at, so the NEXT crossing (in
+                        # either direction) fires again instead of the
+                        # alert going silent forever after the first hit.
+                        item.alert_set_at_price = current_price
+                    else:
+                        # One-shot alert: clear the alert_price so it doesn't fire again
+                        item.alert_price = None
                     triggered += 1
 
                     # Broadcast via WebSocket if available
                     try:
                         from app.websocket.events import broadcast_notification
-                        broadcast_notification(user_id, notif.title, notif.message)
+                        broadcast_notification(user_id, title, msg)
                     except Exception:
                         pass  # WebSocket broadcast is best-effort
+
+                    # Previously web/WebSocket only — signal alerts
+                    # (fire_signal_alerts) already deliver via
+                    # Telegram/push too, but watchlist price alerts never
+                    # did, so a user relying on Telegram/push for signal
+                    # alerts got silently weaker coverage for their own
+                    # manually-set watchlist alerts.
+                    if user and user.telegram_enabled and user.telegram_chat_id:
+                        try:
+                            from app.tasks.notification_tasks import _send_telegram
+                            _send_telegram(user.telegram_chat_id, f"🔔 *{title}*\n{msg}")
+                        except Exception:
+                            pass
+                    if user and user.push_enabled and user.push_subscription:
+                        try:
+                            from app.services.push import send_push_to_user
+                            send_push_to_user(user, title, msg, url="/watchlist")
+                        except Exception:
+                            pass
 
             except Exception as e:
                 logger.debug(f"Watchlist alert check failed for item {item.id}: {e}")

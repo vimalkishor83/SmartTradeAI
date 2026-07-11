@@ -41,6 +41,7 @@ def get_watchlists():
             "name": i.asset.name if i.asset else None,
             "market": i.asset.market if i.asset else None,
             "alert_price": i.alert_price,
+            "alert_repeat": i.alert_repeat,
         } for i in items_by_wl.get(wl.id, [])]
         result.append({
             "id": wl.id, "name": wl.name,
@@ -107,7 +108,8 @@ def add_to_watchlist(wl_id):
             pass
 
     item = WatchlistItem(watchlist_id=wl.id, asset_id=asset.id,
-                         alert_price=alert_price, alert_set_at_price=alert_set_at_price)
+                         alert_price=alert_price, alert_set_at_price=alert_set_at_price,
+                         alert_repeat=bool(data.get("alert_repeat", False)))
     db.session.add(item)
     db.session.commit()
     return jsonify({"id": item.id, "symbol": asset.symbol}), 201

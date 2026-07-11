@@ -28,6 +28,12 @@ class WatchlistItem(db.Model):
     # other, relative to where it started) instead of firing unconditionally
     # the moment current_price is compared against alert_price at all.
     alert_set_at_price = db.Column(db.Float)
+    # When True, a triggered alert re-arms itself (resets
+    # alert_set_at_price to the price it fired at) instead of clearing
+    # alert_price entirely — lets a user get notified every time price
+    # re-crosses their level (e.g. bouncing around a support/resistance
+    # line) rather than only once ever.
+    alert_repeat = db.Column(db.Boolean, default=False, nullable=False)
     notes = db.Column(db.String(255))
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     # Tracks alert-price edits — previously untracked, making it impossible
