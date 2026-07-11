@@ -129,12 +129,32 @@ def _run_auto_generate(app):
         _ag_log(f"▶ Run #{_AG_STATE['runs']} — {len(assets)} assets × {len(timeframes)} TFs ({combos} combos)")
         count = 0
 
+        # Fetch every (asset, timeframe) OHLCV frame in parallel up front —
+        # each is an independent network round-trip (Yahoo/Delta/Binance)
+        # with no shared mutable state, unlike the signal-generation +
+        # DB-write step below which stays serial (SQLAlchemy session,
+        # max_per early-break, and ordered logging aren't safely
+        # parallelizable). This was previously N x M sequential fetches
+        # blocking the whole run before any signal could be generated.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        combos_list = [(tf, asset) for tf in timeframes for asset in assets]
+        df_by_combo = {}
+        if combos_list:
+            with ThreadPoolExecutor(max_workers=min(15, len(combos_list))) as pool:
+                futures = {pool.submit(market_fetcher.fetch, asset, tf, 220): (tf, asset) for tf, asset in combos_list}
+                for fut in as_completed(futures):
+                    combo = futures[fut]
+                    try:
+                        df_by_combo[combo] = fut.result()
+                    except Exception:
+                        df_by_combo[combo] = None
+
         for timeframe in timeframes:
             for asset in assets:
                 if max_per and count >= max_per:
                     break
                 try:
-                    df = market_fetcher.fetch(asset, timeframe, 220)
+                    df = df_by_combo.get((timeframe, asset))
                     if df is None:
                         continue
 

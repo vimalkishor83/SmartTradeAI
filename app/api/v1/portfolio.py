@@ -29,17 +29,32 @@ def get_portfolio():
     portfolio = _get_user_portfolio(user_id)
     items = portfolio.items.all()
 
-    # Refresh prices
+    # Refresh prices in parallel instead of one sequential network round-trip
+    # per holding — same anti-pattern already fixed in watchlist.py.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    items_with_asset = [item for item in items if item.asset]
+    price_by_item_id = {}
+    if items_with_asset:
+        with ThreadPoolExecutor(max_workers=min(15, len(items_with_asset))) as pool:
+            futures = {pool.submit(market_fetcher.fetch, item.asset, "1d", 2): item.id for item in items_with_asset}
+            for fut in as_completed(futures):
+                item_id = futures[fut]
+                try:
+                    df = fut.result()
+                    if df is not None and not df.empty:
+                        price_by_item_id[item_id] = float(df["close"].iloc[-1])
+                except Exception:
+                    pass
+
     holdings = []
     total_invested = 0
     total_current = 0
 
     for item in items:
-        if item.asset:
-            df = market_fetcher.fetch(item.asset, "1d", 2)
-            if df is not None and not df.empty:
-                item.current_price = float(df["close"].iloc[-1])
-                db.session.add(item)
+        price = price_by_item_id.get(item.id)
+        if price is not None:
+            item.current_price = price
+            db.session.add(item)
         total_invested += item.invested_value
         total_current += item.current_value
         holdings.append(item.to_dict())
