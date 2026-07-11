@@ -529,9 +529,26 @@ function emaCell(cell, symbol, tf) {
   </span>`;
 }
 
+// Tracks which asset IDs the currently-rendered table structure covers —
+// scrubbing through history or a periodic live refresh calls this function
+// repeatedly with the SAME asset set but different cell values each time
+// (unlike a pure display-mode toggle, the underlying data genuinely
+// changes). The table headers, sticky name column, and market-group divider
+// rows never change between those calls though, only each cell's own
+// rating — so a same-asset-set re-render only needs to update cell content
+// in place instead of re-generating and reassigning the whole table's HTML.
+let _emaRenderedAssetIds = null;
+
 function renderEmaRatings() {
   const wrap = document.getElementById('emaRatingsWrap');
-  if (!_emaData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+  if (!_emaData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; _emaRenderedAssetIds = null; return; }
+
+  const currentIds = _emaData.map(a => a.id).join(',');
+  if (currentIds === _emaRenderedAssetIds && wrap.querySelector('table')) {
+    _updateEmaCellContents();
+    return;
+  }
+  _emaRenderedAssetIds = currentIds;
   _emaCellRegistry = [];
 
   const byMarket = {};
@@ -559,8 +576,8 @@ function renderEmaRatings() {
           <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
           <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
         </td>
-        ${EMA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px">${emaCell(a.tf[tf], a.symbol, tf)}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px">
+        ${EMA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ema-cell="${a.id}:${tf}">${emaCell(a.tf[tf], a.symbol, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ema-overall="${a.id}">
           ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
         </td>
       </tr>`;
@@ -569,6 +586,23 @@ function renderEmaRatings() {
 
   html += '</tbody></table>';
   wrap.innerHTML = html;
+}
+
+function _updateEmaCellContents() {
+  _emaCellRegistry = [];
+  const byId = {};
+  _emaData.forEach(a => { byId[a.id] = a; });
+
+  document.querySelectorAll('#emaRatingsWrap [data-ema-cell]').forEach(td => {
+    const [assetId, tf] = td.dataset.emaCell.split(':');
+    const a = byId[assetId];
+    td.innerHTML = a ? emaCell(a.tf[tf], a.symbol, tf) : '<span class="ta-cell ta-loading">—</span>';
+  });
+  document.querySelectorAll('#emaRatingsWrap [data-ema-overall]').forEach(td => {
+    const a = byId[td.dataset.emaOverall];
+    const overall = a ? overallRating(a.tf) : null;
+    td.innerHTML = overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>';
+  });
 }
 
 let _emaLoadStart = 0;
@@ -588,12 +622,28 @@ async function loadEmaData(showSpinner = true) {
 
   if (showSpinner) {
     _emaLoadStart = Date.now();
-    document.getElementById('emaRatingsWrap').innerHTML = `
-      <div class="text-center py-5 text-muted">
-        <div class="spinner-border spinner-border-sm me-2"></div>
-        <span id="emaLoadMsg">${_emaBarsBack > 0 ? 'Loading historical EMA9/21...' : 'Calculating EMA9/21...'}</span>
-        <div style="font-size:11px;margin-top:6px;color:var(--text-muted)">Reading each timeframe + its higher-TF confirmation</div>
-      </div>`;
+    const wrap = document.getElementById('emaRatingsWrap');
+    // Only replace with the full-page spinner if there's no table to keep
+    // showing yet (first load, or the market filter changed the asset
+    // set) — previously this unconditionally wiped the wrapper's innerHTML
+    // on EVERY scrub step, destroying the <table> before renderEmaRatings()
+    // ran, which meant the same-asset-set targeted-cell-update path added
+    // above could never actually trigger for the interactive scrub
+    // buttons (its main use case) — it was silently dead code. Now the
+    // existing table (with its old values) stays visible while scrubbing,
+    // and updates in place once the new data arrives — also better UX
+    // than flashing to a blank spinner on every click.
+    const hasTable = !!wrap.querySelector('table');
+    if (!hasTable) {
+      wrap.innerHTML = `
+        <div class="text-center py-5 text-muted">
+          <div class="spinner-border spinner-border-sm me-2"></div>
+          <span id="emaLoadMsg">${_emaBarsBack > 0 ? 'Loading historical EMA9/21...' : 'Calculating EMA9/21...'}</span>
+          <div style="font-size:11px;margin-top:6px;color:var(--text-muted)">Reading each timeframe + its higher-TF confirmation</div>
+        </div>`;
+    } else {
+      document.getElementById('emaLastUpdated').textContent = 'Loading…';
+    }
     const data = await API.get(_emaEndpoint(), _emaParams());
     if (!data?.assets) return;
     _emaData   = data.assets;

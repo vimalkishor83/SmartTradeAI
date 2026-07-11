@@ -286,10 +286,22 @@ def prewarm_ta_cache(app):
                     row[tf] = None
             return asset.id, row
 
+        # All three workloads only READ the shared all_data (no
+        # cross-mutation) and are otherwise fully independent — was three
+        # separate `list(ex.map(...))` calls back-to-back, each one
+        # blocking (draining the whole pool) before the next started, so
+        # the indicator-computation stage took roughly 3x its true
+        # wall-clock. Submitting all three workloads to one shared pool at
+        # once lets them interleave — calculate_all_indicators releases
+        # the GIL for its numpy/pandas-heavy operations, so real wall-clock
+        # parallelism is available here, not just I/O-bound work.
         with ThreadPoolExecutor(max_workers=8) as ex:
-            ta_rows  = list(ex.map(_make_ta_row, assets))
-            mtf_rows = list(ex.map(_make_mtf_row, assets))
-            ema_rows = list(ex.map(_make_ema_row, assets))
+            ta_futures  = [ex.submit(_make_ta_row, a)  for a in assets]
+            mtf_futures = [ex.submit(_make_mtf_row, a) for a in assets]
+            ema_futures = [ex.submit(_make_ema_row, a) for a in assets]
+            ta_rows  = [f.result() for f in ta_futures]
+            mtf_rows = [f.result() for f in mtf_futures]
+            ema_rows = [f.result() for f in ema_futures]
 
         # TTL was 150s, shorter than this job's own 5-min (300s) scheduler
         # interval — leaving a ~2.5 min window where the cache had already

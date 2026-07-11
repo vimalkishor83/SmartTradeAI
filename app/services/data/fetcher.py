@@ -643,13 +643,26 @@ class MarketDataFetcher:
                     if df is not None:
                         results[sym][tf] = df
 
-        # ── Yahoo: batch per timeframe (1 HTTP call per TF) ─────
+        # ── Yahoo: batch per timeframe (1 HTTP call per TF), timeframes
+        # dispatched CONCURRENTLY — was a plain sequential `for tf in
+        # timeframes:` loop, so the 7 independent per-timeframe yfinance
+        # batch calls (each itself already correctly multi-symbol-batched)
+        # ran one after another. yfinance multi-ticker calls commonly take
+        # a few seconds each; 7 of them serialized (~14-28s) was likely the
+        # single largest remaining cost in the TA-summary/EMA-summary/
+        # MTF-matrix prewarm cycle — bigger than the round-3 indicator
+        # trimming, which only touched CPU-bound compute, not this
+        # dominant network-I/O stage.
         if yahoo_assets:
             yahoo_syms = [a.symbol for a in yahoo_assets]
-            for tf in timeframes:
-                batch = self.yahoo.fetch_ohlcv_batch(yahoo_syms, tf, limit)
-                for sym, df in batch.items():
-                    results[sym][tf] = df
+            with ThreadPoolExecutor(max_workers=min(7, len(timeframes))) as ex:
+                futures = {ex.submit(self.yahoo.fetch_ohlcv_batch, yahoo_syms, tf, limit): tf
+                           for tf in timeframes}
+                for fut in as_completed(futures):
+                    tf = futures[fut]
+                    batch = fut.result()
+                    for sym, df in batch.items():
+                        results[sym][tf] = df
 
         return results
 
