@@ -180,8 +180,23 @@ def calculate_ichimoku(high, low, close):
     return tenkan, kijun, senkou_a, senkou_b, chikou
 
 
-def calculate_all_indicators(df: pd.DataFrame) -> dict:
-    """Calculate all indicators for a given OHLCV dataframe."""
+def calculate_all_indicators(df: pd.DataFrame, light: bool = False) -> dict:
+    """Calculate all indicators for a given OHLCV dataframe.
+
+    ``light=True`` skips computing indicators that the TA-summary/MTF-matrix
+    rating hot paths (_compute_ta_rating in market_data.py, _mtf_rating in
+    signals.py — verified identical in which of the ~29 returned keys they
+    actually read via ind.get(...)) never look at: vwap, keltner channel,
+    obv, the separate default-period ATR(14), and ichimoku's senkou_a/b
+    (tenkan/kijun ARE used and still computed). Those two callers run this
+    function once per (asset, timeframe) across the whole grid — ~50 assets
+    x 7 timeframes = 350 calls per 5-min prewarm cycle — so skipping a
+    handful of unused rolling-window/cumulative-sum passes on that hot path
+    is a real, safe saving. Every OTHER caller (scanner, watchlist, signals
+    engine, AI feature pipeline, /indicators and /sentiment routes) keeps
+    calling this with the default light=False and gets the full indicator
+    set unchanged.
+    """
     if len(df) < 30:
         return {}
 
@@ -191,9 +206,7 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
     volume = df["volume"] if "volume" in df.columns else pd.Series(0, index=df.index)
 
     n = len(df)
-    ema9   = calculate_ema(close, 9)   if n >= 9   else close
     ema20  = calculate_ema(close, 20)  if n >= 20  else close
-    ema21  = calculate_ema(close, 21)  if n >= 21  else close
     ema50  = calculate_ema(close, 50)  if n >= 50  else ema20
     ema100 = calculate_ema(close, 100) if n >= 100 else ema50
     ema200 = calculate_ema(close, 200) if n >= 200 else ema100
@@ -209,25 +222,19 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
     atr10 = calculate_atr(high, low, close, 10)
     supertrend_val, supertrend_dir = calculate_supertrend(high, low, close, atr=atr10)
     tenkan, kijun, senkou_a, senkou_b, _ = calculate_ichimoku(high, low, close)
-    kc_upper, kc_mid, kc_lower = calculate_keltner_channel(high, low, close, atr=atr10)
 
     idx = -1
-    return {
-        "ema9": _safe(ema9, idx),
-        "ema21": _safe(ema21, idx),
+    result = {
         "ema20": _safe(ema20, idx),
         "ema50": _safe(ema50, idx),
         "ema100": _safe(ema100, idx),
         "ema200": _safe(ema200, idx),
         "sma20": _safe(sma20, idx),
         "sma50": _safe(sma50, idx),
-        "vwap": _safe(calculate_vwap(high, low, close, volume), idx),
         "supertrend": _safe(supertrend_val, idx),
         "supertrend_direction": supertrend_dir.iloc[idx] if len(supertrend_dir) else "up",
         "ichimoku_tenkan": _safe(tenkan, idx),
         "ichimoku_kijun": _safe(kijun, idx),
-        "ichimoku_senkou_a": _safe(senkou_a, idx),
-        "ichimoku_senkou_b": _safe(senkou_b, idx),
         "rsi": _safe(calculate_rsi(close), idx),
         "macd": _safe(macd_line, idx),
         "macd_signal": _safe(macd_signal, idx),
@@ -236,16 +243,29 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
         "stoch_rsi_d": _safe(stoch_d, idx),
         "cci": _safe(calculate_cci(high, low, close), idx),
         "roc": _safe(calculate_roc(close), idx),
-        "atr": _safe(calculate_atr(high, low, close), idx),
         "bb_upper": _safe(bb_upper, idx),
         "bb_middle": _safe(bb_mid, idx),
         "bb_lower": _safe(bb_lower, idx),
         "bb_width": _safe(bb_width, idx),
+        "cmf": _safe(calculate_cmf(high, low, close, volume), idx),
+    }
+
+    if light:
+        return result
+
+    kc_upper, kc_mid, kc_lower = calculate_keltner_channel(high, low, close, atr=atr10)
+    result.update({
+        "ema9": _safe(calculate_ema(close, 9) if n >= 9 else close, idx),
+        "ema21": _safe(calculate_ema(close, 21) if n >= 21 else close, idx),
+        "vwap": _safe(calculate_vwap(high, low, close, volume), idx),
+        "ichimoku_senkou_a": _safe(senkou_a, idx),
+        "ichimoku_senkou_b": _safe(senkou_b, idx),
+        "atr": _safe(calculate_atr(high, low, close), idx),
         "keltner_upper": _safe(kc_upper, idx),
         "keltner_lower": _safe(kc_lower, idx),
         "obv": _safe(calculate_obv(close, volume), idx),
-        "cmf": _safe(calculate_cmf(high, low, close, volume), idx),
-    }
+    })
+    return result
 
 
 def _safe(series, idx):

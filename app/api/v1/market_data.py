@@ -122,7 +122,12 @@ def ta_summary():
             try:
                 df = dfs.get(tf)
                 if df is None or len(df) < 52: row["tf"][tf] = None; continue
-                ind = calculate_all_indicators(df)
+                # light=True: _compute_ta_rating only reads a specific
+                # subset of indicator keys — see calculate_all_indicators'
+                # docstring. Skips vwap/keltner/obv/unused-atr/senkou on
+                # this hot path (runs per asset x 7 timeframes, every
+                # 5-min prewarm cycle).
+                ind = calculate_all_indicators(df, light=True)
                 row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
             except Exception:
                 row["tf"][tf] = None

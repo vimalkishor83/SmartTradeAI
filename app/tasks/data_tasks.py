@@ -249,7 +249,9 @@ def prewarm_ta_cache(app):
                 try:
                     df = dfs.get(tf)
                     if df is None or len(df) < 52: row["tf"][tf] = None; continue
-                    ind = calculate_all_indicators(df)
+                    # light=True: _compute_ta_rating only reads a specific
+                    # subset of keys — see calculate_all_indicators' docstring.
+                    ind = calculate_all_indicators(df, light=True)
                     row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
                 except Exception:
                     row["tf"][tf] = None
@@ -276,7 +278,9 @@ def prewarm_ta_cache(app):
                 try:
                     df = dfs.get(tf)
                     if df is None or len(df) < 52: row[tf] = None; continue
-                    ind = calculate_all_indicators(df)
+                    # light=True: _mtf_rating only reads a specific subset
+                    # of keys — see calculate_all_indicators' docstring.
+                    ind = calculate_all_indicators(df, light=True)
                     row[tf] = _mtf_rating(ind, float(df["close"].iloc[-1]))
                 except Exception:
                     row[tf] = None

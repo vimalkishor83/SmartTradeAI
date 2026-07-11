@@ -474,7 +474,10 @@ def mtf_matrix():
                 df = dfs.get(tf)
                 if df is None or len(df) < 52:
                     row[tf] = None; continue
-                ind   = calculate_all_indicators(df)
+                # light=True: _mtf_rating only reads a specific subset of
+                # indicator keys — see calculate_all_indicators' docstring.
+                # Runs per asset x 7 timeframes, every 5-min prewarm cycle.
+                ind   = calculate_all_indicators(df, light=True)
                 close = float(df["close"].iloc[-1])
                 row[tf] = _mtf_rating(ind, close)
             except Exception:
@@ -610,7 +613,8 @@ def get_confluence(asset_id):
                 neutral_tfs += 1
                 tf_details[tf] = None
                 continue
-            ind = calculate_all_indicators(df)
+            # light=True: also feeds _mtf_rating, same subset as mtf-matrix above.
+            ind = calculate_all_indicators(df, light=True)
             close = float(df["close"].iloc[-1])
             rating = _mtf_rating(ind, close)
             if rating is None:
