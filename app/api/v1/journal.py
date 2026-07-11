@@ -1,10 +1,12 @@
 from datetime import date, datetime, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import func
 from app.extensions import db
 from app.models.journal import JournalEntry
 from app.auth.decorators import login_required
+import csv
+import io
 
 journal_bp = Blueprint("journal", __name__)
 
@@ -266,3 +268,89 @@ def stats():
         "by_market": by_market,
         "by_day_of_week": by_day_of_week,
     }), 200
+
+
+@journal_bp.route("/tax-report", methods=["GET"])
+@login_required
+def tax_report():
+    """
+    FY-wise (India) realized-gains breakdown built from the user's own
+    JournalEntry history — see app/services/tax/report.py for the
+    classification rules and important caveats (this is a convenience
+    export, not tax advice or a filing-ready computation).
+    Optional ?fy=FY2024-25 filters to a single financial year.
+    """
+    from app.services.tax.report import build_tax_report
+
+    user_id = get_jwt_identity()
+    entries = (JournalEntry.query
+               .filter(JournalEntry.user_id == user_id, JournalEntry.pnl_amount.isnot(None))
+               .order_by(JournalEntry.trade_date.asc())
+               .all())
+
+    report = build_tax_report(entries)
+
+    fy_filter = request.args.get("fy")
+    if fy_filter:
+        report = {fy_filter: report[fy_filter]} if fy_filter in report else {}
+
+    return jsonify({"report": report, "disclaimer":
+        "This is a convenience export built from your own logged journal "
+        "entries, not tax advice or a filing-ready computation. All "
+        "non-crypto trades are bucketed as short-term (STCG) because this "
+        "journal doesn't record separate entry/exit dates to detect a "
+        "genuine long-term holding — verify classifications and figures "
+        "with a qualified CA before filing."
+    }), 200
+
+
+@journal_bp.route("/tax-report/export/csv", methods=["GET"])
+@login_required
+def export_tax_report_csv():
+    """CSV export of the FY-wise realized-gains report — one row per
+    trade, tagged with its FY and tax bucket (crypto_vda/ltcg/stcg), plus
+    a per-FY/bucket summary block at the top. Optional ?fy=FY2024-25."""
+    from app.services.tax.report import build_tax_report
+
+    user_id = get_jwt_identity()
+    entries = (JournalEntry.query
+               .filter(JournalEntry.user_id == user_id, JournalEntry.pnl_amount.isnot(None))
+               .order_by(JournalEntry.trade_date.asc())
+               .all())
+
+    report = build_tax_report(entries)
+    fy_filter = request.args.get("fy")
+    if fy_filter:
+        report = {fy_filter: report[fy_filter]} if fy_filter in report else {}
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["SmartTrade AI — FY-wise Realized Gains (convenience export, not tax advice)"])
+    writer.writerow([])
+
+    for fy in sorted(report.keys()):
+        data = report[fy]
+        writer.writerow([fy])
+        writer.writerow(["Bucket", "Trades", "Realized P&L", "Gains", "Losses"])
+        for bucket_key, label in (("crypto_vda", "Crypto (flat 30%, Sec 115BBH)"),
+                                    ("ltcg", "Equity/Other LTCG (>365 days)"),
+                                    ("stcg", "Equity/Other STCG (<=365 days)")):
+            b = data[bucket_key]
+            writer.writerow([label, b["trades"], b["realized_pnl"], b["gains"], b["losses"]])
+        writer.writerow([])
+        writer.writerow(["Trade Date", "Symbol", "Market", "Direction", "Entry", "Exit",
+                          "Quantity", "P&L", "P&L %", "Tax Bucket"])
+        for row in data["entries"]:
+            writer.writerow([
+                row["trade_date"], row["symbol"], row["market"], row["direction"],
+                row["entry_price"], row["exit_price"], row["quantity"],
+                row["pnl_amount"], row["pnl_pct"], row["tax_bucket"],
+            ])
+        writer.writerow([])
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    return Response(
+        buf.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=tax_report_{today}.csv"},
+    )
