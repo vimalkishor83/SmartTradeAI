@@ -12,3 +12,7 @@ instance/
 # Generated ML model artifacts (regenerated on demand, not source)
 data/models/
 *.pkl
+
+# Scheduled DB backups (contain encrypted broker credentials + trade
+# history snapshots — must never be committed to source control)
+data/backups/

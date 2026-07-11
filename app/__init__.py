@@ -494,6 +494,7 @@ def _init_scheduler(app):
     from app.tasks.notification_tasks import register_notification_jobs
     from app.tasks.protective_order_tasks import register_protective_order_jobs
     from app.services.data.collector import register_collector_job
+    from app.services.backup.db_backup import register_backup_job
 
     with app.app_context():
         register_collector_job(scheduler, app)
@@ -505,6 +506,7 @@ def _init_scheduler(app):
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)
         register_protective_order_jobs(scheduler, app)
+        register_backup_job(scheduler, app)
 
         # Defensively remove any legacy per-timeframe signal jobs left in a
         # persistent jobstore from before this change.

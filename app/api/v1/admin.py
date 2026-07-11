@@ -128,6 +128,37 @@ def delete_user(user_id):
     return jsonify({"message": "User deleted"}), 200
 
 
+# ─── Database backups ────────────────────────────────────────────────────────
+# A daily scheduled job (register_backup_job, app/__init__.py) already
+# creates these automatically — this is the admin-facing on-demand
+# trigger + visibility into what's on disk, not a replacement for the
+# schedule.
+
+@admin_bp.route("/backups", methods=["GET"])
+@admin_required
+def list_backups():
+    from app.services.backup.db_backup import _BACKUP_DIR
+    if not _BACKUP_DIR.exists():
+        return jsonify({"backups": []}), 200
+    files = sorted(_BACKUP_DIR.glob("smarttrade_*.db.gz"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return jsonify({"backups": [
+        {"filename": f.name, "size_mb": round(f.stat().st_size / 1e6, 2),
+         "created_at": datetime.utcfromtimestamp(f.stat().st_mtime).isoformat()}
+        for f in files
+    ]}), 200
+
+
+@admin_bp.route("/backups/run", methods=["POST"])
+@admin_required
+def run_backup_now():
+    from flask import current_app
+    from app.services.backup.db_backup import create_backup
+    path = create_backup(current_app._get_current_object())
+    if not path:
+        return jsonify({"error": "Backup failed or not applicable (non-SQLite database, or source file not found) — check server logs"}), 500
+    return jsonify({"message": "Backup created", "path": path}), 201
+
+
 # ─── API Configurations ──────────────────────────────────────────────────────
 
 @admin_bp.route("/api-configs", methods=["GET"])
