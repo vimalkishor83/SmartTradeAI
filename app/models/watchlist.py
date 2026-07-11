@@ -6,7 +6,7 @@ class Watchlist(db.Model):
     __tablename__ = "watchlists"
 
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.String(255))
     is_pinned = db.Column(db.Boolean, default=False)

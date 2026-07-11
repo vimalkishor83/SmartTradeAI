@@ -16,6 +16,23 @@ watchlist_bp = Blueprint("watchlist", __name__)
 def get_watchlists():
     user_id = get_jwt_identity()
     lists = Watchlist.query.filter_by(user_id=user_id).all()
+
+    # Batch-fetch all items (with their asset eager-loaded) for every
+    # watchlist in one query instead of wl.items.all() (one query per
+    # watchlist, Watchlist.items is lazy="dynamic" so it can't take
+    # joinedload) plus i.asset (one query per item, asset is lazy by
+    # default) -- was an N+1 on both axes.
+    items_by_wl = {}
+    if lists:
+        wl_ids = [wl.id for wl in lists]
+        all_items = (
+            WatchlistItem.query.options(db.joinedload(WatchlistItem.asset))
+            .filter(WatchlistItem.watchlist_id.in_(wl_ids))
+            .all()
+        )
+        for i in all_items:
+            items_by_wl.setdefault(i.watchlist_id, []).append(i)
+
     result = []
     for wl in lists:
         items = [{
@@ -24,7 +41,7 @@ def get_watchlists():
             "name": i.asset.name if i.asset else None,
             "market": i.asset.market if i.asset else None,
             "alert_price": i.alert_price,
-        } for i in wl.items.all()]
+        } for i in items_by_wl.get(wl.id, [])]
         result.append({
             "id": wl.id, "name": wl.name,
             "is_pinned": wl.is_pinned, "items": items,
