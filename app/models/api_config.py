@@ -124,21 +124,27 @@ class APIConfig(db.Model):
 
 
 class UserBrokerCredential(db.Model):
-    """Per-user broker API credentials (currently Delta Exchange India only —
-    see app/services/trading/delta_trading.py). Deliberately a separate table
-    from APIConfig: APIConfig is shared/admin-managed data-feed & platform
-    trading config (market data providers, the old single shared trading
-    account), while this table is personal, per-user, non-custodial trading
-    credentials — one user's key can never be used to place another user's
-    order."""
+    """Per-user broker API credentials — one row per (user, provider), so a
+    single user can connect multiple brokers (Delta + Binance + Zerodha,
+    etc.) simultaneously. See app/services/trading/broker_registry.py for
+    the full list of supported providers and what fields each needs.
+    Deliberately a separate table from APIConfig: APIConfig is shared/
+    admin-managed data-feed & platform config, while this table is personal,
+    per-user, non-custodial trading credentials — one user's key can never
+    be used to place another user's order."""
     __tablename__ = "user_broker_credentials"
 
     id       = db.Column(db.Integer, primary_key=True)
     user_id  = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     provider = db.Column(db.String(50), nullable=False, default="delta_exchange")
 
-    api_key_encrypted    = db.Column(db.Text)
-    api_secret_encrypted = db.Column(db.Text)
+    api_key_encrypted        = db.Column(db.Text)
+    api_secret_encrypted     = db.Column(db.Text)
+    # Some exchanges (OKX, Bitget, KuCoin) require a third secret — a
+    # passphrase set at API-key-creation time, distinct from the account
+    # login password. Optional; only used when the broker's auth_type is
+    # "api_key_secret_passphrase" (see broker_registry.py).
+    passphrase_encrypted     = db.Column(db.Text)
 
     is_active         = db.Column(db.Boolean, default=True)
     connection_status = db.Column(db.String(20), default="unknown")  # ok, error, unknown
@@ -159,6 +165,10 @@ class UserBrokerCredential(db.Model):
         from app.services.security.crypto import encrypt_value
         self.api_secret_encrypted = encrypt_value(plaintext) if plaintext else ""
 
+    def set_passphrase(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.passphrase_encrypted = encrypt_value(plaintext) if plaintext else ""
+
     def get_api_key(self) -> str | None:
         from app.services.security.crypto import decrypt_value, is_encrypted
         if not self.api_key_encrypted:
@@ -175,10 +185,23 @@ class UserBrokerCredential(db.Model):
             return self.api_secret_encrypted
         return decrypt_value(self.api_secret_encrypted)
 
+    def get_passphrase(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.passphrase_encrypted:
+            return None
+        if not is_encrypted(self.passphrase_encrypted):
+            return self.passphrase_encrypted
+        return decrypt_value(self.passphrase_encrypted)
+
     def to_dict(self):
+        from app.services.trading.broker_registry import get_broker
+        meta = get_broker(self.provider) or {}
         return {
             "id":                self.id,
             "provider":          self.provider,
+            "provider_label":    meta.get("label", self.provider),
+            "category":          meta.get("category"),
+            "trading_enabled":   meta.get("trading_enabled", False),
             "is_active":         self.is_active,
             "connection_status": self.connection_status,
             "last_sync":         self.last_sync.isoformat() if self.last_sync else None,
@@ -186,6 +209,7 @@ class UserBrokerCredential(db.Model):
             "last_error":        self.last_error,
             "has_key":           bool(self.api_key_encrypted),
             "has_secret":        bool(self.api_secret_encrypted),
+            "has_passphrase":    bool(self.passphrase_encrypted),
             "created_at":        self.created_at.isoformat() if self.created_at else None,
         }
 

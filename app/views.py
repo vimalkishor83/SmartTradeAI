@@ -140,6 +140,11 @@ def trading():
     return render_template("dashboard/trading.html")
 
 
+@views_bp.route("/broker-connections")
+def broker_connections():
+    return render_template("dashboard/broker_connections.html")
+
+
 @views_bp.route("/briefing")
 def briefing():
     return render_template("dashboard/briefing.html")

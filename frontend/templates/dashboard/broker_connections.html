@@ -1,0 +1,256 @@
+{% extends "partials/base.html" %}
+{% block title %}Broker Connections — SmartTrade AI{% endblock %}
+{% set active = 'broker_connections' %}
+{% block breadcrumb %}<i class="bi bi-link-45deg me-2"></i> Broker Connections{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">Portfolio</span>
+    <h1 class="page-title">Broker Connections</h1>
+    <p class="page-subtitle">Connect your own broker accounts — non-custodial, encrypted, never shared between users</p>
+  </div>
+</div>
+
+<div class="alert alert-info py-2 fs-sm mb-4">
+  <i class="bi bi-shield-check me-1"></i>
+  Each credential is encrypted at rest and used only for your own account. SmartTrade AI never holds your funds.
+  Some brokers below are "Coming soon" — you can still save credentials now so they're ready the moment trading support ships.
+</div>
+
+<!-- Connected brokers -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-check2-circle text-accent"></i> Your Connections</span>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr><th>Broker</th><th>Category</th><th>Status</th><th>Trading</th><th>Last Tested</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="connectionsBody">
+        <tr><td colspan="6" class="text-center py-4 text-muted">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Broker catalog / add new -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-plus-circle text-accent"></i> Connect a Broker</span>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <input type="text" class="form-control form-control-sm" id="brokerSearch" placeholder="Search brokers…" />
+      </div>
+      <div class="col-md-4">
+        <select class="form-select form-select-sm" id="categoryFilter">
+          <option value="">All Categories</option>
+          <option value="crypto">Crypto</option>
+          <option value="indian_stock">Indian Stocks</option>
+          <option value="forex">Forex</option>
+          <option value="us_stock">US Stocks</option>
+        </select>
+      </div>
+    </div>
+    <div class="row g-3" id="brokerGrid"></div>
+  </div>
+</div>
+
+<!-- Connect modal -->
+<div class="modal fade" id="connectModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="connectModalTitle">Connect Broker</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted fs-sm" id="connectModalHelp"></p>
+        <a href="#" target="_blank" class="fs-xs text-accent d-block mb-3" id="connectModalDocs">Where do I find my API key? →</a>
+        <form id="connectForm">
+          <input type="hidden" id="connectProvider" />
+          <div class="mb-3">
+            <label class="form-label fs-sm">API Key</label>
+            <input type="text" class="form-control" id="connectApiKey" autocomplete="off" required />
+          </div>
+          <div class="mb-3" id="apiSecretGroup">
+            <label class="form-label fs-sm">API Secret</label>
+            <input type="password" class="form-control" id="connectApiSecret" autocomplete="off" />
+          </div>
+          <div class="mb-3 d-none" id="passphraseGroup">
+            <label class="form-label fs-sm">Passphrase</label>
+            <input type="password" class="form-control" id="connectPassphrase" autocomplete="off" />
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary btn-sm" id="connectSubmitBtn">
+          <i class="bi bi-link-45deg me-1"></i>Connect
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let ALL_BROKERS = [];
+let MY_CONNECTIONS = [];
+
+async function loadBrokers() {
+  const data = await API.get('/trading/brokers');
+  ALL_BROKERS = data?.brokers || [];
+  renderBrokerGrid();
+}
+
+async function loadConnections() {
+  const data = await API.get('/trading/broker/connections');
+  MY_CONNECTIONS = data?.connections || [];
+  renderConnections();
+  renderBrokerGrid();
+}
+
+function renderConnections() {
+  const body = document.getElementById('connectionsBody');
+  if (!MY_CONNECTIONS.length) {
+    body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">No brokers connected yet — pick one below.</td></tr>';
+    return;
+  }
+  body.innerHTML = MY_CONNECTIONS.map(c => {
+    const statusBadge = c.connection_status === 'ok'
+      ? '<span class="badge bg-success">Connected</span>'
+      : c.connection_status === 'error'
+        ? '<span class="badge bg-danger">Error</span>'
+        : '<span class="badge bg-secondary">Unverified</span>';
+    const tradingBadge = c.trading_enabled
+      ? '<span class="badge bg-primary">Live</span>'
+      : '<span class="badge bg-warning text-dark">Coming Soon</span>';
+    const catLabels = { crypto: 'Crypto', indian_stock: 'Indian Stocks', forex: 'Forex', us_stock: 'US Stocks' };
+    return `<tr>
+      <td><strong>${c.provider_label}</strong></td>
+      <td class="text-muted fs-xs">${catLabels[c.category] || c.category || '—'}</td>
+      <td>${statusBadge}</td>
+      <td>${tradingBadge}</td>
+      <td class="text-muted fs-xs">${c.last_sync ? formatTime(c.last_sync) : '—'}</td>
+      <td>
+        <div class="d-flex gap-1">
+          <button class="btn btn-sm btn-outline-secondary" onclick="testBroker('${c.provider}')" ${c.trading_enabled ? '' : 'disabled title="Not yet supported"'}>
+            <i class="bi bi-plug"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-danger" onclick="disconnectBroker('${c.provider}', '${c.provider_label}')">
+            <i class="bi bi-x-lg"></i>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderBrokerGrid() {
+  const grid = document.getElementById('brokerGrid');
+  const search = (document.getElementById('brokerSearch').value || '').toLowerCase();
+  const cat = document.getElementById('categoryFilter').value;
+  const connectedProviders = new Set(MY_CONNECTIONS.map(c => c.provider));
+
+  const filtered = ALL_BROKERS.filter(b =>
+    (!search || b.label.toLowerCase().includes(search)) &&
+    (!cat || b.category === cat)
+  );
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div class="col-12 text-center text-muted py-3">No brokers match your search.</div>';
+    return;
+  }
+
+  const catLabels = { crypto: 'Crypto', indian_stock: 'Indian Stocks', forex: 'Forex', us_stock: 'US Stocks' };
+
+  grid.innerHTML = filtered.map(b => {
+    const connected = connectedProviders.has(b.provider);
+    const disabled = b.auth_type === 'oauth';
+    return `<div class="col-md-4 col-sm-6">
+      <div class="border rounded p-3 h-100 d-flex flex-column" style="border-color:var(--border)!important">
+        <div class="d-flex justify-content-between align-items-start mb-1">
+          <strong class="fs-sm">${b.label}</strong>
+          ${connected ? '<i class="bi bi-check-circle-fill text-green"></i>' : ''}
+        </div>
+        <span class="badge bg-secondary mb-2" style="width:fit-content">${catLabels[b.category] || b.category}</span>
+        <p class="fs-xs text-muted flex-grow-1">${b.help}</p>
+        <button class="btn btn-sm ${connected ? 'btn-outline-secondary' : 'btn-outline-primary'} w-100"
+                onclick="openConnectModal('${b.provider}')" ${disabled ? 'disabled' : ''}>
+          ${disabled ? 'Coming Soon (OAuth)' : connected ? 'Reconnect / Update' : 'Connect'}
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openConnectModal(provider) {
+  const meta = ALL_BROKERS.find(b => b.provider === provider);
+  if (!meta) return;
+  document.getElementById('connectProvider').value = provider;
+  document.getElementById('connectModalTitle').textContent = `Connect ${meta.label}`;
+  document.getElementById('connectModalHelp').textContent = meta.help;
+  document.getElementById('connectModalDocs').href = meta.docs_url;
+  document.getElementById('connectApiKey').value = '';
+  document.getElementById('connectApiSecret').value = '';
+  document.getElementById('connectPassphrase').value = '';
+  document.getElementById('apiSecretGroup').classList.toggle('d-none', meta.auth_type === 'api_key_only');
+  document.getElementById('passphraseGroup').classList.toggle('d-none', meta.auth_type !== 'api_key_secret_passphrase');
+  new bootstrap.Modal(document.getElementById('connectModal')).show();
+}
+
+document.getElementById('connectSubmitBtn').addEventListener('click', async () => {
+  const provider = document.getElementById('connectProvider').value;
+  const payload = {
+    provider,
+    api_key: document.getElementById('connectApiKey').value.trim(),
+    api_secret: document.getElementById('connectApiSecret').value.trim(),
+    passphrase: document.getElementById('connectPassphrase').value.trim(),
+  };
+  const btn = document.getElementById('connectSubmitBtn');
+  btn.disabled = true;
+  const res = await API.post('/trading/broker/connect', payload);
+  btn.disabled = false;
+
+  if (res?.message) {
+    Toast.show(res.message, 'success');
+    bootstrap.Modal.getInstance(document.getElementById('connectModal')).hide();
+    loadConnections();
+  } else {
+    Toast.show(res?.error || 'Failed to connect', 'error');
+  }
+});
+
+async function testBroker(provider) {
+  const res = await API.post('/trading/broker/test', { provider });
+  if (res?.tested && res?.connected) {
+    Toast.show('Connection verified — credentials work', 'success');
+  } else if (res?.tested === false) {
+    Toast.show(res.message || 'Test not available for this broker yet', 'warning');
+  } else {
+    Toast.show(res?.error || 'Connection test failed', 'error');
+  }
+  loadConnections();
+}
+
+async function disconnectBroker(provider, label) {
+  if (!confirm(`Disconnect ${label}? You can reconnect any time.`)) return;
+  await API.post('/trading/broker/disconnect', { provider });
+  Toast.show(`${label} disconnected`, 'success');
+  loadConnections();
+}
+
+document.getElementById('brokerSearch').addEventListener('input', renderBrokerGrid);
+document.getElementById('categoryFilter').addEventListener('change', renderBrokerGrid);
+
+document.addEventListener('app:ready', async () => {
+  await loadBrokers();
+  await loadConnections();
+});
+</script>
+{% endblock %}
