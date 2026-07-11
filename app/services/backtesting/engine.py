@@ -73,21 +73,26 @@ class BacktestEngine:
         return price + dist, price - dist * 1.5, price - dist * 3.0
 
     # ── Entry signal generators ─────────────────────────────────────────────
+    # Previously each of these recomputed its indicator (RSI / MACD /
+    # EMA20+EMA50) over the ENTIRE closes series from bar 0, on EVERY
+    # single loop iteration, discarding everything except .iloc[i] — O(n^2)
+    # total indicator work for an O(n) backtest. _atr was already fixed
+    # this way (computed once in run(), see atr_ser); these three now
+    # follow the same pattern: pre-compute the full indicator series once
+    # in run() and pass it in, so each per-bar call is an O(1) lookup.
 
-    def _signal_rsi(self, closes: pd.Series, i: int) -> str | None:
+    def _signal_rsi(self, closes: pd.Series, rsi: pd.Series, i: int) -> str | None:
         if i < 20:
             return None
-        rsi = self._rsi(closes)
         if rsi.iloc[i] < 30 and closes.iloc[i] > closes.iloc[i - 1]:
             return "BUY"
         if rsi.iloc[i] > 70 and closes.iloc[i] < closes.iloc[i - 1]:
             return "SELL"
         return None
 
-    def _signal_macd(self, closes: pd.Series, i: int) -> str | None:
+    def _signal_macd(self, line: pd.Series, sig: pd.Series, i: int) -> str | None:
         if i < 35:
             return None
-        line, sig = self._macd(closes)
         prev = line.iloc[i - 1] - sig.iloc[i - 1]
         curr = line.iloc[i]     - sig.iloc[i]
         if prev < 0 and curr >= 0:
@@ -96,11 +101,9 @@ class BacktestEngine:
             return "SELL"
         return None
 
-    def _signal_ema_cross(self, closes: pd.Series, i: int) -> str | None:
+    def _signal_ema_cross(self, ema20: pd.Series, ema50: pd.Series, i: int) -> str | None:
         if i < 55:
             return None
-        ema20 = self._ema(closes, 20)
-        ema50 = self._ema(closes, 50)
         prev = ema20.iloc[i - 1] - ema50.iloc[i - 1]
         curr = ema20.iloc[i]     - ema50.iloc[i]
         if prev < 0 and curr >= 0:
@@ -158,6 +161,21 @@ class BacktestEngine:
         use_engine = (strategy == "multi_factor")
         warmup     = 60
 
+        # Pre-compute whatever indicator series this strategy needs ONCE
+        # over the full df, rather than inside the per-bar loop — see the
+        # _signal_* docstring note above. multi_factor doesn't use these
+        # (it goes through signal_engine.generate_signal instead, which
+        # has its own separate indicator computation — see the run()
+        # multi_factor branch below for that fix).
+        rsi_ser = ema20_ser = ema50_ser = macd_line = macd_signal = None
+        if strategy == "rsi":
+            rsi_ser = self._rsi(closes)
+        elif strategy == "macd":
+            macd_line, macd_signal = self._macd(closes)
+        elif strategy == "ema_crossover":
+            ema20_ser = self._ema(closes, 20)
+            ema50_ser = self._ema(closes, 50)
+
         trades:    list[dict[str, Any]] = []
         equity:    list[float]          = [initial_capital] * warmup
         capital    = initial_capital
@@ -174,7 +192,11 @@ class BacktestEngine:
 
             if use_engine:
                 from app.services.signals.engine import signal_engine
-                win  = df_r.iloc[max(0, i - warmup): i + 1].copy()
+                # generate_signal() never mutates its df argument (verified:
+                # only .iloc[-1]/.rolling()/.pct_change()-style read access
+                # throughout signals/engine.py) -- the .copy() here was pure
+                # unnecessary per-bar allocation overhead, dropped.
+                win  = df_r.iloc[max(0, i - warmup): i + 1]
                 # Pass a minimal asset-like object — engine only reads .market
                 sig  = signal_engine.generate_signal(win, asset, timeframe)
                 if sig and sig["confidence_score"] >= MIN_CONFIDENCE \
@@ -185,11 +207,11 @@ class BacktestEngine:
                     t2  = sig["target2"]
             else:
                 if strategy == "rsi":
-                    direction = self._signal_rsi(closes, i)
+                    direction = self._signal_rsi(closes, rsi_ser, i)
                 elif strategy == "macd":
-                    direction = self._signal_macd(closes, i)
+                    direction = self._signal_macd(macd_line, macd_signal, i)
                 elif strategy == "ema_crossover":
-                    direction = self._signal_ema_cross(closes, i)
+                    direction = self._signal_ema_cross(ema20_ser, ema50_ser, i)
                 if direction:
                     sl, t1, t2 = self._sl_tp(price, direction, cur_atr)
 
