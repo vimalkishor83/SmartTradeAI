@@ -306,9 +306,55 @@ function _updateRatingCellContents() {
   });
 }
 
+function quotesFv(v) {
+  if (!v) return '—';
+  if (v >= 1e9) return (v/1e9).toFixed(2)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(2)+'M';
+  if (v >= 1e3) return (v/1e3).toFixed(2)+'K';
+  return v.toFixed(2);
+}
+
+function quotesRowInner(a) {
+  const p = a.price;
+  const chgCls  = a.change >= 0 ? 'text-green' : 'text-red';
+  const chgSign = a.change >= 0 ? '+' : '';
+  const fp = (v) => formatPrice(v, a.market);
+  return `
+    <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
+      <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.name}</div>
+    </td>
+    <td><span class="badge-tag" style="font-size:11px">${a.symbol}</span></td>
+    <td style="text-align:right;font-weight:700;color:var(--text-primary)">${p ? fp(p) : '—'}</td>
+    <td style="text-align:right;color:var(--text-secondary)">${a.open ? fp(a.open) : '—'}</td>
+    <td style="text-align:right;color:var(--green)">${a.high ? fp(a.high) : '—'}</td>
+    <td style="text-align:right;color:var(--red)">${a.low ? fp(a.low) : '—'}</td>
+    <td style="text-align:right" class="${chgCls}">${a.change != null ? chgSign+fp(a.change) : '—'}</td>
+    <td style="text-align:right;font-weight:700" class="${chgCls}">${a.change_pct != null ? chgSign+a.change_pct.toFixed(2)+'%' : '—'}</td>
+    <td style="text-align:right;color:var(--text-muted);font-size:12px">${quotesFv(a.volume)}</td>
+    <td style="text-align:center;color:var(--text-muted);font-size:12px">${a.time || '—'} <span style="color:#10b981;font-size:10px">●</span></td>`;
+}
+
+let _quotesRenderedAssetIds = null;
+
+function _updateQuotesCellContents() {
+  const byId = {};
+  _data.forEach(a => { byId[a.id] = a; });
+  document.querySelectorAll('#quotesWrap tr[data-quote-row]').forEach(tr => {
+    const a = byId[tr.dataset.quoteRow];
+    if (a) tr.innerHTML = quotesRowInner(a);
+  });
+}
+
 function renderQuotes() {
   const wrap = document.getElementById('quotesWrap');
   if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; return; }
+
+  const currentIds = _data.map(a => a.id).join(',');
+  if (currentIds === _quotesRenderedAssetIds && wrap.querySelector('table')) {
+    _updateQuotesCellContents();
+    return;
+  }
+  _quotesRenderedAssetIds = currentIds;
 
   const byMarket = {};
   _data.forEach(a => { (byMarket[a.market] = byMarket[a.market] || []).push(a); });
@@ -330,31 +376,7 @@ function renderQuotes() {
   for (const [mkt, assets] of Object.entries(byMarket)) {
     html += `<tr class="asset-row-header"><td colspan="10">${MKT_LABEL[mkt] || mkt}</td></tr>`;
     assets.forEach(a => {
-      const p = a.price;
-      const chgCls  = a.change >= 0 ? 'text-green' : 'text-red';
-      const chgSign = a.change >= 0 ? '+' : '';
-      const fp = (v) => formatPrice(v, a.market);
-      const fv = (v) => {
-        if (!v) return '—';
-        if (v >= 1e9) return (v/1e9).toFixed(2)+'B';
-        if (v >= 1e6) return (v/1e6).toFixed(2)+'M';
-        if (v >= 1e3) return (v/1e3).toFixed(2)+'K';
-        return v.toFixed(2);
-      };
-      html += `<tr>
-        <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
-          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.name}</div>
-        </td>
-        <td><span class="badge-tag" style="font-size:11px">${a.symbol}</span></td>
-        <td style="text-align:right;font-weight:700;color:var(--text-primary)">${p ? fp(p) : '—'}</td>
-        <td style="text-align:right;color:var(--text-secondary)">${a.open ? fp(a.open) : '—'}</td>
-        <td style="text-align:right;color:var(--green)">${a.high ? fp(a.high) : '—'}</td>
-        <td style="text-align:right;color:var(--red)">${a.low ? fp(a.low) : '—'}</td>
-        <td style="text-align:right" class="${chgCls}">${a.change != null ? chgSign+fp(a.change) : '—'}</td>
-        <td style="text-align:right;font-weight:700" class="${chgCls}">${a.change_pct != null ? chgSign+a.change_pct.toFixed(2)+'%' : '—'}</td>
-        <td style="text-align:right;color:var(--text-muted);font-size:12px">${fv(a.volume)}</td>
-        <td style="text-align:center;color:var(--text-muted);font-size:12px">${a.time || '—'} <span style="color:#10b981;font-size:10px">●</span></td>
-      </tr>`;
+      html += `<tr data-quote-row="${a.id}">${quotesRowInner(a)}</tr>`;
     });
   }
 
