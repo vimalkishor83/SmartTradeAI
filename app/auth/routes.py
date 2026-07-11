@@ -357,6 +357,67 @@ def update_profile():
     return jsonify({"message": "Profile updated", "user": user.to_dict()}), 200
 
 
+@auth_bp.route("/subscriptions", methods=["GET"])
+@login_required
+def list_subscriptions():
+    """Plan comparison list — lets the frontend show what each tier
+    unlocks (backtesting_enabled/ai_enabled/max_watchlist/max_alerts) so a
+    free user can see exactly what upgrading buys them."""
+    subs = Subscription.query.order_by(Subscription.price.asc()).all()
+    return jsonify({"subscriptions": [{
+        "id": s.id, "name": s.name, "price": s.price,
+        "signal_delay_minutes": s.signal_delay_minutes,
+        "max_watchlist": s.max_watchlist, "max_alerts": s.max_alerts,
+        "backtesting_enabled": s.backtesting_enabled, "ai_enabled": s.ai_enabled,
+        "features": s.features or [],
+    } for s in subs]}), 200
+
+
+@auth_bp.route("/upgrade-request", methods=["POST"])
+@login_required
+@limiter.limit("5 per hour")
+def request_upgrade():
+    """No payment gateway is wired up yet (subscription_id is currently
+    admin-assigned only, via PUT /api/v1/admin/users/<id>) — this is the
+    self-service half of that: a free-tier user can signal upgrade intent
+    without needing direct admin/DB access, and every admin gets notified
+    to action it manually. Logged to AuditLog for a visible request trail."""
+    user = get_current_user()
+    data = request.get_json() or {}
+    requested_plan = (data.get("plan") or "premium").strip()
+
+    target = Subscription.query.filter_by(name=requested_plan).first()
+    if not target:
+        return jsonify({"error": f"Unknown plan '{requested_plan}'"}), 400
+    if user.subscription_id == target.id:
+        return jsonify({"error": f"You're already on the '{requested_plan}' plan"}), 400
+
+    log = AuditLog(
+        user_id=user.id, action="upgrade_request", resource="subscription",
+        resource_id=requested_plan,
+        ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
+    )
+    db.session.add(log)
+
+    # Notify every admin so the request doesn't require the user to email
+    # anyone directly — mirrors the existing Notification-row delivery
+    # pattern used throughout the app (signal alerts, watchlist alerts).
+    from app.models.notification import Notification
+    admin_role = Role.query.filter_by(name="admin").first()
+    admins = User.query.filter_by(role_id=admin_role.id).all() if admin_role else []
+    for admin in admins:
+        db.session.add(Notification(
+            user_id=admin.id,
+            title=f"Upgrade request: {user.username}",
+            message=f"{user.username} ({user.email}) requested the '{requested_plan}' plan "
+                    f"(currently: {user.subscription.name if user.subscription else 'none'}).",
+            notification_type="upgrade_request", channel="web",
+        ))
+
+    db.session.commit()
+    return jsonify({"message": f"Upgrade request to '{requested_plan}' sent — an admin will review it shortly."}), 201
+
+
 @auth_bp.route("/me/asset-preferences", methods=["GET"])
 @login_required
 def get_asset_preferences():
