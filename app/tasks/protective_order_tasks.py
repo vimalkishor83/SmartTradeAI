@@ -75,6 +75,8 @@ def check_protective_orders(app):
         except Exception as e:
             db.session.rollback()
             logger.error(f"Protective order commit failed: {e}")
+            from app.services.error_tracking import capture
+            capture(e, job="check_protective_orders")
 
 
 def _update_trailing(order, current_price):
@@ -184,10 +186,14 @@ def _execute_close(order, asset, current_price) -> bool:
     except DeltaTradingError as e:
         order.error_message = str(e)
         logger.error(f"Protective order {order.id} auto-close failed: {e}")
+        from app.services.error_tracking import capture
+        capture(e, protective_order_id=order.id, user_id=order.user_id, asset=asset.symbol)
         return False
     except Exception as e:
         order.error_message = str(e)
         logger.error(f"Protective order {order.id} auto-close failed: {e}")
+        from app.services.error_tracking import capture
+        capture(e, protective_order_id=order.id, user_id=order.user_id, asset=asset.symbol)
         return False
 
 

@@ -150,6 +150,8 @@ def close_and_record_signals(app):
         except Exception as e:
             db.session.rollback()
             logger.error(f"Signal close commit failed: {e}")
+            from app.services.error_tracking import capture
+            capture(e, job="close_and_record_signals")
 
 
 def _claim_signal_close(signal, new_status: str) -> bool:

@@ -19,6 +19,7 @@ def create_app(config_class=None):
     cfg = config_class or get_config()
     app.config.from_object(cfg)
 
+    _init_error_tracking(app)
     _init_extensions(app)
     configure_sqlite_concurrency(app)
     _register_blueprints(app)
@@ -88,6 +89,37 @@ def _register_asset_versioning(app):
             except OSError:
                 return "1"
         return {"asset_version": asset_version}
+
+
+def _init_error_tracking(app):
+    """Sentry — genuinely no-op unless SENTRY_DSN is set in the environment.
+    This app has zero error-tracking/APM anywhere (only DB-backed
+    SystemLog/AuditLog + stdlib logging), so a silent failure in a
+    background job (order placement, protective-order monitor, prewarm
+    jobs) or a crashed request handler previously had no alerting path at
+    all beyond someone noticing a log line after the fact. Wired in behind
+    an env-var gate rather than requiring a real Sentry account/DSN to be
+    fabricated for this to compile/run -- ready to activate the moment a
+    real DSN is configured, doesn't change behavior at all until then.
+    """
+    dsn = os.environ.get("SENTRY_DSN")
+    if not dsn:
+        return
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.flask import FlaskIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+
+        sentry_sdk.init(
+            dsn=dsn,
+            integrations=[FlaskIntegration(), SqlalchemyIntegration()],
+            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            traces_sample_rate=float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1")),
+            send_default_pii=False,
+        )
+        logging.getLogger(__name__).info("Sentry error tracking initialized")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Sentry init failed (continuing without it): {e}")
 
 
 def _init_extensions(app):

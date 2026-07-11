@@ -326,6 +326,8 @@ def place_order():
         )
         return jsonify({"order": result}), 201
     except DeltaTradingError as e:
+        from app.services.error_tracking import capture
+        capture(e, route="place_order", symbol=our_symbol, side=side, size=size_int)
         return jsonify({"error": str(e)}), e.status_code or 400
 
 
