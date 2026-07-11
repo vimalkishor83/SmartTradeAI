@@ -511,9 +511,11 @@ def live_prices():
     cached = get_all_live_prices()
     # Supplement with any assets not yet in stream cache
     if not cached:
+        from concurrent.futures import ThreadPoolExecutor
         assets = Asset.query.filter_by(market="crypto", is_active=True).all()
-        for a in assets:
-            t = market_fetcher.fetch_ticker(a)
+        with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
+            tickers = list(ex.map(market_fetcher.fetch_ticker, assets))
+        for a, t in zip(assets, tickers):
             if t:
                 cached[a.symbol] = t
     return jsonify({"prices": cached}), 200

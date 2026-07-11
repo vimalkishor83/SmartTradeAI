@@ -227,35 +227,53 @@ def prewarm_ta_cache(app):
         all_tfs  = list(dict.fromkeys(ta_tfs + mtf_tfs))  # preserves order, deduplicates
         all_data = market_fetcher.fetch_many(assets, all_tfs, limit=200)
 
-        def _make_ta_row(asset):
+        def _make_ta_and_mtf_rows(asset):
+            # ta_tfs == mtf_tfs, and _compute_ta_rating/_mtf_rating both
+            # consume the same light=True indicator subset for a given
+            # (symbol, tf) — previously computed via two independent calls
+            # to calculate_all_indicators (the heaviest step) per cell.
+            # Computing it once per tf and feeding both rating functions
+            # halves that work across the whole asset x timeframe grid.
             sym = asset.symbol
             dfs = all_data.get(sym, {})
-            row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market,
-                   "tf": {}, "price": None, "open": None, "high": None, "low": None,
-                   "change": None, "change_pct": None, "volume": None, "time": None}
+            ta_row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market,
+                      "tf": {}, "price": None, "open": None, "high": None, "low": None,
+                      "change": None, "change_pct": None, "volume": None, "time": None}
             df_price = dfs.get("1h")
             if df_price is not None and len(df_price) >= 2:
                 try:
                     last  = df_price.iloc[-1]; prev = df_price.iloc[-2]
                     price = float(last["close"]); chg = price - float(prev["close"])
-                    row.update({"price": price, "open": float(last["open"]), "high": float(last["high"]),
-                                "low": float(last["low"]), "change": round(chg, 6),
-                                "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
-                                "volume": float(last.get("volume", 0)),
-                                "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else ""})
+                    ta_row.update({"price": price, "open": float(last["open"]), "high": float(last["high"]),
+                                   "low": float(last["low"]), "change": round(chg, 6),
+                                   "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
+                                   "volume": float(last.get("volume", 0)),
+                                   "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else ""})
                 except Exception:
                     pass
+            mtf_row = {}
             for tf in ta_tfs:
+                df = dfs.get(tf)
+                if df is None or len(df) < 52:
+                    ta_row["tf"][tf] = None
+                    mtf_row[tf] = None
+                    continue
                 try:
-                    df = dfs.get(tf)
-                    if df is None or len(df) < 52: row["tf"][tf] = None; continue
-                    # light=True: _compute_ta_rating only reads a specific
-                    # subset of keys — see calculate_all_indicators' docstring.
                     ind = calculate_all_indicators(df, light=True)
-                    row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
+                    close = float(df["close"].iloc[-1])
                 except Exception:
-                    row["tf"][tf] = None
-            return row
+                    ta_row["tf"][tf] = None
+                    mtf_row[tf] = None
+                    continue
+                try:
+                    ta_row["tf"][tf] = _compute_ta_rating(ind, close)
+                except Exception:
+                    ta_row["tf"][tf] = None
+                try:
+                    mtf_row[tf] = _mtf_rating(ind, close)
+                except Exception:
+                    mtf_row[tf] = None
+            return ta_row, asset.id, mtf_row
 
         def _make_ema_row(asset):
             sym = asset.symbol
@@ -271,37 +289,22 @@ def prewarm_ta_cache(app):
                     row["tf"][tf] = None
             return row
 
-        def _make_mtf_row(asset):
-            dfs = all_data.get(asset.symbol, {})
-            row = {}
-            for tf in mtf_tfs:
-                try:
-                    df = dfs.get(tf)
-                    if df is None or len(df) < 52: row[tf] = None; continue
-                    # light=True: _mtf_rating only reads a specific subset
-                    # of keys — see calculate_all_indicators' docstring.
-                    ind = calculate_all_indicators(df, light=True)
-                    row[tf] = _mtf_rating(ind, float(df["close"].iloc[-1]))
-                except Exception:
-                    row[tf] = None
-            return asset.id, row
-
-        # All three workloads only READ the shared all_data (no
-        # cross-mutation) and are otherwise fully independent — was three
-        # separate `list(ex.map(...))` calls back-to-back, each one
-        # blocking (draining the whole pool) before the next started, so
-        # the indicator-computation stage took roughly 3x its true
-        # wall-clock. Submitting all three workloads to one shared pool at
-        # once lets them interleave — calculate_all_indicators releases
-        # the GIL for its numpy/pandas-heavy operations, so real wall-clock
+        # Two workloads (TA+MTF combined, and EMA) only READ the shared
+        # all_data (no cross-mutation) and are otherwise fully independent
+        # — was three separate `list(ex.map(...))` calls back-to-back, each
+        # one blocking (draining the whole pool) before the next started,
+        # so the indicator-computation stage took roughly 3x its true
+        # wall-clock. Submitting both workloads to one shared pool at once
+        # lets them interleave — calculate_all_indicators releases the GIL
+        # for its numpy/pandas-heavy operations, so real wall-clock
         # parallelism is available here, not just I/O-bound work.
         with ThreadPoolExecutor(max_workers=8) as ex:
-            ta_futures  = [ex.submit(_make_ta_row, a)  for a in assets]
-            mtf_futures = [ex.submit(_make_mtf_row, a) for a in assets]
-            ema_futures = [ex.submit(_make_ema_row, a) for a in assets]
-            ta_rows  = [f.result() for f in ta_futures]
-            mtf_rows = [f.result() for f in mtf_futures]
-            ema_rows = [f.result() for f in ema_futures]
+            ta_mtf_futures = [ex.submit(_make_ta_and_mtf_rows, a) for a in assets]
+            ema_futures    = [ex.submit(_make_ema_row, a)        for a in assets]
+            ta_mtf_results = [f.result() for f in ta_mtf_futures]
+            ema_rows       = [f.result() for f in ema_futures]
+        ta_rows  = [r[0] for r in ta_mtf_results]
+        mtf_rows = [(r[1], r[2]) for r in ta_mtf_results]
 
         # TTL was 150s, shorter than this job's own 5-min (300s) scheduler
         # interval — leaving a ~2.5 min window where the cache had already
