@@ -52,8 +52,13 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period=14) 
     return tr.ewm(com=period - 1, min_periods=period).mean()
 
 
-def calculate_supertrend(high, low, close, period=10, multiplier=3.0):
-    atr = calculate_atr(high, low, close, period)
+def calculate_supertrend(high, low, close, period=10, multiplier=3.0, atr=None):
+    # `atr` may be a pre-computed Series (same period) passed in by the
+    # caller to avoid recomputing it — calculate_all_indicators() calls both
+    # this and calculate_keltner_channel() with the same default period=10,
+    # each independently running the same ewm() pass over the same data.
+    if atr is None:
+        atr = calculate_atr(high, low, close, period)
     hl2 = (high + low) / 2
     upper_band = hl2 + multiplier * atr
     lower_band = hl2 - multiplier * atr
@@ -61,10 +66,24 @@ def calculate_supertrend(high, low, close, period=10, multiplier=3.0):
     supertrend = pd.Series(index=close.index, dtype=float)
     direction = pd.Series(index=close.index, dtype=str)
 
-    supertrend.iloc[0] = lower_band.iloc[0]
-    direction.iloc[0] = "up"
+    # ATR has a warmup period (NaN for the first `period` rows, by design in
+    # calculate_atr's min_periods=period) — seeding supertrend from
+    # lower_band.iloc[0] when atr.iloc[0] is still NaN previously made the
+    # very first value NaN, and the recurrence's "else" branch
+    # (supertrend.iloc[i] = prev_st) then propagated that NaN forward
+    # through the ENTIRE remaining series whenever price stayed inside the
+    # (also-NaN) bands during warmup — supertrend/supertrend_direction were
+    # silently None for many asset/timeframe combos until this fix. Skip to
+    # the first row where ATR (and therefore the bands) are actually valid.
+    valid = atr.notna()
+    if not valid.any():
+        return supertrend, direction  # no valid ATR anywhere — nothing to compute
+    start = valid.values.argmax()
 
-    for i in range(1, len(close)):
+    supertrend.iloc[start] = lower_band.iloc[start]
+    direction.iloc[start] = "up"
+
+    for i in range(start + 1, len(close)):
         prev_st = supertrend.iloc[i - 1]
         prev_dir = direction.iloc[i - 1]
 
@@ -119,9 +138,10 @@ def calculate_vwap(high, low, close, volume):
     return (tp * volume).cumsum() / volume.cumsum()
 
 
-def calculate_keltner_channel(high, low, close, ema_period=20, atr_period=10, multiplier=2.0):
+def calculate_keltner_channel(high, low, close, ema_period=20, atr_period=10, multiplier=2.0, atr=None):
     ema = calculate_ema(close, ema_period)
-    atr = calculate_atr(high, low, close, atr_period)
+    if atr is None:
+        atr = calculate_atr(high, low, close, atr_period)
     upper = ema + multiplier * atr
     lower = ema - multiplier * atr
     return upper, ema, lower
@@ -159,9 +179,13 @@ def calculate_all_indicators(df: pd.DataFrame) -> dict:
     macd_line, macd_signal, macd_hist = calculate_macd(close)
     bb_upper, bb_mid, bb_lower, bb_width = calculate_bollinger_bands(close)
     stoch_k, stoch_d = calculate_stoch_rsi(close)
-    supertrend_val, supertrend_dir = calculate_supertrend(high, low, close)
+    # calculate_supertrend's default period and calculate_keltner_channel's
+    # default atr_period are both 10 — compute ATR(10) once and share it
+    # instead of each function independently running the same ewm() pass.
+    atr10 = calculate_atr(high, low, close, 10)
+    supertrend_val, supertrend_dir = calculate_supertrend(high, low, close, atr=atr10)
     tenkan, kijun, senkou_a, senkou_b, _ = calculate_ichimoku(high, low, close)
-    kc_upper, kc_mid, kc_lower = calculate_keltner_channel(high, low, close)
+    kc_upper, kc_mid, kc_lower = calculate_keltner_channel(high, low, close, atr=atr10)
 
     idx = -1
     return {

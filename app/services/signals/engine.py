@@ -95,8 +95,13 @@ class SignalEngine:
             # higher_bias: "bullish" | "bearish" | "neutral" | None (unknown = skip only if conflict is clear)
 
             # ── Stage 4 & 5: Momentum + Volume pre-scoring ─────────
+            # Computed once here and reused at Stage 7 below instead of
+            # calling detect_patterns(df) twice on the same unmodified df.
+            patterns = detect_patterns(df)
             thresh = 0.55 if force else 0.65
-            raw_direction, raw_scores, reasons = self._score_signal(indicators, df, market, threshold=thresh)
+            raw_direction, raw_scores, reasons = self._score_signal(
+                indicators, df, market, threshold=thresh, patterns=patterns
+            )
 
             if raw_direction == "HOLD":
                 return None
@@ -124,8 +129,7 @@ class SignalEngine:
             if confidence < min_conf:
                 return None
 
-            # ── Stage 7: Package result ────────────────────────────
-            patterns = detect_patterns(df)
+            # ── Stage 7: Package result (patterns already computed above) ──
             sl       = self._structure_stop(df, raw_direction, close, atr)
             t1, t2, t3 = self._calculate_targets(raw_direction, close, atr)
             rr       = self._risk_reward(close, sl, t1)
@@ -275,10 +279,17 @@ class SignalEngine:
     # ──────────────────────────────────────────────────────
     # Stage 6 — Confidence scoring (multiplicative)
     # ──────────────────────────────────────────────────────
-    def _score_signal(self, ind: dict, df: pd.DataFrame, market: str, threshold: float = 0.65):
+    def _score_signal(self, ind: dict, df: pd.DataFrame, market: str, threshold: float = 0.65, patterns=None):
         """
         Compute raw direction, per-component scores, and reasons.
         Returns (direction, scores_dict, reasons_list).
+
+        `patterns` may be pre-computed and passed in by the caller (Stage 7
+        needs detect_patterns(df) again for the packaged result) to avoid
+        running the same O(n) pattern scan over the same unmodified df
+        twice per generate_signal() call — this runs for every asset x
+        timeframe combination in every scan/prewarm cycle, so the duplicate
+        scan was pure wasted work at scale.
         """
         bull = 0
         bear = 0
@@ -388,7 +399,8 @@ class SignalEngine:
 
         # ── Pattern component (up to 15 pts) ──────────────
         try:
-            patterns = detect_patterns(df)
+            if patterns is None:
+                patterns = detect_patterns(df)
             bull_pat = [p for p in patterns if p["type"] == "bullish"]
             bear_pat = [p for p in patterns if p["type"] == "bearish"]
             if bull_pat:

@@ -51,12 +51,19 @@ def _block(rows) -> dict:
     }
 
 
-def analyze_history() -> dict:
+def analyze_history(rows=None) -> dict:
     """
     Full breakdown of real closed signals: overall, per timeframe, per market,
     and per signal type — each with both raw and true win rates.
+
+    `rows` may be passed in by the caller (a pre-fetched SignalHistory list)
+    to share one query with whatif_expiry() — history-stats calls both
+    together on every request, and each independently ran its own unbounded
+    SignalHistory.query.all() (3 full-table loads total across the two
+    functions for one HTTP request) before this was threaded through.
     """
-    rows = SignalHistory.query.all()
+    if rows is None:
+        rows = SignalHistory.query.all()
 
     overall = _block(rows)
 
@@ -96,7 +103,7 @@ def analyze_history() -> dict:
     }
 
 
-def whatif_expiry() -> dict:
+def whatif_expiry(rows=None) -> dict:
     """
     'What-if' analysis: of the signals that expired NEUTRAL, how many were
     moving in the RIGHT direction at close (pnl_pct > 0) vs the wrong one?
@@ -104,10 +111,14 @@ def whatif_expiry() -> dict:
     A large share of neutral-but-positive trades is strong evidence that the
     expiry window is too short — the target simply wasn't given enough time.
     This is the primary diagnostic for the expiry/R:R fix.
+
+    `rows` may be passed in (see analyze_history's docstring) to avoid this
+    function's own two separate unbounded SignalHistory.query.all() calls.
     """
-    neutral = [r for r in SignalHistory.query.filter(
-        ~SignalHistory.outcome.in_(["win", "loss"])
-    ).all()]
+    if rows is None:
+        rows = SignalHistory.query.all()
+
+    neutral = [r for r in rows if r.outcome not in ("win", "loss")]
 
     total = len(neutral)
     right_dir = sum(1 for r in neutral if (r.pnl_pct or 0) > 0)
@@ -116,7 +127,7 @@ def whatif_expiry() -> dict:
 
     # If we treated "expired but in-profit" as partial wins, what would the
     # overall win rate become? (Illustrative upper bound, not a promise.)
-    all_rows = SignalHistory.query.all()
+    all_rows = rows
     wins = sum(1 for r in all_rows if r.outcome == "win")
     grand_total = len(all_rows)
 

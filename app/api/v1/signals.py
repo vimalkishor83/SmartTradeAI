@@ -1366,9 +1366,13 @@ def history_stats():
     trades). Includes a 'what-if' expiry diagnostic.
     """
     from app.services.backtest import analyze_history, whatif_expiry
+    # Fetch SignalHistory once and share it with both functions — they
+    # previously each ran their own independent unbounded query (3 full
+    # loads of the same table across the two calls) on every request.
+    rows = SignalHistory.query.all()
     return jsonify({
-        "stats": analyze_history(),
-        "whatif_expiry": whatif_expiry(),
+        "stats": analyze_history(rows),
+        "whatif_expiry": whatif_expiry(rows),
     }), 200
 
 

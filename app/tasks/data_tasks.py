@@ -286,7 +286,14 @@ def prewarm_ta_cache(app):
             mtf_rows = list(ex.map(_make_mtf_row, assets))
             ema_rows = list(ex.map(_make_ema_row, assets))
 
-        cache.set("ta_summary_all",  {"assets": ta_rows,  "timeframes": ta_tfs},  timeout=150)
+        # TTL was 150s, shorter than this job's own 5-min (300s) scheduler
+        # interval — leaving a ~2.5 min window where the cache had already
+        # expired before the next prewarm refilled it, so any on-demand
+        # request landing in that gap paid for a full cold-path
+        # recomputation redundantly close to the next scheduled prewarm.
+        # Comfortably exceeding the interval keeps the cache always warm
+        # from a scheduled prewarm, not from user traffic timing.
+        cache.set("ta_summary_all",  {"assets": ta_rows,  "timeframes": ta_tfs},  timeout=330)
         mtf_matrix = {aid: row for aid, row in mtf_rows}
         cache.set("mtf_matrix_all",  {
             "matrix": mtf_matrix,
@@ -376,7 +383,10 @@ def prewarm_ai_cache(app):
         except Exception:
             db.session.rollback()
 
-        cache.set("ai_summary_all", {"assets": rows, "timeframes": tfs}, timeout=1800)
+        # Matches ta_summary's fix above — was exactly equal to this job's
+        # 30-min scheduler interval (no slack at all for scheduler jitter),
+        # now comfortably exceeds it.
+        cache.set("ai_summary_all", {"assets": rows, "timeframes": tfs}, timeout=1980)
         logger.info(f"AI cache pre-warmed for {len(assets)} assets × {len(tfs)} timeframes")
 
 
