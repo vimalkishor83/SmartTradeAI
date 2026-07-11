@@ -491,7 +491,11 @@ def mtf_matrix():
         "assets": [{"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market} for a in assets],
         "timeframes": timeframes,
     }
-    cache.set("mtf_matrix_all", payload, timeout=150)
+    # 330s — same reasoning as ta_summary_all: this route and
+    # prewarm_ta_cache (data_tasks.py, every 5min/300s) share this cache
+    # key; the cold-path re-cache here had never received the TTL fix
+    # applied to the scheduled prewarm job and was still using 150s.
+    cache.set("mtf_matrix_all", payload, timeout=330)
     return jsonify(payload), 200
 
 

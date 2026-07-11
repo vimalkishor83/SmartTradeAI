@@ -295,12 +295,16 @@ def prewarm_ta_cache(app):
         # from a scheduled prewarm, not from user traffic timing.
         cache.set("ta_summary_all",  {"assets": ta_rows,  "timeframes": ta_tfs},  timeout=330)
         mtf_matrix = {aid: row for aid, row in mtf_rows}
+        # mtf_matrix_all and ema_summary_all previously stayed at 150s here
+        # even after the ta_summary_all fix above — this job fills all three
+        # from the SAME 5-min (300s) scheduler interval, so all three need
+        # the same >300s TTL for the same reason.
         cache.set("mtf_matrix_all",  {
             "matrix": mtf_matrix,
             "assets": [{"id": a.id, "symbol": a.symbol, "name": a.name, "market": a.market} for a in assets],
             "timeframes": mtf_tfs,
-        }, timeout=150)
-        cache.set("ema_summary_all", {"assets": ema_rows, "timeframes": ta_tfs}, timeout=150)
+        }, timeout=330)
+        cache.set("ema_summary_all", {"assets": ema_rows, "timeframes": ta_tfs}, timeout=330)
         logger.info("TA/MTF/EMA cache pre-warmed")
 
 

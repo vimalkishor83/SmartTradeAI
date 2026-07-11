@@ -133,8 +133,15 @@ def ta_summary():
         result = list(ex.map(_process_asset, assets))
 
     payload = {"assets": result, "timeframes": tfs}
-    # Store as global cache so next request is instant
-    cache.set("ta_summary_all", {"assets": result, "timeframes": tfs}, timeout=150)
+    # Store as global cache so next request is instant. 330s (not 150s)
+    # to comfortably exceed prewarm_ta_cache's 5-min (300s) scheduler
+    # interval — the prewarm job itself already uses 330s
+    # (data_tasks.py), but this on-demand cold-path re-cache (hit
+    # whenever a user request lands before the scheduler first runs, or
+    # if a prewarm cycle fails) was still using the old short value,
+    # silently undoing the fix until the next scheduled prewarm
+    # overwrote it.
+    cache.set("ta_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
     return jsonify(payload), 200
 
 
@@ -266,7 +273,11 @@ def ema_summary():
     with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
         result = list(ex.map(_process_asset, assets))
 
-    cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=150)
+    # 330s — same reasoning as ta_summary_all above: this route and
+    # prewarm_ta_cache (data_tasks.py, every 5min/300s) share this cache
+    # key, but this cold-path re-cache had never received the TTL fix and
+    # was still using 150s, shorter than the prewarm interval.
+    cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
     return jsonify({"assets": result, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP}), 200
 
 
@@ -299,13 +310,35 @@ def ema_summary_history():
     if bars_back == 0:
         return ema_summary()  # identical to the live endpoint
 
-    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    # Previously had NO caching at all — every scrub step recomputed the
+    # full asset x 7-timeframe EMA grid from scratch, even though scrubbing
+    # is inherently a back-and-forth interaction (a user re-visiting a
+    # bars_back value they were just on, dragging a slider past the same
+    # point twice, or two users independently landing on the same historical
+    # offset) and the underlying candles are already cache-covered by
+    # fetch_many below — only the CPU-bound compute_ema921_cell pass across
+    # the whole grid was being redone every time. Cached globally per
+    # (market, bars_back) — same pattern as ema_summary()'s live cache:
+    # compute the FULL universe once, filter by the current user's asset
+    # preferences afterward, so the cache is correct and shared across users
+    # regardless of each user's own preference set.
+    cache_key = f"ema_summary_hist_{market}_{bars_back}"
+    global_cache = cache.get(cache_key)
+    if global_cache:
+        prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+        assets_out = global_cache["assets"]
+        if prefs:
+            assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
+        return jsonify({
+            "assets": assets_out, "timeframes": global_cache["timeframes"],
+            "higher_tf_map": HIGHER_TF_MAP, "bars_back": bars_back,
+        }), 200
+
     tfs = TA_TIMEFRAMES
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
-    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+    assets = asset_q.order_by(Asset.market, Asset.symbol).all()
 
     # Reuses the fetcher's own per-symbol/timeframe TTL cache, so repeated
     # scrub steps within that window don't re-hit external market data APIs.
@@ -328,8 +361,16 @@ def ema_summary_history():
     with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
         result = list(ex.map(_process_asset, assets))
 
+    # 60s — short enough that a genuinely fresh scrub after the underlying
+    # candles roll forward isn't stale for long, long enough to absorb
+    # rapid back-and-forth scrubbing/re-renders on the same offset.
+    cache.set(cache_key, {"assets": result, "timeframes": tfs}, timeout=60)
+
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    result_out = [r for r in result if prefs.get(r["id"], True)] if prefs else result
+
     return jsonify({
-        "assets": result, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP,
+        "assets": result_out, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP,
         "bars_back": bars_back,
     }), 200
 
@@ -439,7 +480,12 @@ def ai_summary():
         db.session.rollback()
 
     payload = {"assets": result, "timeframes": tfs}
-    cache.set("ai_summary_all", payload, timeout=150)
+    # 1980s — matches prewarm_ai_cache's own TTL (data_tasks.py), which
+    # comfortably exceeds its 30-min (1800s) scheduler interval. This
+    # cold-path re-cache (hit on a miss before the scheduler first runs)
+    # was still using the old 150s, undoing that fix until the next
+    # scheduled prewarm ran.
+    cache.set("ai_summary_all", payload, timeout=1980)
     return jsonify(payload), 200
 
 
