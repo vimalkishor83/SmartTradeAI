@@ -166,8 +166,71 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _make_labels(close: pd.Series, lookahead: int = 3) -> pd.Series:
-    """1 = price higher in `lookahead` candles, 0 = lower."""
+    """1 = price higher in `lookahead` candles, 0 = lower.
+
+    Superseded by _make_triple_barrier_labels() for training (see below);
+    kept as a simple fallback for any caller that only has a close series.
+    """
     return (close.shift(-lookahead) > close).astype(int)
+
+
+_TB_ATR_MULT      = 2.0   # barrier distance = this many ATRs from entry
+_TB_MAX_HOLD      = 10    # vertical barrier: give up after this many bars
+_TB_MIN_ATR_PCT   = 1e-6  # guard against zero/near-zero ATR (dead market)
+
+
+def _make_triple_barrier_labels(df: pd.DataFrame, atr: pd.Series) -> pd.Series:
+    """
+    Triple-barrier labeling (Lopez de Prado): for each bar, look forward up
+    to _TB_MAX_HOLD bars and label 1 if price hits the upper barrier
+    (entry + _TB_ATR_MULT * ATR) before the lower barrier (entry -
+    _TB_ATR_MULT * ATR) or the vertical (time) barrier, 0 if it hits the
+    lower barrier first or times out without a net-positive move.
+
+    This replaces the old fixed "close 3 bars ahead > close now" label,
+    which ignored volatility entirely -- a 3-bar move that's noise in a
+    high-ATR crypto pair could be a decisive move in a low-ATR forex pair,
+    so the old label taught the model an inconsistent target across
+    regimes and instruments. Barriers scaled by the instrument's own ATR
+    make the label mean roughly the same thing ("did price make a
+    volatility-adjusted directional move") everywhere.
+
+    Vectorized: for each bar, only checks the fixed _TB_MAX_HOLD-bar
+    forward window rather than an expanding scan, so this stays O(n).
+    """
+    close = df["close"].values
+    high  = df["high"].values
+    low   = df["low"].values
+    atr_v = atr.values
+    n = len(close)
+
+    labels = np.full(n, np.nan)
+
+    for i in range(n - 1):
+        a = atr_v[i]
+        if not np.isfinite(a) or a < close[i] * _TB_MIN_ATR_PCT:
+            continue
+        upper = close[i] + _TB_ATR_MULT * a
+        lower = close[i] - _TB_ATR_MULT * a
+        end = min(i + 1 + _TB_MAX_HOLD, n)
+
+        outcome = None
+        for j in range(i + 1, end):
+            if high[j] >= upper:
+                outcome = 1
+                break
+            if low[j] <= lower:
+                outcome = 0
+                break
+        if outcome is None:
+            # Vertical barrier: no touch within the window -- label by
+            # whether price ended up net positive vs entry.
+            if end > i + 1:
+                outcome = 1 if close[end - 1] > close[i] else 0
+        if outcome is not None:
+            labels[i] = outcome
+
+    return pd.Series(labels, index=df.index)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -291,15 +354,24 @@ class AIPredictor:
             bull_prob = cached[0]
         else:
             try:
-                feat   = _build_features(df)
-                labels = _make_labels(df["close"].loc[feat.index])
+                from app.services.indicators.calculator import calculate_atr
 
-                X_all   = feat.values
-                y_all   = labels.values
-                # Drop last 3 rows — future label unknown
-                X_train = X_all[:-3]
-                y_train = y_all[:-3]
-                X_pred  = X_all[[-1]]
+                feat = _build_features(df)
+                atr  = calculate_atr(df["high"], df["low"], df["close"]).loc[feat.index]
+                labels = _make_triple_barrier_labels(df.loc[feat.index], atr)
+
+                X_all = feat.values
+                y_all = labels.values
+                X_pred = X_all[[-1]]
+                # Triple-barrier labels are NaN for the trailing _TB_MAX_HOLD
+                # bars (not enough forward data to resolve a barrier touch)
+                # and for the very last row (used only for X_pred) --
+                # exclude both from training rather than assuming a fixed
+                # drop count.
+                valid = ~np.isnan(y_all)
+                valid[-1] = False  # last row's own label is never used for training
+                X_train = X_all[valid]
+                y_train = y_all[valid].astype(int)
 
                 if len(X_train) < _MIN_TRAIN_ROWS:
                     return _default
