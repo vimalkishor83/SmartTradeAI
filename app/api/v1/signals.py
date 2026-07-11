@@ -592,8 +592,15 @@ def get_confluence(asset_id):
         return jsonify(cached), 200
 
     timeframes = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
-    all_data = market_fetcher.fetch_many([asset], timeframes, limit=100)
-    dfs = all_data.get(asset.symbol, {})
+
+    # The prewarm job (data_tasks.py) already computes _mtf_rating for
+    # every asset/timeframe into mtf_matrix_all every 5 minutes. If this
+    # asset's row is present there, reuse it instead of re-fetching OHLCV
+    # and re-running calculate_all_indicators from scratch for all 7
+    # timeframes -- confluence is otherwise fully redundant with work the
+    # prewarm job already did seconds/minutes ago.
+    mtf_cached = cache.get("mtf_matrix_all")
+    matrix_row = mtf_cached.get("matrix", {}).get(asset_id) if mtf_cached else None
 
     # Get primary signal direction from the most recent DB signal
     primary_signal = Signal.query.filter(
@@ -606,17 +613,9 @@ def get_confluence(asset_id):
     buy_tfs = sell_tfs = neutral_tfs = 0
     tf_details = {}
 
-    for tf in timeframes:
-        try:
-            df = dfs.get(tf)
-            if df is None or len(df) < 52:
-                neutral_tfs += 1
-                tf_details[tf] = None
-                continue
-            # light=True: also feeds _mtf_rating, same subset as mtf-matrix above.
-            ind = calculate_all_indicators(df, light=True)
-            close = float(df["close"].iloc[-1])
-            rating = _mtf_rating(ind, close)
+    if matrix_row is not None:
+        for tf in timeframes:
+            rating = matrix_row.get(tf)
             if rating is None:
                 neutral_tfs += 1
                 tf_details[tf] = None
@@ -629,9 +628,36 @@ def get_confluence(asset_id):
                 sell_tfs += 1
             else:
                 neutral_tfs += 1
-        except Exception:
-            neutral_tfs += 1
-            tf_details[tf] = None
+    else:
+        all_data = market_fetcher.fetch_many([asset], timeframes, limit=100)
+        dfs = all_data.get(asset.symbol, {})
+
+        for tf in timeframes:
+            try:
+                df = dfs.get(tf)
+                if df is None or len(df) < 52:
+                    neutral_tfs += 1
+                    tf_details[tf] = None
+                    continue
+                # light=True: also feeds _mtf_rating, same subset as mtf-matrix above.
+                ind = calculate_all_indicators(df, light=True)
+                close = float(df["close"].iloc[-1])
+                rating = _mtf_rating(ind, close)
+                if rating is None:
+                    neutral_tfs += 1
+                    tf_details[tf] = None
+                    continue
+                sig = rating["signal_type"]
+                tf_details[tf] = sig
+                if sig == "BUY":
+                    buy_tfs += 1
+                elif sig == "SELL":
+                    sell_tfs += 1
+                else:
+                    neutral_tfs += 1
+            except Exception:
+                neutral_tfs += 1
+                tf_details[tf] = None
 
     total = len(timeframes)
     dominant = "BUY" if buy_tfs >= sell_tfs else "SELL"
