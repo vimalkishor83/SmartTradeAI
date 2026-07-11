@@ -160,6 +160,7 @@ def _register_blueprints(app):
     from app.api.v1.journal import journal_bp
     from app.api.v1.trading import trading_bp
     from app.api.v1.protective_orders import protective_orders_bp
+    from app.api.v1.comparison import comparison_bp
     from app.api.v1.system import system_bp
     from app.frontends import frontends_bp
     from app.views import views_bp
@@ -180,6 +181,7 @@ def _register_blueprints(app):
     app.register_blueprint(journal_bp, url_prefix="/api/v1/journal")
     app.register_blueprint(trading_bp, url_prefix="/api/v1/trading")
     app.register_blueprint(protective_orders_bp, url_prefix="/api/v1/protective-orders")
+    app.register_blueprint(comparison_bp, url_prefix="/api/v1/comparison")
     app.register_blueprint(system_bp, url_prefix="/api/v1/system")
     app.register_blueprint(frontends_bp)
     app.register_blueprint(views_bp)
