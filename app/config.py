@@ -106,6 +106,14 @@ class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=5)
+    # In-memory SQLite uses SQLAlchemy's StaticPool internally, which
+    # doesn't accept pool_size/max_overflow (those are QueuePool-only
+    # options meant for a real DB server) — Config.SQLALCHEMY_ENGINE_OPTIONS
+    # was being inherited unconditionally and crashed create_engine() for
+    # any test touching the DB. Only pool_pre_ping (harmless/ignored by
+    # StaticPool) carries over; pool_recycle/pool_size/max_overflow don't
+    # apply to a per-process in-memory DB anyway.
+    SQLALCHEMY_ENGINE_OPTIONS = {"pool_pre_ping": True}
 
 
 config_map = {
