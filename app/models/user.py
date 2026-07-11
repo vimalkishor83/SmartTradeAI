@@ -119,7 +119,7 @@ class UserAssetPreference(db.Model):
     __tablename__ = "user_asset_preferences"
 
     id         = db.Column(db.Integer, primary_key=True)
-    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
     asset_id   = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
     enabled    = db.Column(db.Boolean, default=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

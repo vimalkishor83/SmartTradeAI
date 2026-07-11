@@ -207,12 +207,34 @@ def _model_path(key: str) -> Path:
     return _MODEL_DIR / f"{safe}.pkl"
 
 
+# Process-lifetime in-memory model cache, separate from _pred_cache (which
+# caches predictions, not deserialized model objects). Without this,
+# joblib.load() re-deserializes RF+XGB+LGB ensembles from disk on every
+# _pred_cache TTL expiry, even though the underlying model file is usually
+# unchanged for up to 24h (_RETRAIN_AFTER). Keyed by (path, mtime) so a
+# retrain (which rewrites the file with a new mtime) naturally invalidates
+# the stale in-memory entry.
+_model_mem_cache: dict[Path, tuple[float, object]] = {}
+_model_mem_cache_lock = threading.Lock()
+
+
 def _load_model(key: str):
     try:
-        import joblib
         p = _model_path(key)
-        if p.exists() and (time.time() - p.stat().st_mtime) < _RETRAIN_AFTER:
-            return joblib.load(p)
+        if not p.exists():
+            return None
+        mtime = p.stat().st_mtime
+        if (time.time() - mtime) >= _RETRAIN_AFTER:
+            return None
+        with _model_mem_cache_lock:
+            hit = _model_mem_cache.get(p)
+            if hit is not None and hit[0] == mtime:
+                return hit[1]
+        import joblib
+        model = joblib.load(p)
+        with _model_mem_cache_lock:
+            _model_mem_cache[p] = (mtime, model)
+        return model
     except Exception:
         pass
     return None
@@ -221,7 +243,10 @@ def _load_model(key: str):
 def _save_model(key: str, model):
     try:
         import joblib
-        joblib.dump(model, _model_path(key))
+        p = _model_path(key)
+        joblib.dump(model, p)
+        with _model_mem_cache_lock:
+            _model_mem_cache.pop(p, None)
     except Exception as e:
         logger.debug(f"Model save failed [{key}]: {e}")
 
