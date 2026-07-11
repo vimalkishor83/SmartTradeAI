@@ -188,7 +188,11 @@ const Toast = {
 // ─── Notifications ────────────────────────────
 const Notifications = {
   async load() {
-    const data = await API.get('/notifications/', { unread: 'true' });
+    // Fetches ALL notifications (read + unread), not just unread — the
+    // dropdown previously called with unread:'true', so any notification
+    // instantly vanished the moment it was marked read (individually, or
+    // via "Mark all read"), with no way to see history afterward.
+    const data = await API.get('/notifications/', {});
     if (!data) return;
     const countEl = document.getElementById('notifCount');
     const listEl  = document.getElementById('notifList');
@@ -196,14 +200,25 @@ const Notifications = {
       countEl.textContent  = data.unread_count;
       countEl.style.display = data.unread_count > 0 ? 'flex' : 'none';
     }
-    if (listEl && data.notifications?.length) {
+    if (listEl) {
+      if (!data.notifications?.length) {
+        listEl.innerHTML = '<p class="p-3 text-muted fs-sm mb-0">No notifications</p>';
+        return;
+      }
+      // Theme-aware text color (was hardcoded #fff — invisible on white
+      // cards in light theme, the same bug class fixed elsewhere for
+      // tables/badges but missed in this widget).
       listEl.innerHTML = data.notifications.map(n => `
-        <div class="notif-item ${n.is_read ? '' : 'unread'}">
-          <div class="fw-semibold" style="font-size:13px;color:#fff">${n.title}</div>
-          <div style="font-size:12px;color:#fff">${n.message}</div>
-          <div class="mt-1" style="font-size:11px;color:#fff">${formatTime(n.created_at)}</div>
+        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" onclick="Notifications.markRead(${n.id})" style="cursor:pointer">
+          <div class="fw-semibold" style="font-size:13px;color:var(--text-primary)">${n.title}</div>
+          <div style="font-size:12px;color:var(--text-secondary)">${n.message}</div>
+          <div class="mt-1" style="font-size:11px;color:var(--text-muted)">${formatTime(n.created_at)}</div>
         </div>`).join('');
     }
+  },
+  async markRead(id) {
+    await API.put(`/notifications/${id}/read`, {});
+    this.load();
   },
   async markAllRead() {
     await API.put('/notifications/read-all');

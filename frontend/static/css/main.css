@@ -634,7 +634,17 @@ body {
   transition: background var(--transition);
 }
 .notif-item:hover { background: var(--glass); }
-.notif-item.unread { background: rgba(99,102,241,0.05); }
+.notif-item.unread { background: rgba(99,102,241,0.05); position: relative; }
+.notif-item.unread::before {
+  content: ''; position: absolute; left: 5px; top: 16px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+.notif-item.unread { padding-left: 20px; }
+/* Read notifications now stay visible in the list (previously vanished
+   entirely once read, since the dropdown only ever fetched unread=true) —
+   dim them slightly so unread still reads as "new". */
+.notif-item:not(.unread) { opacity: 0.65; }
+.notif-item:not(.unread):hover { opacity: 1; }
 
 /* User menu */
 .user-menu {
