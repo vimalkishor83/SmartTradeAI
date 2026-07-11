@@ -113,8 +113,32 @@ def calculate_stoch_rsi(series: pd.Series, rsi_period=14, stoch_period=14, k_per
 def calculate_cci(high, low, close, period=20):
     tp = (high + low + close) / 3
     sma_tp = tp.rolling(period).mean()
-    mean_dev = tp.rolling(period).apply(lambda x: np.mean(np.abs(x - x.mean())))
+    # Was tp.rolling(period).apply(lambda x: np.mean(np.abs(x - x.mean()))) —
+    # rolling().apply() with a Python callable re-slices a Series and
+    # re-enters the Python interpreter once PER WINDOW POSITION instead of
+    # running a vectorized C loop, roughly 50-100x slower than the
+    # numpy-native equivalent below for typical window sizes. Runs on every
+    # symbol/timeframe combo in calculate_all_indicators — every scan,
+    # prewarm cycle, and signal-generation pass across the whole asset
+    # universe. Vectorized via a sliding-window view: mean absolute
+    # deviation of each window from ITS OWN mean (matches the original
+    # semantics exactly, not an approximation via rolling std).
+    mean_dev = _rolling_mean_abs_dev(tp, period)
     return (tp - sma_tp) / (0.015 * mean_dev)
+
+
+def _rolling_mean_abs_dev(series: pd.Series, period: int) -> pd.Series:
+    """Vectorized rolling mean absolute deviation (each window's mean
+    absolute deviation from its own mean) — numpy sliding-window-view based,
+    no per-window Python callback."""
+    values = series.to_numpy(dtype=float)
+    n = len(values)
+    result = np.full(n, np.nan)
+    if n >= period:
+        windows = np.lib.stride_tricks.sliding_window_view(values, period)
+        window_means = windows.mean(axis=1, keepdims=True)
+        result[period - 1:] = np.abs(windows - window_means).mean(axis=1)
+    return pd.Series(result, index=series.index)
 
 
 def calculate_roc(series: pd.Series, period=12) -> pd.Series:
