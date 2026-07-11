@@ -4,6 +4,9 @@ from flask import Flask
 from app.config import get_config
 from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors, mail
 from app.extensions import configure_sqlite_concurrency
+from flask_compress import Compress
+
+compress = Compress()
 
 
 def create_app(config_class=None):
@@ -98,6 +101,14 @@ def _init_extensions(app):
     limiter.init_app(app)
     cache.init_app(app)
     mail.init_app(app)
+    # TA Summary/MTF Analysis JSON payloads (7 timeframes x dozens of assets,
+    # deeply nested) run tens-to-hundreds of KB uncompressed. No reverse
+    # proxy in front of gunicorn here does compression, so it wasn't
+    # happening anywhere -- gzip cuts this 70-85% for near-zero CPU cost.
+    app.config.setdefault("COMPRESS_MIMETYPES", ["application/json", "text/html", "text/css", "application/javascript"])
+    app.config.setdefault("COMPRESS_LEVEL", 6)
+    app.config.setdefault("COMPRESS_MIN_SIZE", 500)
+    compress.init_app(app)
 
 
 def _register_blueprints(app):
