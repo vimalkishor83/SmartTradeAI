@@ -12,6 +12,7 @@ def update_tickers(app):
     Runs every 15s; broadcasts via WebSocket + updates live price cache.
     """
     with app.app_context():
+        from concurrent.futures import ThreadPoolExecutor, as_completed
         from app.models.asset import Asset
         from app.services.data.fetcher import market_fetcher
 
@@ -21,15 +22,34 @@ def update_tickers(app):
             Asset.market != "crypto",
         ).all()
 
-        for asset in non_crypto:
+        if not non_crypto:
+            return
+
+        # Was sequential — N synchronous yfinance HTTP calls back-to-back on
+        # the scheduler thread every 15s. At even 20-30 assets and
+        # ~300-800ms per call, one run could take 6-25+ seconds, risking
+        # overlapping runs and starving the scheduler of timely execution
+        # for its other jobs. Parallelized with the same ThreadPoolExecutor
+        # pattern already used by fetch_many() elsewhere in this codebase.
+        def _fetch(asset):
             try:
-                ticker = market_fetcher.fetch_ticker(asset)
-                if ticker:
+                return asset, market_fetcher.fetch_ticker(asset)
+            except Exception as e:
+                logger.debug(f"Ticker update failed for {asset.symbol}: {e}")
+                return asset, None
+
+        with ThreadPoolExecutor(max_workers=min(15, len(non_crypto))) as pool:
+            futures = [pool.submit(_fetch, asset) for asset in non_crypto]
+            for fut in as_completed(futures):
+                asset, ticker = fut.result()
+                if not ticker:
+                    continue
+                try:
                     broadcast_ticker(asset.symbol, ticker)
                     if ticker.get("price"):
                         check_signals_for_price(asset.symbol, float(ticker["price"]), app)
-            except Exception as e:
-                logger.debug(f"Ticker update failed for {asset.symbol}: {e}")
+                except Exception as e:
+                    logger.debug(f"Ticker broadcast/check failed for {asset.symbol}: {e}")
 
 
 def close_and_record_signals(app):

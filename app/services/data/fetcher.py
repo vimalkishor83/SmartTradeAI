@@ -186,6 +186,33 @@ class _OHLCVCache:
 _cache = _OHLCVCache()
 
 
+class _TickerCache:
+    """Thread-safe in-memory cache for ticker dicts with a fixed short TTL —
+    deliberately much shorter than _OHLCVCache since a ticker is meant to be
+    "live"; this only exists to collapse redundant calls from independent
+    code paths (update_tickers job, open_pnl, watchlist_context) hitting the
+    same symbol within the same few seconds, not to serve stale prices."""
+    _TTL = 5  # seconds
+
+    def __init__(self):
+        self._store: dict[str, tuple[dict, float]] = {}
+        self._lock = threading.Lock()
+
+    def get(self, key: str) -> dict | None:
+        with self._lock:
+            entry = self._store.get(key)
+            if entry and time.time() - entry[1] < self._TTL:
+                return entry[0]
+        return None
+
+    def set(self, key: str, value: dict):
+        with self._lock:
+            self._store[key] = (value, time.time())
+
+
+_ticker_cache = _TickerCache()
+
+
 # ─────────────────────────────────────────────────────────
 # Binance (crypto) — completely public, no key needed
 # ─────────────────────────────────────────────────────────
@@ -562,12 +589,29 @@ class MarketDataFetcher:
             return self.binance.fetch_ticker(asset.symbol)
         if not _YF_AVAILABLE:
             return None
+
+        # Short TTL cache for non-crypto tickers — several independent call
+        # sites (the 15s update_tickers job, open_pnl, watchlist_context)
+        # were each triggering their own live synchronous yfinance HTTP call
+        # per asset with zero caching between them, meaning the same symbol
+        # could get fetched from Yahoo multiple times within the same few
+        # seconds by unrelated code paths. A few seconds of staleness is
+        # immaterial for these (non-crypto prices don't move that fast, and
+        # crypto — which does — already bypasses this entirely via Delta/
+        # Binance above), but collapses redundant network round-trips.
+        cache_key = f"ticker_{asset.symbol}"
+        cached = _ticker_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             yf_symbol = self.yahoo._yahoo_symbol(asset.symbol)
             info  = yf.Ticker(yf_symbol).fast_info
             price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
             if price:
-                return {"symbol": asset.symbol, "price": float(price), "change_pct": 0.0}
+                ticker = {"symbol": asset.symbol, "price": float(price), "change_pct": 0.0}
+                _ticker_cache.set(cache_key, ticker)
+                return ticker
         except Exception:
             pass
         return None

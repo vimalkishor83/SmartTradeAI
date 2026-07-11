@@ -469,10 +469,16 @@ def get_heatmap():
     # All active assets, pulled live from the DB so newly added/removed assets
     # show up automatically without a code change.
     assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+    # Was a sequential market_fetcher.fetch() per asset — switched to the
+    # same batched fetch_many() pattern used by ta_summary/ema_summary/
+    # ai_summary/mtf-matrix elsewhere in this file, which parallelizes Delta
+    # assets via a thread pool and groups Yahoo assets into one HTTP call
+    # per timeframe instead of one call per symbol.
+    all_data = market_fetcher.fetch_many(assets, ["1d"], limit=3)
     heatmap = []
     for asset in assets:
         try:
-            df = market_fetcher.fetch(asset, "1d", 3)
+            df = all_data.get(asset.symbol, {}).get("1d")
             if df is not None and len(df) >= 2:
                 price  = float(df["close"].iloc[-1])
                 prev   = float(df["close"].iloc[-2])

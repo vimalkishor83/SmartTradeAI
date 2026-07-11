@@ -10,6 +10,7 @@ from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
 from sqlalchemy.orm import joinedload
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import csv
 import io
@@ -660,6 +661,22 @@ def open_pnl():
     asset_ids  = {s.asset_id for s in active_signals}
     assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
 
+    # Fetch each unique asset's ticker once, in parallel — was one
+    # sequential fetch_ticker() call per SIGNAL (not per asset), so two
+    # active signals on the same symbol/different timeframes paid for the
+    # same live price twice, one after another.
+    ticker_by_asset_id = {}
+    if assets_map:
+        with ThreadPoolExecutor(max_workers=min(15, len(assets_map))) as pool:
+            futures = {pool.submit(market_fetcher.fetch_ticker, asset): asset_id
+                       for asset_id, asset in assets_map.items()}
+            for fut in as_completed(futures):
+                asset_id = futures[fut]
+                try:
+                    ticker_by_asset_id[asset_id] = fut.result()
+                except Exception:
+                    ticker_by_asset_id[asset_id] = None
+
     now = datetime.utcnow()
     result = []
     for s in active_signals:
@@ -668,14 +685,11 @@ def open_pnl():
             continue
 
         current_price = None
-        try:
-            ticker = market_fetcher.fetch_ticker(asset)
-            if ticker:
-                current_price = float(
-                    ticker.get("last_price") or ticker.get("price") or ticker.get("close") or 0
-                ) or None
-        except Exception:
-            pass
+        ticker = ticker_by_asset_id.get(s.asset_id)
+        if ticker:
+            current_price = float(
+                ticker.get("last_price") or ticker.get("price") or ticker.get("close") or 0
+            ) or None
 
         entry = float(s.entry_price or 0)
         pnl_pct = None

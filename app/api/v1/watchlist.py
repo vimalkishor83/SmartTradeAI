@@ -119,13 +119,35 @@ def watchlist_context():
     from app.services.data.fetcher import market_fetcher
     from app.services.indicators.calculator import calculate_all_indicators
 
+    MTF_TFS = ["1h", "4h", "1d"]
+    # Pre-fetch OHLCV for every watchlist asset x MTF timeframe in ONE
+    # batched call outside the per-item loop, instead of calling
+    # fetch_many([single_asset], tfs) separately for each item — the latter
+    # defeats fetch_many's own batching (it can group Yahoo assets into one
+    # HTTP call per timeframe across all symbols; calling it per-asset forces
+    # N separate round-trips instead of len(timeframes) total ones).
+    all_mtf_assets = [item.asset for item in items_raw]
+    all_mtf_data = market_fetcher.fetch_many(all_mtf_assets, MTF_TFS, limit=200) if all_mtf_assets else {}
+
+    # Batch the "last active signal per asset" lookup — was one query per
+    # watchlist item inside the loop below.
+    asset_ids = [item.asset_id for item in items_raw]
+    latest_signal_by_asset = {}
+    if asset_ids:
+        recent_signals = (Signal.query
+                           .filter(Signal.asset_id.in_(asset_ids), Signal.status == "active")
+                           .order_by(Signal.generated_at.desc())
+                           .all())
+        for sig in recent_signals:
+            latest_signal_by_asset.setdefault(sig.asset_id, sig)  # first hit per asset = most recent (already ordered)
+
     def _mtf_confluence(asset):
-        """Return buy_count, sell_count, hold_count across 1h/4h/1d."""
-        tfs = ["1h", "4h", "1d"]
+        """Return buy_count, sell_count, hold_count across 1h/4h/1d, using
+        the pre-fetched batch rather than a fresh per-asset network call."""
         buy_c = sell_c = hold_c = 0
         try:
-            dfs = market_fetcher.fetch_many([asset], tfs, limit=200).get(asset.symbol, {})
-            for tf in tfs:
+            dfs = all_mtf_data.get(asset.symbol, {})
+            for tf in MTF_TFS:
                 df = dfs.get(tf)
                 if df is None or len(df) < 52:
                     continue
@@ -167,6 +189,22 @@ def watchlist_context():
         else:               sig = "HOLD"
         return {"signal_type": sig, "confidence": round(max(buy, sell) / total * 100)}
 
+    # Fetch every ticker in parallel instead of sequentially, one per item —
+    # each call can be a live network hit (non-crypto goes through Yahoo);
+    # the short in-process ticker cache added in fetch_ticker() also means
+    # any asset shared with another recently-run job/route is already free.
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    ticker_by_asset_id = {}
+    if items_raw:
+        with ThreadPoolExecutor(max_workers=min(15, len(items_raw))) as pool:
+            futures = {pool.submit(market_fetcher.fetch_ticker, item.asset): item.asset_id for item in items_raw}
+            for fut in as_completed(futures):
+                asset_id = futures[fut]
+                try:
+                    ticker_by_asset_id[asset_id] = fut.result()
+                except Exception:
+                    ticker_by_asset_id[asset_id] = None
+
     result = []
     now_utc = datetime.utcnow()
 
@@ -189,29 +227,20 @@ def watchlist_context():
             "distance_to_alert_pct": None,
         }
 
-        # Current price
-        try:
-            ticker = market_fetcher.fetch_ticker(asset)
-            if ticker:
-                entry["current_price"] = ticker.get("price")
-                entry["change_pct"]    = ticker.get("change_pct")
-        except Exception:
-            pass
+        # Current price (pre-fetched in parallel above)
+        ticker = ticker_by_asset_id.get(asset.id)
+        if ticker:
+            entry["current_price"] = ticker.get("price")
+            entry["change_pct"]    = ticker.get("change_pct")
 
-        # Last active signal
-        try:
-            sig = (Signal.query
-                   .filter_by(asset_id=asset.id, status="active")
-                   .order_by(Signal.generated_at.desc())
-                   .first())
-            if sig:
-                entry["last_signal_type"]       = sig.signal_type
-                entry["last_signal_tf"]         = sig.timeframe
-                entry["last_signal_time"]       = sig.generated_at.isoformat() if sig.generated_at else None
-                entry["last_signal_confidence"] = sig.confidence_score
-                entry["last_signal_stop_loss"]  = sig.stop_loss
-        except Exception:
-            pass
+        # Last active signal (pre-fetched in one batched query above)
+        sig = latest_signal_by_asset.get(asset.id)
+        if sig:
+            entry["last_signal_type"]       = sig.signal_type
+            entry["last_signal_tf"]         = sig.timeframe
+            entry["last_signal_time"]       = sig.generated_at.isoformat() if sig.generated_at else None
+            entry["last_signal_confidence"] = sig.confidence_score
+            entry["last_signal_stop_loss"]  = sig.stop_loss
 
         # MTF confluence
         try:
