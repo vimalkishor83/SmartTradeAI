@@ -156,8 +156,14 @@ function renderMatrix() {
         const tip    = cell?.signal_type
           ? `${a.symbol} ${tf} | ${cell.signal_type} | Conf: ${cell.confidence}% | ▲${cell.buy} ▼${cell.sell} ●${cell.neutral}`
           : `${a.symbol} ${tf} — insufficient data`;
+        // data-cell holds the asset/timeframe key so the view-mode dropdown
+        // can swap just this div's inner content (see updateCellContents())
+        // instead of the whole table being rebuilt — the header, market
+        // group rows, sticky asset column, and trend column never change
+        // between Signal Type / Confidence % / Risk:Reward views, only
+        // each cell's own inner markup does.
         html += `<td style="padding:4px;text-align:center">
-          <div title="${tip}" style="padding:5px 4px;border-radius:6px;border:1px solid ${border};background:${bg};min-height:50px;display:flex;align-items:center;justify-content:center">
+          <div title="${tip}" data-cell="${a.id}:${tf}" style="padding:5px 4px;border-radius:6px;border:1px solid ${border};background:${bg};min-height:50px;display:flex;align-items:center;justify-content:center">
             ${cellContent(cell)}
           </div>
         </td>`;
@@ -170,6 +176,21 @@ function renderMatrix() {
   html += `</tbody></table>`;
   wrap.innerHTML = html;
   renderSummaryCards();
+}
+
+/* View-mode dropdown (Signal Type / Confidence % / Risk:Reward) previously
+   called the full renderMatrix() — rebuilding headers, market group rows,
+   the sticky asset column, and the trend column even though NONE of that
+   changes between view modes, only each cell's own inner content does. For
+   "all markets" (~40-60 assets x 7 timeframes) that's a few hundred needless
+   cell/row rebuilds on every dropdown click. This only touches the ~280-420
+   cell divs directly via their data-cell key. */
+function updateCellContents() {
+  document.querySelectorAll('#matrixWrap [data-cell]').forEach(el => {
+    const [assetId, tf] = el.dataset.cell.split(':');
+    const cell = _matrix[assetId]?.[tf];
+    el.innerHTML = cellContent(cell);
+  });
 }
 
 function renderSummaryCards() {
@@ -217,7 +238,7 @@ document.addEventListener('app:ready', () => {
   loadMatrix();
   document.getElementById('refreshBtn').addEventListener('click', loadMatrix);
   document.getElementById('mktFilter').addEventListener('change', loadMatrix);
-  document.getElementById('viewMode').addEventListener('change', () => renderMatrix());
+  document.getElementById('viewMode').addEventListener('change', updateCellContents);
   setInterval(loadMatrix, 120000);
 });
 </script>

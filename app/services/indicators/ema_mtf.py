@@ -197,7 +197,7 @@ def _explain(base: TfEmaRead, higher: TfEmaRead | None, rating: str, conflicting
 
 def compute_ema921_cell(
     base_df: pd.DataFrame | None, base_tf: str, higher_df: pd.DataFrame | None,
-    bars_back: int = 0,
+    bars_back: int = 0, _read_cache: dict | None = None,
 ) -> Ema921Cell:
     """One-call convenience: read both timeframes and combine them.
 
@@ -207,15 +207,40 @@ def compute_ema921_cell(
     correctly reads the 15m EMA as it stood at that moment, never a 15m bar
     that closes later (which would be look-ahead, the exact bug class this
     whole app's backtesting work has been careful to avoid elsewhere).
+
+    ``_read_cache``: an optional dict a caller can share across multiple
+    compute_ema921_cell() calls for the SAME asset (one per timeframe column
+    in the 7-timeframe grid). Every timeframe appears as a "base" column in
+    its own right AND as the "higher" confirmation leg for the timeframe one
+    step below it (per HIGHER_TF_MAP) — e.g. 1h is read once as the "1h"
+    column's base and again as "30m"'s higher leg. In the common live case
+    (bars_back=0 uniformly across a grid row) the as-of join for the higher
+    leg resolves to the exact same bar as that timeframe's own live read, so
+    without this cache read_ema921 (a full EMA9/EMA21 recompute) ran twice
+    for roughly half the grid. Keyed by (timeframe, resolved bars_back) so
+    it stays correct even when a scrubbed base's as-of join lands on a
+    different historical offset than that timeframe's own column.
     """
+    cache = _read_cache if _read_cache is not None else {}
     higher_tf = HIGHER_TF_MAP.get(base_tf)
-    base_read = read_ema921(base_df, base_tf, bars_back)
+
+    base_key = (base_tf, bars_back)
+    if base_key in cache:
+        base_read = cache[base_key]
+    else:
+        base_read = read_ema921(base_df, base_tf, bars_back)
+        cache[base_key] = base_read
 
     higher_read = None
     if higher_tf and higher_df is not None and base_read.bias != "unavailable":
         base_ts = base_df.index[len(base_df) - 1 - bars_back]
         higher_bars_back = _as_of_bars_back(higher_df, base_ts)
         if higher_bars_back is not None:
-            higher_read = read_ema921(higher_df, higher_tf, higher_bars_back)
+            higher_key = (higher_tf, higher_bars_back)
+            if higher_key in cache:
+                higher_read = cache[higher_key]
+            else:
+                higher_read = read_ema921(higher_df, higher_tf, higher_bars_back)
+                cache[higher_key] = higher_read
 
     return combine_ema921(base_read, higher_read)

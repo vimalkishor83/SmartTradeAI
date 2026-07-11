@@ -260,11 +260,17 @@ def ema_summary():
         sym = asset.symbol
         dfs = all_data.get(sym, {})
         row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
+        # Shared across all 7 timeframe columns for this ONE asset — each
+        # timeframe is read once as its own column's base AND again as the
+        # next-lower timeframe's "higher" confirmation leg; in the live
+        # case (bars_back=0 throughout) those two reads resolve to the same
+        # bar, so without this cache read_ema921 ran twice for half the grid.
+        read_cache: dict = {}
         for tf in tfs:
             try:
                 higher_tf = HIGHER_TF_MAP.get(tf)
                 higher_df = dfs.get(higher_tf) if higher_tf else None
-                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df).to_dict()
+                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, _read_cache=read_cache).to_dict()
             except Exception:
                 row["tf"][tf] = None
         return row
@@ -348,11 +354,12 @@ def ema_summary_history():
         sym = asset.symbol
         dfs = all_data.get(sym, {})
         row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
+        read_cache: dict = {}  # shared per-asset across the 7 tf columns — see ema_summary() above
         for tf in tfs:
             try:
                 higher_tf = HIGHER_TF_MAP.get(tf)
                 higher_df = dfs.get(higher_tf) if higher_tf else None
-                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, bars_back).to_dict()
+                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, bars_back, _read_cache=read_cache).to_dict()
             except Exception:
                 row["tf"][tf] = None
         return row
