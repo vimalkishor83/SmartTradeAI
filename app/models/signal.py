@@ -39,6 +39,11 @@ class Signal(db.Model):
     # Market regime at generation time (trend × volatility), e.g. "uptrend_normal"
     regime = db.Column(db.String(30))
 
+    # Deeepr-style position-analysis breakdown, snapshotted at generation time
+    lane_verdicts = db.Column(db.JSON, default=dict)            # {technical, flow, narrative, macro, lanes_agreeing}
+    invalidation_conditions = db.Column(db.JSON, default=list)  # plain-language thesis-invalidation bullets
+    target_allocations = db.Column(db.JSON, default=list)       # [{level, price, pct}, ...] partial-profit split
+
     generated_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -111,6 +116,9 @@ class Signal(db.Model):
             "patterns": self.patterns,
             "reasoning": self.reasoning,
             "regime": self.regime,
+            "lane_verdicts": self.lane_verdicts,
+            "invalidation_conditions": self.invalidation_conditions,
+            "target_allocations": self.target_allocations,
             "generated_at": self.generated_at.isoformat(),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }

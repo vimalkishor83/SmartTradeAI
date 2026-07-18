@@ -6,6 +6,7 @@ from app.models.user import User
 from app.extensions import db, cache
 from app.auth.decorators import login_required, admin_required
 from app.services.signals.engine import signal_engine
+from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
@@ -149,6 +150,14 @@ def _run_auto_generate(app):
                     except Exception:
                         df_by_combo[combo] = None
 
+        # Fetch News + EconomicEvent rows ONCE for this whole run — the
+        # narrative/macro lanes below filter these in-memory per asset
+        # instead of each issuing their own DB query across every combo.
+        try:
+            ctx = fetch_context_data()
+        except Exception:
+            ctx = {"news_items": [], "econ_events": []}
+
         for timeframe in timeframes:
             for asset in assets:
                 if max_per and count >= max_per:
@@ -176,6 +185,12 @@ def _run_auto_generate(app):
                     if result.get("confidence_score", 0) < min_conf:
                         continue
 
+                    try:
+                        result["lane_verdicts"] = build_lane_verdicts(
+                            asset, result, ctx["news_items"], ctx["econ_events"])
+                    except Exception:
+                        pass
+
                     # Skip if same asset+timeframe already has a recent active signal
                     lockout_min = signal_engine.lockout_minutes(timeframe)
                     cutoff = datetime.utcnow() - timedelta(minutes=lockout_min)
@@ -197,7 +212,8 @@ def _run_auto_generate(app):
                            if k in ["signal_type","entry_price","stop_loss","target1","target2","target3",
                                     "risk_reward","confidence_score","confidence_label","trend_score",
                                     "momentum_score","volume_score","pattern_score","ai_score",
-                                    "indicators","patterns","reasoning","regime","expires_at"]},
+                                    "indicators","patterns","reasoning","regime","expires_at",
+                                    "lane_verdicts","invalidation_conditions","target_allocations"]},
                     )
                     db.session.add(sig)
                     db.session.flush()
@@ -865,6 +881,12 @@ def generate_signal():
     except Exception:
         pass
 
+    try:
+        ctx = fetch_context_data()
+        result["lane_verdicts"] = build_lane_verdicts(asset, result, ctx["news_items"], ctx["econ_events"])
+    except Exception:
+        pass
+
     signal = Signal(
         asset_id=asset.id,
         timeframe=timeframe,
@@ -872,13 +894,78 @@ def generate_signal():
            if k in ["signal_type", "entry_price", "stop_loss", "target1", "target2", "target3",
                     "risk_reward", "confidence_score", "confidence_label", "trend_score",
                     "momentum_score", "volume_score", "pattern_score", "ai_score",
-                    "indicators", "patterns", "reasoning", "regime", "expires_at"]},
+                    "indicators", "patterns", "reasoning", "regime", "expires_at",
+                    "lane_verdicts", "invalidation_conditions", "target_allocations"]},
     )
     signal.set_confidence_label()
     db.session.add(signal)
     db.session.commit()
 
     return jsonify(signal.to_dict()), 201
+
+
+@signals_bp.route("/position-analysis/<int:asset_id>", methods=["GET"])
+@login_required
+def position_analysis(asset_id):
+    """
+    Deeepr-style AI Position Analysis for a single asset: the most recent
+    active BUY/SELL signal for this asset/timeframe (already carrying lane
+    verdicts + invalidation conditions + target allocations from generation
+    time), or — if none is active — a live, read-only analysis computed the
+    same way the existing on-demand "Run AI Prediction" feature works on this
+    page (not written to the DB).
+    Query params: timeframe (default '1h')
+    """
+    asset = Asset.query.get_or_404(asset_id)
+    timeframe = request.args.get("timeframe", "1h")
+
+    active = Signal.query.filter(
+        Signal.asset_id == asset_id,
+        Signal.timeframe == timeframe,
+        Signal.status == "active",
+        Signal.signal_type.in_(["BUY", "SELL"]),
+    ).order_by(Signal.generated_at.desc()).first()
+
+    if active and active.lane_verdicts:
+        payload = active.to_dict()
+        payload["available"] = True
+        payload["persisted"] = True
+        return jsonify(payload), 200
+
+    df = market_fetcher.fetch(asset, timeframe)
+    if df is None:
+        return jsonify({"available": False,
+                         "message": "Market data unavailable for this asset/timeframe."}), 200
+
+    # analyze() (unlike generate_signal) never returns None just because the
+    # setup is too weak to alert on — it always packages lane scores/reasoning
+    # so the preview panel has something to show. Session/volatility gates
+    # (market closed, dead/chaotic data) are the only "truly nothing to show" cases.
+    result = signal_engine.analyze(df, asset, timeframe)
+    if not result.get("available"):
+        reason_messages = {
+            "market_closed": "Market is closed for this asset right now.",
+            "no_indicators": "Not enough data to compute indicators yet.",
+            "insufficient_data": "Not enough candle history yet.",
+        }
+        reason = result.get("reason", "")
+        message = reason_messages.get(reason) or (
+            "Volatility is outside a tradeable range right now."
+            if reason.startswith("volatility_") else "No analysis available right now."
+        )
+        return jsonify({"available": False, "message": message}), 200
+
+    try:
+        ctx = fetch_context_data()
+        result["lane_verdicts"] = build_lane_verdicts(asset, result, ctx["news_items"], ctx["econ_events"])
+    except Exception:
+        result["lane_verdicts"] = None
+    result["available"] = True
+    result["persisted"] = False
+    result["asset"] = asset.symbol
+    result["market"] = asset.market
+    result["timeframe"] = timeframe
+    return jsonify(result), 200
 
 
 @signals_bp.route("/performance/by-asset", methods=["GET"])

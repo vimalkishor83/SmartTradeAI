@@ -136,6 +136,9 @@ class SignalEngine:
 
             expiry_min = _EXPIRY.get(timeframe, 60)
 
+            structure_level = self._nearest_structure_level(df, raw_direction)
+            rsi = indicators.get("rsi") or 50
+
             return {
                 "signal_type":       raw_direction,
                 "entry_price":       round(close, 6),
@@ -153,16 +156,143 @@ class SignalEngine:
                 "ai_score":          raw_scores.get("ai", 0),
                 "indicators":        indicators,
                 "patterns":          patterns,
-                "reasoning":         " | ".join(reasons),
+                "reasoning":         " | ".join(text for _, text in reasons),
                 "volatility_regime": vol_regime,
                 "higher_tf_bias":    higher_bias,
                 "regime":            self._regime_label(higher_bias, vol_regime, raw_direction),
                 "expires_at":        datetime.utcnow() + timedelta(minutes=expiry_min),
+                # ── Deeepr-style position-analysis packaging (additive only —
+                # does not affect direction/entry/stop/target math above) ──
+                "lane_technical":         self._lane_verdict(
+                    raw_scores.get("trend", 0) + raw_scores.get("momentum", 0) + raw_scores.get("pattern", 0),
+                    65,  # max trend(30) + momentum(20) + pattern(15)
+                    [text for cat, text in reasons if cat in ("trend", "momentum", "pattern")],
+                ),
+                "lane_flow":              self._lane_verdict(
+                    raw_scores.get("volume", 0), 15,
+                    [text for cat, text in reasons if cat == "volume"],
+                ),
+                "invalidation_conditions": self._invalidation_conditions(
+                    raw_direction, timeframe, structure_level, rsi, higher_bias,
+                ),
+                "target_allocations": self._target_allocations(t1, t2, t3),
             }
 
         except Exception as e:
             logger.error(f"Signal pipeline error [{getattr(asset, 'symbol', '?')}/{timeframe}]: {e}")
             return None
+
+    # ──────────────────────────────────────────────────────
+    # Always-on position read (for the UI preview only)
+    # ──────────────────────────────────────────────────────
+    def analyze(self, df: pd.DataFrame, asset, timeframe: str, higher_tf_df: pd.DataFrame | None = None) -> dict:
+        """
+        Unlike generate_signal(), this never returns None just because the
+        setup isn't strong enough to alert on — it's for the "AI Position
+        Analysis" preview panel, which should always show *something*
+        (lane scores, reasoning) rather than going blank whenever the
+        momentum/volume/MTF gates would have rejected a signal. Those gates
+        decide whether to ALERT/persist a signal; they say nothing about
+        whether there's a reasonable read to show a user browsing the chart.
+
+        Session/volatility gates still apply — those mean the market is
+        genuinely closed or the data is unusable, not just "low conviction".
+
+        Returns {"available": False, "reason": ...} when there's truly
+        nothing to show, otherwise a dict shaped like generate_signal()'s
+        but with "qualifies_as_signal" added and signal_type possibly "HOLD"
+        (in which case entry/stop/targets/invalidation are all None/empty).
+        """
+        if df is None or len(df) < _MIN_CANDLES:
+            return {"available": False, "reason": "insufficient_data"}
+
+        market = getattr(asset, "market", "crypto")
+
+        try:
+            if not self._session_gate(market):
+                return {"available": False, "reason": "market_closed"}
+
+            indicators = calculate_all_indicators(df)
+            if not indicators:
+                return {"available": False, "reason": "no_indicators"}
+
+            atr     = indicators.get("atr") or 0
+            close   = float(df["close"].iloc[-1])
+            atr_pct = (atr / close * 100) if close else 0
+
+            vol_ok, vol_regime = self._volatility_gate(atr_pct)
+            if not vol_ok:
+                return {"available": False, "reason": f"volatility_{vol_regime}"}
+
+            higher_bias = self._mtf_gate(higher_tf_df)
+            patterns = detect_patterns(df)
+            raw_direction, raw_scores, reasons = self._score_signal(
+                indicators, df, market, threshold=0.55, patterns=patterns
+            )
+
+            confidence = (
+                self._compute_confidence(raw_scores, higher_bias, raw_direction)
+                if raw_direction != "HOLD" else 0.0
+            )
+
+            technical = self._lane_verdict(
+                raw_scores.get("trend", 0) + raw_scores.get("momentum", 0) + raw_scores.get("pattern", 0),
+                65,
+                [text for cat, text in reasons if cat in ("trend", "momentum", "pattern")],
+            )
+            flow = self._lane_verdict(
+                raw_scores.get("volume", 0), 15,
+                [text for cat, text in reasons if cat == "volume"],
+            )
+
+            result = {
+                "available":         True,
+                "signal_type":       raw_direction,  # may be "HOLD"
+                "confidence_score":  round(confidence, 1),
+                "confidence_label":  self._confidence_label(confidence) if raw_direction != "HOLD" else "Neutral",
+                "qualifies_as_signal": raw_direction != "HOLD" and confidence >= 70,
+                "trend_score":       raw_scores.get("trend", 0),
+                "momentum_score":    raw_scores.get("momentum", 0),
+                "volume_score":      raw_scores.get("volume", 0),
+                "pattern_score":     raw_scores.get("pattern", 0),
+                "ai_score":          raw_scores.get("ai", 0),
+                "lane_technical":    technical,
+                "lane_flow":         flow,
+                "reasoning":         " | ".join(text for _, text in reasons),
+                "volatility_regime": vol_regime,
+                "higher_tf_bias":    higher_bias,
+                "regime":            self._regime_label(higher_bias, vol_regime, raw_direction if raw_direction != "HOLD" else "BUY"),
+            }
+
+            if raw_direction != "HOLD":
+                sl = self._structure_stop(df, raw_direction, close, atr)
+                t1, t2, t3 = self._calculate_targets(raw_direction, close, atr)
+                structure_level = self._nearest_structure_level(df, raw_direction)
+                rsi = indicators.get("rsi") or 50
+                result.update({
+                    "entry_price":  round(close, 6),
+                    "stop_loss":    round(sl, 6),
+                    "target1":      round(t1, 6),
+                    "target2":      round(t2, 6),
+                    "target3":      round(t3, 6),
+                    "risk_reward":  round(self._risk_reward(close, sl, t1), 2),
+                    "invalidation_conditions": self._invalidation_conditions(
+                        raw_direction, timeframe, structure_level, rsi, higher_bias,
+                    ),
+                    "target_allocations": self._target_allocations(t1, t2, t3),
+                })
+            else:
+                result.update({
+                    "entry_price": None, "stop_loss": None,
+                    "target1": None, "target2": None, "target3": None,
+                    "risk_reward": 0, "invalidation_conditions": [], "target_allocations": [],
+                })
+
+            return result
+
+        except Exception as e:
+            logger.error(f"Position analysis error [{getattr(asset, 'symbol', '?')}/{timeframe}]: {e}")
+            return {"available": False, "reason": "error"}
 
     # ──────────────────────────────────────────────────────
     # Stage 1 — Market session gate
@@ -293,6 +423,8 @@ class SignalEngine:
         """
         bull = 0
         bear = 0
+        # Each entry is (category, text) — category drives which lane
+        # (technical/flow) a reason is grouped under in _lane_verdicts().
         reasons = []
         scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 10}
 
@@ -316,32 +448,32 @@ class SignalEngine:
 
         if ema20 and ema50:
             if ema20 > ema50:
-                trend_bull += 8; reasons.append("EMA20>EMA50 (uptrend)")
+                trend_bull += 8; reasons.append(("trend", "EMA20>EMA50 (uptrend)"))
             else:
-                trend_bear += 8; reasons.append("EMA20<EMA50 (downtrend)")
+                trend_bear += 8; reasons.append(("trend", "EMA20<EMA50 (downtrend)"))
 
         if ema50 and ema200:
             if ema50 > ema200:
-                trend_bull += 5; reasons.append("Golden cross zone")
+                trend_bull += 5; reasons.append(("trend", "Golden cross zone"))
             else:
-                trend_bear += 5; reasons.append("Death cross zone")
+                trend_bear += 5; reasons.append(("trend", "Death cross zone"))
 
         if vwap and close:
             if close > vwap:
-                trend_bull += 6; reasons.append("Price above VWAP")
+                trend_bull += 6; reasons.append(("trend", "Price above VWAP"))
             else:
                 trend_bear += 6
 
         if supertrend_dir == "up":
-            trend_bull += 7; reasons.append("SuperTrend bullish")
+            trend_bull += 7; reasons.append(("trend", "SuperTrend bullish"))
         else:
-            trend_bear += 7; reasons.append("SuperTrend bearish")
+            trend_bear += 7; reasons.append(("trend", "SuperTrend bearish"))
 
         if ichi_a and ichi_b and close:
             cloud_top = max(ichi_a, ichi_b)
             cloud_bot = min(ichi_a, ichi_b)
             if close > cloud_top:
-                trend_bull += 4; reasons.append("Price above Ichimoku cloud")
+                trend_bull += 4; reasons.append(("trend", "Price above Ichimoku cloud"))
             elif close < cloud_bot:
                 trend_bear += 4
 
@@ -359,18 +491,18 @@ class SignalEngine:
         if 40 <= rsi <= 60:
             pass
         elif 30 <= rsi < 40:
-            mom_bull += 6; reasons.append(f"RSI recovering from oversold ({rsi:.0f})")
+            mom_bull += 6; reasons.append(("momentum", f"RSI recovering from oversold ({rsi:.0f})"))
         elif rsi < 30:
-            mom_bull += 10; reasons.append(f"RSI oversold ({rsi:.0f})")
+            mom_bull += 10; reasons.append(("momentum", f"RSI oversold ({rsi:.0f})"))
         elif 60 < rsi <= 70:
-            mom_bull += 4; reasons.append(f"RSI bullish zone ({rsi:.0f})")
+            mom_bull += 4; reasons.append(("momentum", f"RSI bullish zone ({rsi:.0f})"))
         elif rsi > 70:
-            mom_bear += 8; reasons.append(f"RSI overbought ({rsi:.0f})")
+            mom_bear += 8; reasons.append(("momentum", f"RSI overbought ({rsi:.0f})"))
 
         if macd > macd_sig and macd_hist > 0:
-            mom_bull += 10; reasons.append("MACD bullish crossover")
+            mom_bull += 10; reasons.append(("momentum", "MACD bullish crossover"))
         elif macd < macd_sig and macd_hist < 0:
-            mom_bear += 10; reasons.append("MACD bearish crossover")
+            mom_bear += 10; reasons.append(("momentum", "MACD bearish crossover"))
         elif macd_hist > 0:
             mom_bull += 4
         elif macd_hist < 0:
@@ -389,13 +521,14 @@ class SignalEngine:
             if avg_vol and avg_vol > 0:
                 vol_ratio = curr_vol / avg_vol
                 if vol_ratio >= 2.0:
-                    scores["volume"] = 15; reasons.append("Strong volume spike (2×+)")
+                    scores["volume"] = 15; reasons.append(("volume", "Strong volume spike (2×+)"))
                 elif vol_ratio >= 1.5:
-                    scores["volume"] = 10; reasons.append("Volume spike (1.5×+)")
+                    scores["volume"] = 10; reasons.append(("volume", "Volume spike (1.5×+)"))
                 elif vol_ratio >= 1.0:
-                    scores["volume"] = 6
+                    scores["volume"] = 6; reasons.append(("volume", "Volume in line with average"))
                 else:
                     scores["volume"] = 2  # low volume — weak signal
+                    reasons.append(("volume", "Below-average volume"))
 
         # ── Pattern component (up to 15 pts) ──────────────
         try:
@@ -406,12 +539,12 @@ class SignalEngine:
             if bull_pat:
                 best = max(bull_pat, key=lambda p: p["strength"])
                 scores["pattern"] = min(15, int(best["strength"] / 7))
-                reasons.append(f"Pattern: {best['name']}")
+                reasons.append(("pattern", f"Pattern: {best['name']}"))
                 bull += best["strength"]
             elif bear_pat:
                 best = max(bear_pat, key=lambda p: p["strength"])
                 scores["pattern"] = min(15, int(best["strength"] / 7))
-                reasons.append(f"Pattern: {best['name']}")
+                reasons.append(("pattern", f"Pattern: {best['name']}"))
                 bear += best["strength"]
         except Exception:
             pass
@@ -503,6 +636,65 @@ class SignalEngine:
             stop = close + min_dist
 
         return round(stop, 8)
+
+    def _nearest_structure_level(self, df: pd.DataFrame, direction: str) -> float:
+        """Raw recent swing low/high (no safety buffer) — the 'nearest support/
+        resistance' a soft invalidation condition is framed against, as
+        distinct from the actual (buffered) stop-loss from _structure_stop."""
+        lookback = df.tail(10)
+        if direction == "BUY":
+            return float(lookback["low"].min())
+        return float(lookback["high"].max())
+
+    def _invalidation_conditions(
+        self, direction: str, timeframe: str, structure_level: float,
+        rsi: float, higher_bias: str | None,
+    ) -> list[str]:
+        """Plain-language conditions that would invalidate this signal's thesis,
+        built entirely from data already computed in this pipeline run."""
+        conditions = []
+        level = round(structure_level, 6)
+        if direction == "BUY":
+            conditions.append(f"{timeframe} close below {level} (nearest support)")
+            conditions.append(f"RSI drops below 40 on {timeframe}" if rsi >= 40
+                               else f"RSI fails to reclaim 40 on {timeframe}")
+            if higher_bias == "bullish":
+                conditions.append("Higher-timeframe bias flips bearish")
+        else:
+            conditions.append(f"{timeframe} close above {level} (nearest resistance)")
+            conditions.append(f"RSI rises above 60 on {timeframe}" if rsi <= 60
+                               else f"RSI fails to reject below 60 on {timeframe}")
+            if higher_bias == "bearish":
+                conditions.append("Higher-timeframe bias flips bullish")
+        return conditions
+
+    def _target_allocations(self, t1: float, t2: float, t3: float) -> list[dict]:
+        """Suggested partial-profit split across the three targets — 50/30/20
+        is a common runner-friendly scheme. Presentational only; does not
+        change what the targets are or how they're simulated in backtests."""
+        return [
+            {"level": "T1", "price": round(t1, 6), "pct": 50},
+            {"level": "T2", "price": round(t2, 6), "pct": 30},
+            {"level": "T3", "price": round(t3, 6), "pct": 20},
+        ]
+
+    @staticmethod
+    def _lane_verdict(score: float, max_score: float, reasons: list[str]) -> dict:
+        """Package a raw component score into a Deeepr-style lane verdict:
+        a 0-100 strength, a coarse LOW/MODERATE/HIGH label, and up to 3
+        supporting reasons."""
+        pct = (score / max_score) if max_score else 0.0
+        if pct >= 0.7:
+            verdict = "HIGH"
+        elif pct >= 0.4:
+            verdict = "MODERATE"
+        else:
+            verdict = "LOW"
+        return {
+            "score": round(pct * 100),
+            "verdict": verdict,
+            "reasons": reasons[:3] or ["No strong signal from this factor"],
+        }
 
     def _calculate_targets(self, direction: str, price: float, atr: float) -> tuple[float, float, float]:
         # T1 at 1.2×ATR (closer than the 1.8×ATR stop) so it is reached far more

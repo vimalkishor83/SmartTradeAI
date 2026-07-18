@@ -298,6 +298,35 @@ const Ticker = {
   },
 };
 
+// ─── Ticker strip show/hide (persisted, applies on every page) ──────
+const TICKER_COLLAPSE_KEY = 'ticker_strip_collapsed';
+const TICKER_EXPANDED_HEIGHT = '32px';
+const TICKER_COLLAPSED_HEIGHT = '14px';
+
+function applyTickerCollapsed(collapsed) {
+  const strip = document.getElementById('tickerStrip');
+  const btn   = document.getElementById('tickerToggleBtn');
+  if (!strip) return;
+  strip.classList.toggle('collapsed', collapsed);
+  document.documentElement.style.setProperty(
+    '--ticker-height', collapsed ? TICKER_COLLAPSED_HEIGHT : TICKER_EXPANDED_HEIGHT
+  );
+  if (btn) {
+    btn.querySelector('i').className = collapsed ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+    btn.title = collapsed ? 'Show price ticker' : 'Hide price ticker';
+  }
+}
+
+function toggleTickerStrip() {
+  const collapsed = !document.getElementById('tickerStrip')?.classList.contains('collapsed');
+  localStorage.setItem(TICKER_COLLAPSE_KEY, collapsed ? '1' : '0');
+  applyTickerCollapsed(collapsed);
+}
+
+function initTickerToggle() {
+  applyTickerCollapsed(localStorage.getItem(TICKER_COLLAPSE_KEY) === '1');
+}
+
 // ─── Formatters ───────────────────────────────
 function formatPrice(price, market) {
   if (!price && price !== 0) return '—';
@@ -449,6 +478,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   })();
 
   // Load shared navbar data
+  initTickerToggle();
   Notifications.load();
   Ticker.load();
   LivePrices.seed();  // bootstrap price cache before WS connects

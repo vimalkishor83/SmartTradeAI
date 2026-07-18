@@ -210,6 +210,19 @@ body {
 
 .sidebar.collapsed { width: var(--sidebar-collapsed); }
 
+/* Pre-paint equivalent of .sidebar.collapsed/.main-wrapper.expanded — set on
+   <html> by an early <head> script (before #sidebar/#mainWrapper even exist
+   in the DOM) so a saved collapsed preference never flashes expanded first.
+   Only the couple of rules that are visible at first paint; the real
+   .collapsed/.expanded classes (with all their detail rules) take over a
+   moment later once JS can reach the actual elements. */
+html.sidebar-preload-collapsed .sidebar { width: var(--sidebar-collapsed); }
+html.sidebar-preload-collapsed .main-wrapper { margin-left: var(--sidebar-collapsed); }
+html.sidebar-preload-collapsed .sidebar .brand-name,
+html.sidebar-preload-collapsed .sidebar .nav-text,
+html.sidebar-preload-collapsed .sidebar .nav-badge,
+html.sidebar-preload-collapsed .sidebar .sidebar-user-info { display: none !important; }
+
 /* ── Sidebar Header ──────────────────────────────────────── */
 .sidebar-header {
   display: flex;
@@ -411,12 +424,15 @@ body {
 .sidebar.collapsed .sidebar-footer .nav-item {
   position: relative;
 }
-.sidebar.collapsed .nav-item::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: calc(100% + 10px);
-  top: 50%;
-  transform: translateY(-50%);
+
+/* Hover tooltip for collapsed-sidebar nav icons — a single shared element
+   positioned via JS (see base.html), not a per-item ::after. .sidebar has
+   overflow:hidden (needed so nav-text doesn't flash outside the narrowed
+   width during the collapse transition), which would silently clip an
+   ::after positioned outside the sidebar's own box — this lives in <body>
+   instead so it isn't clipped by that. */
+#sidebarTooltip {
+  position: fixed;
   background: var(--bg-secondary);
   color: var(--text-primary);
   font-size: 12px;
@@ -431,7 +447,7 @@ body {
   transition: opacity 0.12s;
   z-index: 2000;
 }
-.sidebar.collapsed .nav-item:hover::after { opacity: 1; }
+#sidebarTooltip.show { opacity: 1; }
 
 /* ── Sidebar Footer ──────────────────────────────────────── */
 .sidebar-footer {
@@ -706,6 +722,30 @@ body {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
+
+.ticker-toggle-btn {
+  flex: none;
+  position: relative;
+  z-index: 2;
+  width: 28px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 11px;
+  transition: color .15s;
+}
+.ticker-toggle-btn:hover { color: var(--text-primary); }
+/* Collapsed height is applied by JS via the --ticker-height custom property
+   itself (not a separate variable) so the notif-dropdown's top offset
+   (which also reads --ticker-height) stays correctly in sync in both states. */
+.ticker-strip.collapsed .ticker-ribbon { display: none; }
+.ticker-strip.collapsed .ticker-toggle-btn { width: 100%; border-left: none; font-size: 9px; }
 
 .ticker-item { display: inline-flex; align-items: center; gap: 5px; }
 .ticker-symbol { font-weight: 700; color: var(--text-primary); font-size: 11.5px; }

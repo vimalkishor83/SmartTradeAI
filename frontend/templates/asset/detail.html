@@ -80,13 +80,27 @@
     border-radius: 0 0 8px 8px;
     position: relative;
     width: 100%;
-    display: block;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
-  #tvChart  { width: 100%; height: 420px; display: block; }
-  #tvVolume { width: 100%; height: 100px; display: block; }
-  #tvRsi    { width: 100%; height: 120px; display: block; }
-  #tvMacd   { width: 100%; height: 120px; display: block; }
+  #tvChart  { width: 100%; display: block; flex: 1; min-height: 260px; }
+  #tvVolume { width: 100%; height: 100px; display: block; flex: none; }
+  #tvRsi    { width: 100%; height: 120px; display: block; flex: none; }
+  #tvMacd   { width: 100%; height: 120px; display: block; flex: none; }
+
+  /* Chart column stretches to match the AI panel column's height (the row
+     uses the default align-items:stretch) instead of leaving a gap below a
+     shorter chart card — the candle chart itself grows to fill it via the
+     flex chain below, sized in JS from the actual available height. */
+  #assetDetailRoot .row.g-3 > .col-lg-9 { display: flex; flex-direction: column; }
+  /* display:flex by default — #tabChart is shown from first page load with
+     no JS call (showAssetTab() only runs when a tab is clicked), so the
+     base rule has to set it, not just the inline style JS applies on switch. */
+  #tabChart { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+  #tabChart .section-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
   .chart-ind-btn {
     padding: 3px 9px;
@@ -135,6 +149,75 @@
   .market-badge.indian_stock { background: rgba(16,185,129,.15); color: #10b981; }
   .market-badge.index    { background: rgba(59,130,246,.15);  color: #60a5fa; }
 
+  .pa-direction-badge {
+    display: inline-flex; align-items: center;
+    padding: 4px 10px; border-radius: 6px;
+    font-size: 12px; font-weight: 700;
+    border: 1px solid;
+  }
+  .pa-invalidation-item {
+    font-size: 11px; color: var(--text-secondary);
+    line-height: 1.6;
+  }
+  .pa-target-row {
+    display: flex; justify-content: space-between;
+    padding: 3px 0;
+  }
+  .pa-lane-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .pa-lane-cell {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 10px;
+  }
+  .pa-meter {
+    height: 4px; border-radius: 2px; background: var(--border); overflow: hidden;
+  }
+  .pa-meter i { display: block; height: 100%; border-radius: 2px; }
+  .pa-alloc-bar {
+    display: flex; height: 6px; border-radius: 3px; overflow: hidden;
+    background: var(--bg-secondary); margin: 6px 0 8px;
+  }
+  .pa-alloc-bar i { display: block; height: 100%; }
+  .pa-dot {
+    display: inline-block; width: 6px; height: 6px; border-radius: 2px; margin-right: 5px;
+  }
+
+  .asset-switch-row {
+    display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px;
+    scrollbar-width: thin;
+  }
+  .asset-switch-btn {
+    display: flex; align-items: center; gap: 7px; flex: none;
+    padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--bg-card);
+    color: var(--text-secondary); font-size: 12px; font-weight: 600;
+    text-decoration: none; white-space: nowrap; cursor: pointer;
+    transition: border-color .15s, color .15s;
+  }
+  .asset-switch-btn:hover { border-color: var(--accent); color: var(--text-primary); }
+  .asset-switch-btn.active {
+    border-color: var(--accent); color: var(--text-primary);
+    background: rgba(99, 102, 241, .14);
+  }
+  .asset-switch-btn .chg { font-size: 10.5px; font-weight: 700; }
+
+  .sidebar-tab-nav {
+    display: flex; gap: 4px; background: var(--bg-secondary);
+    border-radius: 8px; padding: 3px; border: 1px solid var(--border);
+  }
+  .sidebar-tab-nav .nav-link {
+    flex: 1; text-align: center; font-size: 12px; font-weight: 600;
+    color: var(--text-secondary); border-radius: 6px; padding: 6px 8px;
+    text-decoration: none; transition: background .15s, color .15s;
+  }
+  .sidebar-tab-nav .nav-link:hover { color: var(--text-primary); }
+  .sidebar-tab-nav .nav-link.active { background: var(--accent); color: #fff; }
+
   /* #checklistFab is position:fixed, same bottom-right corner as the
      right-column Quick Stats card — on narrower viewports it can sit on
      top of that card's content. Center it instead of pinning to the
@@ -149,29 +232,28 @@
 {% block content %}
 <div id="assetDetailRoot">
 
-  <!-- ═══ PAGE HEADER ════════════════════════════════════════════ -->
-  <div class="page-header mb-3">
-    <div class="d-flex align-items-center gap-3">
-      <div>
-        <div class="d-flex align-items-center gap-2 mb-1">
-          <h1 class="page-title mb-0" style="font-size:1.6rem">{{ asset.symbol }}</h1>
-          <span class="market-badge {{ asset.market }}">{{ asset.market | replace('_', ' ') }}</span>
-        </div>
-        <div class="text-muted fs-sm">{{ asset.name }}{% if asset.exchange %} · {{ asset.exchange }}{% endif %}</div>
-      </div>
+  <!-- ═══ COMPACT HEADER — name/badge + asset switcher + refresh, one row ═══
+       (the price hero used to duplicate the ticker tape above and the
+       Live Price sidebar card; dropped here to give the chart more height —
+       full name/exchange is still in the sidebar's Quick Stats.) -->
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <div class="d-flex align-items-center gap-2" style="flex:none">
+      <h1 class="page-title mb-0" style="font-size:1.25rem;white-space:nowrap">{{ asset.symbol }}</h1>
+      <span class="market-badge {{ asset.market }}">{{ asset.market | replace('_', ' ') }}</span>
     </div>
-    <div class="d-flex align-items-center gap-3">
-      <div class="text-end">
-        <div class="price-hero" id="livePrice">—</div>
-        <div id="livePriceChange" class="text-muted fs-sm">loading…</div>
-      </div>
-      <button class="btn btn-sm btn-outline-secondary" id="btnRefreshAll" title="Refresh">
-        <i class="bi bi-arrow-clockwise"></i>
-      </button>
+    <div class="asset-switch-row flex-grow-1" id="assetSwitchRow" style="margin-bottom:0">
+      <div class="text-muted fs-xs">Loading assets…</div>
     </div>
+    <button class="btn btn-sm btn-outline-secondary" id="btnRefreshAll" title="Refresh" style="flex:none">
+      <i class="bi bi-arrow-clockwise"></i>
+    </button>
   </div>
 
   <!-- ═══ 3-COL LAYOUT ══════════════════════════════════════════ -->
+  <!-- Default align-items:stretch — the chart column now flexes to fill
+       whatever height the row ends up (driven by the taller sidebar
+       column), via the flex chain on .col-lg-9/#tabChart/.section-card/
+       #chartContainer/#tvChart above, instead of leaving a blank gap. -->
   <div class="row g-3">
 
     <!-- ─── MAIN (col-lg-9) ───────────────────────────────────── -->
@@ -199,27 +281,28 @@
       <!-- ── Tab 1: Chart ─────────────────────────────────────── -->
       <div id="tabChart">
         <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0">
-          <!-- Timeframe selector -->
-          <div class="p-3 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs me-1">Timeframe:</span>
-            {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
-            <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
-                    onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
-            {% endfor %}
-            <span class="ms-auto text-muted fs-xs" id="chartStatus"></span>
-          </div>
-
-          <!-- Indicator toggles -->
-          <div class="p-3 d-flex align-items-center gap-2 flex-wrap" style="border-bottom:1px solid var(--border)">
-            <span class="text-muted fs-xs me-1">Indicators:</span>
-            <button class="chart-ind-btn" data-ind="ema9"  onclick="toggleChartIndicator('ema9')">EMA 9</button>
-            <button class="chart-ind-btn" data-ind="ema21" onclick="toggleChartIndicator('ema21')">EMA 21</button>
-            <button class="chart-ind-btn" data-ind="ema50" onclick="toggleChartIndicator('ema50')">EMA 50</button>
-            <button class="chart-ind-btn" data-ind="ema200" onclick="toggleChartIndicator('ema200')">EMA 200</button>
-            <button class="chart-ind-btn" data-ind="bb" onclick="toggleChartIndicator('bb')">Bollinger</button>
-            <span class="mx-1" style="color:var(--border)">|</span>
-            <button class="chart-ind-btn" data-ind="rsi" onclick="toggleChartIndicator('rsi')">RSI</button>
-            <button class="chart-ind-btn" data-ind="macd" onclick="toggleChartIndicator('macd')">MACD</button>
+          <!-- Timeframe + indicator toggles — one compact row -->
+          <div class="chart-toolbar-row px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2"
+               style="border-bottom:1px solid var(--border)">
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="text-muted fs-xs me-1">Timeframe:</span>
+              {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
+              <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
+                      onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
+              {% endfor %}
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="text-muted fs-xs me-1">Indicators:</span>
+              <button class="chart-ind-btn" data-ind="ema9"  onclick="toggleChartIndicator('ema9')">EMA 9</button>
+              <button class="chart-ind-btn" data-ind="ema21" onclick="toggleChartIndicator('ema21')">EMA 21</button>
+              <button class="chart-ind-btn" data-ind="ema50" onclick="toggleChartIndicator('ema50')">EMA 50</button>
+              <button class="chart-ind-btn" data-ind="ema200" onclick="toggleChartIndicator('ema200')">EMA 200</button>
+              <button class="chart-ind-btn" data-ind="bb" onclick="toggleChartIndicator('bb')">Bollinger</button>
+              <span class="mx-1" style="color:var(--border)">|</span>
+              <button class="chart-ind-btn" data-ind="rsi" onclick="toggleChartIndicator('rsi')">RSI</button>
+              <button class="chart-ind-btn" data-ind="macd" onclick="toggleChartIndicator('macd')">MACD</button>
+              <span class="text-muted fs-xs ms-2" id="chartStatus"></span>
+            </div>
           </div>
 
           <!-- Chart container -->
@@ -281,7 +364,7 @@
     <!-- ─── SIDE PANEL (col-lg-3) ────────────────────────────── -->
     <div class="col-lg-3">
 
-      <!-- Live Price Card -->
+      <!-- Live Price Card (always visible, both tabs) -->
       <div class="kpi-card mb-3" id="sidePriceCard">
         <div class="kpi-top">
           <div>
@@ -294,6 +377,32 @@
         </div>
         <div class="kpi-change" id="sidePriceChange">—</div>
       </div>
+
+      <!-- Sidebar tabs — splits the AI panel from the rest so the sidebar's
+           visible height stays close to one card-stack instead of five,
+           reducing the mismatch against the (usually shorter) chart column. -->
+      <ul class="nav sidebar-tab-nav mb-3">
+        <li class="nav-item">
+          <a class="nav-link active" href="#" id="sbTabAiBtn" onclick="showSidebarTab('ai');return false">AI Analysis</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" id="sbTabOverviewBtn" onclick="showSidebarTab('overview');return false">Overview</a>
+        </li>
+      </ul>
+
+      <div id="sbTabAi">
+        <!-- AI Position Analysis -->
+        <div class="section-card mb-3" style="padding:14px">
+          <div class="fw-600 fs-sm mb-3">
+            <i class="bi bi-bullseye me-1 text-accent"></i>AI Position Analysis
+          </div>
+          <div id="positionAnalysisContent">
+            <div class="text-center py-3 text-muted fs-xs">Loading…</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="sbTabOverview" style="display:none">
 
       <!-- Market Sentiment -->
       <div class="section-card mb-3" style="padding:14px">
@@ -363,6 +472,8 @@
           </div>
         </div>
       </div>
+
+      </div><!-- /sbTabOverview -->
 
     </div><!-- /col-lg-3 -->
 
@@ -550,8 +661,9 @@
 <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 /* ── Constants ────────────────────────────────────────── */
-const ASSET_ID   = {{ asset_id }};
-const ASSET_NAME = "{{ asset.symbol }}";
+const ASSET_ID     = {{ asset_id }};
+const ASSET_NAME   = "{{ asset.symbol }}";
+const ASSET_MARKET = "{{ asset.market }}";
 
 let _tf     = '1h';
 let _indTf  = '1h';
@@ -564,6 +676,7 @@ let _macdChart      = null;
 let _activeChartInd  = new Set();   // which overlay/sub-pane indicators are toggled on
 let _overlaySeries   = {};          // ema9/ema21/ema50/ema200/bbUpper/bbMid/bbLower -> series handle
 let _rsiSeries        = null;
+let _tradeLines       = [];   // entry/SL/target price-line handles on _candleSeries
 let _macdLineSeries   = null;
 let _macdSignalSeries = null;
 let _macdHistSeries   = null;
@@ -575,7 +688,9 @@ function showAssetTab(tab) {
     document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = 'none';
     document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn')?.classList.remove('active');
   });
-  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = 'block';
+  // #tabChart is a flex column (so the chart fills the row's stretched
+  // height, see extra_css) — the other two tabs are plain block content.
+  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = tab === 'chart' ? 'flex' : 'block';
   document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn')?.classList.add('active');
 
   if (tab === 'indicators') loadIndicators();
@@ -587,6 +702,7 @@ function setTF(tf) {
   _tf = tf;
   document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
   loadChart();
+  loadPositionAnalysis();
 }
 
 function setIndTF(tf) {
@@ -608,11 +724,6 @@ async function loadLivePrice() {
   const fmt    = price >= 1000 ? price.toLocaleString('en-US', {minimumFractionDigits:2,maximumFractionDigits:2})
                : price >= 1    ? price.toFixed(4)
                :                 price.toFixed(6);
-
-  document.getElementById('livePrice').textContent = fmt;
-  document.getElementById('livePrice').style.color = clr;
-  document.getElementById('livePriceChange').innerHTML =
-    `<span style="color:${clr}">${arrow} ${Math.abs(change).toFixed(2)}% today</span>`;
 
   // side panel
   document.getElementById('sideLivePrice').textContent = fmt;
@@ -801,6 +912,41 @@ function syncSubPaneTimescales() {
   });
 }
 
+/* ── Trade-level overlay lines (entry/SL/targets) on the candle chart ── */
+function clearTradeLines() {
+  if (_candleSeries) {
+    _tradeLines.forEach(line => { try { _candleSeries.removePriceLine(line); } catch (e) {} });
+  }
+  _tradeLines = [];
+}
+
+function applyTradeLines(data) {
+  if (!_candleSeries) return;
+  clearTradeLines();
+  if (!data || !data.available) return;
+
+  const targetColors = ['#22c55e', '#4ade80', '#86efac'];
+  const lines = [
+    { price: data.entry_price, color: '#6366f1', title: 'Entry' },
+    { price: data.stop_loss,   color: '#ef4444', title: 'SL' },
+  ];
+  (data.target_allocations || []).forEach((t, i) => {
+    lines.push({ price: t.price, color: targetColors[i] || '#22c55e', title: `${t.level} ${t.pct}%` });
+  });
+
+  lines.forEach(l => {
+    if (l.price == null) return;
+    _tradeLines.push(_candleSeries.createPriceLine({
+      price: l.price,
+      color: l.color,
+      lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: l.title,
+    }));
+  });
+}
+
 /* ── Chart ────────────────────────────────────────────── */
 async function loadChart() {
   const status = document.getElementById('chartStatus');
@@ -844,12 +990,18 @@ async function loadChart() {
   if (_rsiChart)       { _rsiChart.remove();       _rsiChart = null;       _rsiSeries = null; }
   if (_macdChart)      { _macdChart.remove();      _macdChart = null;      _macdLineSeries = null; _macdSignalSeries = null; _macdHistSeries = null; }
   _overlaySeries = {};
+  _tradeLines = [];   // old handles are invalid once their series is destroyed above
 
   // Wait for browser layout so clientWidth is non-zero
   requestAnimationFrame(() => {
     const tvChart  = document.getElementById('tvChart');
     const tvVolume = document.getElementById('tvVolume');
     const w = tvChart.clientWidth || tvChart.parentElement?.clientWidth || 800;
+    // tvChart is a flex:1 child (see extra_css) that fills whatever's left
+    // in the chart card after the toolbar + volume/RSI/MACD panes — measure
+    // it live instead of a fixed height, so the chart grows to match the
+    // sidebar column instead of leaving blank space below it.
+    const h = tvChart.clientHeight || 420;
 
     const cssBg     = getComputedStyle(document.documentElement).getPropertyValue('--bg-primary').trim() || '#0d1117';
     const cssBorder = '#1a2334';
@@ -859,9 +1011,23 @@ async function loadChart() {
       grid:   { vertLines: { color: cssBorder }, horzLines: { color: cssBorder } },
       rightPriceScale: { borderColor: cssBorder },
       timeScale: { borderColor: cssBorder, timeVisible: true, secondsVisible: false },
+      // Explicit rather than relying on library defaults: drag on the price
+      // axis (right edge) rescales price vertically, drag on the time axis
+      // or mouse wheel rescales/pans time — matches TradingView-style charts.
+      handleScale: {
+        axisPressedMouseMove: { time: true, price: true },
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true,
+      },
     };
 
-    _chartInstance = LightweightCharts.createChart(tvChart,  { ...base, width: w, height: 420, crosshair: { mode: 1 } });
+    _chartInstance = LightweightCharts.createChart(tvChart,  { ...base, width: w, height: h, crosshair: { mode: 1 } });
     _volChart      = LightweightCharts.createChart(tvVolume, { ...base, width: w, height: 120 });
 
     _candleSeries = _chartInstance.addCandlestickSeries({
@@ -871,6 +1037,7 @@ async function loadChart() {
     });
     _candleSeries.setData(candles);
     _chartInstance.timeScale().fitContent();
+    applyTradeLines(_lastPositionData);
 
     _volumeSeries = _volChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
     _volumeSeries.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
@@ -881,10 +1048,14 @@ async function loadChart() {
     _chartInstance.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) _volChart.timeScale().setVisibleLogicalRange(r); });
     _volChart.timeScale().subscribeVisibleLogicalRangeChange(r => { if (r) _chartInstance.timeScale().setVisibleLogicalRange(r); });
 
-    // Resize on container width change
+    // Resize on container width OR height change — height changes whenever
+    // the sidebar column (which the row stretches to match) grows/shrinks,
+    // e.g. switching AI Analysis/Overview tabs or async panel content
+    // loading in, not just on window resize.
     const ro = new ResizeObserver(() => {
       const nw = tvChart.clientWidth;
-      if (nw > 0 && _chartInstance) { _chartInstance.resize(nw, 420); _volChart.resize(nw, 120); }
+      const nh = tvChart.clientHeight;
+      if (nw > 0 && nh > 0 && _chartInstance) { _chartInstance.resize(nw, nh); _volChart.resize(nw, 120); }
     });
     ro.observe(tvChart);
 
@@ -1117,6 +1288,159 @@ async function loadAssetSignals() {
   }).join('');
 }
 
+/* ── Sidebar tabs (AI Analysis / Overview) ────────────── */
+function showSidebarTab(tab) {
+  const showAi = tab === 'ai';
+  document.getElementById('sbTabAi').style.display       = showAi ? 'block' : 'none';
+  document.getElementById('sbTabOverview').style.display = showAi ? 'none' : 'block';
+  document.getElementById('sbTabAiBtn')?.classList.toggle('active', showAi);
+  document.getElementById('sbTabOverviewBtn')?.classList.toggle('active', !showAi);
+}
+
+/* ── Asset switcher — jump between saved assets in-place ── */
+async function loadAssetSwitcher() {
+  const el = document.getElementById('assetSwitchRow');
+  if (!el) return;
+  const data = await API.get('/market-data/heatmap');
+  const items = (data?.heatmap || []).filter(a => a.market === ASSET_MARKET);
+  if (!items.length) { el.innerHTML = ''; return; }
+
+  items.sort((a, b) => a.symbol.localeCompare(b.symbol));
+
+  el.innerHTML = items.map(a => {
+    const active = a.asset_id === ASSET_ID;
+    const chg    = a.change_pct;
+    const clr    = chg >= 0 ? 'var(--green)' : 'var(--red)';
+    const arrow  = chg >= 0 ? '▲' : '▼';
+    return `<a class="asset-switch-btn${active ? ' active' : ''}" href="/asset/${a.asset_id}">
+      ${_escHtml(a.symbol)}
+      <span class="chg" style="color:${clr}">${arrow}${Math.abs(chg).toFixed(2)}%</span>
+    </a>`;
+  }).join('');
+}
+
+/* ── AI Position Analysis (Deeepr-style lane verdicts) ──── */
+let _lastPositionData = null;
+
+function _escHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function loadPositionAnalysis() {
+  const el = document.getElementById('positionAnalysisContent');
+  if (!el) return;
+  el.innerHTML = `<div class="text-center py-3 text-muted fs-xs"><div class="spinner-border spinner-border-sm me-2"></div>Analyzing…</div>`;
+
+  const data = await API.get(`/signals/position-analysis/${ASSET_ID}`, { timeframe: _tf });
+  if (!data || !data.available) {
+    el.innerHTML = `<div class="text-center py-3 text-muted fs-xs">${_escHtml((data && data.message) || 'No AI analysis available.')}</div>`;
+    _lastPositionData = null;
+    applyTradeLines(null);
+    return;
+  }
+
+  const isHold   = data.signal_type === 'HOLD' || !data.signal_type;
+  const isBuy    = data.signal_type === 'BUY';
+  const dirColor = isHold ? 'var(--text-muted)' : isBuy ? 'var(--green)' : 'var(--red)';
+  const dirIcon  = isHold ? 'bi-dash-circle' : isBuy ? 'bi-graph-up-arrow' : 'bi-graph-down-arrow';
+  const dirBg    = isHold ? 'rgba(148,163,184,.12)' : isBuy ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)';
+  const lv       = data.lane_verdicts || {};
+
+  // Lane grid (Technical/Flow/Narrative/Macro) is always computed and always
+  // shown — this is what keeps the panel from going blank whenever there's
+  // no confident directional call, per the earlier "blank in some timeframes" report.
+  const LANES = [
+    { k: 'technical', label: 'Technical', icon: 'bi-graph-up'   },
+    { k: 'flow',      label: 'Flow',      icon: 'bi-water'      },
+    { k: 'narrative', label: 'Narrative', icon: 'bi-newspaper'  },
+    { k: 'macro',     label: 'Macro',     icon: 'bi-globe'      },
+  ];
+  const verdictColor = v => v === 'HIGH' ? 'var(--green)' : v === 'MODERATE' ? 'var(--yellow)' : 'var(--text-muted)';
+
+  const laneHtml = LANES.map(({ k, label, icon }) => {
+    const l = lv[k];
+    if (!l) return '';
+    const vc = verdictColor(l.verdict);
+    return `<div class="pa-lane-cell">
+      <div class="d-flex justify-content-between align-items-center mb-1">
+        <span class="fs-xs fw-600"><i class="bi ${icon} me-1"></i>${label}</span>
+        <span class="fs-xs fw-700" style="color:${vc}">${_escHtml(l.verdict)}</span>
+      </div>
+      <div class="pa-meter mb-1"><i style="width:${Math.max(0, Math.min(100, l.score || 0))}%;background:${vc}"></i></div>
+      <div class="text-muted fs-xs" style="line-height:1.4">${_escHtml((l.reasons || []).slice(0, 2).join(' · '))}</div>
+    </div>`;
+  }).join('');
+
+  const reasoningLine = data.reasoning
+    ? _escHtml(data.reasoning.split(' | ').slice(0, 3).join(' · ')) : '';
+
+  const belowThresholdNote = (!isHold && data.qualifies_as_signal === false)
+    ? `<div class="text-muted fs-xs mb-2" style="font-style:italic">Below the ${'70'}% auto-alert threshold — informational only.</div>`
+    : '';
+
+  let tradeSectionHtml = '';
+  if (isHold) {
+    tradeSectionHtml = `
+      <div class="text-muted fs-xs mb-3" style="border-top:1px solid var(--border);padding-top:10px">
+        No confirmed direction on this timeframe right now — factor breakdown below still reflects live conditions.
+      </div>`;
+  } else {
+    const invalidationHtml = (data.invalidation_conditions || []).map(c =>
+      `<div class="pa-invalidation-item"><i class="bi bi-x-circle me-1" style="color:var(--red)"></i>${_escHtml(c)}</div>`
+    ).join('') || `<div class="text-muted fs-xs">—</div>`;
+
+    const allocColors = ['var(--green)', '#4ade80', '#86efac'];
+    const allocHtml = (data.target_allocations || []).map((t, i) =>
+      `<div class="pa-target-row"><span class="fs-xs text-muted"><i class="pa-dot" style="background:${allocColors[i] || 'var(--green)'}"></i>${_escHtml(t.level)} (${t.pct}%)</span><span class="fs-xs fw-700 text-green">${formatPrice(t.price, data.market)}</span></div>`
+    ).join('');
+    const allocBarHtml = (data.target_allocations || []).length
+      ? `<div class="pa-alloc-bar">${(data.target_allocations || []).map((t, i) =>
+          `<i style="width:${t.pct}%;background:${allocColors[i] || 'var(--green)'}"></i>`).join('')}</div>`
+      : '';
+
+    const rr = parseFloat(data.risk_reward) || 0;
+
+    tradeSectionHtml = `
+      <div class="mb-3">
+        <div class="fs-xs fw-600 text-muted mb-1"><i class="bi bi-exclamation-triangle me-1"></i>INVALIDATION</div>
+        ${invalidationHtml}
+      </div>
+
+      <div class="mb-3" style="border-top:1px solid var(--border);padding-top:10px">
+        <div class="d-flex justify-content-between mb-1">
+          <span class="fs-xs text-muted">Entry</span><span class="fs-xs fw-700">${formatPrice(data.entry_price, data.market)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-1">
+          <span class="fs-xs text-muted">Stop Loss</span><span class="fs-xs fw-700 text-red">${formatPrice(data.stop_loss, data.market)}</span>
+        </div>
+        <div class="d-flex justify-content-between mb-2">
+          <span class="fs-xs text-muted">R:R</span><span class="fs-xs fw-700">${rr > 0 ? '1:' + rr.toFixed(2) : '—'}</span>
+        </div>
+        ${allocBarHtml}
+        ${allocHtml}
+      </div>`;
+  }
+
+  el.innerHTML = `
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="pa-direction-badge" style="color:${dirColor};border-color:${dirColor}55;background:${dirBg}">
+        <i class="bi ${dirIcon} me-1"></i>${_escHtml(isHold ? 'HOLD' : data.signal_type)}
+      </span>
+      <span class="badge-tag">${_escHtml(lv.lanes_agreeing || '—')} LANES</span>
+    </div>
+    ${reasoningLine ? `<div class="text-muted fs-xs mb-2">${reasoningLine}</div>` : ''}
+    ${belowThresholdNote}
+    ${tradeSectionHtml}
+
+    <div class="pa-lane-grid">${laneHtml}</div>
+  `;
+
+  _lastPositionData = isHold ? null : data;
+  applyTradeLines(isHold ? null : data);
+}
+
 /* ── Sentiment ────────────────────────────────────────── */
 async function loadSentiment() {
   const el = document.getElementById('sentimentContent');
@@ -1225,6 +1549,8 @@ function _initPage() {
   loadLivePrice();
   loadChart();
   loadSentiment();
+  loadPositionAnalysis();
+  loadAssetSwitcher();
 }
 // Fire on app:ready (normal) or fall back after DOM is ready if event already fired
 document.addEventListener('app:ready', _initPage);
@@ -1239,6 +1565,7 @@ document.addEventListener('app:ready', () => {
     loadLivePrice();
     loadChart();
     loadSentiment();
+    loadPositionAnalysis();
     const active = document.querySelector('#assetTabs .nav-link.active');
     if (active?.id === 'tabIndBtn')  loadIndicators();
     if (active?.id === 'tabSigBtn')  loadAssetSignals();

@@ -97,9 +97,15 @@ class ProductionConfig(Config):
     # chance to configure it).
     SQLALCHEMY_DATABASE_URI = os.environ.get("DATABASE_URL", "sqlite:///smarttrade_prod.db")
     CACHE_TYPE = "RedisCache" if os.environ.get("REDIS_URL") else "SimpleCache"
-    JWT_COOKIE_SECURE = True
+    # Secure by default (cookies require HTTPS) — but a LAN-only deployment
+    # behind a plain-HTTP reverse proxy (no TLS cert yet) has nowhere to send
+    # a Secure cookie, which would silently break login. Set
+    # FORCE_INSECURE_COOKIES=true in that specific case only; never on a
+    # deployment reachable from the internet.
+    _insecure_cookies_ok = os.environ.get("FORCE_INSECURE_COOKIES", "false").lower() == "true"
+    JWT_COOKIE_SECURE = not _insecure_cookies_ok
     JWT_COOKIE_CSRF_PROTECT = True
-    SESSION_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = not _insecure_cookies_ok
 
 
 class TestingConfig(Config):

@@ -1,0 +1,6 @@
+# Acrylic DNS Proxy custom host entries for SmartTradeAI.
+# Copy the line below into the REAL AcrylicHosts.txt that the installer
+# creates (default location: C:\Program Files (x86)\Acrylic DNS Proxy\AcrylicHosts.txt),
+# then restart the "AcrylicDNSProxySvc" Windows service. See ../README-DNS.md.
+
+192.168.29.228   smarttradeai.local

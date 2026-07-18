@@ -25,6 +25,10 @@
               <option value="light">Light</option>
             </select>
           </div>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span>Show Price Ticker <span class="text-muted fs-xs d-block">The scrolling price strip below the top bar</span></span>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="tickerVisible" onchange="onTickerVisibleChange(this.checked)" /></div>
+          </div>
           <button type="submit" class="btn btn-primary">Save Profile</button>
         </form>
       </div>
@@ -240,6 +244,7 @@ document.addEventListener('app:ready', async () => {
   document.getElementById('emailNotif').checked = user.email_notifications;
   document.getElementById('telegramNotif').checked = user.telegram_enabled;
   document.getElementById('telegramId').value = user.telegram_chat_id || '';
+  document.getElementById('tickerVisible').checked = localStorage.getItem('ticker_strip_collapsed') !== '1';
 
   // Load asset preferences
   const prefs = await API.get('/auth/me/asset-preferences');
@@ -248,6 +253,14 @@ document.addEventListener('app:ready', async () => {
     renderAssetGrid(prefs.assets);
   }
 });
+
+// Show/hide the price ticker live when the switch changes (same
+// localStorage key + apply function the chevron button on the strip itself
+// uses, so both controls always agree).
+function onTickerVisibleChange(visible) {
+  localStorage.setItem('ticker_strip_collapsed', visible ? '0' : '1');
+  if (typeof applyTickerCollapsed === 'function') applyTickerCollapsed(!visible);
+}
 
 // Apply theme live when dropdown changes
 document.getElementById('theme').addEventListener('change', function () {

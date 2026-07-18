@@ -5,6 +5,16 @@
     // Applied synchronously, before CSS paints, so the page never flashes
     // the default dark theme before switching to a saved light preference.
     document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
+    // Same idea for a collapsed sidebar: #sidebar/#mainWrapper don't exist
+    // yet at this point in <head>, so the full .collapsed/.expanded classes
+    // (applied later, once those elements exist) can't be set this early.
+    // This just pre-applies the couple of rules that matter for first paint
+    // (width + hiding labels) via a class on <html>, which CSS can target
+    // regardless of whether the descendant elements exist yet — avoiding the
+    // flash of an expanded sidebar before JS collapses it a moment later.
+    if (localStorage.getItem('sidebar_collapsed') === '1' && window.innerWidth >= 993) {
+      document.documentElement.classList.add('sidebar-preload-collapsed');
+    }
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -246,6 +256,9 @@
 <!-- Mobile sidebar backdrop -->
 <div id="sidebarBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;backdrop-filter:blur(2px)"></div>
 
+<!-- Shared hover tooltip for collapsed-sidebar nav icons (see #sidebarTooltip CSS + JS below) -->
+<div id="sidebarTooltip"></div>
+
 <!-- ═══ MAIN WRAPPER ═══════════════════════════════════════════════════════ -->
 <div class="main-wrapper" id="mainWrapper">
 
@@ -311,6 +324,9 @@
         </span>
       </div>
     </div>
+    <button class="ticker-toggle-btn" id="tickerToggleBtn" onclick="toggleTickerStrip()" title="Hide price ticker">
+      <i class="bi bi-chevron-up"></i>
+    </button>
   </div>
 
   <!-- Notification dropdown -->
@@ -456,6 +472,29 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('resize', () => {
     if (!isMobile()) closeMobile();
   });
+
+  // ── Hover tooltip for collapsed-sidebar nav icons ──────────────────
+  // Delegated on #sidebar rather than per-item, and positioned via a
+  // shared element living outside the sidebar (see #sidebarTooltip in the
+  // CSS/markup) so it isn't clipped by .sidebar's overflow:hidden.
+  const tooltip = document.getElementById('sidebarTooltip');
+  if (tooltip) {
+    sidebar.addEventListener('mouseover', (e) => {
+      if (!sidebar.classList.contains('collapsed')) return;
+      const item = e.target.closest('.nav-item[data-tooltip]');
+      if (!item || !sidebar.contains(item)) return;
+      const rect = item.getBoundingClientRect();
+      tooltip.textContent = item.getAttribute('data-tooltip');
+      tooltip.style.left = (rect.right + 10) + 'px';
+      tooltip.style.top  = (rect.top + rect.height / 2) + 'px';
+      tooltip.style.transform = 'translateY(-50%)';
+      tooltip.classList.add('show');
+    });
+    sidebar.addEventListener('mouseout', (e) => {
+      const item = e.target.closest('.nav-item[data-tooltip]');
+      if (item) tooltip.classList.remove('show');
+    });
+  }
 })();
 
 // ── Nav group collapse/expand ──────────────────────────────────────
