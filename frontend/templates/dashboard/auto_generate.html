@@ -333,7 +333,7 @@
     S('agKpiGen', buy + sell + hold + exit);
     S('agKpiActive', summary?.open_alerts ?? (buy + sell + hold + exit));
     S('agKpiWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-    S('agKpiWinSub', 'n = ' + (ov.total ?? 0));
+    S('agKpiWinSub', 'n = ' + (ov.total_closed ?? 0));
     if (Array.isArray(pnl) && pnl.length) {
       const avg = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0) / pnl.length;
       const el = document.getElementById('agKpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }

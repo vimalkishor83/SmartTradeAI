@@ -22,8 +22,8 @@
 
 <!-- Portfolio Summary -->
 <div class="row g-3 mb-4" id="portfolioSummary">
-  <div class="col-md-3"><div class="kpi-card blue"><div class="kpi-label">Total Invested</div><div class="kpi-value" id="totalInvested">—</div></div></div>
-  <div class="col-md-3"><div class="kpi-card green"><div class="kpi-label">Current Value</div><div class="kpi-value" id="totalCurrent">—</div></div></div>
+  <div class="col-md-3"><div class="kpi-card blue"><div class="kpi-label">Total Invested</div><div class="kpi-value" id="totalInvested">—</div><div class="kpi-change text-muted fs-xs" id="totalInvestedSub"></div></div></div>
+  <div class="col-md-3"><div class="kpi-card green"><div class="kpi-label">Current Value</div><div class="kpi-value" id="totalCurrent">—</div><div class="kpi-change text-muted fs-xs" id="totalCurrentSub"></div></div></div>
   <div class="col-md-3"><div class="kpi-card"><div class="kpi-label">Total P&amp;L</div><div class="kpi-value" id="totalPnl">—</div></div></div>
   <div class="col-md-3"><div class="kpi-card yellow"><div class="kpi-label">P&amp;L %</div><div class="kpi-value" id="totalPnlPct">—</div></div></div>
 </div>
@@ -96,34 +96,59 @@
 
 {% block extra_js %}
 <script>
+// Indian stocks/indices are the only markets actually quoted in rupees here —
+// crypto/forex/commodity assets are USD-quoted, so tagging them with ₹ was
+// silently mislabeling every non-Indian holding's price and value.
+function _ccySym(market) {
+  return (market === 'indian_stock' || market === 'index') ? '₹' : '$';
+}
+function _ccyLocale(market) {
+  return (market === 'indian_stock' || market === 'index') ? 'en-IN' : 'en-US';
+}
+
 async function loadPortfolio() {
   const data = await API.get('/portfolio/');
   if (!data) return;
 
   const p = data.portfolio;
-  document.getElementById('totalInvested').textContent = '₹' + (p.total_invested || 0).toLocaleString('en-IN');
-  document.getElementById('totalCurrent').textContent = '₹' + (p.total_current || 0).toLocaleString('en-IN');
+  const holdings = data.holdings || [];
+  const markets = new Set(holdings.map(h => h.market).filter(Boolean));
+  const mixed = markets.size > 1;
+  // Totals sum raw numbers across holdings that may be in different native
+  // currencies (no FX conversion here) — showing one currency symbol on a
+  // blended figure would be its own kind of wrong, so make the blend explicit
+  // instead of picking a currency that doesn't apply to most of the total.
+  const totalSym = mixed ? '' : _ccySym([...markets][0]);
+  const totalNote = mixed ? 'Sum of native prices, not currency-converted (₹ + $ mixed)' : '';
+
+  document.getElementById('totalInvested').textContent = totalSym + (p.total_invested || 0).toLocaleString('en-US');
+  document.getElementById('totalCurrent').textContent = totalSym + (p.total_current || 0).toLocaleString('en-US');
+  document.getElementById('totalInvestedSub').textContent = totalNote;
+  document.getElementById('totalCurrentSub').textContent = totalNote;
   const pnl = p.total_pnl || 0;
-  document.getElementById('totalPnl').textContent = (pnl >= 0 ? '+₹' : '-₹') + Math.abs(pnl).toLocaleString('en-IN');
+  document.getElementById('totalPnl').textContent = (pnl >= 0 ? '+' : '-') + totalSym + Math.abs(pnl).toLocaleString('en-US');
   document.getElementById('totalPnl').className = `kpi-value ${pnl >= 0 ? 'text-green' : 'text-red'}`;
   document.getElementById('totalPnlPct').textContent = (p.total_pnl_pct >= 0 ? '+' : '') + p.total_pnl_pct + '%';
-  document.getElementById('holdingCount').textContent = `${data.holdings.length} positions`;
+  document.getElementById('holdingCount').textContent = `${holdings.length} positions`;
 
-  if (!data.holdings.length) return;
+  if (!holdings.length) return;
 
-  document.getElementById('holdingsBody').innerHTML = data.holdings.map(h => `
+  document.getElementById('holdingsBody').innerHTML = holdings.map(h => {
+    const sym = _ccySym(h.market), loc = _ccyLocale(h.market);
+    return `
     <tr>
       <td><strong>${h.asset}</strong></td>
       <td>${h.quantity}</td>
-      <td>₹${formatPrice(h.buy_price)}</td>
-      <td>₹${formatPrice(h.current_price)}</td>
-      <td>₹${h.invested_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
-      <td>₹${h.current_value?.toLocaleString('en-IN', {maximumFractionDigits:0}) || '—'}</td>
-      <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}₹${Math.abs(h.pnl || 0).toLocaleString('en-IN', {maximumFractionDigits:0})}</td>
+      <td>${sym}${formatPrice(h.buy_price)}</td>
+      <td>${sym}${formatPrice(h.current_price)}</td>
+      <td>${h.invested_value != null ? sym + h.invested_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
+      <td>${h.current_value != null ? sym + h.current_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
+      <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}${sym}${Math.abs(h.pnl || 0).toLocaleString(loc, {maximumFractionDigits:0})}</td>
       <td class="${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
       <td>${h.holding_days}d</td>
       <td><button class="btn btn-sm btn-outline-danger" onclick="removePosition(${h.id})"><i class="bi bi-trash"></i></button></td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function removePosition(id) {

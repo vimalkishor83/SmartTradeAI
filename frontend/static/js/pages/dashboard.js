@@ -10,6 +10,24 @@ let _aiSummaryCache = null;
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
 
+// Recolor a KPI card (value text, icon, accent) to reflect actual severity
+// instead of a fixed decorative color — e.g. Max Drawdown shouldn't read as
+// an alarm (red) when the real number is small/healthy.
+function _setKpiSeverity(valueElId, level) {
+  const el = document.getElementById(valueElId);
+  if (!el) return;
+  const card = el.closest('.kpi-card');
+  const icon = card ? card.querySelector('.kpi-icon') : null;
+  ['red', 'yellow', 'green'].forEach(c => {
+    el.classList.remove('text-' + c);
+    if (icon) icon.classList.remove('text-' + c);
+    if (card) card.classList.remove(c);
+  });
+  el.classList.add('text-' + level);
+  if (icon) icon.classList.add('text-' + level);
+  if (card) card.classList.add(level);
+}
+
 function _chartDefaults() {
   if (typeof Chart === 'undefined') return;
   const css = getComputedStyle(document.documentElement);
@@ -34,7 +52,7 @@ async function loadKPIs() {
   const ov = perf?.overall || {};
   set('kpiActiveSignals', active); set('kpiBuy', buy); set('kpiSell', sell);
   set('kpiWinRate', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-  set('kpiWinRateSub', 'n = ' + (ov.total ?? 0));
+  set('kpiWinRateSub', 'n = ' + (ov.total_closed ?? 0));
   set('kpiProfitFactor', ov.profit_factor != null ? fmt(ov.profit_factor) : '—');
   set('kpiExpectancy', ov.avg_pnl_pct != null ? fmt(ov.avg_pnl_pct) : '—');
   set('kpiExpectancySub', 'avg P&L % / trade');
@@ -63,13 +81,26 @@ function loadTodaySummary(summary, perf) {
   const hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
   set('tsGenerated', buy + sell + hold + exit);
   set('tsNew', summary?.new_today ?? (buy + sell));
-  set('tsClosed', summary?.closed_today ?? perf?.total ?? '—');
-  set('tsWin', summary?.wins_today ?? perf?.wins ?? '—');
-  set('tsLoss', summary?.losses_today ?? perf?.losses ?? '—');
-  set('tsWinRate', perf?.win_rate != null ? perf.win_rate.toFixed(1) + '%' : '—');
+  // These are all genuinely "today" figures from /signals/summary now (it
+  // didn't return any of them before — every cell here silently fell
+  // through to '—' regardless of real activity). win_rate_today is null
+  // (not 0) when nothing closed today, rendered as '—' rather than a
+  // misleading "0%".
+  set('tsClosed', summary?.closed_today ?? '—');
+  set('tsWin', summary?.wins_today ?? '—');
+  set('tsLoss', summary?.losses_today ?? '—');
+  set('tsWinRate', summary?.win_rate_today != null ? summary.win_rate_today.toFixed(1) + '%' : '—');
   const el = document.getElementById('tsPnl');
-  const tp = summary?.total_pnl_today ?? perf?.total_pnl;
-  if (el && tp != null) { el.textContent = (tp >= 0 ? '+' : '') + fmt(tp) + '%'; el.className = 'ts-value ' + (tp >= 0 ? 'text-green' : 'text-red'); }
+  const tp = summary?.total_pnl_today;
+  if (el) {
+    if (tp != null && summary?.closed_today) {
+      el.textContent = (tp >= 0 ? '+' : '') + fmt(tp) + '%';
+      el.className = 'ts-value ' + (tp >= 0 ? 'text-green' : 'text-red');
+    } else {
+      el.textContent = '—';
+      el.className = 'ts-value';
+    }
+  }
 }
 
 /* ── Market-state (regime / volatility / risk) from heatmap ───── */
@@ -156,38 +187,14 @@ async function loadSignals(page) {
   set('signalCount', (data.total || 0) + ' active');
   const pag = document.getElementById('signalPagination');
   const pages = Math.min(data.pages || 1, 7);
-  if (pag) { pag.innerHTML = ''; if (pages > 1) for (let i = 1; i <= pages; i++) {
-    const li = document.createElement('li'); li.className = 'page-item' + (i === page ? ' active' : '');
-    li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
-    li.querySelector('a').addEventListener('click', e => { e.preventDefault(); loadSignals(i); });
-    pag.appendChild(li);
-  } }
-}
-
-function _regimeOf(s) {
-  const t = s.trend_score || 0, m = s.momentum_score || 0;
-  if (t >= 60) return 'Trending';
-  if (m >= 65 && t < 45) return 'Volatile';
-  return 'Ranging';
-}
-function _statusOf(s) {
-  const age = s.generated_at ? (Date.now() - new Date(s.generated_at)) / 60000 : 999;
-  const cur = s.current_price, entry = s.entry_price;
-  if (cur && entry) {
-    const hitBuy = s.signal_type === 'BUY' && cur >= entry;
-    const hitSell = s.signal_type === 'SELL' && cur <= entry;
-    if (hitBuy || hitSell) return { t: 'ENTRY HIT', c: 'var(--green)' };
+  if (pag) {
+    pag.innerHTML = ''; if (pages > 1) for (let i = 1; i <= pages; i++) {
+      const li = document.createElement('li'); li.className = 'page-item' + (i === page ? ' active' : '');
+      li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+      li.querySelector('a').addEventListener('click', e => { e.preventDefault(); loadSignals(i); });
+      pag.appendChild(li);
+    }
   }
-  if (age < 30) return { t: 'NEW', c: 'var(--accent-light)' };
-  return { t: 'WATCHING', c: 'var(--yellow)' };
-}
-function _modelBars(s) {
-  const dir = s.signal_type === 'SELL' ? 'var(--red)' : 'var(--green)';
-  const scores = [s.trend_score, s.momentum_score, s.volume_score, s.pattern_score, s.ai_score];
-  const labels = ['Trend', 'Momentum', 'Volume', 'Pattern', 'AI'];
-  return `<div class="model-bars" title="${labels.map((l, i) => l + ' ' + Math.round(scores[i] || 0)).join(' · ')}">` +
-    scores.map(v => { const h = Math.max(3, Math.min(100, v || 0)); const c = (v || 0) >= 50 ? dir : 'rgba(148,163,184,.45)';
-      return `<span class="mbar" style="height:${h}%;background:${c}"></span>`; }).join('') + '</div>';
 }
 
 function _renderSignals(signals) {
@@ -196,7 +203,7 @@ function _renderSignals(signals) {
   const minConf = window.MIN_CONFIDENCE || 0;
   const filtered = signals.filter(s => (s.confidence_score || 0) >= minConf);
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="14" class="text-center text-muted py-5"><i class="bi bi-inbox d-block mb-2" style="font-size:26px"></i>No signals yet — generate one from a market page.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-inbox d-block mb-2" style="font-size:26px"></i>No signals yet — generate one from a market page.</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(s => {
@@ -205,23 +212,19 @@ function _renderSignals(signals) {
     const rr = parseFloat(s.risk_reward) || 0;
     const rrClr = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
     const cur = s.current_price || s.entry_price;
-    const st = _statusOf(s);
     const mkt = (s.market || '').replace('_', ' ');
-    return `<tr>
-      <td><a href="/asset/${s.asset_id}" class="asset-cell-name" style="text-decoration:none">${s.asset}</a><div class="asset-cell-sub"><span class="badge-tag">${mkt}</span></div></td>
+    // Row itself navigates to the asset's AI Position Analysis (SL/targets/
+    // age/regime/model-agreement/status all live there now) — only the
+    // trash-icon-style affordance differs, so make the whole row clickable
+    // rather than just the asset name.
+    return `<tr style="cursor:pointer" onclick="location='/asset/${s.asset_id}'">
+      <td><span class="asset-cell-name">${s.asset}</span><div class="asset-cell-sub"><span class="badge-tag">${mkt}</span></div></td>
       <td><span class="badge-tag">${s.timeframe}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td class="num">${formatPrice(s.entry_price, s.market)}</td>
       <td class="num">${formatPrice(cur, s.market)}</td>
-      <td class="num" style="color:var(--red)">${formatPrice(s.stop_loss, s.market)}</td>
-      <td class="num" style="color:var(--green)">${formatPrice(s.target1, s.market)}</td>
-      <td class="num" style="color:var(--green)">${s.target2 ? formatPrice(s.target2, s.market) : '—'}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
-      <td class="num">${typeof relativeTime === 'function' ? relativeTime(s.generated_at) : ''}</td>
-      <td><span class="regime-chip">${_regimeOf(s)}</span></td>
-      <td>${_modelBars(s)}</td>
-      <td><span class="status-chip" style="color:${st.c};border-color:${st.c}">${st.t}</span></td>
     </tr>`;
   }).join('');
 }
@@ -247,7 +250,7 @@ function loadInspector(s) {
   if (conf < 65) warnings.push('Confidence below 65%');
   const dir = s.signal_type === 'SELL' ? 'var(--red)' : 'var(--green)';
   const models = [['XGBoost', s.ai_score], ['LightGBM', (s.trend_score + s.momentum_score) / 2],
-    ['LSTM', (s.momentum_score + s.volume_score) / 2], ['Rule Engine', (s.trend_score + s.pattern_score) / 2]];
+  ['LSTM', (s.momentum_score + s.volume_score) / 2], ['Rule Engine', (s.trend_score + s.pattern_score) / 2]];
 
   body.innerHTML = `
     <div class="insp-grid">
@@ -284,23 +287,35 @@ async function loadEquityCurve() {
   // Derive Sharpe / Max Drawdown / Avg R:R (payoff) from the real closed-trade series
   const mean = pnls.reduce((a, b) => a + b, 0) / pnls.length;
   const std = Math.sqrt(pnls.reduce((a, b) => a + (b - mean) ** 2, 0) / pnls.length);
+  // These three are deliberately windowed to the most recent 100 closed
+  // trades (not the full history behind Win Rate's "n =") so they reflect
+  // current form rather than all-time — labeled explicitly so that doesn't
+  // read as disagreeing with the win-rate card's larger n.
   set('kpiSharpe', std > 0 ? fmt(mean / std * Math.sqrt(pnls.length)) : '—');
-  set('kpiSharpeSub', 'from ' + pnls.length + ' trades');
+  set('kpiSharpeSub', 'last ' + pnls.length + ' closed');
   set('kpiMaxDD', maxDD < 0 ? maxDD.toFixed(2) + '%' : '0.00%');
+  set('kpiMaxDDSub', 'peak to trough · last ' + pnls.length);
+  const ddAbs = Math.abs(maxDD);
+  _setKpiSeverity('kpiMaxDD', ddAbs <= 5 ? 'green' : ddAbs <= 15 ? 'yellow' : 'red');
   const wins = pnls.filter(p => p > 0), losses = pnls.filter(p => p < 0);
   const avgWin = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0;
   const avgLoss = losses.length ? Math.abs(losses.reduce((a, b) => a + b, 0) / losses.length) : 0;
   set('kpiAvgRR', avgLoss > 0 ? '1:' + fmt(avgWin / avgLoss) : '—');
+  set('kpiAvgRRSub', 'reward per risk · last ' + pnls.length);
   if (_equityChart) _equityChart.destroy();
   const css = getComputedStyle(document.documentElement);
   _equityChart = new Chart(ctx, {
     type: 'line',
-    data: { labels: eqPts.map((_, i) => i + 1), datasets: [
-      { label: 'Equity', data: eqPts, borderColor: (css.getPropertyValue('--green') || '#10b981').trim(), backgroundColor: 'rgba(16,185,129,.12)', fill: true, tension: .25, pointRadius: 0, borderWidth: 2 },
-      { label: 'Drawdown', data: ddPts, borderColor: (css.getPropertyValue('--red') || '#ef4444').trim(), backgroundColor: 'rgba(239,68,68,.08)', fill: true, tension: .25, pointRadius: 0, borderWidth: 1 },
-    ] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10 } } },
-      scales: { y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, x: { display: false } } },
+    data: {
+      labels: eqPts.map((_, i) => i + 1), datasets: [
+        { label: 'Equity', data: eqPts, borderColor: (css.getPropertyValue('--green') || '#10b981').trim(), backgroundColor: 'rgba(16,185,129,.12)', fill: true, tension: .25, pointRadius: 0, borderWidth: 2 },
+        { label: 'Drawdown', data: ddPts, borderColor: (css.getPropertyValue('--red') || '#ef4444').trim(), backgroundColor: 'rgba(239,68,68,.08)', fill: true, tension: .25, pointRadius: 0, borderWidth: 1 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10 } } },
+      scales: { y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, x: { display: false } }
+    },
   });
 }
 
@@ -336,12 +351,16 @@ function loadCalibration(perf) {
   const css = getComputedStyle(document.documentElement);
   _calibChart = new Chart(ctx, {
     type: 'line',
-    data: { labels, datasets: [
-      { label: 'Expected', data: expected, borderColor: (css.getPropertyValue('--accent') || '#6366f1').trim(), borderDash: [4, 3], pointRadius: 2, borderWidth: 1.5 },
-      { label: 'Actual', data: actual, borderColor: (css.getPropertyValue('--green') || '#10b981').trim(), pointRadius: 2, borderWidth: 2 },
-    ] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } },
-      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } } } },
+    data: {
+      labels, datasets: [
+        { label: 'Expected', data: expected, borderColor: (css.getPropertyValue('--accent') || '#6366f1').trim(), borderDash: [4, 3], pointRadius: 2, borderWidth: 1.5 },
+        { label: 'Actual', data: actual, borderColor: (css.getPropertyValue('--green') || '#10b981').trim(), pointRadius: 2, borderWidth: 2 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } } }
+    },
   });
 }
 

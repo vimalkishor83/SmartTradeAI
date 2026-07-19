@@ -264,7 +264,7 @@ async function loadAnalytics() {
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
   set('kpiTotal',       o.total_signals.toLocaleString());
   set('kpiWinRate',     o.win_rate.toFixed(1) + '%');
-  set('kpiAvgRR',       o.avg_rr_achieved.toFixed(2) + 'x');
+  set('kpiAvgRR',       '1:' + o.avg_rr_achieved.toFixed(2));
   set('kpiClosed',      o.closed.toLocaleString());
   set('kpiActiveClose', `${o.active} active / ${o.closed} closed`);
   set('kpiWL',          `${o.total_wins}W / ${o.total_losses}L`);

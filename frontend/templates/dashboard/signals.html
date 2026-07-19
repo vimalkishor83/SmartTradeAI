@@ -264,6 +264,15 @@ async function loadSummary() {
   }
 }
 
+function clearSignalFilters() {
+  document.getElementById('allTf').value = '';
+  document.getElementById('allMkt').value = '';
+  document.getElementById('allType').value = '';
+  document.getElementById('allConf').value = 0;
+  document.getElementById('allConfVal').textContent = '0%';
+  loadSignals(1);
+}
+
 async function loadSignals(page = 1) {
   const params = {
     page, per_page: 25,
@@ -282,10 +291,27 @@ async function loadSignals(page = 1) {
   const tbody = document.getElementById('allSignalsBody');
 
   if (!data.signals?.length) {
-    tbody.innerHTML = `<tr><td colspan="14" class="text-center py-5 text-muted">
-      <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
-      No signals match your filters.
-    </td></tr>`;
+    // A saved Min Confidence preference (from Settings) or a market/type
+    // filter can silently produce "0 results" that reads like there's simply
+    // no data — check whether filters are actually active and, if so, say so
+    // explicitly with a one-click way to clear them, instead of a generic
+    // empty state that looks identical to "there is no data at all".
+    const activeFilters = [];
+    if (Number(params.min_confidence) > 0) activeFilters.push(`confidence ≥ ${params.min_confidence}%`);
+    if (mkt) activeFilters.push(`market = ${mkt}`);
+    if (type) activeFilters.push(`type = ${type}`);
+    if (params.timeframe) activeFilters.push(`timeframe = ${params.timeframe}`);
+
+    tbody.innerHTML = activeFilters.length
+      ? `<tr><td colspan="14" class="text-center py-5 text-muted">
+          <i class="bi bi-funnel d-block mb-2" style="font-size:28px"></i>
+          0 signals match your current filters (${activeFilters.join(', ')}).
+          <div class="mt-2"><button class="btn btn-sm btn-outline-secondary" onclick="clearSignalFilters()">Clear filters</button></div>
+        </td></tr>`
+      : `<tr><td colspan="14" class="text-center py-5 text-muted">
+          <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
+          No signals generated yet.
+        </td></tr>`;
     return;
   }
 

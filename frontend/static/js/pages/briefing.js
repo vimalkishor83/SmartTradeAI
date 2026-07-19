@@ -29,23 +29,33 @@ async function loadMarketState() {
 
   // State cards
   const r = document.getElementById('bsRegime');
-  if (r) { const up = avg > 0.4, dn = avg < -0.4;
+  if (r) {
+    const up = avg > 0.4, dn = avg < -0.4;
     r.innerHTML = `<i class="bi bi-${up ? 'graph-up-arrow' : dn ? 'graph-down-arrow' : 'arrow-left-right'}"></i> ${up ? 'Trending Up' : dn ? 'Trending Down' : 'Ranging'}`;
-    r.className = 'bs-value ' + (up ? 'text-green' : dn ? 'text-red' : 'text-yellow'); }
+    r.className = 'bs-value ' + (up ? 'text-green' : dn ? 'text-red' : 'text-yellow');
+  }
   const v = document.getElementById('bsVol');
-  if (v) { const hi = std > 2, mid = std > 1; v.innerHTML = `<i class="bi bi-activity"></i> ${hi ? 'High' : mid ? 'Moderate' : 'Low'}`;
-    v.className = 'bs-value ' + (hi ? 'text-red' : mid ? 'text-yellow' : 'text-green'); }
+  if (v) {
+    const hi = std > 2, mid = std > 1; v.innerHTML = `<i class="bi bi-activity"></i> ${hi ? 'High' : mid ? 'Moderate' : 'Low'}`;
+    v.className = 'bs-value ' + (hi ? 'text-red' : mid ? 'text-yellow' : 'text-green');
+  }
   const s = document.getElementById('bsSentiment');
   const sScore = Math.max(0, Math.min(100, 50 + avg * 12));
-  if (s) { const lbl = sScore >= 65 ? 'Bullish' : sScore >= 55 ? 'Slightly Bullish' : sScore >= 45 ? 'Neutral' : sScore >= 35 ? 'Slightly Bearish' : 'Bearish';
-    s.innerHTML = `<i class="bi bi-emoji-smile"></i> ${lbl}`; s.className = 'bs-value ' + (sScore >= 55 ? 'text-green' : sScore >= 45 ? 'text-yellow' : 'text-red'); }
+  if (s) {
+    const lbl = sScore >= 65 ? 'Bullish' : sScore >= 55 ? 'Slightly Bullish' : sScore >= 45 ? 'Neutral' : sScore >= 35 ? 'Slightly Bearish' : 'Bearish';
+    s.innerHTML = `<i class="bi bi-emoji-smile"></i> ${lbl}`; s.className = 'bs-value ' + (sScore >= 55 ? 'text-green' : sScore >= 45 ? 'text-yellow' : 'text-red');
+  }
   const k = document.getElementById('bsRisk');
-  if (k) { const hi = std > 2, mid = std > 1; k.innerHTML = `<i class="bi bi-shield-exclamation"></i> ${hi ? 'Elevated' : mid ? 'Moderate' : 'Low'}`;
-    k.className = 'bs-value ' + (hi ? 'text-red' : mid ? 'text-yellow' : 'text-green'); }
+  if (k) {
+    const hi = std > 2, mid = std > 1; k.innerHTML = `<i class="bi bi-shield-exclamation"></i> ${hi ? 'Elevated' : mid ? 'Moderate' : 'Low'}`;
+    k.className = 'bs-value ' + (hi ? 'text-red' : mid ? 'text-yellow' : 'text-green');
+  }
   const c = document.getElementById('bsClarity');
-  if (c) { const good = std < 1.2 && Math.abs(avg) > 0.2; const poor = std > 2.2;
+  if (c) {
+    const good = std < 1.2 && Math.abs(avg) > 0.2; const poor = std > 2.2;
     c.innerHTML = `<i class="bi bi-check-circle"></i> ${good ? 'Good' : poor ? 'Poor' : 'Fair'}`;
-    c.className = 'bs-value ' + (good ? 'text-green' : poor ? 'text-red' : 'text-yellow'); }
+    c.className = 'bs-value ' + (good ? 'text-green' : poor ? 'text-red' : 'text-yellow');
+  }
 
   loadMarketSummary(rows);
   loadMovers(rows);
@@ -84,15 +94,24 @@ function loadMarketSummary(rows) {
 
 /* ── Overnight Movers ─────────────────────────────────────────── */
 function loadMovers(rows) {
+  // With a small tracked universe, naive slice(0,6)/slice(-6) can select
+  // the exact same rows from opposite ends (identical lists, just reversed)
+  // and can mislabel a barely-positive asset as a "loser" simply because it
+  // ranks lowest. Filter by actual sign first, then cap at 6 each — the two
+  // lists can never overlap, and "losers" only ever contains real decliners.
   const sorted = [...rows].sort((a, b) => (b.change_pct || 0) - (a.change_pct || 0));
-  const gainers = sorted.slice(0, 6), losers = sorted.slice(-6).reverse();
-  const row = (m) => { const up = (m.change_pct || 0) >= 0;
+  const gainers = sorted.filter(m => (m.change_pct || 0) > 0).slice(0, 6);
+  const losers = sorted.filter(m => (m.change_pct || 0) < 0).slice(-6).reverse();
+  const row = (m) => {
+    const up = (m.change_pct || 0) >= 0;
     return `<tr><td><div class="mv-sym">${m.symbol}</div><div class="mv-name">${m.name || ''}</div></td>
       <td class="num">${formatPrice(m.price)}</td>
-      <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'} ${Math.abs(m.change_pct || 0).toFixed(2)}%</td></tr>`; };
+      <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'} ${Math.abs(m.change_pct || 0).toFixed(2)}%</td></tr>`;
+  };
+  const emptyRow = (label) => `<tr><td colspan="3" class="text-center text-muted fs-xs py-3">${label}</td></tr>`;
   const g = document.getElementById('gainersBody'), l = document.getElementById('losersBody');
-  if (g) g.innerHTML = gainers.map(row).join('');
-  if (l) l.innerHTML = losers.map(row).join('');
+  if (g) g.innerHTML = gainers.length ? gainers.map(row).join('') : emptyRow('No advancers right now');
+  if (l) l.innerHTML = losers.length ? losers.map(row).join('') : emptyRow('No decliners right now');
 }
 
 /* ── Market Sentiment gauge + by-market bars ──────────────────── */
@@ -134,13 +153,15 @@ function loadCrypto(rows) {
   const tb = document.getElementById('cryptoBody');
   if (!tb) return;
   if (!crypto.length) { tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No crypto data</td></tr>'; return; }
-  tb.innerHTML = crypto.map(c => { const up = (c.change_pct || 0) >= 0;
+  tb.innerHTML = crypto.map(c => {
+    const up = (c.change_pct || 0) >= 0;
     return `<tr>
       <td class="mv-sym">${c.symbol}</td>
       <td class="num">${formatPrice(c.price)}</td>
       <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'}${Math.abs(c.change_pct || 0).toFixed(2)}%</td>
       <td><div id="cspk_${c.asset_id}" style="line-height:0"></div></td>
-    </tr>`; }).join('');
+    </tr>`;
+  }).join('');
   crypto.forEach(c => { const el = document.getElementById(`cspk_${c.asset_id}`); if (el && typeof Sparkline !== 'undefined' && c.asset_id) Sparkline.load(el, c.asset_id, '1h'); });
 }
 function _abbrev(n) { if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n); }
@@ -182,7 +203,7 @@ function _openKlConfig() {
   panel.innerHTML = `
     <div class="kl-config-title">Choose assets to show <span class="text-muted">(up to 6)</span></div>
     <div class="kl-config-grid">${syms.map(s =>
-      `<label class="kl-chk"><input type="checkbox" value="${s}" ${selected.has(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
+    `<label class="kl-chk"><input type="checkbox" value="${s}" ${selected.has(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
     <div class="kl-config-actions">
       <button class="btn btn-sm btn-primary" id="klSave"><i class="bi bi-check2 me-1"></i>Save</button>
       <button class="btn btn-sm btn-outline-secondary" id="klCancel">Cancel</button>
@@ -317,23 +338,36 @@ function loadInsights(rows, avg, std) {
 
 /* ── Today at a Glance ────────────────────────────────────────── */
 async function loadGlance() {
-  const [summary, perf] = await Promise.all([API.get('/signals/summary'), API.get('/signals/performance')]);
+  // /signals/summary now returns real today-scoped closed/win/loss/pnl
+  // fields — this used to read all-time figures from perf.overall (and one
+  // field, ov.wins, that doesn't exist there at all) under a "Today at a
+  // Glance" header, which is a contradiction of a different kind than a
+  // blank cell: a confidently-displayed number that's simply the wrong scope.
+  const summary = await API.get('/signals/summary');
   const buy = summary?.buy_today ?? 0, sell = summary?.sell_today ?? 0, hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
-  const ov = perf?.overall || {};
   bset('glGenerated', buy + sell + hold + exit);
   bset('glNew', buy + sell);
-  bset('glClosed', ov.total ?? '—');
-  bset('glWin', ov.wins ?? '—');
-  bset('glWinRate', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
+  bset('glClosed', summary?.closed_today ?? '—');
+  bset('glWin', summary?.wins_today ?? '—');
+  bset('glWinRate', summary?.win_rate_today != null ? summary.win_rate_today.toFixed(1) + '%' : '—');
   const el = document.getElementById('glPnl');
-  if (el && ov.avg_pnl_pct != null) { const v = ov.avg_pnl_pct * (ov.total || 0); el.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + '%'; el.className = 'ts-value ' + (v >= 0 ? 'text-green' : 'text-red'); }
+  if (el) {
+    if (summary?.total_pnl_today != null && summary?.closed_today) {
+      const v = summary.total_pnl_today;
+      el.textContent = (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+      el.className = 'ts-value ' + (v >= 0 ? 'text-green' : 'text-red');
+    } else {
+      el.textContent = '—';
+      el.className = 'ts-value';
+    }
+  }
 }
 
 /* ── Share ────────────────────────────────────────────────────── */
 function shareBriefing() {
   const txt = `SmartTrade AI — Morning Briefing (${new Date().toLocaleDateString()})\n` +
     `Regime: ${document.getElementById('bsRegime')?.textContent?.trim()} | Sentiment: ${document.getElementById('bsSentiment')?.textContent?.trim()} | Breadth: ${document.getElementById('breadthPct')?.textContent}`;
-  if (navigator.share) navigator.share({ title: 'Morning Briefing', text: txt }).catch(() => {});
+  if (navigator.share) navigator.share({ title: 'Morning Briefing', text: txt }).catch(() => { });
   else if (navigator.clipboard) navigator.clipboard.writeText(txt).then(() => { if (typeof toast === 'function') toast('Briefing copied to clipboard', 'success'); });
 }
 

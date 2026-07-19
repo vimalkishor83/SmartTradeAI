@@ -60,8 +60,8 @@
     <div class="kpi-top"><div><div class="kpi-label">Open P&amp;L</div><div class="kpi-value" id="kpiOpenPnl">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div></div>
     <div class="kpi-change" id="kpiPnlChange">unrealised</div>
   </div>
-  <div class="kpi-card red animate-in" style="animation-delay:.16s">
-    <div class="kpi-top"><div><div class="kpi-label">Max Drawdown</div><div class="kpi-value text-red" id="kpiMaxDD">—</div></div><div class="kpi-icon text-red"><i class="bi bi-graph-down-arrow"></i></div></div>
+  <div class="kpi-card animate-in" style="animation-delay:.16s">
+    <div class="kpi-top"><div><div class="kpi-label">Max Drawdown</div><div class="kpi-value" id="kpiMaxDD">—</div></div><div class="kpi-icon"><i class="bi bi-graph-down-arrow"></i></div></div>
     <div class="kpi-change" id="kpiMaxDDSub">peak to trough</div>
   </div>
   <div class="kpi-card blue animate-in" style="animation-delay:.20s">
@@ -105,15 +105,19 @@
           </select>
         </div>
       </div>
+      <!-- Trimmed from 14 columns to the 7 a glance actually needs (Asset,
+           TF, Signal, Entry, Current, Confidence, R:R) — SL/targets/age/
+           regime/model-agreement/status are all one click away on the
+           asset's own AI Position Analysis panel, which shows them with
+           more room and more context than a packed row ever could. -->
       <div class="table-responsive">
         <table class="smart-table signals-table-adv">
           <thead><tr>
             <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
-            <th>SL</th><th>TP1</th><th>TP2</th><th>Confidence</th><th>R:R</th>
-            <th>Age</th><th>Regime</th><th>Model</th><th>Status</th>
+            <th>Confidence</th><th>R:R</th>
           </tr></thead>
           <tbody id="signalsBody">
-            <tr><td colspan="14" class="text-center text-muted py-5"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
+            <tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
           </tbody>
         </table>
       </div>
@@ -207,5 +211,6 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="/static/vendor/chart.umd.min.js"></script>
 <script src="/static/js/pages/dashboard.js"></script>
 {% endblock %}

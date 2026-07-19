@@ -1074,6 +1074,19 @@ def get_summary():
     wins    = history.filter(SignalHistory.outcome == "win").count()
     win_rate = round((wins / total_h * 100), 1) if total_h else 0
 
+    # Closed-today breakdown — the dashboard's "Today's Summary" strip reads
+    # these exact keys (closed_today/wins_today/losses_today/total_pnl_today)
+    # but this endpoint never returned them, so those cells always fell
+    # through every frontend fallback straight to "—".
+    closed_today_q = SignalHistory.query.filter(SignalHistory.closed_at >= today)
+    closed_today = closed_today_q.count()
+    wins_today   = closed_today_q.filter(SignalHistory.outcome == "win").count()
+    losses_today = closed_today_q.filter(SignalHistory.outcome == "loss").count()
+    win_rate_today = round(wins_today / closed_today * 100, 1) if closed_today else None
+    total_pnl_today_row = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
+        SignalHistory.closed_at >= today).scalar()
+    total_pnl_today = round(float(total_pnl_today_row), 2) if total_pnl_today_row else 0.0
+
     # Average confidence today
     avg_conf_row = db.session.query(func.avg(Signal.confidence_score)).filter(
         Signal.generated_at >= today).scalar()
@@ -1107,6 +1120,11 @@ def get_summary():
         "exit_today":      summary.get("EXIT", 0),
         "win_rate":        win_rate,
         "total_historical": total_h,
+        "closed_today":    closed_today,
+        "wins_today":      wins_today,
+        "losses_today":    losses_today,
+        "win_rate_today":  win_rate_today,
+        "total_pnl_today": total_pnl_today,
         "avg_confidence":  avg_confidence,
         "open_alerts":     open_alerts,
         "top_signal":      top_signal,
@@ -1318,6 +1336,15 @@ def get_performance():
 
     total_pnl_row = db.session.query(func.sum(SignalHistory.pnl_pct)).scalar()
     total_pnl = round(float(total_pnl_row), 2) if total_pnl_row else 0.0
+    avg_pnl_pct = round(total_pnl / total_closed, 3) if total_closed else 0.0
+
+    gross_win_row  = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(SignalHistory.outcome == "win").scalar()
+    gross_loss_row = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(SignalHistory.outcome == "loss").scalar()
+    gross_win  = float(gross_win_row) if gross_win_row else 0.0
+    gross_loss = abs(float(gross_loss_row)) if gross_loss_row else 0.0
+    # None (not 0) when there are no losing trades yet — "infinite" profit factor
+    # is misleading as a raw number; the frontend renders None as "—".
+    profit_factor = round(gross_win / gross_loss, 2) if gross_loss > 0 else (None if gross_win > 0 else 0.0)
 
     avg_dur_row = db.session.query(func.avg(SignalHistory.duration_minutes)).scalar()
     avg_duration = int(avg_dur_row) if avg_dur_row else 0
@@ -1459,6 +1486,8 @@ def get_performance():
             "win_rate": win_rate,
             "avg_rr": avg_rr,
             "total_pnl_pct": total_pnl,
+            "avg_pnl_pct": avg_pnl_pct,
+            "profit_factor": profit_factor,
             "avg_duration_minutes": avg_duration,
             "best_win_pct": best_win,
             "worst_loss_pct": worst_loss,

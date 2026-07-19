@@ -177,7 +177,7 @@ async function loadPerformance() {
   set('kpiWinRate',   o.win_rate    != null ? o.win_rate.toFixed(1) + '%' : '—');
   set('kpiClosed',    o.total_closed ?? 0);
   set('kpiTotalClosed', `${o.total_closed ?? 0} closed trades`);
-  set('kpiAvgRR',     o.avg_rr       != null ? o.avg_rr.toFixed(2) + 'x' : '—');
+  set('kpiAvgRR',     o.avg_rr       != null ? '1:' + o.avg_rr.toFixed(2) : '—');
 
   // Best TF
   const tfs = (data.by_timeframe || []).filter(t => t.trades >= 3);

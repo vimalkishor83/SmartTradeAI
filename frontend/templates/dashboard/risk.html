@@ -147,7 +147,7 @@
     const perf = await API.get('/signals/performance').catch(() => null);
     const ov = perf?.overall || {};
     const w = document.getElementById('rkWin'); if (w && ov.win_rate != null) w.textContent = ov.win_rate.toFixed(1) + '%';
-    const sub = document.getElementById('rkWinSub'); if (sub) sub.textContent = 'n = ' + (ov.total ?? 0);
+    const sub = document.getElementById('rkWinSub'); if (sub) sub.textContent = 'n = ' + (ov.total_closed ?? 0);
   }
   function init() {
     rkUpdate(); rkWinRate();

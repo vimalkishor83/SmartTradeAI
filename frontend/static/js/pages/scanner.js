@@ -9,19 +9,19 @@ const sfmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
 const _scv = (n, f) => (getComputedStyle(document.documentElement).getPropertyValue(n) || f).trim();
 
 const FILTER_META = {
-  strong_buy:   { label: 'Strong Buy',   sig: 'Strong Buy', clr: 'var(--green)',       icon: 'graph-up-arrow' },
-  buy:          { label: 'Buy',          sig: 'Buy',        clr: 'var(--green)',       icon: 'arrow-up' },
-  strong_sell:  { label: 'Strong Sell',  sig: 'Strong Sell',clr: 'var(--red)',         icon: 'graph-down-arrow' },
-  sell:         { label: 'Sell',         sig: 'Sell',       clr: 'var(--red)',         icon: 'arrow-down' },
-  breakout:     { label: 'Breakout',     sig: 'Breakout',   clr: 'var(--yellow)',      icon: 'box-arrow-up' },
-  breakdown:    { label: 'Breakdown',    sig: 'Breakdown',  clr: 'var(--red)',         icon: 'box-arrow-down' },
-  volume_spike: { label: 'Volume Spike', sig: 'Vol Spike',  clr: 'var(--accent-light)',icon: 'bar-chart-fill' },
-  rsi_oversold: { label: 'RSI Oversold', sig: 'Oversold',   clr: 'var(--green)',       icon: 'activity' },
-  rsi_overbought:{label: 'RSI Overbought',sig:'Overbought', clr: 'var(--red)',         icon: 'activity' },
-  gap_up:       { label: 'Gap Up',       sig: 'Gap Up',     clr: 'var(--green)',       icon: 'chevron-double-up' },
-  gap_down:     { label: 'Gap Down',     sig: 'Gap Down',   clr: 'var(--red)',         icon: 'chevron-double-down' },
-  '52w_high':   { label: '52W High',     sig: '52W High',   clr: 'var(--yellow)',      icon: 'trophy' },
-  '52w_low':    { label: '52W Low',      sig: '52W Low',    clr: 'var(--red)',         icon: 'graph-down' },
+  strong_buy: { label: 'Strong Buy', sig: 'Strong Buy', clr: 'var(--green)', icon: 'graph-up-arrow' },
+  buy: { label: 'Buy', sig: 'Buy', clr: 'var(--green)', icon: 'arrow-up' },
+  strong_sell: { label: 'Strong Sell', sig: 'Strong Sell', clr: 'var(--red)', icon: 'graph-down-arrow' },
+  sell: { label: 'Sell', sig: 'Sell', clr: 'var(--red)', icon: 'arrow-down' },
+  breakout: { label: 'Breakout', sig: 'Breakout', clr: 'var(--yellow)', icon: 'box-arrow-up' },
+  breakdown: { label: 'Breakdown', sig: 'Breakdown', clr: 'var(--red)', icon: 'box-arrow-down' },
+  volume_spike: { label: 'Volume Spike', sig: 'Vol Spike', clr: 'var(--accent-light)', icon: 'bar-chart-fill' },
+  rsi_oversold: { label: 'RSI Oversold', sig: 'Oversold', clr: 'var(--green)', icon: 'activity' },
+  rsi_overbought: { label: 'RSI Overbought', sig: 'Overbought', clr: 'var(--red)', icon: 'activity' },
+  gap_up: { label: 'Gap Up', sig: 'Gap Up', clr: 'var(--green)', icon: 'chevron-double-up' },
+  gap_down: { label: 'Gap Down', sig: 'Gap Down', clr: 'var(--red)', icon: 'chevron-double-down' },
+  '52w_high': { label: '52W High', sig: '52W High', clr: 'var(--yellow)', icon: 'trophy' },
+  '52w_low': { label: '52W Low', sig: '52W Low', clr: 'var(--red)', icon: 'graph-down' },
 };
 // Map convenience chips to backend-supported checks
 const ALIAS = { buy: 'strong_buy', sell: 'strong_sell' };
@@ -31,7 +31,7 @@ async function loadScanKPIs() {
   const [perf, pnl, heat] = await Promise.all([API.get('/signals/performance'), API.get('/signals/open-pnl'), API.get('/market-data/heatmap')]);
   const ov = perf?.overall || {};
   sset('kpiWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-  sset('kpiWinSub', 'n = ' + (ov.total ?? 0));
+  sset('kpiWinSub', 'n = ' + (ov.total_closed ?? 0));
   if (Array.isArray(pnl) && pnl.length) {
     const avg = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0) / pnl.length;
     const el = document.getElementById('kpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
@@ -123,7 +123,7 @@ function renderResults() {
 }
 
 function _abbr(n) { if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n); }
-async function _addWatch(sym) { const id = _symbolIds[sym]; if (!id) return; await API.post('/watchlist/', { asset_id: id }).catch(() => {}); if (typeof toast === 'function') toast(sym + ' added to watchlist', 'success'); }
+async function _addWatch(sym) { const id = _symbolIds[sym]; if (!id) return; await API.post('/watchlist/', { asset_id: id }).catch(() => { }); if (typeof toast === 'function') toast(sym + ' added to watchlist', 'success'); }
 
 /* ── init ── */
 document.addEventListener('app:ready', async () => {

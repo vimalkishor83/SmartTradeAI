@@ -169,6 +169,7 @@ function renderMatrix() {
 
     assets.forEach(a => {
       const { trend, trendColor } = computeTrend(a.id);
+      const row = _matrix[a.id] || {};
 
       html += `<tr data-row="${a.id}">
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
@@ -250,26 +251,53 @@ function renderSummaryCards() {
     </div></div>`;
 }
 
+function _mtfCacheKey(market) { return 'mtf_matrix_cache_' + market; }
+
+/* The backend keeps this matrix pre-warmed on a 5-min scheduled job
+   (data_tasks.py) and almost always answers from cache in well under a
+   second -- but every page load/reload previously had no memory of that
+   and always painted a blocking "may take 15-30 seconds" spinner first,
+   regardless of how fast the response actually was. Paint the last-known
+   matrix from localStorage instantly instead (stale-while-revalidate),
+   then silently refetch and swap in fresh data underneath -- the blocking
+   spinner now only appears the first time a given market has ever been
+   loaded on this device. */
 async function loadMatrix(showSpinner = true) {
   const market = document.getElementById('mktFilter').value;
   const wrap = document.getElementById('matrixWrap');
   const hasTable = !!wrap.querySelector('table');
-  if (showSpinner || !hasTable) {
-    wrap.innerHTML = `<div class="text-center py-5 text-muted">
-      <div class="spinner-border spinner-border-sm me-2"></div>Calculating indicators...
-      <div style="font-size:12px;margin-top:8px">May take 15–30 seconds</div>
-    </div>`;
+
+  if (!hasTable) {
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(_mtfCacheKey(market)) || 'null'); } catch {}
+    if (cached) {
+      _matrix = cached.matrix || {};
+      _assets = cached.assets || [];
+      renderMatrix();
+    } else if (showSpinner) {
+      wrap.innerHTML = `<div class="text-center py-5 text-muted">
+        <div class="spinner-border spinner-border-sm me-2"></div>Calculating indicators...
+        <div style="font-size:12px;margin-top:8px">May take 15–30 seconds</div>
+      </div>`;
+    }
   }
+
   const data = await API.get('/signals/mtf-matrix', { market });
   if (!data) return;
   _matrix = data.matrix || {};
   _assets = data.assets || [];
   renderMatrix();
+  try { localStorage.setItem(_mtfCacheKey(market), JSON.stringify({ matrix: _matrix, assets: _assets })); } catch {}
 }
 
 document.addEventListener('app:ready', () => {
   loadMatrix();
-  document.getElementById('refreshBtn').addEventListener('click', () => loadMatrix(true));
+  document.getElementById('refreshBtn').addEventListener('click', async (e) => {
+    const icon = e.currentTarget.querySelector('i');
+    icon?.classList.add('spin');
+    await loadMatrix(true);
+    icon?.classList.remove('spin');
+  });
   document.getElementById('mktFilter').addEventListener('change', () => loadMatrix(true));
   document.getElementById('viewMode').addEventListener('change', updateCellContents);
   setInterval(() => loadMatrix(false), 120000);

@@ -634,7 +634,7 @@
     const ov = perf?.overall || {};
     S('adApWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
     S('adApPF', ov.profit_factor != null ? (+ov.profit_factor).toFixed(2) : '—');
-    S('adApTrades', ov.total ?? '—');
+    S('adApTrades', ov.total_closed ?? '—');
     const rows = (hist?.history || []).slice().reverse();
     if (!rows.length) return;
     const byDay = {}; rows.forEach(r => { const d = (r.closed_at || '').slice(0, 10); if (d) (byDay[d] = byDay[d] || []).push(r); });

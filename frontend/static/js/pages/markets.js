@@ -19,7 +19,7 @@ async function loadKPIs() {
   mset('kpiGen', buy + sell + hold + exit);
   mset('kpiActive', summary?.open_alerts ?? (buy + sell + hold + exit));
   mset('kpiWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-  mset('kpiWinSub', 'n = ' + (ov.total ?? 0));
+  mset('kpiWinSub', 'n = ' + (ov.total_closed ?? 0));
   if (Array.isArray(pnl) && pnl.length) {
     const avg = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0) / pnl.length;
     const el = document.getElementById('kpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
@@ -112,9 +112,11 @@ async function loadLiveSignals() {
     </tr>`;
   }).join('');
 }
-function _statusOf(s) { const age = s.generated_at ? (Date.now() - new Date(s.generated_at)) / 60000 : 999; const cur = s.current_price, e = s.entry_price;
+function _statusOf(s) {
+  const age = s.generated_at ? (Date.now() - new Date(s.generated_at)) / 60000 : 999; const cur = s.current_price, e = s.entry_price;
   if (cur && e && ((s.signal_type === 'BUY' && cur >= e) || (s.signal_type === 'SELL' && cur <= e))) return { t: 'ENTRY HIT', c: 'var(--green)' };
-  return age < 30 ? { t: 'ACTIVE', c: 'var(--accent-light)' } : { t: 'ACTIVE', c: 'var(--green)' }; }
+  return age < 30 ? { t: 'ACTIVE', c: 'var(--accent-light)' } : { t: 'ACTIVE', c: 'var(--green)' };
+}
 
 /* ── Top Opportunities ── */
 function loadTopOpps(signals) {
@@ -206,10 +208,18 @@ function loadConsensus(items) {
   const hold = scored.filter(x => x.score >= 40 && x.score < 60).length;
   const sell = scored.filter(x => x.score < 40).length;
   const tot = buy + sell + hold || 1;
-  const pct = Math.round(buy / tot * 100);
+  const buyPct = Math.round(buy / tot * 100), sellPct = Math.round(sell / tot * 100), holdPct = Math.round(hold / tot * 100);
+  // The headline label/number must reflect whichever bucket actually
+  // dominates — deriving it from buy% alone meant "0% buy, 100% hold, 0%
+  // sell" fell through to "Sell Bias" (low buy% read as bearish) even
+  // though nothing here is bearish; the legend right below it correctly
+  // said Hold 100%, contradicting the headline above it.
+  let pct, lbl, cls;
+  if (hold >= buy && hold >= sell) { pct = holdPct; lbl = 'Neutral'; cls = 'text-yellow'; }
+  else if (buy > sell) { pct = buyPct; lbl = buyPct >= 66 ? 'Strong Buy' : 'Buy Bias'; cls = 'text-green'; }
+  else { pct = sellPct; lbl = sellPct >= 66 ? 'Strong Sell' : 'Sell Bias'; cls = 'text-red'; }
   mset('consensusPct', pct + '%');
-  const lbl = pct >= 66 ? 'Strong Buy' : pct >= 50 ? 'Buy Bias' : pct >= 34 ? 'Mixed' : 'Sell Bias';
-  const le = document.getElementById('consensusLbl'); if (le) { le.textContent = lbl; le.className = 'fs-xs ' + (pct >= 50 ? 'text-green' : 'text-red'); }
+  const le = document.getElementById('consensusLbl'); if (le) { le.textContent = lbl; le.className = 'fs-xs ' + cls; }
   const ctx = document.getElementById('consensusDonut');
   if (ctx && typeof Chart !== 'undefined') {
     if (_consensusChart) _consensusChart.destroy();
@@ -228,7 +238,7 @@ async function loadAiPerf() {
   const ov = perf?.overall || {};
   mset('apWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
   mset('apPF', ov.profit_factor != null ? mfmt(ov.profit_factor) : '—');
-  mset('apTrades', ov.total ?? '—');
+  mset('apTrades', ov.total_closed ?? '—');
   const rows = (hist?.history || []).slice().reverse();
   if (!rows.length) return;
   // daily buckets: win rate + avg realized RR
@@ -239,12 +249,18 @@ async function loadAiPerf() {
   const rrs = days.map(d => { const arr = byDay[d]; const wins = arr.filter(x => (x.pnl_pct || 0) > 0).map(x => x.pnl_pct); const losses = arr.filter(x => (x.pnl_pct || 0) < 0).map(x => Math.abs(x.pnl_pct)); const aw = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0; const al = losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 1; return +(aw / al).toFixed(2); });
   const ctx = document.getElementById('apChart'); if (!ctx || typeof Chart === 'undefined') return;
   if (_apChart) _apChart.destroy();
-  _apChart = new Chart(ctx, { type: 'line',
-    data: { labels: days.map(d => d.slice(5)), datasets: [
-      { label: 'Win Rate', data: winRates, borderColor: _cv('--green', '#10b981'), yAxisID: 'y', tension: .3, pointRadius: 2, borderWidth: 2 },
-      { label: 'Avg R:R', data: rrs, borderColor: _cv('--accent', '#6366f1'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 } ] },
-    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } },
-      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, y1: { position: 'right', min: 0, grid: { display: false } } } } });
+  _apChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: days.map(d => d.slice(5)), datasets: [
+        { label: 'Win Rate', data: winRates, borderColor: _cv('--green', '#10b981'), yAxisID: 'y', tension: .3, pointRadius: 2, borderWidth: 2 },
+        { label: 'Avg R:R', data: rrs, borderColor: _cv('--accent', '#6366f1'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } },
+      scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, y1: { position: 'right', min: 0, grid: { display: false } } }
+    }
+  });
 }
 
 /* ── News Impact + Upcoming Events ── */
@@ -265,9 +281,11 @@ async function loadUpcoming() {
     .sort((a, b) => new Date(a.event_time) - new Date(b.event_time)).slice(0, 4);
   const el = document.getElementById('upcomingEvents'); if (!el) return;
   if (!events.length) { el.innerHTML = '<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No high-impact events scheduled</div>'; return; }
-  el.innerHTML = events.map(e => { const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+  el.innerHTML = events.map(e => {
+    const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
     const imp = (e.impact || 'low').toLowerCase(); const clr = imp === 'high' ? 'var(--red)' : imp === 'medium' ? 'var(--yellow)' : 'var(--text-muted)';
-    return `<div class="ue-row"><span class="ue-time">${t}</span><span class="ue-name">${e.title}</span><span class="ue-imp" style="color:${clr}">${imp.charAt(0).toUpperCase() + imp.slice(1)}</span></div>`; }).join('');
+    return `<div class="ue-row"><span class="ue-time">${t}</span><span class="ue-name">${e.title}</span><span class="ue-imp" style="color:${clr}">${imp.charAt(0).toUpperCase() + imp.slice(1)}</span></div>`;
+  }).join('');
 }
 
 /* ── Generate All ── */
@@ -276,7 +294,7 @@ async function generateAll() {
   const symbols = [...new Set(_liveSignals.map(s => s.asset))].slice(0, 6);
   if (typeof toast === 'function') toast('Generating signals…', 'info');
   const tf = document.getElementById('tfFilter')?.value || '1h';
-  for (const sym of symbols) { await API.post('/signals/generate', { symbol: sym, timeframe: tf }).catch(() => {}); }
+  for (const sym of symbols) { await API.post('/signals/generate', { symbol: sym, timeframe: tf }).catch(() => { }); }
   loadLiveSignals();
   if (typeof toast === 'function') toast('Signals refreshed', 'success');
 }

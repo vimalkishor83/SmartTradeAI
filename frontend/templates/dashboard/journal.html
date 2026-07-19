@@ -440,8 +440,12 @@ async function loadStats() {
 
   const insights = [];
 
-  // Best emotion
-  const emo = s.by_emotion;
+  // Best/worst emotion — "unknown" is the bucket for entries with no emotion
+  // tag recorded, not a real emotion; comparing it against itself ("Best
+  // Emotion: Unknown" / "Avoid: Unknown trades") presented missing data as
+  // an actionable insight. Exclude it and only show this card once there's
+  // at least one real tagged emotion to compare.
+  const emo = Object.fromEntries(Object.entries(s.by_emotion || {}).filter(([k]) => k !== 'unknown'));
   if (Object.keys(emo).length) {
     const best = Object.entries(emo).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
     insights.push(`<div class="glass-card mb-2 border-success">
@@ -455,7 +459,7 @@ async function loadStats() {
     </div>`);
 
     const worst = Object.entries(emo).filter(e => e[1].trades >= 2).sort((a, b) => a[1].win_rate - b[1].win_rate)[0];
-    if (worst) {
+    if (worst && worst[0] !== best[0]) {
       insights.push(`<div class="glass-card mb-2 border-danger">
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-emoji-frown-fill text-red fs-4"></i>
@@ -466,10 +470,21 @@ async function loadStats() {
         </div>
       </div>`);
     }
+  } else {
+    insights.push(`<div class="glass-card mb-2">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-tag text-muted fs-4"></i>
+        <div>
+          <div class="fw-semibold text-muted">No emotion data yet</div>
+          <div class="text-muted fs-sm">Tag trades with how you felt to unlock this insight</div>
+        </div>
+      </div>
+    </div>`);
   }
 
-  // Best market
-  const mkt = s.by_market;
+  // Best market — n=1 "100% win rate" claims aren't a meaningful signal;
+  // require at least 2 trades before calling anything "best".
+  const mkt = Object.fromEntries(Object.entries(s.by_market || {}).filter(([, v]) => v.trades >= 2));
   if (Object.keys(mkt).length) {
     const best = Object.entries(mkt).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
     insights.push(`<div class="glass-card mb-2">
@@ -477,14 +492,14 @@ async function loadStats() {
         <i class="bi bi-globe2 text-blue fs-4"></i>
         <div>
           <div class="fw-semibold">Best Market: ${best[0]}</div>
-          <div class="text-muted fs-sm">${best[1].win_rate}% win rate · ${fmt(best[1].pnl)} P&L</div>
+          <div class="text-muted fs-sm">${best[1].win_rate}% win rate (${best[1].trades} trades) · ${fmt(best[1].pnl)} P&L</div>
         </div>
       </div>
     </div>`);
   }
 
-  // Best day
-  const dow = s.by_day_of_week;
+  // Best day — same minimum-sample-size guard
+  const dow = Object.fromEntries(Object.entries(s.by_day_of_week || {}).filter(([, v]) => v.trades >= 2));
   if (Object.keys(dow).length) {
     const best = Object.entries(dow).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
     insights.push(`<div class="glass-card mb-2">

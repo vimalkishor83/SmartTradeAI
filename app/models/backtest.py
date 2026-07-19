@@ -56,6 +56,7 @@ class Backtest(db.Model):
             "total_trades": self.total_trades,
             "win_rate": self.win_rate,
             "net_profit": self.net_profit,
+            "net_profit_pct": self.net_profit_pct,
             "max_drawdown": self.max_drawdown,
             "sharpe_ratio":    self.sharpe_ratio,
             "sortino_ratio":   self.sortino_ratio,

@@ -203,7 +203,8 @@ function showResults(data, isLive) {
     { label: isLive ? 'Avg R' : 'Net Profit',
       value: isLive ? (avgR >= 0 ? '+' : '') + avgR.toFixed(3) + 'R' : `${netPct >= 0 ? '+' : ''}${netPct}%`,
       cls: (isLive ? avgR : netPct) >= 0 ? 'text-green' : 'text-red' },
-    { label: 'Max Drawdown',  value: `${Math.abs(maxDD).toFixed(1)}%`, cls: 'text-red' },
+    { label: 'Max Drawdown',  value: `${Math.abs(maxDD).toFixed(1)}%`,
+      cls: Math.abs(maxDD) <= 5 ? 'text-green' : Math.abs(maxDD) <= 15 ? 'text-yellow' : 'text-red' },
     { label: 'Sharpe Ratio',  value: typeof sharpe === 'number' ? sharpe.toFixed(2) : sharpe,
       cls: parseFloat(sharpe) >= 1 ? 'text-green' : '' },
   ];

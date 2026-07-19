@@ -70,10 +70,12 @@ class PortfolioItem(db.Model):
         return {
             "id": self.id,
             "asset": self.asset.symbol if self.asset else None,
+            "market": self.asset.market if self.asset else None,
             "quantity": self.quantity,
             "buy_price": self.buy_price,
             "current_price": self.current_price,
             "current_value": self.current_value,
+            "invested_value": self.invested_value,
             "pnl": self.pnl,
             "pnl_pct": round(self.pnl_pct, 2),
             "holding_days": self.holding_days,

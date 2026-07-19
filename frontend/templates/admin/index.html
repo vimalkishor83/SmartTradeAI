@@ -65,21 +65,21 @@
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card yellow">
+    <div class="kpi-card">
       <div class="kpi-top">
         <div><div class="kpi-label">CPU Usage</div><div class="kpi-value" id="adminCpu">—</div></div>
-        <div class="kpi-icon text-yellow"><i class="bi bi-cpu-fill"></i></div>
+        <div class="kpi-icon"><i class="bi bi-cpu-fill"></i></div>
       </div>
-      <div class="kpi-change"><i class="bi bi-activity me-1"></i>System load</div>
+      <div class="kpi-change" id="adminCpuSub"><i class="bi bi-activity me-1"></i>System load</div>
     </div>
   </div>
   <div class="col-6 col-md-3">
-    <div class="kpi-card purple">
+    <div class="kpi-card">
       <div class="kpi-top">
         <div><div class="kpi-label">Memory</div><div class="kpi-value" id="adminMem">—</div></div>
-        <div class="kpi-icon text-purple"><i class="bi bi-memory"></i></div>
+        <div class="kpi-icon"><i class="bi bi-memory"></i></div>
       </div>
-      <div class="kpi-change"><i class="bi bi-hdd me-1"></i>RAM usage</div>
+      <div class="kpi-change" id="adminMemSub"><i class="bi bi-hdd me-1"></i>RAM usage</div>
     </div>
   </div>
 </div>
@@ -179,13 +179,44 @@ async function loadAdminDashboard() {
   document.getElementById('adminCpu').textContent = `${data.system.cpu_pct}%`;
   document.getElementById('adminMem').textContent = `${data.system.memory_pct}%`;
 
+  // >=90% is a real problem (starving the app), 70-89% is worth watching,
+  // below that is normal — CPU/RAM previously never changed color or showed
+  // any alarm no matter how high they read (e.g. 95.8% CPU with no visual cue).
+  const _sysSeverity = pct => pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'green';
+  const _sysNote = (type, pct, sev) =>
+    sev === 'red' ? `<i class="bi bi-exclamation-triangle-fill me-1"></i>Critical ${type} load` :
+    sev === 'yellow' ? `<i class="bi bi-activity me-1"></i>Elevated ${type} load` :
+    `<i class="bi bi-activity me-1"></i>${type === 'CPU' ? 'System load' : 'RAM usage'}`;
+
+  [['adminCpu', 'adminCpuSub', 'CPU', data.system.cpu_pct],
+   ['adminMem', 'adminMemSub', 'RAM', data.system.memory_pct]].forEach(([valId, subId, label, pct]) => {
+    const sev = _sysSeverity(pct);
+    const el = document.getElementById(valId);
+    const card = el?.closest('.kpi-card');
+    const icon = card?.querySelector('.kpi-icon');
+    ['red', 'yellow', 'green'].forEach(c => { el?.classList.remove('text-' + c); icon?.classList.remove('text-' + c); card?.classList.remove(c, 'alert'); });
+    el?.classList.add('text-' + sev); icon?.classList.add('text-' + sev); card?.classList.add(sev);
+    if (sev === 'red') card?.classList.add('alert');
+    const sub = document.getElementById(subId);
+    if (sub) sub.innerHTML = _sysNote(label, pct, sev);
+  });
+
   // Bars
   ['cpu', 'mem', 'disk'].forEach(type => {
     const map = { cpu: data.system.cpu_pct, mem: data.system.memory_pct, disk: data.system.disk_pct };
+    const pct = map[type];
+    const sev = _sysSeverity(pct);
     const bar = document.getElementById(`${type}Bar`);
     const label = document.getElementById(`${type}Label`);
-    if (bar) bar.style.width = `${map[type]}%`;
-    if (label) label.textContent = `${map[type]}%`;
+    if (bar) {
+      bar.style.width = `${pct}%`;
+      bar.style.background = `var(--${sev})`;
+      bar.classList.toggle('alert', sev === 'red');
+    }
+    if (label) {
+      label.textContent = `${pct}%`;
+      label.className = 'small ' + (sev === 'green' ? 'text-muted' : 'text-' + sev);
+    }
   });
 
   document.getElementById('dbStatus').textContent = `DB: ${data.db_status}`;
