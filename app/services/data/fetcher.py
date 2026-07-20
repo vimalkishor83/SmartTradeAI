@@ -193,10 +193,23 @@ class _OHLCVCache:
         with self._lock:
             entry = self._store.get(key)
             if entry and time.time() - entry[1] < self._TTL.get(key.rsplit("_",1)[-1], 180):
-                return entry[0]
+                # Hand back a PRIVATE copy, never the shared cached frame.
+                # The collector keeps exactly one frame per (symbol,tf) which is
+                # read concurrently by many Flask worker threads. The TA-summary
+                # hot path only reads columns, but other consumers (signals
+                # engine, backtesting engine, ema_mtf, patterns, AI predictor)
+                # add columns to / reindex the frame they receive — mutating a
+                # shared object would silently corrupt every other reader's data
+                # and race across threads. Copying a ~220×5 float frame is tens
+                # of µs — <1% of the ~15ms TA-summary read and orders of
+                # magnitude below the network round-trip this cache replaces.
+                return entry[0].copy()
         return None
 
     def set(self, key: str, df: pd.DataFrame):
+        # No copy here: every caller builds a fresh frame it no longer touches
+        # before handing it to the cache, so the stored reference is already
+        # private to the cache. Isolation is enforced on the read side (get).
         with self._lock:
             self._store[key] = (df, time.time())
 
@@ -233,6 +246,69 @@ class _TickerCache:
 
 
 _ticker_cache = _TickerCache()
+
+
+# ─────────────────────────────────────────────────────────
+# Data-feed gating — respect APIConfig pause/resume state
+# ─────────────────────────────────────────────────────────
+# The fetcher routes purely on asset.market (crypto → Delta/Binance,
+# everything else → Yahoo) and historically ignored whether an admin had
+# PAUSED that market's data feed in APIConfig. Result: pausing "Yahoo
+# Finance (Forex/Index/…)" in the admin panel did nothing — those assets
+# were still polled every 15s (ticker job) and every 5 min (prewarm),
+# wasting network round-trips and blocking worker threads on a feed the
+# operator explicitly turned off.
+#
+# A market is treated as BLOCKED only when it has one or more APIConfig
+# rows AND none of them are active (i.e. every configured feed for it is
+# paused). A market with no configured feed at all is left alone (fail
+# open) so this can never silently starve an unconfigured-but-working
+# market. Cached briefly so gating is not a DB hit on every fetch.
+_blocked_markets_cache: dict = {"markets": None, "ts": 0.0}
+_blocked_markets_lock = threading.Lock()
+_BLOCKED_MARKETS_TTL = 30  # seconds
+
+
+def blocked_data_markets() -> set[str]:
+    """Set of Asset.market values whose data feed is paused in APIConfig.
+    Empty set if it can't be determined (no app context / table missing) —
+    callers then fetch everything, i.e. gating fails open."""
+    now = time.time()
+    with _blocked_markets_lock:
+        cached = _blocked_markets_cache["markets"]
+        if cached is not None and now - _blocked_markets_cache["ts"] < _BLOCKED_MARKETS_TTL:
+            return cached
+    try:
+        from app.models.api_config import APIConfig
+        rows = APIConfig.query.with_entities(APIConfig.market, APIConfig.status).all()
+    except Exception:
+        # Can't read config (no app context / table missing) — fail open,
+        # and don't cache so the next call retries.
+        return set()
+
+    configured = {m for m, _ in rows if m}
+    if not configured:
+        # Empty table almost always means "APIConfig not seeded yet" (e.g. a
+        # scheduler job firing during startup before seeding commits), NOT
+        # "genuinely no feeds". Fail open but DON'T cache the empty read —
+        # otherwise a startup-race read poisons the gate for the whole TTL.
+        return set()
+
+    active  = {m for m, s in rows if m and s == "active"}
+    blocked = configured - active
+    with _blocked_markets_lock:
+        _blocked_markets_cache["markets"] = blocked
+        _blocked_markets_cache["ts"] = now
+    return blocked
+
+
+def invalidate_blocked_markets_cache():
+    """Force the next blocked_data_markets() call to re-read APIConfig —
+    call after an admin pause/resume so the change takes effect immediately
+    instead of after the 30s TTL."""
+    with _blocked_markets_lock:
+        _blocked_markets_cache["markets"] = None
+        _blocked_markets_cache["ts"] = 0.0
 
 
 # ─────────────────────────────────────────────────────────
@@ -349,12 +425,16 @@ class DeltaExchangeFetcher:
                 return None
 
             df = pd.DataFrame(data)
+            # Vectorize the OHLCV float conversion: one astype() over all five
+            # columns instead of a 5-iteration Python-level loop that built a
+            # new Series + ran a separate dtype cast per column. Same result in
+            # a single C-level cast — Delta returns str/mixed numerics here, so
+            # this runs on every uncached crypto candle fetch.
+            ohlcv_cols = ["open","high","low","close","volume"]
+            df[ohlcv_cols] = df[ohlcv_cols].astype(float)
             df["timestamp"] = pd.to_datetime(df["time"], unit="s")
-            for col in ["open","high","low","close","volume"]:
-                df[col] = df[col].astype(float)
-            df = df[["timestamp","open","high","low","close","volume"]] \
-                    .sort_values("timestamp").set_index("timestamp")
-            df = df.tail(limit)
+            df = df[["timestamp", *ohlcv_cols]] \
+                    .sort_values("timestamp").set_index("timestamp").tail(limit)
             _cache.set(cache_key, df)
             _breaker_delta.success()
             return df
@@ -590,6 +670,8 @@ class MarketDataFetcher:
         self.binance = BinanceFetcher()
 
     def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
+        if asset.market in blocked_data_markets():
+            return None  # feed paused in APIConfig — skip the network call
         if asset.market == "crypto":
             df = self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
             if df is not None:
@@ -604,7 +686,29 @@ class MarketDataFetcher:
         return self.yahoo.fetch_ohlcv(asset.symbol, timeframe, limit)
 
     def fetch_ticker(self, asset) -> dict | None:
+        if asset.market in blocked_data_markets():
+            return None  # feed paused in APIConfig — skip the network call
         if asset.market == "crypto":
+            # Prefer the live price the Delta WS stream already keeps in
+            # memory: it's continuously updated (sub-second), so it's fresher
+            # than a REST /tickers round-trip AND free of network latency.
+            # Only fall back to REST when the stream is down/stale (no tick in
+            # the last 15s), so open_pnl/portfolio/watchlist crypto reads stop
+            # paying an avoidable HTTP call each.
+            try:
+                from app.services.data.delta_stream import get_live_price
+                live = get_live_price(asset.symbol)
+                if live and time.time() - live.get("_recv_ts", 0) < 15:
+                    return {
+                        "symbol":     asset.symbol,
+                        "price":      live.get("price", 0.0),
+                        "change_pct": live.get("change_pct", 0.0),
+                        "volume":     live.get("volume", 0.0),
+                        "high":       live.get("high", 0.0),
+                        "low":        live.get("low", 0.0),
+                    }
+            except Exception:
+                pass
             ticker = self.delta.fetch_ticker(asset.symbol)
             if ticker is not None:
                 return ticker
@@ -643,6 +747,13 @@ class MarketDataFetcher:
         Fetch OHLCV for multiple assets × timeframes in parallel.
         Returns {symbol: {timeframe: DataFrame}}
         """
+        # Drop any asset whose data feed is paused in APIConfig before doing
+        # any network work — otherwise a paused Yahoo feed still gets a full
+        # batch download every prewarm/scan cycle.
+        blocked = blocked_data_markets()
+        if blocked:
+            assets = [a for a in assets if a.market not in blocked]
+
         # Separate by market — crypto always goes to Delta, everything else to Yahoo
         delta_assets = [a for a in assets if a.market == "crypto"]
         yahoo_assets = [a for a in assets if a.market != "crypto"]
@@ -657,13 +768,32 @@ class MarketDataFetcher:
             return asset.symbol, tf, df
 
         if delta_assets:
-            with ThreadPoolExecutor(max_workers=min(20, len(delta_assets) * len(timeframes))) as ex:
-                futures = {ex.submit(_delta_fetch, a, tf): (a.symbol, tf)
-                           for a in delta_assets for tf in timeframes}
-                for fut in as_completed(futures):
-                    sym, tf, df = fut.result()
-                    if df is not None:
-                        results[sym][tf] = df
+            # Pre-filter (symbol,tf) combos that are already warm in _OHLCVCache
+            # BEFORE touching the thread pool. Previously every combo was
+            # submitted to the executor even when fetch_ohlcv would return
+            # instantly from cache — so a fetch_many call over a grid the
+            # collector had already refreshed still paid: a future submission +
+            # thread hand-off, a Delta-symbol re-resolution, and the cache lock,
+            # per combo. In steady state the collector keeps most frames warm,
+            # so serving hits inline here turns the common case into a pure
+            # in-memory read with ZERO threads spawned, and sizes the pool to
+            # the actual miss count (fewer idle workers) when work remains.
+            pending: list[tuple] = []
+            for a in delta_assets:
+                for tf in timeframes:
+                    cached = _cache.get(f"{a.symbol}_{tf}")
+                    if cached is not None:
+                        results[a.symbol][tf] = cached
+                    else:
+                        pending.append((a, tf))
+            if pending:
+                with ThreadPoolExecutor(max_workers=min(20, len(pending))) as ex:
+                    futures = {ex.submit(_delta_fetch, a, tf): (a.symbol, tf)
+                               for a, tf in pending}
+                    for fut in as_completed(futures):
+                        sym, tf, df = fut.result()
+                        if df is not None:
+                            results[sym][tf] = df
 
         # ── Yahoo: batch per timeframe (1 HTTP call per TF), timeframes
         # dispatched CONCURRENTLY — was a plain sequential `for tf in

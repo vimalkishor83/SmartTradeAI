@@ -126,11 +126,28 @@ def watchlist_context():
         return jsonify(cached), 200
 
     lists = Watchlist.query.filter_by(user_id=user_id).all()
+    # Batch-fetch every watchlist item (asset eager-loaded) in ONE query,
+    # then dedupe — was an N+1 on both axes: wl.items.all() ran one query per
+    # watchlist (items is lazy="dynamic"), and item.asset ran one more per
+    # item (asset is lazy by default). Same fix already applied in
+    # get_watchlists(); grouping by watchlist_id and iterating `lists` in
+    # order preserves the exact original item ordering.
+    items_by_wl = {}
+    if lists:
+        wl_ids = [wl.id for wl in lists]
+        all_items = (
+            WatchlistItem.query.options(db.joinedload(WatchlistItem.asset))
+            .filter(WatchlistItem.watchlist_id.in_(wl_ids))
+            .all()
+        )
+        for i in all_items:
+            items_by_wl.setdefault(i.watchlist_id, []).append(i)
+
     # Collect unique (item_id, asset) pairs across all watchlists
     seen_asset_ids = set()
     items_raw = []
     for wl in lists:
-        for item in wl.items.all():
+        for item in items_by_wl.get(wl.id, []):
             if item.asset_id not in seen_asset_ids and item.asset:
                 seen_asset_ids.add(item.asset_id)
                 items_raw.append(item)

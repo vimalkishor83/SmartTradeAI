@@ -33,27 +33,37 @@ def run_scan():
         query = query.filter_by(market=market)
     assets = query.all()
 
+    if not assets:
+        return jsonify({"results": [], "count": 0}), 200
+
+    # Fetch all OHLCV up front via fetch_many: this batches Yahoo
+    # (non-crypto) assets into ONE HTTP call for the timeframe (vs. N
+    # separate per-asset calls) and fans out Delta/Binance crypto fetches
+    # in parallel — the same network-batched path the prewarm jobs use.
+    fetched = market_fetcher.fetch_many(assets, [timeframe], 220)
+
     results = []
     for asset in assets:
-        df = market_fetcher.fetch(asset, timeframe, 220)
+        df = fetched.get(asset.symbol, {}).get(timeframe)
         if df is None or len(df) < 60:
             continue
         try:
             ind = calculate_all_indicators(df)
             match = _apply_filters(df, ind, filters, timeframe)
-            if match:
-                close = float(df["close"].iloc[-1])
-                prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else close
-                results.append({
-                    "symbol": asset.symbol,
-                    "name": asset.name,
-                    "market": asset.market,
-                    "price": round(close, 4),
-                    "change_pct": round((close - prev_close) / prev_close * 100, 2),
-                    "rsi": ind.get("rsi"),
-                    "volume": float(df["volume"].iloc[-1]) if "volume" in df.columns else 0,
-                    "matched_filters": match,
-                })
+            if not match:
+                continue
+            close = float(df["close"].iloc[-1])
+            prev_close = float(df["close"].iloc[-2]) if len(df) > 1 else close
+            results.append({
+                "symbol": asset.symbol,
+                "name": asset.name,
+                "market": asset.market,
+                "price": round(close, 4),
+                "change_pct": round((close - prev_close) / prev_close * 100, 2),
+                "rsi": ind.get("rsi"),
+                "volume": float(df["volume"].iloc[-1]) if "volume" in df.columns else 0,
+                "matched_filters": match,
+            })
         except Exception:
             continue
 

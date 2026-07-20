@@ -153,6 +153,10 @@ class DeltaStreamManager:
                 "change_pct": chg_pct,
                 "change":     round(close - open_, 6),
                 "ts":         int(msg.get("timestamp", time.time() * 1_000_000) / 1000),
+                # Server-side wall-clock receive time — used by
+                # MarketDataFetcher.fetch_ticker to decide whether this cached
+                # WS price is fresh enough to serve instead of a REST call.
+                "_recv_ts":   time.time(),
             }
 
             with _lock:

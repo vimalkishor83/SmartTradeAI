@@ -84,6 +84,12 @@ class DevelopmentConfig(Config):
     )
     # Use Redis if REDIS_URL is set and reachable; otherwise fall back to in-memory
     CACHE_TYPE = "RedisCache" if os.environ.get("REDIS_URL") else "SimpleCache"
+    # Cache parsed Jinja templates even in debug. By default Flask ties
+    # template auto-reload to DEBUG, so every full-page load re-reads and
+    # re-parses the template from disk (some pages are 1000+ lines). We don't
+    # edit templates during normal use, so caching them makes page navigations
+    # faster. Set TEMPLATES_AUTO_RELOAD=1 in the env only while editing HTML.
+    TEMPLATES_AUTO_RELOAD = os.environ.get("TEMPLATES_AUTO_RELOAD", "0") == "1"
 
 
 _INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-in-production"}

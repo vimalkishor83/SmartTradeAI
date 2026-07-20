@@ -286,7 +286,7 @@
                style="border-bottom:1px solid var(--border)">
             <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="text-muted fs-xs me-1">Timeframe:</span>
-              {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
+              {% for tf in ['5m','15m','30m','1h','4h','1d'] %}
               <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
                       onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
               {% endfor %}
@@ -298,6 +298,7 @@
               <button class="chart-ind-btn" data-ind="ema50" onclick="toggleChartIndicator('ema50')">EMA 50</button>
               <button class="chart-ind-btn" data-ind="ema200" onclick="toggleChartIndicator('ema200')">EMA 200</button>
               <button class="chart-ind-btn" data-ind="bb" onclick="toggleChartIndicator('bb')">Bollinger</button>
+              <button class="chart-ind-btn" data-ind="vwap" onclick="toggleChartIndicator('vwap')">VWAP</button>
               <span class="mx-1" style="color:var(--border)">|</span>
               <button class="chart-ind-btn" data-ind="rsi" onclick="toggleChartIndicator('rsi')">RSI</button>
               <button class="chart-ind-btn" data-ind="macd" onclick="toggleChartIndicator('macd')">MACD</button>
@@ -320,7 +321,7 @@
         <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0;padding:20px">
           <div class="d-flex align-items-center gap-2 mb-3">
             <span class="text-muted fs-xs">Timeframe:</span>
-            {% for tf in ['1m','5m','15m','30m','1h','4h','1d'] %}
+            {% for tf in ['5m','15m','30m','1h','4h','1d'] %}
             <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
                     onclick="setIndTF('{{ tf }}')" data-ind-tf="{{ tf }}">{{ tf }}</button>
             {% endfor %}
@@ -665,7 +666,14 @@ const ASSET_ID     = {{ asset_id }};
 const ASSET_NAME   = "{{ asset.symbol }}";
 const ASSET_MARKET = "{{ asset.market }}";
 
-let _tf     = '1h';
+// Chart timeframe is remembered across page loads / assets via localStorage,
+// so the chart reopens on the timeframe you last used instead of always 1h.
+const CHART_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'];
+function _savedTF() {
+  try { const v = localStorage.getItem('st_chart_tf'); return CHART_TFS.includes(v) ? v : '1h'; }
+  catch (e) { return '1h'; }
+}
+let _tf     = _savedTF();
 let _indTf  = '1h';
 let _candleSeries  = null;
 let _volumeSeries  = null;
@@ -700,6 +708,7 @@ function showAssetTab(tab) {
 /* ── Timeframe helpers ────────────────────────────────── */
 function setTF(tf) {
   _tf = tf;
+  try { localStorage.setItem('st_chart_tf', tf); } catch (e) {}
   document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
   loadChart();
   loadPositionAnalysis();
@@ -772,6 +781,22 @@ function calcBollinger(candles, period = 20, mult = 2) {
     lower.push({ time: candles[i].time, value: mean - mult * sd });
   }
   return { upper, mid, lower };
+}
+
+// Cumulative (anchored) VWAP over the loaded candles — sum(typical*vol)/sum(vol).
+// Anchored at the first loaded candle so it stays meaningful on every timeframe
+// (a same-window reference), rather than resetting per session.
+function calcVWAP(candles) {
+  const out = [];
+  let cumPV = 0, cumV = 0;
+  for (const c of candles) {
+    const typical = (c.high + c.low + c.close) / 3;
+    const vol = c.volume || 0;
+    cumPV += typical * vol;
+    cumV  += vol;
+    out.push({ time: c.time, value: cumV > 0 ? cumPV / cumV : typical });
+  }
+  return out;
 }
 
 function calcRSI(candles, period = 14) {
@@ -850,6 +875,12 @@ function renderChartIndicators() {
     _overlaySeries.bbUpper = up; _overlaySeries.bbMid = md; _overlaySeries.bbLower = low;
   }
 
+  if (_activeChartInd.has('vwap')) {
+    const series = _chartInstance.addLineSeries({ color: '#22d3ee', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+    series.setData(calcVWAP(_lastCandles));
+    _overlaySeries.vwap = series;
+  }
+
   // RSI sub-pane
   const rsiOn = _activeChartInd.has('rsi');
   document.getElementById('tvRsi').style.display = rsiOn ? 'block' : 'none';
@@ -890,7 +921,7 @@ function createSubChart(containerId, height) {
     layout: { background: { type: 'solid', color: cssBg }, textColor: '#8b9ab2' },
     grid:   { vertLines: { color: '#1a2334' }, horzLines: { color: '#1a2334' } },
     rightPriceScale: { borderColor: '#1a2334' },
-    timeScale: { borderColor: '#1a2334', timeVisible: true, secondsVisible: false },
+    timeScale: { borderColor: '#1a2334', timeVisible: true, secondsVisible: false, rightOffset: 8 },
     width: w, height,
   });
   return chart;
@@ -969,11 +1000,12 @@ async function loadChart() {
   const unique = rawData.filter(d => { const s = toSec(d.t); if (seen.has(s)) return false; seen.add(s); return true; });
 
   const candles = unique.map(d => ({
-    time:  toSec(d.t),
-    open:  parseFloat(d.o),
-    high:  parseFloat(d.h),
-    low:   parseFloat(d.l),
-    close: parseFloat(d.c),
+    time:   toSec(d.t),
+    open:   parseFloat(d.o),
+    high:   parseFloat(d.h),
+    low:    parseFloat(d.l),
+    close:  parseFloat(d.c),
+    volume: parseFloat(d.v) || 0,   // kept on the candle so VWAP can use it
   })).sort((a, b) => a.time - b.time);
 
   const volumes = unique.map(d => ({
@@ -1010,7 +1042,9 @@ async function loadChart() {
       layout: { background: { type: 'solid', color: cssBg }, textColor: cssText },
       grid:   { vertLines: { color: cssBorder }, horzLines: { color: cssBorder } },
       rightPriceScale: { borderColor: cssBorder },
-      timeScale: { borderColor: cssBorder, timeVisible: true, secondsVisible: false },
+      // rightOffset reserves ~8 bars of empty space after the last candle so
+      // the newest price isn't jammed against the price axis on load/refresh.
+      timeScale: { borderColor: cssBorder, timeVisible: true, secondsVisible: false, rightOffset: 8 },
       // Explicit rather than relying on library defaults: drag on the price
       // axis (right edge) rescales price vertically, drag on the time axis
       // or mouse wheel rescales/pans time — matches TradingView-style charts.
@@ -1546,6 +1580,8 @@ let _pageInited = false;
 function _initPage() {
   if (_pageInited) return;
   _pageInited = true;
+  // Highlight the remembered timeframe button (markup renders 1h active by default).
+  document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === _tf));
   loadLivePrice();
   loadChart();
   loadSentiment();

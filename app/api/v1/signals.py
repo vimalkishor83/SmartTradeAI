@@ -719,8 +719,14 @@ def get_confluence(asset_id):
 @login_required
 def open_pnl():
     """Return unrealized P&L for all active signals with live prices."""
-    user_id = get_jwt_identity()
-    cache_key = f"open_pnl_{user_id}"
+    # This payload is entirely user-independent — the query below filters
+    # only status="active" (no per-user filter), and user_id was previously
+    # used *solely* to key the cache. A per-user key made every distinct user
+    # re-run the whole DB read + parallel ticker fan-out (a Delta WS/REST hit
+    # per unique crypto asset) even though the result is identical for all of
+    # them. A single shared key lets the first request warm it for everyone
+    # within the 30s window.
+    cache_key = "open_pnl_all"
     cached = cache.get(cache_key)
     if cached:
         return jsonify(cached), 200
@@ -1173,6 +1179,12 @@ def signal_history():
 
 @signals_bp.route("/analytics", methods=["GET"])
 @login_required
+# Deterministic, user-independent payload built from ~30 aggregate/count
+# queries over Signal + SignalHistory (per market × timeframe × signal_type
+# × confidence bucket × day). It takes no request args, so a shared 60s key
+# is safe and collapses that whole fan-out for every dashboard poll — same
+# pattern as get_summary above.
+@cache.cached(timeout=60, key_prefix="signals_analytics")
 def get_analytics():
     """Return signal performance analytics from Signal + SignalHistory tables."""
 
@@ -1321,6 +1333,12 @@ def get_analytics():
 
 @signals_bp.route("/performance", methods=["GET"])
 @login_required
+# Like get_analytics, this runs dozens of aggregate/count queries over
+# SignalHistory (overall + per market/timeframe/type/confidence/day/hour +
+# calibration) and takes no request args, so its output is deterministic and
+# user-independent. A shared 60s key removes that fan-out from every repeat
+# dashboard load — same pattern as get_summary.
+@cache.cached(timeout=60, key_prefix="signals_performance")
 def get_performance():
     """Personal performance dashboard — aggregated stats from SignalHistory."""
 

@@ -27,22 +27,42 @@ def _get_user_portfolio(user_id):
 def get_portfolio():
     user_id = get_jwt_identity()
     portfolio = _get_user_portfolio(user_id)
-    items = portfolio.items.all()
+    # Eager-load each item's asset in the SAME query. PortfolioItem.asset is
+    # lazy by default, so accessing item.asset in the loops below (executor
+    # filter + to_dict()) was one extra SELECT per holding — a classic N+1.
+    # joinedload collapses it to a single query.
+    items = portfolio.items.options(db.joinedload(PortfolioItem.asset)).all()
 
     # Refresh prices in parallel instead of one sequential network round-trip
     # per holding — same anti-pattern already fixed in watchlist.py.
     from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    def _current_price(item):
+        asset = item.asset
+        # Crypto current price is served from the Delta WS in-memory cache via
+        # fetch_ticker (near-free, sub-second fresh) instead of a full Delta
+        # /history/candles OHLCV round-trip just to read the last close — the
+        # single biggest cost on the crypto holdings path. Non-crypto keeps the
+        # OHLCV "1d" path (10-min OHLCV cache) so its behaviour is unchanged.
+        if asset.market == "crypto":
+            t = market_fetcher.fetch_ticker(asset)
+            return float(t["price"]) if t and t.get("price") else None
+        df = market_fetcher.fetch(asset, "1d", 2)
+        if df is not None and not df.empty:
+            return float(df["close"].iloc[-1])
+        return None
+
     items_with_asset = [item for item in items if item.asset]
     price_by_item_id = {}
     if items_with_asset:
         with ThreadPoolExecutor(max_workers=min(15, len(items_with_asset))) as pool:
-            futures = {pool.submit(market_fetcher.fetch, item.asset, "1d", 2): item.id for item in items_with_asset}
+            futures = {pool.submit(_current_price, item): item.id for item in items_with_asset}
             for fut in as_completed(futures):
                 item_id = futures[fut]
                 try:
-                    df = fut.result()
-                    if df is not None and not df.empty:
-                        price_by_item_id[item_id] = float(df["close"].iloc[-1])
+                    price = fut.result()
+                    if price is not None:
+                        price_by_item_id[item_id] = price
                 except Exception:
                     pass
 

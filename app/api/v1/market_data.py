@@ -2,7 +2,7 @@
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, subscription_feature_required
-from app.services.data.fetcher import market_fetcher
+from app.services.data.fetcher import market_fetcher, blocked_data_markets
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.sentiment.engine import calculate_sentiment
 from sqlalchemy.orm import joinedload
@@ -95,6 +95,12 @@ def ta_summary():
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
     assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
 
+    # Drop paused-feed markets before any compute — fetch_many refuses them
+    # anyway, so building their all-None TA rows and caching them is waste.
+    blocked = blocked_data_markets()
+    if blocked:
+        assets = [a for a in assets if a.market not in blocked]
+
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
 
     def _process_asset(asset):
@@ -134,7 +140,9 @@ def ta_summary():
         return row
 
     from concurrent.futures import ThreadPoolExecutor
-    with ThreadPoolExecutor(max_workers=min(8, len(assets))) as ex:
+    # `or 1`: assets can be empty (all prefs disabled, or every market paused),
+    # and ThreadPoolExecutor(max_workers=0) raises — same guard ema_summary uses.
+    with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
         result = list(ex.map(_process_asset, assets))
 
     payload = {"assets": result, "timeframes": tfs}
@@ -259,6 +267,12 @@ def ema_summary():
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
     assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
 
+    # Drop paused-feed markets before any compute — fetch_many refuses them,
+    # so their EMA cells would all be None; skip building/caching them.
+    blocked = blocked_data_markets()
+    if blocked:
+        assets = [a for a in assets if a.market not in blocked]
+
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
 
     def _process_asset(asset):
@@ -351,6 +365,12 @@ def ema_summary_history():
         asset_q = asset_q.filter_by(market=market)
     assets = asset_q.order_by(Asset.market, Asset.symbol).all()
 
+    # Drop paused-feed markets before compute — fetch_many refuses them, so a
+    # historical scrub over a paused market only yields all-None cells.
+    blocked = blocked_data_markets()
+    if blocked:
+        assets = [a for a in assets if a.market not in blocked]
+
     # Reuses the fetcher's own per-symbol/timeframe TTL cache, so repeated
     # scrub steps within that window don't re-hit external market data APIs.
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
@@ -423,6 +443,13 @@ def ai_summary():
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
     assets     = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
 
+    # Drop paused-feed markets up front — fetch_many refuses them, so they'd
+    # only produce neutral-default AI cells; filtering here also narrows the
+    # Prediction lookup below to just the assets we'll actually build.
+    blocked = blocked_data_markets()
+    if blocked:
+        assets = [a for a in assets if a.market not in blocked]
+
     cache_cutoff = datetime.utcnow() - timedelta(minutes=30)
 
     # Pull all recent cached predictions in one query
@@ -483,7 +510,9 @@ def ai_summary():
                 row["tf"][tf] = {"direction": "neutral", "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
         return row
 
-    with ThreadPoolExecutor(max_workers=min(6, len(assets))) as ex:
+    # `or 1`: assets can be empty (all prefs disabled, or every market paused),
+    # and ThreadPoolExecutor(max_workers=0) raises.
+    with ThreadPoolExecutor(max_workers=min(6, len(assets) or 1)) as ex:
         result = list(ex.map(_process, assets))
 
     try:
@@ -524,36 +553,73 @@ def live_prices():
 @market_data_bp.route("/heatmap", methods=["GET"])
 @login_required
 @limiter.exempt
-@cache.cached(timeout=180, key_prefix="market_heatmap")
 def get_heatmap():
-    # All active assets, pulled live from the DB so newly added/removed assets
-    # show up automatically without a code change.
-    assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
-    # Was a sequential market_fetcher.fetch() per asset — switched to the
-    # same batched fetch_many() pattern used by ta_summary/ema_summary/
-    # ai_summary/mtf-matrix elsewhere in this file, which parallelizes Delta
-    # assets via a thread pool and groups Yahoo assets into one HTTP call
-    # per timeframe instead of one call per symbol.
-    all_data = market_fetcher.fetch_many(assets, ["1d"], limit=3)
-    heatmap = []
+    # Manual cache (not @cache.cached) so the background prewarm job can
+    # populate the exact same "market_heatmap" key with a plain dict. The
+    # payload is global (identical for every user), so one shared key serves
+    # everyone. Refreshed every ~3 min by prewarm_heatmap; this cold-path
+    # rebuild is a safety net for the window before the first prewarm runs.
+    cached = cache.get("market_heatmap")
+    if cached is not None:
+        return jsonify(cached), 200
+    payload = {"heatmap": build_heatmap()}
+    cache.set("market_heatmap", payload, timeout=210)
+    return jsonify(payload), 200
+
+
+def build_heatmap() -> list:
+    """Build the price/24h-change tiles for every active, non-paused asset.
+
+    Crypto prices are read straight from the Delta WebSocket in-memory cache
+    (continuously updated, sub-second, ZERO network) instead of a per-request
+    candle fetch — this is what turned the heatmap from a ~20-30s cold load
+    into an instant one. Only assets the WS hasn't populated yet (e.g. right
+    after boot, or any active non-crypto market) fall back to one batched
+    fetch_many() for the daily bar. Paused-feed markets are skipped entirely.
+    """
+    from app.services.data.delta_stream import get_all_live_prices
+
+    assets = (Asset.query.filter_by(is_active=True)
+              .order_by(Asset.market, Asset.symbol).all())
+    blocked = blocked_data_markets()
+    assets = [a for a in assets if a.market not in blocked]
+    live = get_all_live_prices()   # {SYMBOL: {price, change_pct, ...}}
+
+    def _tile(asset, price, change_pct):
+        return {
+            "asset_id":   asset.id,
+            "symbol":     asset.symbol,
+            "name":       asset.name,
+            "market":     asset.market,
+            "price":      round(float(price), 4),
+            "change_pct": round(float(change_pct), 2),
+        }
+
+    tiles = {}
+    need_fetch = []
     for asset in assets:
-        try:
-            df = all_data.get(asset.symbol, {}).get("1d")
-            if df is not None and len(df) >= 2:
-                price  = float(df["close"].iloc[-1])
-                prev   = float(df["close"].iloc[-2])
-                change = (price - prev) / prev * 100 if prev else 0
-                heatmap.append({
-                    "asset_id":   asset.id,
-                    "symbol":     asset.symbol,
-                    "name":       asset.name,
-                    "market":     asset.market,
-                    "price":      round(price, 4),
-                    "change_pct": round(change, 2),
-                })
-        except Exception:
-            continue
-    return jsonify({"heatmap": heatmap}), 200
+        lp = live.get(asset.symbol.upper())
+        if lp and lp.get("price"):
+            tiles[asset.id] = _tile(asset, lp["price"], lp.get("change_pct") or 0)
+        else:
+            need_fetch.append(asset)
+
+    # Fallback only for whatever the WS cache didn't cover.
+    if need_fetch:
+        all_data = market_fetcher.fetch_many(need_fetch, ["1d"], limit=3)
+        for asset in need_fetch:
+            try:
+                df = all_data.get(asset.symbol, {}).get("1d")
+                if df is not None and len(df) >= 2:
+                    price = float(df["close"].iloc[-1])
+                    prev  = float(df["close"].iloc[-2])
+                    tiles[asset.id] = _tile(asset, price,
+                                            (price - prev) / prev * 100 if prev else 0)
+            except Exception:
+                continue
+
+    # Preserve the original market/symbol ordering.
+    return [tiles[a.id] for a in assets if a.id in tiles]
 
 
 # ─── Advanced Analysis endpoint ───────────────────────────────────────────────

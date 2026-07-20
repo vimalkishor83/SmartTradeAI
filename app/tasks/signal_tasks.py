@@ -36,9 +36,20 @@ def generate_signals_for_timeframe(app, timeframe: str):
         from app.models.signal import Signal
         from app.extensions import db
         from app.services.signals.engine import signal_engine
-        from app.services.data.fetcher import market_fetcher
+        from app.services.data.fetcher import market_fetcher, blocked_data_markets
 
         assets  = Asset.query.filter_by(is_active=True).all()
+
+        # Skip markets whose data feed is PAUSED in APIConfig — fetch_many
+        # refuses them, so the engine would only ever see df=None and return
+        # no signal. Filtering up front avoids the wasted fetch scheduling and
+        # per-asset iteration on every timeframe's generation cycle.
+        blocked = blocked_data_markets()
+        if blocked:
+            assets = [a for a in assets if a.market not in blocked]
+        if not assets:
+            return
+
         htf     = _HIGHER_TF.get(timeframe)
         lockout = signal_engine.lockout_minutes(timeframe)
 
@@ -134,6 +145,13 @@ def generate_signals_for_timeframe(app, timeframe: str):
             try:
                 db.session.commit()
                 generated += 1
+                # Let the real-time TP/SL tick gate pick up this new symbol
+                # immediately instead of after its cache TTL.
+                try:
+                    from app.tasks.data_tasks import invalidate_active_signal_symbols
+                    invalidate_active_signal_symbols()
+                except Exception:
+                    pass
                 try:
                     broadcast_signal(signal.to_dict())
                 except Exception:

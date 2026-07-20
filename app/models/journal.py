@@ -4,6 +4,12 @@ from app.extensions import db
 
 class JournalEntry(db.Model):
     __tablename__ = "journal_entries"
+    # Every journal endpoint (list/stats/tax-report) filters by user_id, and
+    # tax-report additionally orders by trade_date — a composite index serves
+    # both the filter and the sort without a table scan.
+    __table_args__ = (
+        db.Index("idx_journal_user_trade_date", "user_id", "trade_date"),
+    )
     id             = db.Column(db.Integer, primary_key=True)
     user_id        = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
     asset_id       = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=True)

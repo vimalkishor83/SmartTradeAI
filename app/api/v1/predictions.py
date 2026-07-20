@@ -85,8 +85,15 @@ def model_performance():
     if cached:
         return jsonify(cached), 200
 
-    # Only count evaluated predictions (was_correct is not null)
-    evaluated = Prediction.query.filter(Prediction.was_correct != None).all()
+    # Only count evaluated predictions (was_correct is not null). Pull just
+    # the columns the aggregations below use — avoids hydrating full Prediction
+    # ORM rows (incl. the features_used JSON) for what can be a large table.
+    evaluated = (Prediction.query
+                 .filter(Prediction.was_correct != None)
+                 .with_entities(Prediction.asset_id, Prediction.timeframe,
+                                Prediction.was_correct, Prediction.model_name,
+                                Prediction.evaluated_at)
+                 .all())
 
     if not evaluated:
         return jsonify({

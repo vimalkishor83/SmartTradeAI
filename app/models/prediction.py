@@ -34,6 +34,16 @@ class Prediction(db.Model):
     was_correct = db.Column(db.Boolean)
     evaluated_at = db.Column(db.DateTime)
 
+    __table_args__ = (
+        # The two hottest prediction reads both filter on
+        # (asset_id, timeframe, predicted_at >= cutoff): get_prediction()
+        # (one asset, per asset-detail/AI-insights view) and ai_summary /
+        # prewarm_ai (asset_id.in_, timeframe.in_, predicted_at >= cutoff).
+        # A single composite index seeks straight to the recent row(s)
+        # instead of leaning on the separate asset_id / timeframe indexes.
+        db.Index("idx_predictions_asset_tf_time", "asset_id", "timeframe", "predicted_at"),
+    )
+
     def to_dict(self):
         return {
             "id": self.id,

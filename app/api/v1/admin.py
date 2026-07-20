@@ -283,6 +283,8 @@ def pause_api_config(cfg_id):
     cfg.is_active = False
     cfg.updated_at = datetime.utcnow()
     db.session.commit()
+    from app.services.data.fetcher import invalidate_blocked_markets_cache
+    invalidate_blocked_markets_cache()
     _log(cfg_id, "pause", "ok")
     return jsonify({"message": f"'{cfg.name}' paused", "status": "paused"}), 200
 
@@ -296,6 +298,8 @@ def resume_api_config(cfg_id):
     cfg.error_count = 0
     cfg.updated_at = datetime.utcnow()
     db.session.commit()
+    from app.services.data.fetcher import invalidate_blocked_markets_cache
+    invalidate_blocked_markets_cache()
     _log(cfg_id, "resume", "ok")
     return jsonify({"message": f"'{cfg.name}' resumed", "status": "active"}), 200
 

@@ -1,8 +1,54 @@
 """Background jobs for market data, ticker updates, and signal outcome tracking."""
+import time
+import threading
 import logging
 from app.websocket.events import broadcast_ticker
 
 logger = logging.getLogger(__name__)
+
+
+# ── Active-signal symbol gate ────────────────────────────────────────────────
+# check_signals_for_price() fires on EVERY price tick (the Delta WS stream
+# pushes several per second across all streamed crypto symbols). The vast
+# majority of ticks are for symbols that have no active signal to close, yet
+# each one still ran two SELECTs (asset lookup + active-signal lookup). This
+# short-TTL cache of "symbols that currently have >=1 active signal" lets those
+# ticks bail out with zero DB work. A newly generated signal calls
+# invalidate_active_signal_symbols() so real-time monitoring starts at once;
+# the 5-min close_and_record_signals job is the backstop regardless.
+_active_sig_syms: dict = {"set": None, "ts": 0.0}
+_active_sig_lock = threading.Lock()
+_ACTIVE_SIG_SYMS_TTL = 20  # seconds
+
+
+def invalidate_active_signal_symbols():
+    """Force the next tick to re-read which symbols have active signals — call
+    after creating/closing signals so the gate reflects the change promptly."""
+    with _active_sig_lock:
+        _active_sig_syms["set"] = None
+        _active_sig_syms["ts"] = 0.0
+
+
+def _symbols_with_active_signals() -> set:
+    """Upper-cased set of asset symbols that currently have an active signal.
+    Cached for a few seconds; assumes an active app context (callers hold one)."""
+    now = time.time()
+    with _active_sig_lock:
+        cached = _active_sig_syms["set"]
+        if cached is not None and now - _active_sig_syms["ts"] < _ACTIVE_SIG_SYMS_TTL:
+            return cached
+    from app.models.signal import Signal
+    from app.models.asset import Asset
+    from app.extensions import db
+    rows = (db.session.query(Asset.symbol)
+            .join(Signal, Signal.asset_id == Asset.id)
+            .filter(Signal.status == "active")
+            .distinct().all())
+    syms = {r[0].upper() for r in rows}
+    with _active_sig_lock:
+        _active_sig_syms["set"] = syms
+        _active_sig_syms["ts"] = now
+    return syms
 
 
 def update_tickers(app):
@@ -14,13 +60,19 @@ def update_tickers(app):
     with app.app_context():
         from concurrent.futures import ThreadPoolExecutor, as_completed
         from app.models.asset import Asset
-        from app.services.data.fetcher import market_fetcher
+        from app.services.data.fetcher import market_fetcher, blocked_data_markets
 
         # Only poll assets NOT covered by the Delta Exchange WS stream
         non_crypto = Asset.query.filter(
             Asset.is_active == True,
             Asset.market != "crypto",
         ).all()
+
+        # Skip markets whose data feed is paused in APIConfig — otherwise
+        # this 15s poll keeps hitting a feed the operator turned off.
+        blocked = blocked_data_markets()
+        if blocked:
+            non_crypto = [a for a in non_crypto if a.market not in blocked]
 
         if not non_crypto:
             return
@@ -213,7 +265,7 @@ def prewarm_ta_cache(app):
     """Pre-compute TA summary and MTF matrix and store in cache so page loads are instant."""
     with app.app_context():
         from app.models.asset import Asset
-        from app.services.data.fetcher import market_fetcher
+        from app.services.data.fetcher import market_fetcher, blocked_data_markets
         from app.services.indicators.calculator import calculate_all_indicators
         from app.extensions import cache
         from concurrent.futures import ThreadPoolExecutor
@@ -224,6 +276,16 @@ def prewarm_ta_cache(app):
         ta_tfs  = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
         mtf_tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
         assets  = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+
+        # Skip markets whose data feed is PAUSED in APIConfig before doing any
+        # work. fetch_many() already refuses the paused feed, so those assets
+        # would only produce all-None TA/MTF/EMA rows — building and caching
+        # them every 5 min is pure waste (CPU + a larger cache payload served
+        # to every client). Fetch the blocked set once and filter up front so
+        # the whole compute + cache pass skips them entirely.
+        blocked = blocked_data_markets()
+        if blocked:
+            assets = [a for a in assets if a.market not in blocked]
 
         # Fetch all data once — covers both TA and MTF (union of timeframes)
         all_tfs  = list(dict.fromkeys(ta_tfs + mtf_tfs))  # preserves order, deduplicates
@@ -330,6 +392,23 @@ def prewarm_ta_cache(app):
         logger.info("TA/MTF/EMA cache pre-warmed")
 
 
+def prewarm_heatmap(app):
+    """Pre-build the Market Heatmap payload so /market-data/heatmap is always a
+    cache hit. The heatmap is hit on every dashboard load; without prewarming
+    its 180s cache went cold repeatedly and each miss blocked a user request on
+    a live fetch. build_heatmap() itself now reads crypto prices from the Delta
+    WS cache (instant), so this job is cheap and mainly guarantees the very
+    first post-boot load (before the WS populates) doesn't pay the fetch."""
+    with app.app_context():
+        from app.api.v1.market_data import build_heatmap
+        from app.extensions import cache
+        try:
+            cache.set("market_heatmap", {"heatmap": build_heatmap()}, timeout=210)
+            logger.info("Market heatmap cache pre-warmed")
+        except Exception as e:
+            logger.debug(f"Heatmap prewarm failed: {e}")
+
+
 def prewarm_ai_cache(app):
     """
     Pre-run AI predictions for all assets × key timeframes every 30 min.
@@ -339,7 +418,7 @@ def prewarm_ai_cache(app):
     with app.app_context():
         from app.models.asset import Asset
         from app.models.prediction import Prediction
-        from app.services.data.fetcher import market_fetcher
+        from app.services.data.fetcher import market_fetcher, blocked_data_markets
         from app.services.ai.predictor import ai_predictor
         from app.extensions import cache, db
         from datetime import datetime, timedelta
@@ -347,6 +426,14 @@ def prewarm_ai_cache(app):
 
         tfs    = ["5m", "15m", "1h", "4h", "1d"]
         assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
+
+        # Skip PAUSED-feed markets before fetching/predicting — same rationale
+        # as prewarm_ta_cache: fetch_many refuses them, so they'd only yield
+        # neutral-default AI cells that get cached and served every 30 min.
+        blocked = blocked_data_markets()
+        if blocked:
+            assets = [a for a in assets if a.market not in blocked]
+
         all_data = market_fetcher.fetch_many(assets, tfs, limit=220)
 
         cutoff   = datetime.utcnow() - timedelta(minutes=25)
@@ -401,7 +488,10 @@ def prewarm_ai_cache(app):
                                      "bullish_prob": 50.0, "bearish_prob": 50.0}
             return row
 
-        with ThreadPoolExecutor(max_workers=min(6, len(assets))) as ex:
+        # `or 1`: after the blocked-market filter above the list can be empty,
+        # and ThreadPoolExecutor(max_workers=0) raises — guard like the other
+        # pools in this codebase do.
+        with ThreadPoolExecutor(max_workers=min(6, len(assets) or 1)) as ex:
             rows = list(ex.map(_process, assets))
 
         try:
@@ -507,6 +597,11 @@ def check_signals_for_price(symbol: str, price: float, app):
     Broadcasts signal_closed event via WebSocket.
     """
     with app.app_context():
+        # Fast path: most ticks are for symbols with no active signal — skip
+        # all DB work for them (this runs on every WS price push).
+        if symbol.upper() not in _symbols_with_active_signals():
+            return
+
         from app.models.signal import Signal, SignalHistory
         from app.models.asset import Asset
         from app.extensions import db
@@ -975,6 +1070,10 @@ def register_data_jobs(scheduler, app):
     # TA/MTF cache pre-warm — every 5 minutes
     scheduler.add_job(prewarm_ta_cache, "interval", minutes=5,
                       args=[app], id="prewarm_ta", replace_existing=True)
+    # Market heatmap pre-warm — every 3 minutes (matches the frontend's 180s
+    # refresh) so /market-data/heatmap is always served from a warm cache.
+    scheduler.add_job(prewarm_heatmap, "interval", minutes=3,
+                      args=[app], id="prewarm_heatmap", replace_existing=True)
     # AI predictions pre-warm — every 30 minutes
     scheduler.add_job(prewarm_ai_cache, "interval", minutes=30,
                       args=[app], id="prewarm_ai", replace_existing=True)
@@ -1007,5 +1106,9 @@ def register_data_jobs(scheduler, app):
                       run_date=datetime.utcnow() + timedelta(seconds=30),
                       args=[app], id="prewarm_ai_startup",
                       replace_existing=True, misfire_grace_time=120)
+    scheduler.add_job(prewarm_heatmap, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=20),
+                      args=[app], id="prewarm_heatmap_startup",
+                      replace_existing=True, misfire_grace_time=60)
 
-    logger.info("Data jobs registered (TA + AI startup pre-warm queued)")
+    logger.info("Data jobs registered (TA + heatmap + AI startup pre-warm queued)")

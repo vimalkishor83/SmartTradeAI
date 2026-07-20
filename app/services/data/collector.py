@@ -91,8 +91,20 @@ def refresh_all(app):
         if not assets:
             return
 
-        # Group timeframes that have at least one asset due for refresh
-        tfs_due = [tf for tf in _REFRESH_INTERVAL if any(_due(a.symbol, tf) for a in assets)]
+        # Group timeframes that have at least one asset due for refresh.
+        # Snapshot _last_fetched ONCE under a single lock instead of calling
+        # _due() (which locks per call) for every (asset, tf) pair — the old
+        # any(_due(...)) comprehension took/released the lock O(assets ×
+        # timeframes) times every 30s tick and contended with the WS/collector
+        # threads writing via _mark_fetched. One dict copy, then a pure
+        # in-memory scan.
+        now = time.time()
+        with _lock:
+            last_snapshot = dict(_last_fetched)
+        tfs_due = [
+            tf for tf, interval in _REFRESH_INTERVAL.items()
+            if any(now - last_snapshot.get(f"{a.symbol}_{tf}", 0) >= interval for a in assets)
+        ]
         if not tfs_due:
             return
 
@@ -100,20 +112,25 @@ def refresh_all(app):
             # fetch_many() is already parallel (ThreadPoolExecutor + Yahoo batch)
             results = market_fetcher.fetch_many(assets, tfs_due, limit=max(_CANDLE_LIMIT.values()))
 
-            now = time.time()
-            for asset in assets:
-                for tf in tfs_due:
-                    df = results.get(asset.symbol, {}).get(tf)
-                    if df is not None and len(df) > 0:
-                        _mark_fetched(asset.symbol, tf)
+            # Batch-mark every successful (symbol,tf) under ONE lock rather than
+            # re-acquiring it per combo via _mark_fetched(). `marked` doubles as
+            # the success count, so we no longer walk the whole results grid a
+            # second time just to compute a log line.
+            done = time.time()
+            marked = [
+                f"{asset.symbol}_{tf}"
+                for asset in assets for tf in tfs_due
+                if (df := results.get(asset.symbol, {}).get(tf)) is not None and len(df) > 0
+            ]
+            with _lock:
+                for key in marked:
+                    _last_fetched[key] = done
 
-            fetched = sum(
-                1 for sym_data in results.values()
-                for df in sym_data.values()
-                if df is not None and len(df) > 0
-            )
-            if fetched:
-                logger.debug(f"Collector: refreshed {fetched} asset/TF combinations")
+            # Only emit (and count for) the debug line when DEBUG is actually
+            # enabled — production runs at INFO+, where this fired every tick
+            # for a message nobody would see.
+            if marked and logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Collector: refreshed {len(marked)} asset/TF combinations")
 
         except Exception as e:
             logger.error(f"Collector refresh_all failed: {e}")
@@ -140,9 +157,13 @@ def force_refresh(app, symbols: list[str] | None = None, timeframes: list[str] |
         limit = max(_CANDLE_LIMIT[tf] for tf in tfs)
         market_fetcher.fetch_many(assets, tfs, limit=limit)
 
-        for asset in assets:
-            for tf in tfs:
-                _mark_fetched(asset.symbol, tf)
+        # Batch-mark under a single lock instead of one _mark_fetched() lock
+        # acquisition per (asset, tf) combo.
+        now = time.time()
+        with _lock:
+            for asset in assets:
+                for tf in tfs:
+                    _last_fetched[f"{asset.symbol}_{tf}"] = now
 
         logger.info(f"Collector: force-refreshed {len(assets)} assets × {len(tfs)} TFs")
 

@@ -16,3 +16,10 @@ data/models/
 # Scheduled DB backups (contain encrypted broker credentials + trade
 # history snapshots — must never be committed to source control)
 data/backups/
+
+# PyInstaller build output for the desktop launcher — regenerable from
+# launcher/*.py, so only the source (launcher/launch_smarttradeai.py,
+# make_icon.py, the .ico and .spec) is tracked, not the built binary.
+launcher/build/
+launcher/dist/
+*.exe

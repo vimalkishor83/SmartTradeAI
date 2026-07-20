@@ -172,7 +172,15 @@ def delete_entry(entry_id):
 @login_required
 def stats():
     user_id = get_jwt_identity()
-    entries = JournalEntry.query.filter_by(user_id=user_id).all()
+    # Only pull the columns stats actually uses — avoids hydrating full
+    # JournalEntry ORM objects (all columns incl. notes/prices/etc.) for
+    # what may be thousands of rows.
+    entries = (JournalEntry.query
+               .filter_by(user_id=user_id)
+               .with_entities(JournalEntry.outcome, JournalEntry.pnl_amount,
+                               JournalEntry.emotion_tag, JournalEntry.market,
+                               JournalEntry.trade_date)
+               .all())
 
     if not entries:
         return jsonify({

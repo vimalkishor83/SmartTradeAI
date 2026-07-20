@@ -42,6 +42,16 @@ def configure_sqlite_concurrency(app):
         cur.execute("PRAGMA journal_mode=WAL")
         cur.execute("PRAGMA busy_timeout=5000")   # ms — wait up to 5s for a lock
         cur.execute("PRAGMA synchronous=NORMAL")  # safe with WAL, much faster
+        # ── Read/sort speed (safe for a local single-file DB) ──────────────
+        # Bigger page cache keeps hot pages (assets, signals, predictions) in
+        # RAM instead of re-reading from disk; mmap serves reads via a memory
+        # map (no per-read syscall); temp_store=MEMORY runs ORDER BY / GROUP BY
+        # / DISTINCT sorts (journal stats, model_performance, signals list) in
+        # RAM. All three trade a little RAM for fewer disk hits — a clear win
+        # on a local desktop and harmless at this DB size.
+        cur.execute("PRAGMA cache_size=-65536")     # ~64 MB page cache (KB, negative)
+        cur.execute("PRAGMA mmap_size=134217728")   # 128 MB memory-mapped I/O
+        cur.execute("PRAGMA temp_store=MEMORY")
         cur.close()
 
     configure_sqlite_concurrency._registered = True
