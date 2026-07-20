@@ -10,6 +10,7 @@ from app.services.signals.context_lanes import fetch_context_data, build_lane_ve
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
 from sqlalchemy import and_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
@@ -162,6 +163,12 @@ def _run_auto_generate(app):
             for asset in assets:
                 if max_per and count >= max_per:
                     break
+                # Captured up front: after a failed flush the session is in a
+                # failed state, so touching asset.symbol inside the except block
+                # triggers a lazy reload -> PendingRollbackError, which escaped
+                # the handler and killed the whole job instead of skipping one
+                # signal.
+                symbol = asset.symbol
                 try:
                     df = df_by_combo.get((timeframe, asset))
                     if df is None:
@@ -191,18 +198,23 @@ def _run_auto_generate(app):
                     except Exception:
                         pass
 
-                    # Skip if same asset+timeframe already has a recent active signal
-                    lockout_min = signal_engine.lockout_minutes(timeframe)
-                    cutoff = datetime.utcnow() - timedelta(minutes=lockout_min)
-                    recent = Signal.query.filter(and_(
+                    # Skip if this asset+timeframe already has ANY active signal.
+                    # The uq_signals_active_asset_tf partial unique index permits
+                    # at most one active signal per (asset, timeframe) with no
+                    # time window, but this check also required
+                    # generated_at >= lockout cutoff — so an active signal OLDER
+                    # than the lockout passed the check and the INSERT below then
+                    # failed with IntegrityError. Match the constraint exactly:
+                    # any active signal means skip.
+                    existing = Signal.query.filter(and_(
                         Signal.asset_id == asset.id,
                         Signal.timeframe == timeframe,
                         Signal.status == "active",
-                        Signal.generated_at >= cutoff,
                     )).first()
-                    if recent:
-                        age = int((datetime.utcnow() - recent.generated_at).total_seconds() / 60)
-                        _ag_log(f"  ↷ {asset.symbol}/{timeframe} skipped — active {age}m ago")
+                    if existing:
+                        age = (int((datetime.utcnow() - existing.generated_at).total_seconds() / 60)
+                               if existing.generated_at else 0)
+                        _ag_log(f"  ~ {symbol}/{timeframe} skipped - active {age}m ago")
                         continue
 
                     sig = Signal(
@@ -239,9 +251,20 @@ def _run_auto_generate(app):
                             daemon=True,
                         ).start()
 
+                except IntegrityError:
+                    # A concurrent run (or the scheduled generator) created an
+                    # active signal for this asset+timeframe between the check
+                    # above and this flush — the partial unique index rejected
+                    # the duplicate. Benign: roll back and move on rather than
+                    # counting it as an error.
+                    db.session.rollback()
+                    _ag_log(f"  ~ {symbol}/{timeframe} skipped - active signal already exists")
                 except Exception as e:
+                    # Roll back FIRST — after a failed flush the session is
+                    # unusable and even building the log line below could raise.
+                    db.session.rollback()
                     _AG_STATE["errors"] += 1
-                    _ag_log(f"  ✗ {asset.symbol}/{timeframe}: {e}")
+                    _ag_log(f"  x {symbol}/{timeframe}: {e}")
 
         try:
             db.session.commit()
