@@ -933,6 +933,39 @@ def generate_signal():
     return jsonify(signal.to_dict()), 201
 
 
+@signals_bp.route("/dca-setup/<int:asset_id>", methods=["GET"])
+@login_required
+def dca_setup(asset_id):
+    """Scaled-entry pullback setup state for one asset.
+
+    Returns each entry rule's pass/fail on the last closed 5m candle plus the
+    tranche ladder / TP / SL to use if it fires. See
+    app/services/signals/dca_setup.py for the validated rule set and its
+    measured performance.
+    """
+    from app.services.signals import dca_setup as setup
+
+    asset = Asset.query.get_or_404(asset_id)
+    # 2000 5m bars ≈ 666 15m bars — a proper warm-up for the 15m EMA200 the
+    # rules depend on (200 15m bars minimum before it means anything).
+    df = market_fetcher.fetch(asset, "5m", 2000)
+    if df is None or len(df) < 700:
+        have = 0 if df is None else len(df)
+        return jsonify({"error": f"Need ~700 5m bars to warm up the 15m EMA200; "
+                                 f"only {have} available for this asset."}), 503
+
+    df = df.reset_index()
+    tcol = next((c for c in ("ts", "timestamp", "index", "time")
+                 if c in df.columns), None)
+    if tcol and tcol != "ts":
+        df = df.rename(columns={tcol: "ts"})
+
+    result = setup.evaluate(df)
+    result["asset"] = {"id": asset.id, "symbol": asset.symbol,
+                       "name": asset.name, "market": asset.market}
+    return jsonify(result), 200
+
+
 @signals_bp.route("/position-analysis/<int:asset_id>", methods=["GET"])
 @login_required
 def position_analysis(asset_id):

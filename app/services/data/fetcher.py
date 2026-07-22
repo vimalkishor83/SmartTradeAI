@@ -189,9 +189,21 @@ class _OHLCVCache:
     # TTL by timeframe — shorter TFs need fresher data
     _TTL = {"1m":30,"5m":60,"15m":90,"30m":120,"1h":180,"2h":240,"4h":300,"1d":600}
 
-    def get(self, key: str) -> pd.DataFrame | None:
+    def get(self, key: str, min_rows: int = 0) -> pd.DataFrame | None:
+        """Return the cached frame, or None if it is stale OR too short.
+
+        min_rows matters because the key is only (symbol, timeframe) — it
+        carries no notion of how many bars the caller asked for. Without this
+        check, whichever caller ran first won: a chart or prewarm job fetching
+        200 bars would poison the cache, and a later caller needing 1000 bars
+        (e.g. an indicator that must warm up a 15m EMA200) silently received
+        200 and concluded there was "insufficient market data". Treat a frame
+        with fewer rows than requested as a miss so it gets refetched.
+        """
         with self._lock:
             entry = self._store.get(key)
+            if entry and len(entry[0]) < min_rows:
+                return None
             if entry and time.time() - entry[1] < self._TTL.get(key.rsplit("_",1)[-1], 180):
                 # Hand back a PRIVATE copy, never the shared cached frame.
                 # The collector keeps exactly one frame per (symbol,tf) which is
@@ -321,7 +333,7 @@ class BinanceFetcher:
     @_retry(max_attempts=3, backoff=1.5)
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         cache_key = f"{symbol}_{timeframe}"
-        cached = _cache.get(cache_key)
+        cached = _cache.get(cache_key, min_rows=limit)
         if cached is not None:
             return cached
 
@@ -395,7 +407,7 @@ class DeltaExchangeFetcher:
             return None
 
         cache_key = f"{symbol}_{timeframe}"
-        cached = _cache.get(cache_key)
+        cached = _cache.get(cache_key, min_rows=limit)
         if cached is not None:
             return cached
 
@@ -515,7 +527,7 @@ class YahooFetcher:
             return None
 
         cache_key = f"{symbol}_{timeframe}"
-        cached = _cache.get(cache_key)
+        cached = _cache.get(cache_key, min_rows=limit)
         if cached is not None:
             return cached
 

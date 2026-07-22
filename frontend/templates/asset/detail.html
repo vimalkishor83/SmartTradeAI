@@ -276,6 +276,11 @@
             <i class="bi bi-lightning-charge-fill me-1"></i>Signals History
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" id="tabDcaBtn" href="#" onclick="showAssetTab('dca');return false">
+            <i class="bi bi-layers-fill me-1"></i>DCA Setup
+          </a>
+        </li>
       </ul>
 
       <!-- ── Tab 1: Chart ─────────────────────────────────────── -->
@@ -356,6 +361,17 @@
           <div class="px-3 py-2 d-flex justify-content-between align-items-center"
                style="border-top:1px solid var(--border)">
             <span class="text-muted fs-xs" id="assetSigCount"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Tab 4: DCA Setup ─────────────────────────────────── -->
+      <div id="tabDca" style="display:none">
+        <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0;padding:20px">
+          <div id="dcaBody">
+            <div class="text-center py-5 text-muted">
+              <i class="bi bi-layers d-block mb-2" style="font-size:28px"></i>Loading setup…
+            </div>
           </div>
         </div>
       </div>
@@ -692,7 +708,7 @@ let _lastCandles      = null;       // cached candle data so toggling indicators
 
 /* ── Tab switching ────────────────────────────────────── */
 function showAssetTab(tab) {
-  ['chart','indicators','signals'].forEach(t => {
+  ['chart','indicators','signals','dca'].forEach(t => {
     document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = 'none';
     document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn')?.classList.remove('active');
   });
@@ -703,6 +719,117 @@ function showAssetTab(tab) {
 
   if (tab === 'indicators') loadIndicators();
   if (tab === 'signals')    loadAssetSignals();
+  if (tab === 'dca')        loadDcaSetup();
+}
+
+/* ── DCA Setup tab ────────────────────────────────────── */
+async function loadDcaSetup() {
+  const box = document.getElementById('dcaBody');
+  box.innerHTML = '<div class="text-center py-5 text-muted">Loading setup…</div>';
+  // Direct fetch (not API.get) so we can surface the real status — API.get
+  // collapses every failure to null, which showed a misleading "No data"
+  // when the route simply wasn't loaded by a still-running old server.
+  let d, status = 0;
+  try {
+    const res = await fetch(`/api/v1/signals/dca-setup/${ASSET_ID}`,
+                            { headers: { 'Accept': 'application/json' },
+                              credentials: 'same-origin' });
+    status = res.status;
+    d = res.ok ? await res.json() : await res.json().catch(() => null);
+  } catch (e) {
+    d = null;
+  }
+  if (status === 404) {
+    box.innerHTML = '<div class="alert alert-warning mb-0">' +
+      '<strong>Endpoint not loaded.</strong> The server is running code from ' +
+      'before this feature was added — restart SmartTradeAI (close the ' +
+      'console window and relaunch from the desktop icon) and reload this page.' +
+      '</div>';
+    return;
+  }
+  if (status === 503) {
+    box.innerHTML = `<div class="alert alert-warning mb-0">${d?.error ||
+      'Not enough 5m market data for this asset yet.'}</div>`;
+    return;
+  }
+  if (!d || d.error) {
+    box.innerHTML = `<div class="alert alert-warning mb-0">${d?.error ||
+      `Could not load setup (HTTP ${status || 'network error'}).`}</div>`;
+    return;
+  }
+
+  const cfg = d.config || {};
+  const plan = d.plan || {};
+  const ready = d.ready;
+
+  const checks = (d.checks || []).map(c => `
+    <div class="d-flex align-items-center justify-content-between py-2"
+         style="border-bottom:1px solid var(--border)">
+      <div>
+        <i class="bi ${c.passed ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} me-2"
+           style="color:${c.passed ? 'var(--green)' : 'var(--red)'}"></i>
+        <span style="color:#fff">${c.label}</span>
+      </div>
+      <span class="fs-xs font-monospace" style="color:#fff">${c.detail}</span>
+    </div>`).join('');
+
+  const ladder = (plan.ladder || []).map(t => `
+    <tr>
+      <td style="color:#fff">${t.tranche}</td>
+      <td class="font-monospace" style="color:#fff">${t.price}</td>
+      <td class="font-monospace" style="color:#fff">${t.drop_from_first_pct}%</td>
+      <td class="font-monospace" style="color:#fff">$${t.amount}</td>
+    </tr>`).join('');
+
+  box.innerHTML = `
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+      <div>
+        <span class="badge ${ready ? 'bg-success' : 'bg-secondary'} me-2">
+          ${ready ? 'SETUP READY — all rules met' : `WAITING — ${d.passed}/${d.total} rules met`}
+        </span>
+        <span class="text-muted fs-xs">last closed 5m candle · ${d.as_of || ''}</span>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadDcaSetup()">
+        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+      </button>
+    </div>
+
+    <h6 class="mb-2" style="color:#fff">Entry rules</h6>
+    <div class="mb-4">${checks}</div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-4"><div class="kpi-card p-3">
+        <div class="text-muted fs-xs">Current price</div>
+        <div class="fs-5 font-monospace" style="color:#fff">${d.price}</div></div></div>
+      <div class="col-md-4"><div class="kpi-card p-3">
+        <div class="text-muted fs-xs">Take profit (+${cfg.tp_pct}% from avg)</div>
+        <div class="fs-5 font-monospace" style="color:var(--green)">${plan.take_profit}</div></div></div>
+      <div class="col-md-4"><div class="kpi-card p-3">
+        <div class="text-muted fs-xs">Stop loss (−${cfg.sl_pct}% from first)</div>
+        <div class="fs-5 font-monospace" style="color:var(--red)">${plan.stop_loss}</div></div></div>
+    </div>
+
+    <h6 class="mb-2" style="color:#fff">
+      Tranche ladder — ${cfg.tranches} × $${plan.per_tranche}, ${cfg.spacing_pct}% apart
+    </h6>
+    <div class="table-responsive mb-3">
+      <table class="smart-table">
+        <thead><tr><th>#</th><th>Add at</th><th>Drop</th><th>Size</th></tr></thead>
+        <tbody>${ladder}</tbody>
+      </table>
+    </div>
+    <div class="alert alert-secondary fs-xs mb-0">
+      <strong>How to trade it:</strong> ${plan.note}
+      Max hold ${cfg.max_hold_days} days. Average entry if all ${cfg.tranches}
+      tranches fill: <span class="font-monospace">${plan.avg_if_all_fill}</span>.
+      <br><br>
+      <strong>Measured performance</strong> (SOLUSDT, 3.5 years, 373k 5m bars,
+      fees 0.02%/side): bull quarters <span style="color:var(--green)">+0.18% to
+      +0.23%/day</span> (6 of 9 positive) · bear quarters
+      <span style="color:var(--red)">−0.15%/day</span> · all regimes +0.067%/day,
+      about one campaign every 5 days. This setup earns in uptrends and bleeds in
+      downtrends — it is not a daily-income machine.
+    </div>`;
 }
 
 /* ── Timeframe helpers ────────────────────────────────── */
