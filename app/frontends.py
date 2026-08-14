@@ -1,9 +1,9 @@
-"""Serve the alternate front-ends (frontend-New1, frontend-New2).
+"""Serve the alternate front-ends (frontend-New1, frontend-New2, frontend-Terminal).
 
-Additive and fully isolated: these routes serve two brand-new self-contained SPAs
-from sibling folders, mounted at /new1 and /new2. They consume the existing
-/api/v1/* REST APIs (same origin → JWT bearer works, no CORS needed). The original
-`frontend/` and its Flask template/static config are untouched.
+Additive and fully isolated: these routes serve brand-new self-contained SPAs
+from sibling folders, mounted at /new1, /new2, and /terminal. They consume the
+existing /api/v1/* REST APIs (same origin → JWT bearer works, no CORS needed).
+The original `frontend/` and its Flask template/static config are untouched.
 """
 import os
 
@@ -35,3 +35,9 @@ def new1(path):
 @frontends_bp.route("/new2/<path:path>")
 def new2(path):
     return _serve("frontend-New2", path)
+
+
+@frontends_bp.route("/terminal/", defaults={"path": ""})
+@frontends_bp.route("/terminal/<path:path>")
+def terminal(path):
+    return _serve("frontend-Terminal", path)
