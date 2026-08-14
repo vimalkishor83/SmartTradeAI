@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify, current_app
 from app.models.news import News
 from app.models.economic import EconomicEvent
-from app.auth.decorators import login_required
 from app.extensions import cache
 import logging
 
@@ -10,8 +9,9 @@ news_bp = Blueprint("news", __name__)
 
 
 @news_bp.route("/", methods=["GET"])
-@login_required
 def get_news():
+    """Public/no-auth: read-only news feed, matches the reference site's
+    free "Desk Notes" dashboard tier."""
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 20))
     sentiment = request.args.get("sentiment")
@@ -46,8 +46,9 @@ def get_news():
 
 
 @news_bp.route("/economic-calendar", methods=["GET"])
-@login_required
 def economic_calendar():
+    """Public/no-auth: read-only calendar, matches the reference site's
+    free "Economic Calendar" dashboard tier."""
     import requests as req
     from datetime import datetime, timedelta, timezone
 

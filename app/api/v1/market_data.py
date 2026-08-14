@@ -531,11 +531,13 @@ def ai_summary():
 
 
 @market_data_bp.route("/live-prices", methods=["GET"])
-@login_required
 @limiter.exempt
 def live_prices():
     """Return cached live prices from Delta Exchange WebSocket stream (crypto only).
-    Falls back to REST fetch_ticker for assets not in stream cache."""
+    Falls back to REST fetch_ticker for assets not in stream cache.
+
+    Public/no-auth: read-only market data with no personal or premium
+    content, matching the reference site's free "Explorer" dashboard tier."""
     from app.services.data.delta_stream import get_all_live_prices
     cached = get_all_live_prices()
     # Supplement with any assets not yet in stream cache

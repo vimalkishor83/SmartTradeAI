@@ -65,7 +65,7 @@ export function renderHome(root) {
       <section class="home-section home-final-cta">
         <div class="card" style="text-align:center; padding:40px;">
           <h2 style="margin-top:0;">Ready to trade with a system?</h2>
-          <p class="text-2">Apply for an account to unlock the full terminal — 13 live modules and counting. New accounts are reviewed by the desk within 24–48 hours.</p>
+          <p class="text-2">7 dashboards are free to explore right now — no signup needed. Create an account to unlock the trading layer: signals, paper trading, portfolio, and more. New accounts are reviewed by the desk within 24–48 hours.</p>
           <button class="btn btn-primary" id="home-cta-register-2">Create a free account</button>
         </div>
       </section>

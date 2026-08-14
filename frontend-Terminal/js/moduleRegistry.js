@@ -29,7 +29,7 @@ export const MODULE_GROUPS = [
       { id: "gdp-growth", icon: "↗", label: "GDP & Growth", real: false, desc: "GDP tracking and growth-scenario probabilities." },
       { id: "inflation", icon: "\u{1F525}", label: "Inflation Dashboard", real: false, desc: "CPI, core CPI, PCE, PPI trend and verdict." },
       { id: "labour-market", icon: "\u{1F477}", label: "Labour Market", real: false, desc: "Payrolls, claims, wages, and labour-market verdict." },
-      { id: "economic-calendar", icon: "\u{1F5D3}", label: "Economic Calendar", real: true, premium: true, desc: "Upcoming and released macro events." },
+      { id: "economic-calendar", icon: "\u{1F5D3}", label: "Economic Calendar", real: true, desc: "Upcoming and released macro events." },
     ],
   },
   {
@@ -44,18 +44,18 @@ export const MODULE_GROUPS = [
   {
     label: "World",
     items: [
-      { id: "forex-dashboard", icon: "\u{1F4B1}", label: "Forex Dashboard", real: false, desc: "Currency strength matrix and pair observations." },
-      { id: "geopolitical-risk", icon: "⚔", label: "Geopolitical Risk", real: false, desc: "Risk score and cross-asset impact map." },
+      { id: "forex-dashboard", icon: "\u{1F4B1}", label: "Forex Dashboard", real: true, desc: "USD strength vs. 9 major currencies, ECB daily rates." },
+      { id: "geopolitical-risk", icon: "⚔", label: "Geopolitical Risk", real: true, desc: "News-volume risk proxy and top source countries, 24h." },
       { id: "socioeconomic", icon: "\u{1F465}", label: "Socioeconomic Data", real: false, desc: "Household-stress and search-trend indicators." },
-      { id: "news", icon: "\u{1F4F0}", label: "Financial News", real: true, premium: true, desc: "Latest market and macro news." },
-      { id: "sentiment", icon: "\u{1F9ED}", label: "Market Sentiment", real: false, desc: "Fear & greed, positioning, and survey data." },
-      { id: "put-call-ratio", icon: "☯", label: "Put/Call Ratio", real: false, desc: "Options positioning across tracked instruments." },
+      { id: "news", icon: "\u{1F4F0}", label: "Financial News", real: true, desc: "Latest market and macro news." },
+      { id: "sentiment", icon: "\u{1F9ED}", label: "Market Sentiment", real: true, desc: "Crypto Fear & Greed Index, current + 14-day history." },
+      { id: "put-call-ratio", icon: "☯", label: "Put/Call Ratio", real: true, desc: "BTC/ETH options put/call ratio, live from Deribit." },
     ],
   },
   {
     label: "Tools",
     items: [
-      { id: "charts", icon: "\u{1F4CA}", label: "Charts & Correlations", real: true, premium: true, desc: "Price charts, indicators, and rolling correlations." },
+      { id: "charts", icon: "\u{1F4CA}", label: "Charts & Correlations", real: true, desc: "Price charts, indicators, and rolling correlations." },
       { id: "asset-pages", icon: "◎", label: "Asset Pages", real: false, desc: "Deep-dive page per tracked asset." },
       { id: "predictions", icon: "\u{1F52E}", label: "Predictions", real: true, premium: true, desc: "Model-generated price predictions and performance." },
       { id: "risk", icon: "\u{1F6E1}", label: "Risk Console", real: true, premium: true, desc: "Position sizing, risk/reward, and portfolio risk." },

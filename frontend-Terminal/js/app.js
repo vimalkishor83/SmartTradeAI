@@ -20,6 +20,10 @@ import { renderRisk } from "./modules/risk.js";
 import { renderAlerts } from "./modules/alerts.js";
 import { renderEconomicCalendar } from "./modules/economicCalendar.js";
 import { renderAdmin } from "./modules/admin.js";
+import { renderGeopoliticalRisk } from "./modules/geopoliticalRisk.js";
+import { renderForexDashboard } from "./modules/forexDashboard.js";
+import { renderMarketSentiment } from "./modules/marketSentiment.js";
+import { renderPutCallRatio } from "./modules/putCallRatio.js";
 
 const REAL_RENDERERS = {
   terminal: renderTerminal,
@@ -35,6 +39,10 @@ const REAL_RENDERERS = {
   alerts: renderAlerts,
   "economic-calendar": renderEconomicCalendar,
   admin: renderAdmin,
+  "geopolitical-risk": renderGeopoliticalRisk,
+  "forex-dashboard": renderForexDashboard,
+  sentiment: renderMarketSentiment,
+  "put-call-ratio": renderPutCallRatio,
 };
 
 const main = document.querySelector("#main-content");
