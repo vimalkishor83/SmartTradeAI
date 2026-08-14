@@ -1,7 +1,8 @@
 import { api } from "../api.js";
-import { getState } from "../state.js";
+import { getState, gateIntent } from "../state.js";
 import { navigate } from "../router.js";
 import { signalCardHtml } from "../components/signalCard.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 const FEATURES = [
   { icon: "⚡", title: "Daily signal board", desc: "Direction, entry zone, stop, targets, and confidence for every tracked instrument." },
@@ -35,8 +36,8 @@ export function renderHome(root) {
             signals, sizing, paper trading, and a journal that keeps you honest.
           </p>
           <div class="home-hero-cta">
-            <button class="btn btn-primary" id="home-cta-signin">Sign in to the desk</button>
-            <button class="btn" id="home-cta-explore">See what's inside</button>
+            <button class="btn btn-primary" id="home-cta-register">Create a free account</button>
+            <button class="btn btn-ghost" id="home-cta-signin">Sign in</button>
           </div>
         </div>
       </section>
@@ -45,10 +46,10 @@ export function renderHome(root) {
         <h2>What you get</h2>
         <div class="grid grid-cards">
           ${FEATURES.map((f) => `
-            <div class="card">
-              <div style="font-size:22px; margin-bottom:8px;">${f.icon}</div>
-              <div style="font-weight:700; margin-bottom:4px;">${f.title}</div>
-              <div class="text-2" style="font-size:13px;">${f.desc}</div>
+            <div class="card card-hover feature-card">
+              <div class="icon-badge">${f.icon}</div>
+              <div class="feature-title">${f.title}</div>
+              <div class="feature-desc">${f.desc}</div>
             </div>
           `).join("")}
         </div>
@@ -57,15 +58,15 @@ export function renderHome(root) {
       <section class="home-section" id="home-preview-section">
         <h2>Terminal preview — sample signal</h2>
         <div id="home-preview-card" style="max-width:320px;">
-          <div class="card text-3">Loading preview…</div>
+          <div class="card state-block state-loading"><span class="state-icon">\u{23F3}</span><span>Loading preview…</span></div>
         </div>
       </section>
 
       <section class="home-section home-final-cta">
         <div class="card" style="text-align:center; padding:40px;">
           <h2 style="margin-top:0;">Ready to trade with a system?</h2>
-          <p class="text-2">Sign in with your account to unlock the full terminal — 13 live modules and counting.</p>
-          <button class="btn btn-primary" id="home-cta-signin-2">Sign in</button>
+          <p class="text-2">Apply for an account to unlock the full terminal — 13 live modules and counting. New accounts are reviewed by the desk within 24–48 hours.</p>
+          <button class="btn btn-primary" id="home-cta-register-2">Create a free account</button>
         </div>
       </section>
 
@@ -76,16 +77,18 @@ export function renderHome(root) {
   `;
 
   root.querySelector("#home-cta-signin").addEventListener("click", () => navigate("terminal"));
-  root.querySelector("#home-cta-signin-2").addEventListener("click", () => navigate("terminal"));
-  root.querySelector("#home-cta-explore").addEventListener("click", () => {
-    root.querySelector("#home-preview-section").scrollIntoView({ behavior: "smooth" });
-  });
+  const goToRegister = () => {
+    gateIntent.tab = "register";
+    navigate("terminal");
+  };
+  root.querySelector("#home-cta-register").addEventListener("click", goToRegister);
+  root.querySelector("#home-cta-register-2").addEventListener("click", goToRegister);
 
   loadSamplePreview().then((signal) => {
     const el = root.querySelector("#home-preview-card");
     if (!el) return; // user navigated away before this resolved
     el.innerHTML = signal
       ? signalCardHtml(signal)
-      : `<div class="card text-3">Preview unavailable right now — sign in to see live signals.</div>`;
+      : `<div class="card">${emptyStateHtml("Preview unavailable right now — sign in to see live signals.")}</div>`;
   });
 }

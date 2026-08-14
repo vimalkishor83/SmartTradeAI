@@ -57,6 +57,12 @@ export async function login(email, password) {
   return data;
 }
 
+export async function register(payload) {
+  // Registered accounts land "pending" server-side (admin approval
+  // required) — this intentionally does NOT log the user in.
+  return request("/auth/register", { method: "POST", body: payload, auth: false });
+}
+
 export function logout() {
   setState({ user: null, token: null });
 }

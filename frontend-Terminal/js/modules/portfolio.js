@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { pageHeaderHtml } from "../components/pageHeader.js";
 import { renderAsync } from "../components/asyncSection.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 export function renderPortfolio(main, mod) {
   main.innerHTML = `
@@ -13,7 +14,7 @@ export function renderPortfolio(main, mod) {
     () => api.get("/portfolio"),
     (data) => {
       const items = data.items || data.holdings || data || [];
-      if (!items.length) return `<div class="text-3">No portfolio holdings yet.</div>`;
+      if (!items.length) return emptyStateHtml("No portfolio holdings yet.", "\u{1F4BC}");
       const rows = items.map((i) => `
         <tr>
           <td>${i.symbol || i.asset_symbol || "—"}</td>
@@ -23,10 +24,12 @@ export function renderPortfolio(main, mod) {
         </tr>
       `).join("");
       return `
-        <table class="data-table">
-          <thead><tr><th>Asset</th><th>Qty</th><th>Avg price</th><th>Value</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Asset</th><th>Qty</th><th>Avg price</th><th>Value</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     },
   );

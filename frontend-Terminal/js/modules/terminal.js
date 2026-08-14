@@ -3,6 +3,7 @@ import { pageHeaderHtml } from "../components/pageHeader.js";
 import { signalCardHtml } from "../components/signalCard.js";
 import { statCardHtml } from "../components/statCard.js";
 import { renderAsync } from "../components/asyncSection.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 export function renderTerminal(main, mod) {
   main.innerHTML = `
@@ -27,7 +28,7 @@ export function renderTerminal(main, mod) {
     () => api.get("/signals"),
     (data) => {
       const signals = data.signals || data.items || data || [];
-      if (!signals.length) return `<div class="card text-3">No active signals yet.</div>`;
+      if (!signals.length) return `<div class="card">${emptyStateHtml("No active signals yet — check back after the next engine run.")}</div>`;
       return signals.map(signalCardHtml).join("");
     },
   );

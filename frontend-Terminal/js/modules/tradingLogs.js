@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { pageHeaderHtml } from "../components/pageHeader.js";
 import { renderAsync } from "../components/asyncSection.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 export function renderTradingLogs(main, mod) {
   main.innerHTML = `
@@ -13,7 +14,7 @@ export function renderTradingLogs(main, mod) {
     () => api.get("/journal"),
     (data) => {
       const entries = data.entries || data.items || data || [];
-      if (!entries.length) return `<div class="text-3">No journalled trades yet.</div>`;
+      if (!entries.length) return emptyStateHtml("No journalled trades yet — every paper trade you take will show up here.", "\u{1F4D2}");
       const rows = entries.map((e) => `
         <tr>
           <td>${e.date || e.created_at || "—"}</td>
@@ -24,10 +25,12 @@ export function renderTradingLogs(main, mod) {
         </tr>
       `).join("");
       return `
-        <table class="data-table">
-          <thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>P&L</th><th>Notes</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Date</th><th>Symbol</th><th>Side</th><th>P&L</th><th>Notes</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
       `;
     },
   );

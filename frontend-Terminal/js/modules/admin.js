@@ -2,6 +2,7 @@ import { api } from "../api.js";
 import { getState } from "../state.js";
 import { pageHeaderHtml } from "../components/pageHeader.js";
 import { renderAsync } from "../components/asyncSection.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 export function renderAdmin(main, mod) {
   const { user } = getState();
@@ -10,10 +11,10 @@ export function renderAdmin(main, mod) {
   if (!isAdmin) {
     main.innerHTML = `
       ${pageHeaderHtml(mod.label)}
-      <div class="card" style="text-align:center; padding:48px;">
-        <div style="font-size:28px; margin-bottom:8px;">\u{1F512}</div>
-        <h2 style="margin:0 0 6px;">Restricted to administrators</h2>
-        <p class="text-2">Your account doesn't have admin access. Contact the desk if you believe this is a mistake.</p>
+      <div class="card soon-card">
+        <div class="icon-badge">\u{1F512}</div>
+        <h2>Restricted to administrators</h2>
+        <p>Your account doesn't have admin access. Contact the desk if you believe this is a mistake.</p>
       </div>
     `;
     return;
@@ -29,20 +30,22 @@ export function renderAdmin(main, mod) {
     () => api.get("/admin/users?status=pending"),
     (data) => {
       const users = data.users || data.items || data || [];
-      if (!users.length) return `<div class="text-3">No pending approvals.</div>`;
+      if (!users.length) return emptyStateHtml("No pending approvals.", "\u{2699}");
       return `
-        <table class="data-table">
-          <thead><tr><th>Name</th><th>Email</th><th>Requested</th></tr></thead>
-          <tbody>
-            ${users.map((u) => `
-              <tr>
-                <td>${u.name || "—"}</td>
-                <td>${u.email || "—"}</td>
-                <td class="text-3">${u.created_at || ""}</td>
-              </tr>
-            `).join("")}
-          </tbody>
-        </table>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>Name</th><th>Email</th><th>Requested</th></tr></thead>
+            <tbody>
+              ${users.map((u) => `
+                <tr>
+                  <td>${u.name || "—"}</td>
+                  <td>${u.email || "—"}</td>
+                  <td class="text-3">${u.created_at || ""}</td>
+                </tr>
+              `).join("")}
+            </tbody>
+          </table>
+        </div>
       `;
     },
   );

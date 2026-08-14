@@ -1,4 +1,4 @@
-import { getState, subscribe } from "./state.js";
+import { getState, subscribe, gateIntent } from "./state.js";
 import { fetchMe } from "./api.js";
 import { registerRoute, setNotFound, startRouter } from "./router.js";
 import { getModule, ALL_MODULES } from "./moduleRegistry.js";
@@ -55,8 +55,9 @@ function renderModule(id) {
   const { user } = getState();
 
   if (mod.premium && !user) {
-    main.innerHTML = loginGateHtml();
+    main.innerHTML = loginGateHtml(gateIntent.tab);
     bindLoginForm(main);
+    gateIntent.tab = "signin"; // reset so a later plain nav click defaults back to sign-in
     return;
   }
 

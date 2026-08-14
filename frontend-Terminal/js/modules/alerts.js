@@ -1,6 +1,7 @@
 import { api } from "../api.js";
 import { pageHeaderHtml } from "../components/pageHeader.js";
 import { renderAsync } from "../components/asyncSection.js";
+import { emptyStateHtml } from "../components/emptyState.js";
 
 export function renderAlerts(main, mod) {
   main.innerHTML = `
@@ -13,9 +14,9 @@ export function renderAlerts(main, mod) {
     () => api.get("/notifications"),
     (data) => {
       const items = data.notifications || data.items || data || [];
-      if (!items.length) return `<div class="card text-3">No alerts yet.</div>`;
+      if (!items.length) return `<div class="card">${emptyStateHtml("No alerts yet.", "\u{1F514}")}</div>`;
       return items.map((n) => `
-        <div class="card" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="card card-hover" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
             <div style="font-weight:600;">${n.title || n.message || "—"}</div>
             <div class="text-3" style="font-size:11px;">${n.created_at || ""}</div>
