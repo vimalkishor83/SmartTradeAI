@@ -13,18 +13,24 @@ export function renderCharts(main, mod) {
     main.querySelector("#charts-list"),
     () => api.get("/market-data/live-prices"),
     (data) => {
-      const rows = data.prices || data.items || data || [];
+      // `prices` is a dict keyed by symbol (confirmed against the live
+      // GET /api/v1/market-data/live-prices response), not an array —
+      // treating it as one meant `.length` was always undefined and this
+      // module showed "no data" regardless of how much live data existed.
+      const rows = Object.values(data.prices || {});
       if (!rows.length) return emptyStateHtml("No live price data yet.", "\u{1F4CA}");
       return `
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Asset</th><th>Price</th><th>Change</th></tr></thead>
+            <thead><tr><th>Asset</th><th>Price</th><th>24h high</th><th>24h low</th><th>Change</th></tr></thead>
             <tbody>
               ${rows.map((r) => `
                 <tr>
-                  <td>${r.symbol || r.asset_symbol || "—"}</td>
-                  <td class="mono">${r.price ?? r.last_price ?? "—"}</td>
-                  <td class="mono ${(r.change_pct ?? r.change ?? 0) >= 0 ? "text-up" : "text-down"}">${r.change_pct ?? r.change ?? "—"}</td>
+                  <td>${r.symbol || "—"}</td>
+                  <td class="mono">${r.price ?? "—"}</td>
+                  <td class="mono text-2">${r.high ?? "—"}</td>
+                  <td class="mono text-2">${r.low ?? "—"}</td>
+                  <td class="mono ${(r.change_pct ?? 0) >= 0 ? "text-up" : "text-down"}">${r.change_pct !== undefined ? r.change_pct + "%" : "—"}</td>
                 </tr>
               `).join("")}
             </tbody>

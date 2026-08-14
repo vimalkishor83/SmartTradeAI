@@ -13,15 +13,18 @@ export function renderAlerts(main, mod) {
     main.querySelector("#alerts-list"),
     () => api.get("/notifications"),
     (data) => {
-      const items = data.notifications || data.items || data || [];
+      // Field confirmed against the live GET /api/v1/notifications
+      // response: `is_read` (not "read").
+      const items = data.notifications || [];
       if (!items.length) return `<div class="card">${emptyStateHtml("No alerts yet.", "\u{1F514}")}</div>`;
       return items.map((n) => `
         <div class="card card-hover" style="display:flex; justify-content:space-between; align-items:center;">
           <div>
-            <div style="font-weight:600;">${n.title || n.message || "—"}</div>
-            <div class="text-3" style="font-size:11px;">${n.created_at || ""}</div>
+            <div style="font-weight:600;">${n.title || "—"}</div>
+            <div class="text-2" style="font-size:12px; margin-top:2px;">${n.message || ""}</div>
+            <div class="text-3" style="font-size:11px; margin-top:4px;">${n.created_at || ""}</div>
           </div>
-          ${n.read ? "" : '<span class="badge badge-warn">NEW</span>'}
+          ${n.is_read ? "" : '<span class="badge badge-warn">NEW</span>'}
         </div>
       `).join("");
     },

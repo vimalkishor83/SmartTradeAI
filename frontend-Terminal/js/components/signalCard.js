@@ -13,15 +13,24 @@ function fmt(n) {
 }
 
 export function signalCardHtml(signal) {
-  const symbol = signal.symbol || signal.asset_symbol || signal.pair || "—";
+  // Field names confirmed against the live GET /api/v1/signals response —
+  // the API returns `asset` (e.g. "XAUTUSDT") and `signal_type` ("BUY"/
+  // "SELL"), not "symbol"/"direction" as originally guessed, which left
+  // every card showing a blank symbol.
+  const symbol = signal.asset || signal.symbol || signal.asset_symbol || signal.pair || "—";
   const name = signal.name || signal.asset_name || "";
-  const direction = signal.direction || signal.side || signal.signal_type || "WAIT";
-  const confidence = signal.confidence ?? signal.confidence_score;
+  const direction = signal.signal_type || signal.direction || signal.side || "WAIT";
+  const confidence = signal.confidence_score ?? signal.confidence;
   const entry = signal.entry_price ?? signal.entry;
   const stop = signal.stop_loss ?? signal.stop;
-  const t1 = signal.target_1 ?? signal.take_profit_1;
+  const t1 = signal.target1 ?? signal.target_1 ?? signal.take_profit_1;
   const price = signal.current_price ?? signal.last_price;
-  const strategy = signal.strategy || signal.strategy_name || signal.rationale_summary;
+  const rawStrategy = signal.reasoning || signal.strategy || signal.strategy_name || signal.rationale_summary;
+  // `reasoning` is a long pipe-separated technical breakdown — show just
+  // the first couple of factors on the compact card, not the full string.
+  const strategy = rawStrategy && rawStrategy.includes("|")
+    ? rawStrategy.split("|").slice(0, 2).join(" · ").trim()
+    : rawStrategy;
 
   return `
     <div class="card signal-card">

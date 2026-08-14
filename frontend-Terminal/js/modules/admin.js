@@ -29,7 +29,9 @@ export function renderAdmin(main, mod) {
     main.querySelector("#admin-pending"),
     () => api.get("/admin/users?status=pending"),
     (data) => {
-      const users = data.users || data.items || data || [];
+      // Field confirmed against the live GET /api/v1/admin/users response:
+      // `full_name` (not "name").
+      const users = data.users || [];
       if (!users.length) return emptyStateHtml("No pending approvals.", "\u{2699}");
       return `
         <div class="table-wrap">
@@ -38,7 +40,7 @@ export function renderAdmin(main, mod) {
             <tbody>
               ${users.map((u) => `
                 <tr>
-                  <td>${u.name || "—"}</td>
+                  <td>${u.full_name || u.username || "—"}</td>
                   <td>${u.email || "—"}</td>
                   <td class="text-3">${u.created_at || ""}</td>
                 </tr>

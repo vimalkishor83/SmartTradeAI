@@ -13,14 +13,17 @@ export function renderTradingLogs(main, mod) {
     main.querySelector("#journal-table"),
     () => api.get("/journal"),
     (data) => {
-      const entries = data.entries || data.items || data || [];
+      // Field names confirmed against the live GET /api/v1/journal response:
+      // trade_date, direction, pnl_pct/pnl_amount, asset_symbol (often null,
+      // so market is shown as a fallback label) — not "date"/"symbol"/"side"/"pnl".
+      const entries = data.entries || [];
       if (!entries.length) return emptyStateHtml("No journalled trades yet — every paper trade you take will show up here.", "\u{1F4D2}");
       const rows = entries.map((e) => `
         <tr>
-          <td>${e.date || e.created_at || "—"}</td>
-          <td>${e.symbol || e.asset_symbol || "—"}</td>
-          <td>${(e.direction || e.side || "").toUpperCase() || "—"}</td>
-          <td class="mono">${e.pnl ?? "—"}</td>
+          <td>${e.trade_date || e.created_at || "—"}</td>
+          <td>${e.asset_symbol || e.market || "—"}</td>
+          <td>${(e.direction || "").toUpperCase() || "—"}</td>
+          <td class="mono ${(e.pnl_pct ?? 0) >= 0 ? "text-up" : "text-down"}">${e.pnl_pct !== undefined && e.pnl_pct !== null ? e.pnl_pct + "%" : "—"}</td>
           <td class="text-2">${e.notes || ""}</td>
         </tr>
       `).join("");
