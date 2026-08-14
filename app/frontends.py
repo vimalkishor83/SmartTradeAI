@@ -9,7 +9,10 @@ import os
 
 from flask import Blueprint, send_from_directory
 
+from app.extensions import limiter
+
 frontends_bp = Blueprint("frontends", __name__)
+limiter.exempt(frontends_bp)
 
 # Project root (one level above this app/ package).
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

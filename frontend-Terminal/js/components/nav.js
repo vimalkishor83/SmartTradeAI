@@ -1,10 +1,11 @@
 import { MODULE_GROUPS } from "../moduleRegistry.js";
 import { navigate, currentRouteId } from "../router.js";
-import { subscribe } from "../state.js";
+import { getState, subscribe } from "../state.js";
 
 export function mountNav(root) {
   function render() {
     const activeId = currentRouteId();
+    const { user } = getState();
     root.innerHTML = `
       <nav class="sidenav">
         ${MODULE_GROUPS.map((group) => `
@@ -13,7 +14,7 @@ export function mountNav(root) {
             <div class="sidenav-item ${item.id === activeId ? "active" : ""}" data-id="${item.id}">
               <span class="nav-icon">${item.icon}</span>
               <span>${item.label}</span>
-              ${item.real ? "" : '<span class="nav-soon">SOON</span>'}
+              ${!item.real ? '<span class="nav-soon">SOON</span>' : item.premium && !user ? '<span class="nav-soon">\u{1F512}</span>' : ""}
             </div>
           `).join("")}
         `).join("")}

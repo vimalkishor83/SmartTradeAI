@@ -54,7 +54,7 @@ function renderModule(id) {
   const mod = getModule(id) || ALL_MODULES[0];
   const { user } = getState();
 
-  if (!user) {
+  if (mod.premium && !user) {
     main.innerHTML = loginGateHtml();
     bindLoginForm(main);
     return;
