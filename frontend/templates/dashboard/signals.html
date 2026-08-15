@@ -186,7 +186,7 @@
 
 <!-- ── HISTORY TAB ──────────────────────────────────── -->
 <div id="historyTab" {% if active_tab != 'history' %}style="display:none"{% endif %}>
-  <div class="section-card mb-3">
+  <div id="histFilters" class="section-card mb-3">
     <div class="section-card-body py-2">
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <select class="form-select form-select-sm" id="histMkt" style="width:auto">
@@ -202,7 +202,7 @@
     </div>
   </div>
 
-  <div class="section-card">
+  <div id="histTableWrap" class="section-card">
     <div class="table-responsive">
       <table class="smart-table">
         <thead>
@@ -247,7 +247,48 @@ function showTab(tab) {
   document.getElementById('pnlPanel').style.display   = tab === 'live'    ? '' : 'none';
   document.getElementById('tabLiveBtn').classList.toggle('active', tab === 'live');
   document.getElementById('tabHistBtn').classList.toggle('active', tab === 'history');
-  if (tab === 'history') loadHistory(1);
+
+  // Signal History requires Basic+ — All Signals (the "live" tab) stays
+  // free. This is a client-side tab swap (not a page nav), so instead of
+  // redirecting away, the tab opens but its data is replaced with an
+  // inline lock card (same pattern as Backtesting/AI Insights).
+  if (tab === 'history') {
+    if ((Auth.user?.subscription_tier_level ?? 0) < 1) {
+      showHistoryLockCard();
+    } else {
+      hideHistoryLockCard();
+      loadHistory(1);
+    }
+  }
+}
+
+function showHistoryLockCard() {
+  document.getElementById('histFilters').style.display = 'none';
+  document.getElementById('histTableWrap').style.display = 'none';
+  let el = document.getElementById('histLockCard');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'histLockCard';
+    el.className = 'section-card';
+    document.getElementById('historyTab').appendChild(el);
+  }
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="section-card-body p-4 text-center">
+      <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
+      <h5 class="mt-3 mb-2">Signal History is a Basic feature</h5>
+      <p class="text-muted small mb-3">Upgrade to the Basic plan or higher to unlock your full signal history.</p>
+      <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
+    </div>`;
+}
+
+function hideHistoryLockCard() {
+  const lock = document.getElementById('histLockCard');
+  if (lock) lock.style.display = 'none';
+  const filters = document.getElementById('histFilters');
+  if (filters) filters.style.display = '';
+  const wrap = document.getElementById('histTableWrap');
+  if (wrap) wrap.style.display = '';
 }
 
 async function loadSummary() {

@@ -34,7 +34,7 @@
   <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
 </head>
-<body{% if requires_admin %} data-requires-admin{% endif %}>
+<body{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
 {% if not hide_sidebar %}
 <!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->
@@ -84,8 +84,8 @@
         </a>
         {% endif %}
         {% if '/briefing' not in disabled_nav_items %}
-        <a href="/briefing" data-tooltip="Morning Briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
-          <i class="bi bi-sunrise nav-icon-yellow"></i><span class="nav-text">Morning Briefing</span>
+        <a href="/briefing" data-tooltip="Morning Briefing — requires Premium or higher" class="nav-item {% if active == 'briefing' %}active{% endif %}">
+          <i class="bi bi-sunrise nav-icon-yellow"></i><span class="nav-text">Morning Briefing</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
       </div>
@@ -104,28 +104,28 @@
         </a>
         {% endif %}
         {% if '/markets/forex' not in disabled_nav_items %}
-        <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
-          <i class="bi bi-currency-exchange nav-icon-blue"></i><span class="nav-text">Forex</span>
+        <a href="/markets/forex" data-tooltip="Forex — requires Basic or higher" class="nav-item {% if active == 'forex' %}active{% endif %}">
+          <i class="bi bi-currency-exchange nav-icon-blue"></i><span class="nav-text">Forex</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/commodities' not in disabled_nav_items %}
-        <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active in ['commodity', 'commodities', 'gold', 'silver'] %}active{% endif %}">
-          <i class="bi bi-gem nav-icon-yellow"></i><span class="nav-text">Commodities</span>
+        <a href="/markets/commodities" data-tooltip="Commodities — requires Basic or higher" class="nav-item {% if active in ['commodity', 'commodities', 'gold', 'silver'] %}active{% endif %}">
+          <i class="bi bi-gem nav-icon-yellow"></i><span class="nav-text">Commodities</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/indian_stock' not in disabled_nav_items %}
-        <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-          <i class="bi bi-building nav-icon-cyan"></i><span class="nav-text">Indian Stocks</span>
+        <a href="/markets/indian_stock" data-tooltip="Indian Stocks — requires Basic or higher" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
+          <i class="bi bi-building nav-icon-cyan"></i><span class="nav-text">Indian Stocks</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/index' not in disabled_nav_items %}
-        <a href="/markets/index" data-tooltip="Indices" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-          <i class="bi bi-activity nav-icon-purple"></i><span class="nav-text">Indices</span>
+        <a href="/markets/index" data-tooltip="Indices — requires Basic or higher" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
+          <i class="bi bi-activity nav-icon-purple"></i><span class="nav-text">Indices</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/terminal' not in disabled_nav_items %}
-        <a href="/markets/terminal" data-tooltip="Terminal" class="nav-item {% if active == 'terminal' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap-fill nav-icon-red"></i><span class="nav-text">Terminal</span>
+        <a href="/markets/terminal" data-tooltip="Terminal — requires Basic or higher" class="nav-item {% if active == 'terminal' %}active{% endif %}">
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-red"></i><span class="nav-text">Terminal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -144,34 +144,34 @@
         </a>
         {% endif %}
         {% if '/auto-generate' not in disabled_nav_items %}
-        <a href="/auto-generate" data-tooltip="Auto Generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
+        <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
           <i class="bi bi-robot nav-icon-cyan"></i><span class="nav-text">Auto Generate</span>
           <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
         </a>
         {% endif %}
         {% if '/scanner' not in disabled_nav_items %}
-        <a href="/scanner" data-tooltip="Scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
-          <i class="bi bi-radar nav-icon-green"></i><span class="nav-text">Scanner</span>
+        <a href="/scanner" data-tooltip="Scanner — requires Premium or higher" class="nav-item {% if active == 'scanner' %}active{% endif %}">
+          <i class="bi bi-radar nav-icon-green"></i><span class="nav-text">Scanner</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/heatmap' not in disabled_nav_items %}
-        <a href="/heatmap" data-tooltip="Market Heatmap" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap-fill nav-icon-purple"></i><span class="nav-text">Market Heatmap</span>
+        <a href="/heatmap" data-tooltip="Market Heatmap — requires Premium or higher" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-purple"></i><span class="nav-text">Market Heatmap</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/backtesting' not in disabled_nav_items %}
         <a href="/backtesting" data-tooltip="Backtesting — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history nav-icon-blue"></i><span class="nav-text">Backtesting</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM+</span>
+          <i class="bi bi-clock-history nav-icon-blue"></i><span class="nav-text">Backtesting</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/ai-insights' not in disabled_nav_items %}
         <a href="/ai-insights" data-tooltip="AI Insights — requires Premium or higher" class="nav-item {% if active == 'ai' %}active{% endif %}">
-          <i class="bi bi-cpu-fill nav-icon-purple"></i><span class="nav-text">AI Insights</span><span class="badge-pro" id="navAiInsightsGate" title="Requires Premium or higher">PREMIUM+</span>
+          <i class="bi bi-cpu-fill nav-icon-purple"></i><span class="nav-text">AI Insights</span><span class="badge-pro" id="navAiInsightsGate" title="Requires Premium or higher">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/signals?tab=history' not in disabled_nav_items %}
-        <a href="/signals?tab=history" data-tooltip="Signal History" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
-          <i class="bi bi-journal-text nav-icon-cyan"></i><span class="nav-text">Signal History</span>
+        <a href="/signals?tab=history" data-tooltip="Signal History — requires Basic or higher" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
+          <i class="bi bi-journal-text nav-icon-cyan"></i><span class="nav-text">Signal History</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -185,28 +185,28 @@
       </div>
       <div class="nav-group-body">
         {% if '/ta-summary' not in disabled_nav_items %}
-        <a href="/ta-summary" data-tooltip="TA Summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-          <i class="bi bi-speedometer2 nav-icon-blue"></i><span class="nav-text">TA Summary</span>
+        <a href="/ta-summary" data-tooltip="TA Summary — requires Premium or higher" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+          <i class="bi bi-speedometer2 nav-icon-blue"></i><span class="nav-text">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/mtf-analysis' not in disabled_nav_items %}
-        <a href="/mtf-analysis" data-tooltip="MTF Analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-          <i class="bi bi-table nav-icon-cyan"></i><span class="nav-text">MTF Analysis</span>
+        <a href="/mtf-analysis" data-tooltip="MTF Analysis — requires Premium or higher" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+          <i class="bi bi-table nav-icon-cyan"></i><span class="nav-text">MTF Analysis</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/model-performance' not in disabled_nav_items %}
-        <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
-          <i class="bi bi-bar-chart-steps nav-icon-purple"></i><span class="nav-text">Model Performance</span>
+        <a href="/model-performance" data-tooltip="Model Performance — requires Pro" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
+          <i class="bi bi-bar-chart-steps nav-icon-purple"></i><span class="nav-text">Model Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="3">PRO</span>
         </a>
         {% endif %}
         {% if '/advanced-analysis' not in disabled_nav_items %}
-        <a href="/advanced-analysis" data-tooltip="Advanced Analysis" class="nav-item {% if active == 'advanced_analysis' %}active{% endif %}">
-          <i class="bi bi-layers nav-icon-blue"></i><span class="nav-text">Advanced Analysis</span>
+        <a href="/advanced-analysis" data-tooltip="Advanced Analysis — requires Premium or higher" class="nav-item {% if active == 'advanced_analysis' %}active{% endif %}">
+          <i class="bi bi-layers nav-icon-blue"></i><span class="nav-text">Advanced Analysis</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/analytics' not in disabled_nav_items %}
-        <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-          <i class="bi bi-graph-up nav-icon-green"></i><span class="nav-text">Analytics</span>
+        <a href="/analytics" data-tooltip="Analytics — requires Premium or higher" class="nav-item {% if active == 'analytics' %}active{% endif %}">
+          <i class="bi bi-graph-up nav-icon-green"></i><span class="nav-text">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/news' not in disabled_nav_items %}
@@ -241,8 +241,8 @@
         </a>
         {% endif %}
         {% if '/broker-connections' not in disabled_nav_items %}
-        <a href="/broker-connections" data-tooltip="Broker Connections" class="nav-item {% if active == 'broker_connections' %}active{% endif %}">
-          <i class="bi bi-link-45deg nav-icon-cyan"></i><span class="nav-text">Broker Connections</span>
+        <a href="/broker-connections" data-tooltip="Broker Connections — requires Premium or higher" class="nav-item {% if active == 'broker_connections' %}active{% endif %}">
+          <i class="bi bi-link-45deg nav-icon-cyan"></i><span class="nav-text">Broker Connections</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/watchlist' not in disabled_nav_items %}
@@ -256,13 +256,13 @@
         </a>
         {% endif %}
         {% if '/performance' not in disabled_nav_items %}
-        <a href="/performance" data-tooltip="My Performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
-          <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">My Performance</span>
+        <a href="/performance" data-tooltip="My Performance — requires Basic or higher" class="nav-item {% if active == 'performance' %}active{% endif %}">
+          <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">My Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/journal' not in disabled_nav_items %}
-        <a href="/journal" data-tooltip="Trade Journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
-          <i class="bi bi-journal-bookmark-fill nav-icon-blue"></i><span class="nav-text">Trade Journal</span>
+        <a href="/journal" data-tooltip="Trade Journal — requires Basic or higher" class="nav-item {% if active == 'journal' %}active{% endif %}">
+          <i class="bi bi-journal-bookmark-fill nav-icon-blue"></i><span class="nav-text">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -411,13 +411,16 @@
   <!-- Page content -->
   <main class="page-content" id="pageContent">
     <div id="approvalBanner" style="display:none" class="approval-banner"></div>
+    <div id="pageContentBody">
     {% block content %}{% endblock %}
+    </div>
 
     <div class="financial-disclaimer-strip">
       <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
       analytical/algorithmic tools — not personalised investment advice, guaranteed predictions, or assured returns.
       Trading involves substantial risk, including loss of principal. Always do independent research and consult a
       qualified financial professional before making financial decisions.
+      <a href="/disclaimer" class="text-accent">Read full disclaimer →</a>
     </div>
   </main>
 
@@ -437,17 +440,17 @@
       {% if '/signals' not in disabled_nav_items %}<a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">All Signals</span></a>{% endif %}
       {% if '/briefing' not in disabled_nav_items %}<a href="/briefing"         class="cmd-item"><i class="bi bi-sunrise"></i><span class="cmd-item-label">Morning Briefing</span></a>{% endif %}
       {% if '/markets/crypto' not in disabled_nav_items %}<a href="/markets/crypto"   class="cmd-item"><i class="bi bi-currency-bitcoin"></i><span class="cmd-item-label">Crypto Markets</span></a>{% endif %}
-      {% if '/markets/forex' not in disabled_nav_items %}<a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span></a>{% endif %}
-      {% if '/markets/commodities' not in disabled_nav_items %}<a href="/markets/commodities" class="cmd-item"><i class="bi bi-gem"></i><span class="cmd-item-label">Commodities</span></a>{% endif %}
-      {% if '/markets/indian_stock' not in disabled_nav_items %}<a href="/markets/indian_stock" class="cmd-item"><i class="bi bi-building"></i><span class="cmd-item-label">Indian Stocks</span></a>{% endif %}
-      {% if '/markets/index' not in disabled_nav_items %}<a href="/markets/index"    class="cmd-item"><i class="bi bi-activity"></i><span class="cmd-item-label">Indices</span></a>{% endif %}
-      {% if '/heatmap' not in disabled_nav_items %}<a href="/heatmap"          class="cmd-item"><i class="bi bi-grid-3x3-gap-fill"></i><span class="cmd-item-label">Market Heatmap</span></a>{% endif %}
-      {% if '/scanner' not in disabled_nav_items %}<a href="/scanner"          class="cmd-item"><i class="bi bi-radar"></i><span class="cmd-item-label">Scanner</span></a>{% endif %}
+      {% if '/markets/forex' not in disabled_nav_items %}<a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
+      {% if '/markets/commodities' not in disabled_nav_items %}<a href="/markets/commodities" class="cmd-item"><i class="bi bi-gem"></i><span class="cmd-item-label">Commodities</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
+      {% if '/markets/indian_stock' not in disabled_nav_items %}<a href="/markets/indian_stock" class="cmd-item"><i class="bi bi-building"></i><span class="cmd-item-label">Indian Stocks</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
+      {% if '/markets/index' not in disabled_nav_items %}<a href="/markets/index"    class="cmd-item"><i class="bi bi-activity"></i><span class="cmd-item-label">Indices</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
+      {% if '/heatmap' not in disabled_nav_items %}<a href="/heatmap"          class="cmd-item"><i class="bi bi-grid-3x3-gap-fill"></i><span class="cmd-item-label">Market Heatmap</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
+      {% if '/scanner' not in disabled_nav_items %}<a href="/scanner"          class="cmd-item"><i class="bi bi-radar"></i><span class="cmd-item-label">Scanner</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
       {% if '/portfolio' not in disabled_nav_items %}<a href="/portfolio"        class="cmd-item"><i class="bi bi-pie-chart-fill"></i><span class="cmd-item-label">Portfolio</span></a>{% endif %}
       {% if '/watchlist' not in disabled_nav_items %}<a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>{% endif %}
-      {% if '/analytics' not in disabled_nav_items %}<a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span></a>{% endif %}
-      {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span></a>{% endif %}
-      {% if '/journal' not in disabled_nav_items %}<a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span></a>{% endif %}
+      {% if '/analytics' not in disabled_nav_items %}<a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
+      {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
+      {% if '/journal' not in disabled_nav_items %}<a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
       {% if '/settings' not in disabled_nav_items %}<a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>{% endif %}
       <div class="cmd-group-label cmd-group-label-assets" id="cmdAssetsGroupLabel" style="display:none">Assets</div>
       <div id="cmdAssetsResults"></div>

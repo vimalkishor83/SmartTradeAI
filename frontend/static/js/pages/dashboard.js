@@ -401,6 +401,10 @@ function _renderHeatmap(items) {
 async function _generateSignal() {
   const btn = document.getElementById('generateSignalBtn');
   const top = _signalData[0];
+  // Both the /auto-generate page and this fallback route to it are
+  // admin-only now (see app.js generateSignalBtn visibility gate) — this
+  // handler only runs for admins in the first place since the button
+  // itself is hidden for everyone else.
   if (!top?.asset) { location = '/auto-generate'; return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generating…'; }
   try {

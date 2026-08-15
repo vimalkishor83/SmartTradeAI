@@ -17,7 +17,7 @@ connected a broker key.
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
-from app.auth.decorators import login_required, approved_required
+from app.auth.decorators import login_required, approved_required, subscription_feature_required
 from app.services.data.fetcher import to_delta_symbol
 from app.services.trading.delta_trading import get_configured_client, DeltaTradingError
 from app.services.trading.broker_registry import get_broker, list_brokers, required_fields
@@ -98,6 +98,7 @@ def broker_status():
 
 @trading_bp.route("/broker/connect", methods=["POST"])
 @approved_required
+@subscription_feature_required("broker_connect_enabled")
 def broker_connect():
     """Save (or replace) the current user's own credentials for ANY
     supported broker — provider is now a request field, not hardcoded."""

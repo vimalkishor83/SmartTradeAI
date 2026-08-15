@@ -8,13 +8,18 @@
 <div class="page-header">
   <div><span class="page-eyebrow">Admin</span>
 <h1 class="page-title">System Logs</h1></div>
-  <select class="form-select form-select-sm" id="levelFilter" style="width:auto">
-    <option value="">All Levels</option>
-    <option value="INFO">INFO</option>
-    <option value="WARNING">WARNING</option>
-    <option value="ERROR">ERROR</option>
-    <option value="CRITICAL">CRITICAL</option>
-  </select>
+  <div class="d-flex gap-2">
+    <select class="form-select form-select-sm" id="levelFilter" style="width:auto">
+      <option value="">All Levels</option>
+      <option value="INFO">INFO</option>
+      <option value="WARNING">WARNING</option>
+      <option value="ERROR">ERROR</option>
+      <option value="CRITICAL">CRITICAL</option>
+    </select>
+    <button class="btn btn-sm btn-outline-danger" id="clearLogsBtn">
+      <i class="bi bi-trash3 me-1"></i>Clear Logs
+    </button>
+  </div>
 </div>
 
 <div class="section-card">
@@ -51,7 +56,22 @@ async function loadLogs(page = 1) {
     </tr>`).join('');
 }
 
+async function clearLogs() {
+  const level = document.getElementById('levelFilter').value;
+  const scope = level ? `all ${level} logs` : 'ALL logs';
+  if (!confirm(`Delete ${scope}? This cannot be undone.`)) return;
+  const path = level ? `/admin/system-logs?level=${encodeURIComponent(level)}` : '/admin/system-logs';
+  const ok = await API.delete(path);
+  if (ok) {
+    Toast.show(`${scope} cleared`, 'success');
+    loadLogs(1);
+  } else {
+    Toast.show('Failed to clear logs', 'error');
+  }
+}
+
 document.getElementById('levelFilter').addEventListener('change', () => loadLogs(1));
+document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
 document.addEventListener('app:ready', () => loadLogs());
 </script>
 {% endblock %}

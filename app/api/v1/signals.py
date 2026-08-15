@@ -883,7 +883,7 @@ def get_signal(signal_id):
 
 
 @signals_bp.route("/generate", methods=["POST"])
-@login_required
+@admin_required
 def generate_signal():
     data = request.get_json()
     symbol = data.get("symbol")

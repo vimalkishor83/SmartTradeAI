@@ -579,6 +579,18 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   flex-shrink: 0;
 }
 
+.badge-pro.nav-tier-gate {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.badge-pro.nav-tier-gate::before {
+  font-family: "bootstrap-icons";
+  content: "\f47a";
+  font-size: 8px;
+}
+
 /* Collapsed sidebar — icon only + tooltip */
 .sidebar.collapsed .brand-name,
 .sidebar.collapsed .nav-text,
@@ -1352,6 +1364,10 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .cmd-item-sub {
   font-size: 11.5px;
   color: var(--text-muted);
+  margin-left: auto;
+}
+
+.cmd-item .badge-pro.nav-tier-gate {
   margin-left: auto;
 }
 

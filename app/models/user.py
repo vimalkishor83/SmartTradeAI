@@ -36,6 +36,8 @@ class Subscription(db.Model):
     max_alerts = db.Column(db.Integer, default=5)
     backtesting_enabled = db.Column(db.Boolean, default=False)
     ai_enabled = db.Column(db.Boolean, default=False)
+    advanced_charts_enabled = db.Column(db.Boolean, default=False)
+    broker_connect_enabled = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     users = db.relationship("User", backref="subscription", lazy="dynamic")
@@ -174,6 +176,7 @@ class User(db.Model):
             "full_name": self.full_name,
             "role": self.role.name if self.role else None,
             "subscription": self.subscription.name if self.subscription else "free",
+            "subscription_tier_level": self.subscription.tier_level if self.subscription else 0,
             "broker": self.broker.name if self.broker else None,
             "broker_account_id": self.broker_account_id,
             "referral_code": self.referral_code.code if self.referral_code else None,

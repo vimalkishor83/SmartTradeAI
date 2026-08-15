@@ -54,6 +54,11 @@ def privacy():
     return render_template("legal/privacy.html")
 
 
+@views_bp.route("/disclaimer")
+def disclaimer():
+    return render_template("legal/disclaimer.html")
+
+
 @views_bp.route("/markets/<market>")
 def markets(market):
     # Normalize the plural URL slug to the canonical data slug so Commodities
@@ -61,17 +66,21 @@ def markets(market):
     # tab / signal filter (market=commodity) line up.
     if market == "commodities":
         market = "commodity"
-    return render_template("markets/index.html", market=market)
+    # Crypto stays free (the "hook" market); every other market requires
+    # Basic+ per the tier redesign — checked client-side via
+    # data-requires-tier on <body>, same mechanism as data-requires-admin.
+    requires_tier = 0 if market == "crypto" else 1
+    return render_template("markets/index.html", market=market, requires_tier=requires_tier)
 
 
 @views_bp.route("/markets/terminal")
 def markets_terminal():
-    return render_template("markets/terminal.html")
+    return render_template("markets/terminal.html", requires_tier=1)
 
 
 @views_bp.route("/scanner")
 def scanner():
-    return render_template("dashboard/scanner.html")
+    return render_template("dashboard/scanner.html", requires_tier=2)
 
 
 @views_bp.route("/backtesting")
@@ -97,7 +106,7 @@ def signals():
 
 @views_bp.route("/analytics")
 def analytics():
-    return render_template("dashboard/analytics.html")
+    return render_template("dashboard/analytics.html", requires_tier=2)
 
 
 @views_bp.route("/news")
@@ -112,12 +121,12 @@ def ai_insights():
 
 @views_bp.route("/model-performance")
 def model_performance():
-    return render_template("dashboard/model_performance.html")
+    return render_template("dashboard/model_performance.html", requires_tier=3)
 
 
 @views_bp.route("/heatmap")
 def heatmap():
-    return render_template("dashboard/heatmap.html")
+    return render_template("dashboard/heatmap.html", requires_tier=2)
 
 
 @views_bp.route("/risk")
@@ -132,7 +141,7 @@ def settings():
 
 @views_bp.route("/advanced-analysis")
 def advanced_analysis():
-    return render_template("dashboard/advanced_analysis.html")
+    return render_template("dashboard/advanced_analysis.html", requires_tier=2)
 
 
 @views_bp.route("/auto-generate")
@@ -147,12 +156,12 @@ def trading():
 
 @views_bp.route("/broker-connections")
 def broker_connections():
-    return render_template("dashboard/broker_connections.html")
+    return render_template("dashboard/broker_connections.html", requires_tier=2)
 
 
 @views_bp.route("/briefing")
 def briefing():
-    return render_template("dashboard/briefing.html")
+    return render_template("dashboard/briefing.html", requires_tier=2)
 
 
 @views_bp.route("/economic-calendar")
@@ -162,22 +171,22 @@ def economic_calendar_page():
 
 @views_bp.route("/mtf-analysis")
 def mtf_analysis():
-    return render_template("dashboard/mtf_analysis.html")
+    return render_template("dashboard/mtf_analysis.html", requires_tier=2)
 
 
 @views_bp.route("/performance")
 def performance():
-    return render_template("dashboard/performance.html")
+    return render_template("dashboard/performance.html", requires_tier=1)
 
 
 @views_bp.route("/ta-summary")
 def ta_summary():
-    return render_template("dashboard/ta_summary.html")
+    return render_template("dashboard/ta_summary.html", requires_tier=2)
 
 
 @views_bp.route("/journal")
 def journal():
-    return render_template("dashboard/journal.html")
+    return render_template("dashboard/journal.html", requires_tier=1)
 
 
 @views_bp.route("/admin")

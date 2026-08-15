@@ -66,7 +66,7 @@
 </div>
 
 <!-- Your Plan -->
-<div class="row g-4 mt-1">
+<div class="row g-4 mt-1" id="yourPlanSection">
   <div class="col-12">
     <div class="section-card">
       <div class="section-card-header">
@@ -84,15 +84,18 @@
               <tr>
                 <th>Plan</th>
                 <th>Price</th>
+                <th>Markets</th>
                 <th>Signal delay</th>
                 <th>Watchlist / Alerts</th>
+                <th>Analysis Tools</th>
                 <th>Backtesting</th>
                 <th>AI Insights</th>
+                <th>Broker Trading</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="planTableBody">
-              <tr><td colspan="7" class="text-center text-muted py-4">Loading plans…</td></tr>
+              <tr><td colspan="10" class="text-center text-muted py-4">Loading plans…</td></tr>
             </tbody>
           </table>
         </div>
@@ -292,7 +295,15 @@ document.addEventListener('app:ready', async () => {
     renderAssetGrid(prefs.assets);
   }
 
-  loadPlan(user);
+  await loadPlan(user);
+
+  // Deep-link support: /settings#yourPlanSection (e.g. from the "View Plans
+  // & Upgrade" links on Backtesting/AI Insights) scrolls straight to the
+  // plan table instead of landing at the top of a long Settings page —
+  // done after loadPlan() resolves since the section is populated async.
+  if (window.location.hash === '#yourPlanSection') {
+    document.getElementById('yourPlanSection')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 
 async function loadPlan(user) {
@@ -314,6 +325,11 @@ async function loadPlan(user) {
   // their own plan correctly.
   const plans = allPlans.filter(p => p.name.toLowerCase() !== 'admin');
 
+  // Which plans already have an outstanding request — so refreshing the
+  // page doesn't forget you clicked Request and let you click it again.
+  const pendingData = await API.get('/auth/upgrade-request/pending');
+  const pendingPlans = new Set((pendingData?.pending_plans || []).map(p => p.toLowerCase()));
+
   currentEl.innerHTML = `
     <span class="badge bg-primary text-uppercase" style="font-size:12px;padding:6px 12px">${currentName}</span>
     <div class="flex-grow-1">
@@ -328,23 +344,31 @@ async function loadPlan(user) {
       </div>
     </div>`;
 
+  const marketsByTier = { 0: 'Crypto only', 1: 'All 5 markets', 2: 'All 5 markets', 3: 'All 5 markets' };
+  const toolsByTier = { 0: '—', 1: 'Terminal, History', 2: 'Full suite', 3: 'Full suite' };
+
   bodyEl.innerHTML = plans.map(p => {
     const isCurrent = p.name.toLowerCase() === currentName;
     const check  = '<i class="bi bi-check-circle-fill text-success"></i>';
-    const cross  = '<i class="bi bi-x-circle text-muted"></i>';
+    const cross  = '<i class="bi bi-lock-fill text-muted"></i>';
     const delay  = p.signal_delay_minutes > 0 ? `${p.signal_delay_minutes} min` : 'Live';
     return `
       <tr style="${isCurrent ? 'background:var(--glass)' : ''}">
         <td class="text-uppercase fw-semibold">${p.name}${isCurrent ? ' <span class="badge bg-primary ms-1" style="font-size:9px">CURRENT</span>' : ''}</td>
         <td>₹${p.price.toLocaleString('en-IN')}/mo</td>
+        <td>${marketsByTier[p.tier_level] ?? 'All 5 markets'}</td>
         <td>${delay}</td>
         <td>${p.max_watchlist} / ${p.max_alerts}</td>
+        <td>${toolsByTier[p.tier_level] ?? 'Full suite'}</td>
         <td>${p.backtesting_enabled ? check : cross}</td>
         <td>${p.ai_enabled ? check : cross}</td>
+        <td>${p.broker_connect_enabled ? check : cross}</td>
         <td class="text-end">
           ${isCurrent
             ? '<span class="text-muted fs-xs">Current plan</span>'
-            : `<button class="btn btn-sm btn-outline-primary" onclick="requestUpgrade('${p.name}')">Request</button>`}
+            : pendingPlans.has(p.name.toLowerCase())
+              ? '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-hourglass-split me-1"></i>Pending approval</button>'
+              : `<button class="btn btn-sm btn-outline-primary" onclick="requestUpgrade('${p.name}')">Request</button>`}
         </td>
       </tr>`;
   }).join('');
@@ -357,7 +381,7 @@ async function requestUpgrade(planName) {
   const res = await API.post('/auth/upgrade-request', { plan: planName });
   if (res?.message) {
     Toast?.show ? Toast.show(res.message, 'success') : alert(res.message);
-    btn.outerHTML = '<span class="text-success fs-xs"><i class="bi bi-check2"></i> Requested</span>';
+    btn.outerHTML = '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-hourglass-split me-1"></i>Pending approval</button>';
   } else {
     Toast?.show ? Toast.show(res?.error || 'Request failed', 'error') : alert(res?.error || 'Request failed');
     btn.disabled = false;
@@ -427,7 +451,7 @@ async function load2FAStatus() {
 
 async function setup2FA() {
   const res = await API.post('/auth/2fa/setup', {});
-  if (!res?.secret) { Toast.show('Setup failed', 'error'); return; }
+  if (!res?.secret) { Toast.show(res?.error || 'Setup failed — please try again or contact support', 'error'); return; }
   document.getElementById('twofaSecret').value = res.secret;
   if (res.qr_code) document.getElementById('twofaQR').src = res.qr_code;
   document.getElementById('twofa_setup').style.display = '';

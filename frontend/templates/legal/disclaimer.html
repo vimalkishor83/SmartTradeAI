@@ -1,0 +1,256 @@
+{% extends "partials/base.html" %}
+{% set hide_sidebar = true %}
+{% block title %}Financial Disclaimer — SmartTrade AI{% endblock %}
+
+{% block extra_css %}
+<style>
+  .legal-page {
+    min-height: 100vh;
+    background: var(--bg-primary, #0a0d13);
+    padding: 56px 24px 80px;
+  }
+  .legal-doc {
+    max-width: 1100px;
+    width: 60%;
+    margin: 0 auto;
+  }
+  @media (max-width: 1100px) {
+    .legal-doc { width: 100%; }
+  }
+  .legal-doc-header {
+    margin-bottom: 28px;
+  }
+  .legal-doc-eyebrow {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+  }
+  .legal-doc-title {
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+  }
+  .legal-doc-updated {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .legal-notice {
+    background: rgba(245, 166, 35, 0.08);
+    border: 1px solid rgba(245, 166, 35, 0.25);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin: 24px 0 32px;
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--text-primary);
+    opacity: 0.85;
+  }
+  .legal-notice strong {
+    color: var(--text-primary);
+    opacity: 1;
+  }
+  .legal-section {
+    margin-bottom: 28px;
+  }
+  .legal-section h3 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  .legal-section h3 .num {
+    font-family: var(--font-mono, 'JetBrains Mono', monospace);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    flex-shrink: 0;
+  }
+  .legal-section p {
+    font-size: 14.5px;
+    line-height: 1.75;
+    color: var(--text-primary);
+    opacity: 0.88;
+    margin: 0;
+  }
+  .legal-doc-footer {
+    margin-top: 44px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+  .legal-doc-footer a {
+    color: var(--accent);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .legal-doc-footer a:hover {
+    color: var(--accent-light);
+  }
+</style>
+{% endblock %}
+
+{% block auth_content %}
+<div class="legal-page">
+  <div class="legal-doc">
+    <div class="legal-doc-header">
+      <span class="legal-doc-eyebrow">Legal</span>
+      <h1 class="legal-doc-title">Financial Disclaimer</h1>
+      <div class="legal-doc-updated">Last updated August 2026</div>
+    </div>
+
+    <div class="legal-notice">
+      <strong>Placeholder document — this is not a legally reviewed disclaimer.</strong>
+      Replace this page with disclaimer language drafted or reviewed by a securities/financial-services
+      lawyer, tailored to the jurisdictions you operate in, before taking real users or payments in
+      production. This draft is written to be thorough and directionally correct, not as a substitute
+      for professional legal review.
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">01</span>Not Financial, Investment, or Trading Advice</h3>
+      <p>
+        SmartTrade AI ("the Platform") provides financial education, market information, and
+        analytical/algorithmic tools. Nothing on the Platform — including signals, confidence scores,
+        entry/target/stop-loss levels, AI predictions, backtests, or any other content — constitutes
+        personalised investment advice, a recommendation to buy or sell any security or instrument, or
+        a solicitation of any kind. We are not a registered investment adviser, broker-dealer, or
+        financial planner in any jurisdiction, and nothing here is tailored to your individual financial
+        situation, objectives, or risk tolerance.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">02</span>No Guaranteed Returns or Predictions</h3>
+      <p>
+        Trading and investing in financial markets involves substantial risk, including the risk of
+        losing your entire principal. No signal, confidence score, or AI-generated prediction shown on
+        the Platform guarantees any particular outcome, return, or level of accuracy. Confidence scores
+        reflect the output of a statistical model at a point in time — they are not a probability of
+        profit and should never be treated as one. Markets are unpredictable, and even historically
+        reliable strategies can fail without warning due to changing conditions.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">03</span>Past Performance Is Not Indicative of Future Results</h3>
+      <p>
+        Any backtested results, historical win rates, equity curves, or performance statistics shown on
+        the Platform reflect how a strategy would have performed on historical data under specific
+        assumptions (fees, slippage, execution timing, data availability). Backtested performance is
+        inherently limited by hindsight and does not account for every real-world condition. Past
+        performance — whether live or simulated — is not a reliable indicator of future results, and
+        actual results may differ materially.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">04</span>Market Data Accuracy and Availability</h3>
+      <p>
+        Market data, prices, and signals displayed on the Platform are sourced from third-party data
+        providers and may be delayed, incomplete, inaccurate, or temporarily unavailable due to factors
+        outside our control (exchange outages, API rate limits, network issues, provider errors).
+        Signal delay varies by subscription tier. Do not rely on the Platform as your sole source of
+        market data for time-sensitive decisions — always cross-check against your broker or exchange's
+        live data before acting.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">05</span>Automated and AI-Generated Content</h3>
+      <p>
+        Signals and analysis on the Platform are generated by automated systems and machine-learning
+        models. These systems can and do produce incorrect, misleading, or unexpected output, including
+        but not limited to model errors, data-quality issues, and edge cases the underlying models were
+        not trained to handle. AI-generated reasoning accompanying a signal is a model's best attempt at
+        an explanation, not a guarantee that the stated logic is complete, correct, or the true cause of
+        any market movement.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">06</span>Your Trading Decisions Are Your Own Responsibility</h3>
+      <p>
+        You are solely responsible for evaluating the merits and risks of any trade, investment, or
+        strategy before acting, and for any resulting gains or losses. This includes decisions made
+        using signals, backtests, risk-management tools (position sizing, stop-loss calculators), or any
+        other feature of the Platform. Always conduct your own independent research and, where
+        appropriate, consult a qualified, licensed financial professional before making financial
+        decisions — especially with money you cannot afford to lose.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">07</span>Broker Connections and Order Execution</h3>
+      <p>
+        If you connect a broker or exchange account, any orders placed through the Platform — whether
+        manually or via automated execution features — are subject to that broker/exchange's own
+        execution, latency, slippage, and fee conditions, which the Platform does not control. We are
+        not responsible for order rejections, partial fills, execution delays, or losses arising from
+        your broker's infrastructure, policies, or downtime.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">08</span>Leverage and High-Risk Instruments</h3>
+      <p>
+        Some markets and instruments referenced on the Platform (including but not limited to
+        cryptocurrency, forex, and derivatives) may involve leverage, margin, or other features that can
+        amplify both gains and losses. These instruments are not suitable for all investors. You should
+        fully understand how a given instrument works and the maximum loss you could realistically incur
+        before trading it.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">09</span>No Fiduciary Relationship</h3>
+      <p>
+        Use of the Platform does not create a fiduciary, advisory, or agency relationship between you
+        and SmartTrade AI. We do not act on your behalf in any capacity other than, where applicable,
+        relaying your own explicit instructions to a broker/exchange you have separately connected.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">10</span>Regulatory Status</h3>
+      <p>
+        SmartTrade AI is not registered with, licensed by, or endorsed by any securities regulator,
+        commodities regulator, or financial markets authority. Availability of the Platform in your
+        jurisdiction does not imply regulatory approval. It is your responsibility to determine whether
+        your use of the Platform complies with the laws and regulations applicable to you.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">11</span>Limitation of Liability</h3>
+      <p>
+        To the maximum extent permitted by law, SmartTrade AI and its operators disclaim all liability
+        for any direct, indirect, incidental, or consequential losses arising from your use of, or
+        reliance on, the Platform, including trading losses, missed opportunities, or data inaccuracies.
+        The Platform is provided "as is" without warranty of any kind, express or implied.
+      </p>
+    </div>
+
+    <div class="legal-section">
+      <h3><span class="num">12</span>Changes to This Disclaimer</h3>
+      <p>
+        This disclaimer may be updated as the product evolves or as required by applicable law.
+        Continued use of the Platform after a change constitutes acceptance of the updated disclaimer.
+      </p>
+    </div>
+
+    <div class="legal-doc-footer">
+      <a href="/home">&larr; Back to Home</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

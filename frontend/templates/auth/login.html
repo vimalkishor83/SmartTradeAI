@@ -387,6 +387,24 @@
         <button class="btn btn-sm btn-primary mt-2 w-100" id="fillDemo"><i class="bi bi-box-arrow-in-right me-1"></i>Use Demo Account</button>
       </div>
 
+      {% if config.DEBUG %}
+      <!-- Dev-only quick-fill for QA across tiers — gated on config.DEBUG so
+           these test credentials never render in a production response. -->
+      <div class="p-3 rounded mb-3" style="background:rgba(255,255,255,0.03);border:1px dashed rgba(255,255,255,0.15)">
+        <div class="d-flex align-items-center gap-2 mb-2">
+          <i class="bi bi-flask text-muted" style="font-size:14px"></i>
+          <span style="font-size:12px;font-weight:700;color:var(--text-muted)">QA Quick Login (dev only)</span>
+        </div>
+        <div class="d-flex flex-wrap gap-2" id="qaQuickLogin">
+          <button type="button" class="btn btn-sm btn-outline-light" data-email="admin@smarttradeai.com" data-pwd="Admin@123">Admin</button>
+          <button type="button" class="btn btn-sm btn-outline-light" data-email="qa_pro@smarttradeai.com" data-pwd="QaPro@123">Pro</button>
+          <button type="button" class="btn btn-sm btn-outline-light" data-email="qa_premium@smarttradeai.com" data-pwd="QaPremium@123">Premium</button>
+          <button type="button" class="btn btn-sm btn-outline-light" data-email="qa_basic@smarttradeai.com" data-pwd="QaBasic@123">Basic</button>
+          <button type="button" class="btn btn-sm btn-outline-light" data-email="qa_free@smarttradeai.com" data-pwd="QaFree@123">Free</button>
+        </div>
+      </div>
+      {% endif %}
+
       <div class="text-center">
         <a href="/home" class="text-muted small"><i class="bi bi-arrow-left"></i> Back to home</a>
       </div>
@@ -464,6 +482,17 @@ document.getElementById('togglePwd').addEventListener('click', () => {
 document.getElementById('fillDemo').addEventListener('click', () => {
   document.getElementById('loginEmail').value    = 'admin@smarttradeai.com';
   document.getElementById('loginPassword').value = 'Admin@123';
+});
+
+// Dev-only QA quick-fill — click a tier to fill + auto-submit. The panel
+// itself is gated on config.DEBUG server-side, so this element is absent
+// in production; guard here too since the script is shared.
+document.getElementById('qaQuickLogin')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-email]');
+  if (!btn) return;
+  document.getElementById('loginEmail').value    = btn.dataset.email;
+  document.getElementById('loginPassword').value = btn.dataset.pwd;
+  document.getElementById('loginForm').requestSubmit();
 });
 
 document.getElementById('loginForm').addEventListener('submit', async (e) => {

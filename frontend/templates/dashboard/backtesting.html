@@ -159,9 +159,13 @@ document.getElementById('runBt').addEventListener('click', async () => {
 
   let res;
   if (isLive) {
-    // Use the walk-forward engine — same engine as live signals
-    res = await API.get('/signals/backtest', { symbol, timeframe: tf, days });
-    if (res) res._isLive = true;
+    // Use the walk-forward engine — same engine as live signals.
+    // getWithError() (not the usual API.get) so a 403 tier-gate response's
+    // real {error: "..."} body survives instead of being discarded and
+    // replaced with a generic "Backtest failed" — Free/Basic users were
+    // seeing that instead of knowing this needs an upgrade.
+    res = await API.getWithError('/signals/backtest', { symbol, timeframe: tf, days });
+    res._isLive = true;
   } else {
     res = await API.post('/backtesting/run', {
       symbol,
@@ -169,15 +173,52 @@ document.getElementById('runBt').addEventListener('click', async () => {
       strategy: document.getElementById('btStrategy').value,
       initial_capital: parseFloat(document.getElementById('btCapital').value),
     });
-    if (res) { loadHistory(); }
+    if (res && !res.error) { loadHistory(); }
   }
 
   btn.disabled = false;
   btn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Run Backtest';
 
-  if (!res || res?.error) { Toast.show(res?.error || res?.message || 'Backtest failed', 'error'); return; }
+  // API.post() doesn't surface a status code, only the JSON body — detect
+  // the tier-gate case by the decorators' known error text (premium_required
+  // -> "Insufficient permissions", subscription_feature_required -> "This
+  // feature requires a plan...") rather than adding another API variant.
+  const isTierGateError = res?.error && (
+    res.status === 403 ||
+    res.error === 'Insufficient permissions' ||
+    res.error.startsWith("This feature requires a plan")
+  );
+
+  if (!res || res?.error) {
+    if (isTierGateError) {
+      showUpgradePrompt('Backtesting requires a Premium or Pro subscription. Upgrade your plan to run walk-forward backtests.');
+    } else {
+      Toast.show(res?.error || res?.message || 'Backtest failed', 'error');
+    }
+    return;
+  }
   showResults(res, isLive);
 });
+
+function showUpgradePrompt(message) {
+  document.getElementById('btPlaceholder').style.display = 'none';
+  document.getElementById('btResults').style.display = 'none';
+  let el = document.getElementById('btUpgradePrompt');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'btUpgradePrompt';
+    el.className = 'section-card mt-3';
+    document.getElementById('btResults').insertAdjacentElement('afterend', el);
+  }
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div class="section-card-body p-4 text-center">
+      <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
+      <h5 class="mt-3 mb-2">Backtesting is a Premium feature</h5>
+      <p class="text-muted small mb-3">${message}</p>
+      <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
+    </div>`;
+}
 
 function showResults(data, isLive) {
   document.getElementById('btPlaceholder').style.display = 'none';

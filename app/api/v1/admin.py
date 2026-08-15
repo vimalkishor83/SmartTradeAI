@@ -573,6 +573,20 @@ def system_logs():
     return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total}), 200
 
 
+@admin_bp.route("/system-logs", methods=["DELETE"])
+@admin_required
+def clear_system_logs():
+    """Bulk-delete system logs — optionally scoped to a level (matches the
+    page's existing filter), otherwise clears everything."""
+    level = request.args.get("level")
+    query = SystemLog.query
+    if level:
+        query = query.filter_by(level=level.upper())
+    deleted = query.delete(synchronize_session=False)
+    db.session.commit()
+    return jsonify({"deleted": deleted}), 200
+
+
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 
 def _log(cfg_id, action, status, response_time_ms=None, error_message=None):

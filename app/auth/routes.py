@@ -428,10 +428,12 @@ def list_subscriptions():
     free user can see exactly what upgrading buys them."""
     subs = Subscription.query.order_by(Subscription.price.asc()).all()
     return jsonify({"subscriptions": [{
-        "id": s.id, "name": s.name, "price": s.price,
+        "id": s.id, "name": s.name, "price": s.price, "tier_level": s.tier_level,
         "signal_delay_minutes": s.signal_delay_minutes,
         "max_watchlist": s.max_watchlist, "max_alerts": s.max_alerts,
         "backtesting_enabled": s.backtesting_enabled, "ai_enabled": s.ai_enabled,
+        "advanced_charts_enabled": s.advanced_charts_enabled,
+        "broker_connect_enabled": s.broker_connect_enabled,
         "features": s.features or [],
     } for s in subs]}), 200
 
@@ -479,6 +481,42 @@ def request_upgrade():
 
     db.session.commit()
     return jsonify({"message": f"Upgrade request to '{requested_plan}' sent — an admin will review it shortly."}), 201
+
+
+@auth_bp.route("/upgrade-request/pending", methods=["GET"])
+@login_required
+def get_pending_upgrade_requests():
+    """Which plans the current user has an outstanding upgrade request for —
+    used to keep the Settings page's Request buttons disabled across a page
+    refresh instead of forgetting the request was ever made. There's no
+    separate status field an admin marks resolved (admins action these by
+    directly changing the user's subscription via PUT /admin/users/<id>),
+    so "the requested plan doesn't match my current plan" is the signal:
+    once an admin moves the user onto the plan they asked for, it's no
+    longer pending by definition. (Edge case: if an admin approves a
+    *different* plan than requested, or explicitly declines, the old
+    request row has no way to reflect that and would still show as
+    pending — acceptable for now; there's no reject/approve action in the
+    admin UI for these requests to hook into.)"""
+    user = get_current_user()
+    current_plan = user.subscription.name if user.subscription else None
+
+    logs = (AuditLog.query
+            .filter_by(user_id=user.id, action="upgrade_request")
+            .order_by(AuditLog.created_at.desc())
+            .all())
+
+    pending = set()
+    seen_plans = set()
+    for log in logs:
+        plan = log.resource_id
+        if plan in seen_plans:
+            continue  # only the most recent request per plan matters
+        seen_plans.add(plan)
+        if plan != current_plan:
+            pending.add(plan)
+
+    return jsonify({"pending_plans": list(pending)}), 200
 
 
 @auth_bp.route("/me/asset-preferences", methods=["GET"])

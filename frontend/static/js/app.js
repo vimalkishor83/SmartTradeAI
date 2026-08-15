@@ -8,6 +8,31 @@ const IS_PUBLIC = PUBLIC_ROUTES.includes(window.location.pathname);
 // Expose global confidence threshold early — updated properly after Auth.init()
 window.MIN_CONFIDENCE = parseInt(localStorage.getItem('min_confidence'), 10) || 60;
 
+const TIER_LABELS = { 1: 'Basic', 2: 'Premium', 3: 'Pro' };
+
+// Swaps a tier-gated page's content area for a locked upgrade card instead
+// of hiding data behind a hard redirect — the sidebar/header/page title
+// stay visible and navigable, only #pageContentBody (see partials/base.html)
+// is replaced. Used by Auth.updateUI() for any page marked
+// <body data-requires-tier="N">.
+function showTierLockOverlay(minTier) {
+  window.__tierLocked = true;
+  const body = document.getElementById('pageContentBody');
+  if (!body) return;
+  const planName = TIER_LABELS[minTier] || 'a higher';
+  const pageTitle = document.querySelector('.page-title')?.textContent?.trim()
+    || document.title.split('—')[0].trim() || 'This feature';
+  body.innerHTML = `
+    <div class="section-card" style="min-height:340px;display:flex;align-items:center;justify-content:center">
+      <div class="text-center p-4" style="max-width:420px">
+        <i class="bi bi-lock-fill" style="font-size:32px;color:var(--accent)"></i>
+        <h4 class="mt-3 mb-2">${pageTitle} is a ${planName} feature</h4>
+        <p class="text-muted small mb-3">Upgrade to the ${planName} plan or higher to unlock this page and its data.</p>
+        <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
+      </div>
+    </div>`;
+}
+
 // ─── API Client ───────────────────────────────
 const API = {
   base: '/api/v1',
@@ -35,6 +60,31 @@ const API = {
     } catch (e) {
       console.error('API GET error:', path, e);
       return null;
+    }
+  },
+
+  // Like get(), but preserves the error body on non-2xx responses instead
+  // of returning null — most callers rely on the truthy-on-success shortcut
+  // (if (!data) return), so this is opt-in rather than changing get()'s
+  // behavior for all 60+ existing call sites. Use where the caller needs
+  // to show the server's actual {error, status} rather than a generic
+  // client-side fallback message (e.g. tier-gated features).
+  async getWithError(path, params = {}) {
+    try {
+      const url = new URL(this.base + path, window.location.origin);
+      Object.entries(params).filter(([,v]) => v !== '' && v !== null && v !== undefined)
+        .forEach(([k, v]) => url.searchParams.set(k, v));
+      const res = await fetch(url, { headers: this.headers() });
+      if (res.status === 401 && !IS_PUBLIC) {
+        localStorage.removeItem('access_token');
+        window.location.replace('/login');
+        return { status: 401, error: 'Authentication required' };
+      }
+      const body = await res.json().catch(() => ({}));
+      return { status: res.status, ...body };
+    } catch (e) {
+      console.error('API GET error:', path, e);
+      return { status: 0, error: 'Network error' };
     }
   },
 
@@ -152,6 +202,24 @@ const Auth = {
       return;
     }
 
+    // Tier-gated pages (marked via <body data-requires-tier="N">) — the
+    // page itself still loads (sidebar, header, page title all stay
+    // visible/navigable), but the content area is swapped for a locked
+    // upgrade card instead of showing empty/broken data. Matches the
+    // in-place pattern already used on Backtesting/AI Insights rather than
+    // bouncing the user away with a hard redirect. API calls the page would
+    // have made are already gated server-side for the two features that
+    // need it (Backtesting, AI Insights, Broker Connect); this covers every
+    // other tier-gated page at the UI layer.
+    const requiredTier = document.body.getAttribute('data-requires-tier');
+    if (requiredTier !== null) {
+      const userTier = u.subscription_tier_level ?? 0;
+      const minTier = parseInt(requiredTier, 10);
+      if (userTier < minTier) {
+        showTierLockOverlay(minTier);
+      }
+    }
+
     const initial = (u.username || 'U').charAt(0).toUpperCase();
     document.querySelectorAll('#userAvatar, #navUserAvatar').forEach(el => el.textContent = initial);
     document.querySelectorAll('#sidebarUserName, #navUserName').forEach(el => el.textContent = u.full_name || u.username);
@@ -180,6 +248,31 @@ const Auth = {
       if (backtestGate) backtestGate.style.display = 'none';
       if (aiGate) aiGate.style.display = 'none';
     }
+
+    // BASIC+/PREMIUM+/PRO nav badges (Forex, Terminal, Scanner, TA Summary,
+    // etc.) — hide the badge once the user's own tier already clears the
+    // bar it's advertising, same idea as the Backtesting/AI Insights gates
+    // above but data-driven instead of one id per feature.
+    const userTierForBadges = u.subscription_tier_level ?? 0;
+    document.querySelectorAll('.nav-tier-gate[data-min-tier]').forEach(badge => {
+      const minTier = parseInt(badge.dataset.minTier, 10);
+      if (userTierForBadges >= minTier) badge.style.display = 'none';
+    });
+
+    // Auto Generate drives the server-level signal-generation scheduler
+    // (start/stop/run-once are @admin_required on the backend already) —
+    // the nav link and the page itself (requires_admin) are admin-only too,
+    // so a regular user never sees UI that looks controllable but silently
+    // 403s underneath.
+    const autoGenNav = document.getElementById('navAutoGenerate');
+    if (autoGenNav) autoGenNav.style.display = u.role === 'admin' ? '' : 'none';
+
+    // Dashboard's "Generate Signal" writes a Signal row visible to every
+    // user (not scoped to the clicker) and POST /signals/generate is now
+    // @admin_required to match — hide the button so it isn't shown as
+    // clickable to someone it will just 403 for.
+    const generateSignalBtn = document.getElementById('generateSignalBtn');
+    if (generateSignalBtn) generateSignalBtn.style.display = u.role === 'admin' ? '' : 'none';
 
     if (u.role === 'admin') {
       const adminNav = document.getElementById('adminNav');
@@ -526,8 +619,14 @@ document.addEventListener('DOMContentLoaded', async () => {
   LivePrices.seed();  // bootstrap price cache before WS connects
   setInterval(() => Notifications.load(), 60000);
 
-  // Fire ready event for page-specific scripts
-  document.dispatchEvent(new Event('app:ready'));
+  // Fire ready event for page-specific scripts — skipped entirely on a
+  // tier-locked page (see showTierLockOverlay in Auth.updateUI): the
+  // content area's real DOM elements no longer exist, so every gated
+  // page's own app:ready handler would immediately throw trying to
+  // populate/query them. The lock card itself needs no further JS.
+  if (!window.__tierLocked) {
+    document.dispatchEvent(new Event('app:ready'));
+  }
 
   // ── WebSocket ──────────────────────────────────────────────────
   const token = localStorage.getItem('access_token');

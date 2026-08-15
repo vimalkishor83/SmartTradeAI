@@ -387,11 +387,14 @@ def _seed_initial_data(app):
             Subscription(name="free", tier_level=0, price=0, signal_delay_minutes=30, max_watchlist=5, max_alerts=3),
             Subscription(name="basic", tier_level=1, price=299, signal_delay_minutes=5, max_watchlist=15, max_alerts=10),
             Subscription(name="premium", tier_level=2, price=999, signal_delay_minutes=0, max_watchlist=50, max_alerts=50,
-                         backtesting_enabled=True, ai_enabled=True),
+                         backtesting_enabled=True, ai_enabled=True,
+                         advanced_charts_enabled=True, broker_connect_enabled=True),
             Subscription(name="pro", tier_level=3, price=2499, signal_delay_minutes=0, max_watchlist=200, max_alerts=200,
-                         backtesting_enabled=True, ai_enabled=True),
+                         backtesting_enabled=True, ai_enabled=True,
+                         advanced_charts_enabled=True, broker_connect_enabled=True),
             Subscription(name="admin", tier_level=99, price=0, signal_delay_minutes=0, max_watchlist=999, max_alerts=999,
-                         backtesting_enabled=True, ai_enabled=True),
+                         backtesting_enabled=True, ai_enabled=True,
+                         advanced_charts_enabled=True, broker_connect_enabled=True),
         ]
         db.session.add_all(subs)
         db.session.flush()

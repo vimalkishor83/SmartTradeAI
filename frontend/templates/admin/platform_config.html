@@ -11,9 +11,14 @@
     <h1 class="page-title">Platform Configuration</h1>
     <p class="page-subtitle">Control what's visible platform-wide — pages, assets, and timeframes</p>
   </div>
-  <button class="btn btn-outline-light btn-sm" onclick="loadPlatformConfig()">
-    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-  </button>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-danger btn-sm" onclick="resetToDefaults()">
+      <i class="bi bi-arrow-counterclockwise me-1"></i> Reset to Default
+    </button>
+    <button class="btn btn-outline-light btn-sm" onclick="loadPlatformConfig()">
+      <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+    </button>
+  </div>
 </div>
 
 <!-- KPIs -->
@@ -136,7 +141,28 @@ const NAV_GROUPS = [
   ]},
 ];
 
+// Mirrors PlatformConfig's DEFAULT_TIMEFRAMES (app/models/platform_config.py)
+// — no default nav items are ever hidden out of the box.
+const DEFAULT_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1w"];
+
 let _cfg = { disabled_nav_items: [], timeframes: [] };
+
+async function resetToDefaults() {
+  if (!confirm('Reset Pages and Timeframes to their defaults?\n\nAll pages will become visible again and the timeframe list will be restored to 1m,5m,15m,30m,1h,2h,4h,1d,1w.')) return;
+  const res = await API.put('/admin/platform-config', {
+    disabled_nav_items: [],
+    timeframes: [...DEFAULT_TIMEFRAMES],
+  });
+  if (res) {
+    Toast.show('Platform configuration reset to defaults', 'success');
+    _cfg = res;
+    renderPages();
+    renderTimeframes();
+    updateKpis();
+  } else {
+    Toast.show('Failed to reset configuration', 'error');
+  }
+}
 
 async function loadPlatformConfig() {
   const data = await API.get('/admin/platform-config');
