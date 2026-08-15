@@ -142,7 +142,7 @@
     letter-spacing: .05em;
   }
   .market-badge.crypto   { background: rgba(245,158,11,.15); color: #f59e0b; }
-  .market-badge.forex    { background: rgba(99,102,241,.15);  color: #818cf8; }
+  .market-badge.forex    { background: rgba(139,92,246,.15);  color: #a78bfa; }
   .market-badge.gold,
   .market-badge.silver,
   .market-badge.commodity { background: rgba(251,191,36,.15); color: #fbbf24; }
@@ -202,7 +202,7 @@
   .asset-switch-btn:hover { border-color: var(--accent); color: var(--text-primary); }
   .asset-switch-btn.active {
     border-color: var(--accent); color: var(--text-primary);
-    background: rgba(99, 102, 241, .14);
+    background: rgba(245, 166, 35, .14);
   }
   .asset-switch-btn .chg { font-size: 10.5px; font-weight: 700; }
 
@@ -662,7 +662,7 @@
     if (_adAp) _adAp.destroy();
     _adAp = new Chart(ctx, { type: 'line', data: { labels: days.map(d => d.slice(5)), datasets: [
       { label: 'Win Rate', data: wr, borderColor: _cv('--green', '#10b981'), yAxisID: 'y', tension: .3, pointRadius: 2, borderWidth: 2 },
-      { label: 'Avg R:R', data: rr, borderColor: _cv('--accent', '#6366f1'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 } ] },
+      { label: 'Avg R:R', data: rr, borderColor: _cv('--accent', '#f5a623'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 } ] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } }, scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, y1: { position: 'right', min: 0, grid: { display: false } } } } });
   }
 
@@ -1085,7 +1085,7 @@ function applyTradeLines(data) {
 
   const targetColors = ['#22c55e', '#4ade80', '#86efac'];
   const lines = [
-    { price: data.entry_price, color: '#6366f1', title: 'Entry' },
+    { price: data.entry_price, color: '#f5a623', title: 'Entry' },
     { price: data.stop_loss,   color: '#ef4444', title: 'SL' },
   ];
   (data.target_allocations || []).forEach((t, i) => {

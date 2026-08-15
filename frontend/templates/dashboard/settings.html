@@ -65,6 +65,45 @@
   </div>
 </div>
 
+<!-- Your Plan -->
+<div class="row g-4 mt-1">
+  <div class="col-12">
+    <div class="section-card">
+      <div class="section-card-header">
+        <span class="section-card-title"><i class="bi bi-award text-accent"></i> Your Plan</span>
+      </div>
+      <div class="section-card-body">
+        <div id="planCurrent" class="d-flex flex-wrap align-items-center gap-3 mb-4 pb-4" style="border-bottom:1px solid var(--border)">
+          <div class="spinner-border spinner-border-sm text-accent" role="status"></div>
+          <span class="text-muted">Loading your plan…</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="smart-table align-middle mb-0" id="planTable">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Price</th>
+                <th>Signal delay</th>
+                <th>Watchlist / Alerts</th>
+                <th>Backtesting</th>
+                <th>AI Insights</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="planTableBody">
+              <tr><td colspan="7" class="text-center text-muted py-4">Loading plans…</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-muted fs-xs mb-0 mt-2">
+          <i class="bi bi-info-circle me-1"></i>Upgrades are reviewed by an admin — request one below and you'll be notified once it's approved.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Two-Factor Authentication -->
 <div class="row g-4 mt-1">
   <div class="col-12">
@@ -252,7 +291,79 @@ document.addEventListener('app:ready', async () => {
     prefs.assets.forEach(a => { _assetPrefs[a.id] = a.enabled; });
     renderAssetGrid(prefs.assets);
   }
+
+  loadPlan(user);
 });
+
+async function loadPlan(user) {
+  const currentEl = document.getElementById('planCurrent');
+  const bodyEl    = document.getElementById('planTableBody');
+
+  const data = await API.get('/auth/subscriptions');
+  const allPlans = data?.subscriptions || [];
+  if (!allPlans.length) {
+    currentEl.innerHTML = '<span class="text-muted">Unable to load plan details.</span>';
+    return;
+  }
+
+  const currentName = (user.subscription || 'free').toLowerCase();
+  const current = allPlans.find(p => p.name.toLowerCase() === currentName);
+  // "admin" is an internal role, not a plan a user can request/purchase —
+  // excluded from the comparison table below, but `current` above still
+  // looks it up from the full list so an admin viewing this page sees
+  // their own plan correctly.
+  const plans = allPlans.filter(p => p.name.toLowerCase() !== 'admin');
+
+  currentEl.innerHTML = `
+    <span class="badge bg-primary text-uppercase" style="font-size:12px;padding:6px 12px">${currentName}</span>
+    <div class="flex-grow-1">
+      <div style="font-size:20px;font-weight:700">
+        ${current ? '₹' + current.price.toLocaleString('en-IN') + '<span class="fs-sm text-muted">/month</span>' : '—'}
+      </div>
+      <div class="text-muted fs-xs">
+        ${current ? (current.signal_delay_minutes > 0
+              ? `Signals delayed ${current.signal_delay_minutes} min · ${current.max_watchlist} watchlist slots · ${current.max_alerts} alerts`
+              : `Live signals · ${current.max_watchlist} watchlist slots · ${current.max_alerts} alerts`)
+            : ''}
+      </div>
+    </div>`;
+
+  bodyEl.innerHTML = plans.map(p => {
+    const isCurrent = p.name.toLowerCase() === currentName;
+    const check  = '<i class="bi bi-check-circle-fill text-success"></i>';
+    const cross  = '<i class="bi bi-x-circle text-muted"></i>';
+    const delay  = p.signal_delay_minutes > 0 ? `${p.signal_delay_minutes} min` : 'Live';
+    return `
+      <tr style="${isCurrent ? 'background:var(--glass)' : ''}">
+        <td class="text-uppercase fw-semibold">${p.name}${isCurrent ? ' <span class="badge bg-primary ms-1" style="font-size:9px">CURRENT</span>' : ''}</td>
+        <td>₹${p.price.toLocaleString('en-IN')}/mo</td>
+        <td>${delay}</td>
+        <td>${p.max_watchlist} / ${p.max_alerts}</td>
+        <td>${p.backtesting_enabled ? check : cross}</td>
+        <td>${p.ai_enabled ? check : cross}</td>
+        <td class="text-end">
+          ${isCurrent
+            ? '<span class="text-muted fs-xs">Current plan</span>'
+            : `<button class="btn btn-sm btn-outline-primary" onclick="requestUpgrade('${p.name}')">Request</button>`}
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+async function requestUpgrade(planName) {
+  const btn = event.target;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+  const res = await API.post('/auth/upgrade-request', { plan: planName });
+  if (res?.message) {
+    Toast?.show ? Toast.show(res.message, 'success') : alert(res.message);
+    btn.outerHTML = '<span class="text-success fs-xs"><i class="bi bi-check2"></i> Requested</span>';
+  } else {
+    Toast?.show ? Toast.show(res?.error || 'Request failed', 'error') : alert(res?.error || 'Request failed');
+    btn.disabled = false;
+    btn.textContent = 'Request';
+  }
+}
 
 // Show/hide the price ticker live when the switch changes (same
 // localStorage key + apply function the chevron button on the strip itself

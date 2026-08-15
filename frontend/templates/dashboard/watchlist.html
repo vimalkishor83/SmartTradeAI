@@ -177,8 +177,13 @@ document.getElementById('createWl').addEventListener('click', async () => {
   if (res?.id) {
     bootstrap.Modal.getInstance(document.getElementById('newWlModal')).hide();
     document.getElementById('wlName').value = '';
-    Toast.show('Watchlist created!', 'success');
+    Toast.show(`"${name}" created`, 'success');
     loadWatchlists();
+    // Context View shows a flat feed of items across all lists (with no
+    // per-list grouping), so a brand-new empty list produces zero visible
+    // change there — the toast fires and the page looks unchanged. Switch
+    // to List View, where the new list actually appears as its own card.
+    switchView('list');
   }
 });
 

@@ -19,14 +19,14 @@
   --bg-sidebar: #090b10;
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.16);
-  --border-accent: rgba(99, 102, 241, 0.5);
+  --border-accent: rgba(245, 166, 35, 0.5);
   --text-primary: #f1f5fb;
   --text-secondary: #95a2b8;
   --text-muted: #7683a0;
   /* ~4.85:1 on --bg-card — WCAG AA for normal text */
-  --accent: #6366f1;
-  --accent-light: #818cf8;
-  --accent-dark: #4338ca;
+  --accent: #f5a623;
+  --accent-light: #ffc861;
+  --accent-dark: #d97f0a;
   --green: #22d97f;
   /* brighter for pop on dark surfaces */
   --green-bg: rgba(34, 217, 127, 0.12);
@@ -82,7 +82,7 @@
   --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow: 0 6px 28px rgba(0, 0, 0, 0.5);
   --shadow-lg: 0 14px 56px rgba(0, 0, 0, 0.7);
-  --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.15), 0 8px 32px rgba(99, 102, 241, 0.18);
+  --shadow-glow: 0 0 0 1px rgba(245, 166, 35, 0.15), 0 8px 32px rgba(245, 166, 35, 0.18);
 
   --transition: 0.16s cubic-bezier(.4, 0, .2, 1);
   --transition-slow: 0.28s cubic-bezier(.4, 0, .2, 1);
@@ -93,8 +93,8 @@
   --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', 'Menlo', monospace;
 
   /* Gradients */
-  --grad-brand: linear-gradient(135deg, #4f46e5 0%, #7c3aed 60%, #a855f7 100%);
-  --grad-accent: linear-gradient(135deg, var(--accent), var(--purple));
+  --grad-brand: linear-gradient(135deg, #f5a623 0%, #e0921a 60%, #d97f0a 100%);
+  --grad-accent: linear-gradient(135deg, var(--accent), var(--accent-dark));
   --grad-bull: linear-gradient(135deg, #059669, #10b981);
   --grad-bear: linear-gradient(135deg, #e11d48, #f43f5e);
 
@@ -110,7 +110,7 @@
   --bg-sidebar: #ffffff;
   --border: rgba(15, 23, 42, 0.09);
   --border-hover: rgba(15, 23, 42, 0.18);
-  --border-accent: rgba(99, 102, 241, 0.4);
+  --border-accent: rgba(245, 166, 35, 0.4);
   --text-primary: #0b1220;
   --text-secondary: #4b5872;
   --text-muted: #64708c;
@@ -120,7 +120,7 @@
   --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
   --shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
   --shadow-lg: 0 16px 48px rgba(15, 23, 42, 0.12);
-  --shadow-glow: 0 0 0 1px rgba(99, 102, 241, 0.12), 0 8px 28px rgba(99, 102, 241, 0.1);
+  --shadow-glow: 0 0 0 1px rgba(245, 166, 35, 0.12), 0 8px 28px rgba(245, 166, 35, 0.1);
   /* Legacy aliases (--card-bg/--input-bg/--surface-2) were never overridden
      here, so any template still referencing them stayed dark permanently
      even in light mode (e.g. admin/api_configs.html config panel & modals). */
@@ -252,12 +252,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.3);
+  background: rgba(245, 166, 35, 0.3);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.55);
+  background: rgba(245, 166, 35, 0.55);
 }
 
 /* ════════════════════════════════════════════════════════════
@@ -333,7 +333,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   font-size: 17px;
   color: white;
   flex-shrink: 0;
-  box-shadow: 0 3px 14px rgba(99, 102, 241, 0.45);
+  box-shadow: 0 3px 14px rgba(245, 166, 35, 0.45);
 }
 
 .brand-name {
@@ -492,6 +492,23 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   transition: color 0.15s;
 }
 
+/* Per-icon base colors — each nav icon gets a distinct resting hue drawn
+   from the app's existing semantic tokens (amber/green/red/yellow/blue/
+   purple/cyan), so the sidebar reads as colorful/scannable like the
+   reference design instead of one flat muted tone. These rules must stay
+   ABOVE the .nav-item:hover i / .nav-item.active i rules below in source
+   order: both sides are equal specificity (0,2,1), so whichever comes
+   later in the cascade wins — keeping hover/active below here means
+   hovering or activating a nav item still overrides the per-icon color,
+   same as before this change. */
+.nav-item i.nav-icon-amber   { color: var(--accent); }
+.nav-item i.nav-icon-green   { color: var(--green); }
+.nav-item i.nav-icon-red     { color: var(--red); }
+.nav-item i.nav-icon-yellow  { color: var(--yellow); }
+.nav-item i.nav-icon-blue    { color: var(--blue); }
+.nav-item i.nav-icon-purple  { color: var(--purple); }
+.nav-item i.nav-icon-cyan    { color: var(--cyan); }
+
 .nav-text {
   flex: 1;
   overflow: hidden;
@@ -508,7 +525,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 }
 
 .nav-item.active {
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.16), rgba(99, 102, 241, 0.05));
+  background: linear-gradient(90deg, rgba(245, 166, 35, 0.16), rgba(245, 166, 35, 0.05));
   color: var(--accent-light);
   font-weight: 600;
 }
@@ -526,7 +543,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   width: 3px;
   background: var(--grad-accent);
   border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 10px rgba(99, 102, 241, 0.7);
+  box-shadow: 0 0 10px rgba(245, 166, 35, 0.7);
 }
 
 .nav-badge {
@@ -551,13 +568,15 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 }
 
 .badge-pro {
-  background: rgba(99, 102, 241, 0.15);
+  background: rgba(245, 166, 35, 0.15);
   color: var(--accent-light);
-  border: 1px solid rgba(99, 102, 241, 0.3);
+  border: 1px solid rgba(245, 166, 35, 0.3);
   font-size: 9px;
   padding: 1px 6px;
   border-radius: 10px;
   font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Collapsed sidebar — icon only + tooltip */
@@ -808,6 +827,9 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   font-size: 12.5px;
   color: var(--text-muted);
   min-width: 200px;
+  flex: 1 1 auto;
+  max-width: 480px;
+  margin: 0 auto;
 }
 
 .cmd-trigger:hover {
@@ -914,7 +936,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 }
 
 .notif-item.unread {
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(245, 166, 35, 0.05);
   position: relative;
 }
 
@@ -1105,7 +1127,9 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .ticker-track {
   display: flex;
   gap: 28px;
-  animation: ticker-scroll 90s linear infinite;
+  /* Matches the landing page's marquee speed (32s) for a consistent feel
+     from the public homepage into the logged-in dashboard. */
+  animation: ticker-scroll 32s linear infinite;
   white-space: nowrap;
   font-size: 11.5px;
 }
@@ -1303,7 +1327,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 
 .cmd-item:hover,
 .cmd-item.highlighted {
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(245, 166, 35, 0.1);
   color: var(--text-primary);
 }
 
@@ -1356,6 +1380,20 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .page-content {
   padding: 20px 24px 28px;
   flex: 1;
+}
+
+.financial-disclaimer-strip {
+  margin-top: 32px;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--glass);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+.financial-disclaimer-strip strong {
+  color: var(--text-secondary);
 }
 
 .page-header {
@@ -1928,7 +1966,7 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .form-control:focus,
 .form-select:focus {
   border-color: var(--accent) !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12) !important;
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.12) !important;
   background: var(--bg-secondary) !important;
 }
 
@@ -1966,7 +2004,7 @@ select option {
 .btn-primary:hover {
   opacity: 0.92;
   transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(99, 102, 241, 0.38) !important;
+  box-shadow: 0 6px 18px rgba(245, 166, 35, 0.38) !important;
 }
 
 .btn-primary:active {
@@ -2017,7 +2055,7 @@ select option {
 
 .search-bar:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.1);
 }
 
 .search-bar input {
@@ -2103,9 +2141,9 @@ select option {
 }
 
 .badge.bg-primary {
-  background: rgba(99, 102, 241, 0.2) !important;
+  background: rgba(245, 166, 35, 0.2) !important;
   color: var(--accent-light) !important;
-  border: 1px solid rgba(99, 102, 241, 0.35) !important;
+  border: 1px solid rgba(245, 166, 35, 0.35) !important;
 }
 
 .bg-glass {
@@ -2173,7 +2211,7 @@ select option {
   justify-content: center;
   padding: 20px;
   background-image:
-    radial-gradient(ellipse at 20% 50%, rgba(99, 102, 241, 0.07) 0%, transparent 55%),
+    radial-gradient(ellipse at 20% 50%, rgba(245, 166, 35, 0.07) 0%, transparent 55%),
     radial-gradient(ellipse at 80% 20%, rgba(139, 92, 246, 0.07) 0%, transparent 55%);
 }
 
@@ -2817,7 +2855,7 @@ select option {
 
 .asset-toggle.active {
   border-color: var(--accent);
-  background: rgba(99, 102, 241, 0.12);
+  background: rgba(245, 166, 35, 0.12);
 }
 
 .asset-toggle .check {
@@ -2972,8 +3010,8 @@ select option {
 }
 
 .market-badge.forex {
-  background: rgba(99, 102, 241, .15);
-  color: #818cf8;
+  background: rgba(139, 92, 246, .15);
+  color: #a78bfa;
 }
 
 .market-badge.gold,
@@ -3001,7 +3039,7 @@ select option {
 }
 
 [data-theme="light"] .market-badge.forex {
-  color: #4338ca;
+  color: #6d28d9;
 }
 
 [data-theme="light"] .market-badge.indian_stock {
@@ -3285,7 +3323,7 @@ select option {
   background-color: var(--bg-secondary) !important;
   border-color: var(--accent) !important;
   color: var(--text-primary) !important;
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.15) !important;
 }
 
 textarea.form-control {
@@ -3341,8 +3379,8 @@ textarea.form-control {
 
 /* --- Scanner info bar: improve contrast --- */
 .scanner-info-bar {
-  background: rgba(99, 102, 241, 0.1);
-  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(245, 166, 35, 0.1);
+  border: 1px solid rgba(245, 166, 35, 0.25);
   border-radius: 8px;
   padding: 10px 16px;
   color: var(--text-secondary);
@@ -3432,7 +3470,7 @@ textarea.form-control {
 /* --- Code tags in tables and logs --- */
 code {
   color: var(--accent-light) !important;
-  background: rgba(99, 102, 241, 0.1);
+  background: rgba(245, 166, 35, 0.1);
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 0.85em;
@@ -3483,7 +3521,7 @@ code {
 }
 
 .badge.bg-primary {
-  background: rgba(99, 102, 241, 0.2) !important;
+  background: rgba(245, 166, 35, 0.2) !important;
   color: var(--accent-light) !important;
 }
 

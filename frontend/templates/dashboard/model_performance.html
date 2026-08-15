@@ -24,7 +24,7 @@
   color:var(--text-muted); border-bottom:1px solid var(--border); white-space:nowrap;
 }
 .perf-table td { padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:middle; }
-.perf-table tbody tr:hover { background:rgba(99,102,241,0.06); }
+.perf-table tbody tr:hover { background:rgba(245, 166, 35, 0.06); }
 .perf-table tbody tr:last-child td { border-bottom:none; }
 
 .acc-bar-wrap { display:flex; align-items:center; gap:8px; min-width:140px; }
@@ -37,7 +37,7 @@
 .tf-pill {
   display:inline-block; padding:3px 10px; border-radius:6px;
   font-size:11px; font-weight:700; letter-spacing:.4px;
-  background:rgba(99,102,241,0.15); color:var(--accent);
+  background:rgba(245, 166, 35, 0.15); color:var(--accent);
 }
 
 .trend-canvas-wrap { position:relative; height:180px; }
@@ -47,7 +47,7 @@
 
 .badge-model {
   display:inline-block; padding:2px 9px; border-radius:5px; font-size:10.5px; font-weight:700;
-  letter-spacing:.3px; background:rgba(99,102,241,0.14); color:var(--accent);
+  letter-spacing:.3px; background:rgba(245, 166, 35, 0.14); color:var(--accent);
 }
 </style>
 {% endblock %}
@@ -286,8 +286,8 @@ function renderTrend(trend) {
       datasets: [{
         label: 'Accuracy %',
         data,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99,102,241,0.12)',
+        borderColor: '#f5a623',
+        backgroundColor: 'rgba(245,166,35,0.12)',
         borderWidth: 2,
         pointRadius: 3,
         tension: 0.35,

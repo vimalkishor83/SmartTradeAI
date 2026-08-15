@@ -64,6 +64,11 @@ def markets(market):
     return render_template("markets/index.html", market=market)
 
 
+@views_bp.route("/markets/terminal")
+def markets_terminal():
+    return render_template("markets/terminal.html")
+
+
 @views_bp.route("/scanner")
 def scanner():
     return render_template("dashboard/scanner.html")
@@ -198,6 +203,11 @@ def admin_api_configs():
 @views_bp.route("/admin/assets")
 def admin_assets():
     return render_template("admin/assets.html")
+
+
+@views_bp.route("/admin/platform-config")
+def admin_platform_config():
+    return render_template("admin/platform_config.html")
 
 
 @views_bp.route("/asset/<int:asset_id>")

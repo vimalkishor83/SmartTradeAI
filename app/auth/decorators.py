@@ -42,7 +42,7 @@ def admin_required(f):
 
 
 def premium_required(f):
-    return roles_required("admin", "premium")(f)
+    return roles_required("admin", "premium", "pro")(f)
 
 
 def approved_required(f):
@@ -77,6 +77,41 @@ def approved_required(f):
 def get_current_user():
     user_id = get_jwt_identity()
     return User.query.get(int(user_id)) if user_id else None
+
+
+def min_tier_required(min_tier_level):
+    """Gate an endpoint on the free->basic->premium->pro subscription ladder
+    (Subscription.tier_level) rather than hardcoding plan names — e.g.
+    @min_tier_required(2) admits premium(2), pro(3), and admin(99), and
+    rejects free(0)/basic(1). Prefer this over roles_required()/premium_required()
+    for anything gated purely by "which paid tier", since it stays correct
+    automatically if more tiers are inserted later; use subscription_feature_required
+    instead when the gate is a specific capability flag rather than a tier."""
+    def decorator(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            try:
+                verify_jwt_in_request()
+            except Exception:
+                return jsonify({"error": "Authentication required"}), 401
+
+            user_id = get_jwt_identity()
+            user = User.query.get(int(user_id))
+            if not user or not user.is_active:
+                return jsonify({"error": "User not found or inactive"}), 403
+
+            sub = user.subscription
+            tier = sub.tier_level if sub else 0
+            if tier < min_tier_level:
+                return jsonify({
+                    "error": "This feature requires a higher plan.",
+                    "current_plan": sub.name if sub else "free",
+                    "required_tier_level": min_tier_level,
+                }), 403
+
+            return f(*args, **kwargs)
+        return decorated
+    return decorator
 
 
 def subscription_feature_required(flag_name):

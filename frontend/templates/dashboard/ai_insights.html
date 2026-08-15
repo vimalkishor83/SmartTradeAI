@@ -15,7 +15,7 @@
   user-select:none;
 }
 .tf-cb-label:has(input:checked) {
-  border-color:var(--accent); background:rgba(99,102,241,0.12); color:var(--accent);
+  border-color:var(--accent); background:rgba(245, 166, 35, 0.12); color:var(--accent);
 }
 .tf-cb-label input { display:none; }
 
@@ -33,7 +33,7 @@
 .pred-tf-badge {
   display:inline-block; padding:2px 8px; border-radius:4px;
   font-size:10px; font-weight:800; letter-spacing:.5px;
-  background:rgba(99,102,241,0.18); color:var(--accent);
+  background:rgba(245, 166, 35, 0.18); color:var(--accent);
 }
 .prob-bar-wrap { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin:4px 0 2px; }
 .prob-bar-fill { height:100%; border-radius:3px; transition:width .5s ease; }
@@ -87,7 +87,7 @@
           <i class="bi bi-cpu me-1"></i> Run Prediction
         </button>
 
-        <div class="mt-3 p-3 rounded" style="background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2)">
+        <div class="mt-3 p-3 rounded" style="background:rgba(245, 166, 35, 0.08);border:1px solid rgba(245, 166, 35, 0.2)">
           <div style="font-size:11px;color:var(--text-muted)">
             <i class="bi bi-info-circle me-1"></i>
             Select multiple timeframes to get predictions across all of them simultaneously.
@@ -107,7 +107,7 @@
           {% for icon, color, name, desc in [
             ('bi-tree','#10b981','Random Forest','100 trees, depth 8'),
             ('bi-lightning','#f59e0b','XGBoost','Gradient boosting'),
-            ('bi-diagram-3','#6366f1','LightGBM','Fast gradient boost'),
+            ('bi-diagram-3','#a78bfa','LightGBM','Fast gradient boost'),
             ('bi-graph-up','#3b82f6','Ensemble','Avg of all models')
           ] %}
           <div class="d-flex align-items-center gap-3 px-3 py-2" style="border-bottom:1px solid var(--border)">

@@ -27,14 +27,14 @@
   <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
   <link rel="stylesheet" href="/static/css/main.css?v={{ asset_version('css/main.css') }}" />
   <link rel="manifest" href="/static/manifest.json">
-  <meta name="theme-color" content="#6366f1">
+  <meta name="theme-color" content="#f5a623">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
 </head>
-<body>
+<body{% if requires_admin %} data-requires-admin{% endif %}>
 
 {% if not hide_sidebar %}
 <!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->
@@ -42,7 +42,7 @@
 
   <!-- Brand -->
   <div class="sidebar-header">
-    <a href="/dashboard" class="brand">
+    <a href="/home" class="brand">
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
       <span class="brand-name">SmartTrade <span class="text-accent">AI</span></span>
     </a>
@@ -65,11 +65,11 @@
 
     {# Determine which group is active so it auto-expands #}
     {% set grp_overview  = active in ['dashboard','briefing'] %}
-    {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index'] %}
+    {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index','terminal'] %}
     {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
-    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs'] %}
+    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config'] %}
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
@@ -78,12 +78,16 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </div>
       <div class="nav-group-body">
+        {% if '/dashboard' not in disabled_nav_items %}
         <a href="/dashboard" data-tooltip="Dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
-          <i class="bi bi-grid-1x2-fill"></i><span class="nav-text">Dashboard</span>
+          <i class="bi bi-grid-1x2-fill nav-icon-amber"></i><span class="nav-text">Dashboard</span>
         </a>
+        {% endif %}
+        {% if '/briefing' not in disabled_nav_items %}
         <a href="/briefing" data-tooltip="Morning Briefing" class="nav-item {% if active == 'briefing' %}active{% endif %}">
-          <i class="bi bi-sunrise"></i><span class="nav-text">Morning Briefing</span>
+          <i class="bi bi-sunrise nav-icon-yellow"></i><span class="nav-text">Morning Briefing</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
@@ -94,21 +98,36 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </div>
       <div class="nav-group-body">
+        {% if '/markets/crypto' not in disabled_nav_items %}
         <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
-          <i class="bi bi-currency-bitcoin"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
+          <i class="bi bi-currency-bitcoin nav-icon-green"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
         </a>
+        {% endif %}
+        {% if '/markets/forex' not in disabled_nav_items %}
         <a href="/markets/forex" data-tooltip="Forex" class="nav-item {% if active == 'forex' %}active{% endif %}">
-          <i class="bi bi-currency-exchange"></i><span class="nav-text">Forex</span>
+          <i class="bi bi-currency-exchange nav-icon-blue"></i><span class="nav-text">Forex</span>
         </a>
+        {% endif %}
+        {% if '/markets/commodities' not in disabled_nav_items %}
         <a href="/markets/commodities" data-tooltip="Commodities" class="nav-item {% if active in ['commodity', 'commodities', 'gold', 'silver'] %}active{% endif %}">
-          <i class="bi bi-gem"></i><span class="nav-text">Commodities</span>
+          <i class="bi bi-gem nav-icon-yellow"></i><span class="nav-text">Commodities</span>
         </a>
+        {% endif %}
+        {% if '/markets/indian_stock' not in disabled_nav_items %}
         <a href="/markets/indian_stock" data-tooltip="Indian Stocks" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-          <i class="bi bi-building"></i><span class="nav-text">Indian Stocks</span>
+          <i class="bi bi-building nav-icon-cyan"></i><span class="nav-text">Indian Stocks</span>
         </a>
+        {% endif %}
+        {% if '/markets/index' not in disabled_nav_items %}
         <a href="/markets/index" data-tooltip="Indices" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-          <i class="bi bi-activity"></i><span class="nav-text">Indices</span>
+          <i class="bi bi-activity nav-icon-purple"></i><span class="nav-text">Indices</span>
         </a>
+        {% endif %}
+        {% if '/markets/terminal' not in disabled_nav_items %}
+        <a href="/markets/terminal" data-tooltip="Terminal" class="nav-item {% if active == 'terminal' %}active{% endif %}">
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-red"></i><span class="nav-text">Terminal</span>
+        </a>
+        {% endif %}
       </div>
     </div>
 
@@ -119,28 +138,42 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </div>
       <div class="nav-group-body">
+        {% if '/signals' not in disabled_nav_items %}
         <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-          <i class="bi bi-lightning-charge-fill"></i><span class="nav-text">All Signals</span>
+          <i class="bi bi-lightning-charge-fill nav-icon-yellow"></i><span class="nav-text">All Signals</span>
         </a>
+        {% endif %}
+        {% if '/auto-generate' not in disabled_nav_items %}
         <a href="/auto-generate" data-tooltip="Auto Generate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}">
-          <i class="bi bi-robot"></i><span class="nav-text">Auto Generate</span>
+          <i class="bi bi-robot nav-icon-cyan"></i><span class="nav-text">Auto Generate</span>
           <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
         </a>
+        {% endif %}
+        {% if '/scanner' not in disabled_nav_items %}
         <a href="/scanner" data-tooltip="Scanner" class="nav-item {% if active == 'scanner' %}active{% endif %}">
-          <i class="bi bi-radar"></i><span class="nav-text">Scanner</span>
+          <i class="bi bi-radar nav-icon-green"></i><span class="nav-text">Scanner</span>
         </a>
+        {% endif %}
+        {% if '/heatmap' not in disabled_nav_items %}
         <a href="/heatmap" data-tooltip="Market Heatmap" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap-fill"></i><span class="nav-text">Market Heatmap</span>
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-purple"></i><span class="nav-text">Market Heatmap</span>
         </a>
-        <a href="/backtesting" data-tooltip="Backtesting" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history"></i><span class="nav-text">Backtesting</span><span class="badge-pro">PRO</span>
+        {% endif %}
+        {% if '/backtesting' not in disabled_nav_items %}
+        <a href="/backtesting" data-tooltip="Backtesting — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
+          <i class="bi bi-clock-history nav-icon-blue"></i><span class="nav-text">Backtesting</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM+</span>
         </a>
-        <a href="/ai-insights" data-tooltip="AI Insights" class="nav-item {% if active == 'ai' %}active{% endif %}">
-          <i class="bi bi-cpu-fill"></i><span class="nav-text">AI Insights</span><span class="badge-pro">PRO</span>
+        {% endif %}
+        {% if '/ai-insights' not in disabled_nav_items %}
+        <a href="/ai-insights" data-tooltip="AI Insights — requires Premium or higher" class="nav-item {% if active == 'ai' %}active{% endif %}">
+          <i class="bi bi-cpu-fill nav-icon-purple"></i><span class="nav-text">AI Insights</span><span class="badge-pro" id="navAiInsightsGate" title="Requires Premium or higher">PREMIUM+</span>
         </a>
+        {% endif %}
+        {% if '/signals?tab=history' not in disabled_nav_items %}
         <a href="/signals?tab=history" data-tooltip="Signal History" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
-          <i class="bi bi-journal-text"></i><span class="nav-text">Signal History</span>
+          <i class="bi bi-journal-text nav-icon-cyan"></i><span class="nav-text">Signal History</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
@@ -151,27 +184,41 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </div>
       <div class="nav-group-body">
+        {% if '/ta-summary' not in disabled_nav_items %}
         <a href="/ta-summary" data-tooltip="TA Summary" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-          <i class="bi bi-speedometer2"></i><span class="nav-text">TA Summary</span>
+          <i class="bi bi-speedometer2 nav-icon-blue"></i><span class="nav-text">TA Summary</span>
         </a>
+        {% endif %}
+        {% if '/mtf-analysis' not in disabled_nav_items %}
         <a href="/mtf-analysis" data-tooltip="MTF Analysis" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-          <i class="bi bi-table"></i><span class="nav-text">MTF Analysis</span>
+          <i class="bi bi-table nav-icon-cyan"></i><span class="nav-text">MTF Analysis</span>
         </a>
+        {% endif %}
+        {% if '/model-performance' not in disabled_nav_items %}
         <a href="/model-performance" data-tooltip="Model Performance" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
-          <i class="bi bi-bar-chart-steps"></i><span class="nav-text">Model Performance</span>
+          <i class="bi bi-bar-chart-steps nav-icon-purple"></i><span class="nav-text">Model Performance</span>
         </a>
+        {% endif %}
+        {% if '/advanced-analysis' not in disabled_nav_items %}
         <a href="/advanced-analysis" data-tooltip="Advanced Analysis" class="nav-item {% if active == 'advanced_analysis' %}active{% endif %}">
-          <i class="bi bi-layers"></i><span class="nav-text">Advanced Analysis</span>
+          <i class="bi bi-layers nav-icon-blue"></i><span class="nav-text">Advanced Analysis</span>
         </a>
+        {% endif %}
+        {% if '/analytics' not in disabled_nav_items %}
         <a href="/analytics" data-tooltip="Analytics" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-          <i class="bi bi-graph-up"></i><span class="nav-text">Analytics</span>
+          <i class="bi bi-graph-up nav-icon-green"></i><span class="nav-text">Analytics</span>
         </a>
+        {% endif %}
+        {% if '/news' not in disabled_nav_items %}
         <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
-          <i class="bi bi-newspaper"></i><span class="nav-text">Market News</span>
+          <i class="bi bi-newspaper nav-icon-yellow"></i><span class="nav-text">Market News</span>
         </a>
+        {% endif %}
+        {% if '/economic-calendar' not in disabled_nav_items %}
         <a href="/economic-calendar" data-tooltip="Economic Calendar" class="nav-item {% if active == 'economic_calendar' %}active{% endif %}">
-          <i class="bi bi-calendar-event"></i><span class="nav-text">Economic Calendar</span>
+          <i class="bi bi-calendar-event nav-icon-red"></i><span class="nav-text">Economic Calendar</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
@@ -182,28 +229,42 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </div>
       <div class="nav-group-body">
+        {% if '/portfolio' not in disabled_nav_items %}
         <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
-          <i class="bi bi-pie-chart-fill"></i><span class="nav-text">Portfolio</span>
+          <i class="bi bi-pie-chart-fill nav-icon-purple"></i><span class="nav-text">Portfolio</span>
         </a>
+        {% endif %}
+        {% if '/trading' not in disabled_nav_items %}
         <a href="/trading" data-tooltip="Trading" class="nav-item {% if active == 'trading' %}active{% endif %}">
-          <i class="bi bi-currency-exchange"></i><span class="nav-text">Trading</span>
+          <i class="bi bi-currency-exchange nav-icon-green"></i><span class="nav-text">Trading</span>
           <span class="badge-tag" style="font-size:9px">LIVE</span>
         </a>
+        {% endif %}
+        {% if '/broker-connections' not in disabled_nav_items %}
         <a href="/broker-connections" data-tooltip="Broker Connections" class="nav-item {% if active == 'broker_connections' %}active{% endif %}">
-          <i class="bi bi-link-45deg"></i><span class="nav-text">Broker Connections</span>
+          <i class="bi bi-link-45deg nav-icon-cyan"></i><span class="nav-text">Broker Connections</span>
         </a>
+        {% endif %}
+        {% if '/watchlist' not in disabled_nav_items %}
         <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
-          <i class="bi bi-star-fill"></i><span class="nav-text">Watchlist</span>
+          <i class="bi bi-star-fill nav-icon-yellow"></i><span class="nav-text">Watchlist</span>
         </a>
+        {% endif %}
+        {% if '/risk' not in disabled_nav_items %}
         <a href="/risk" data-tooltip="Risk Manager" class="nav-item {% if active == 'risk' %}active{% endif %}">
-          <i class="bi bi-shield-check"></i><span class="nav-text">Risk Manager</span>
+          <i class="bi bi-shield-check nav-icon-red"></i><span class="nav-text">Risk Manager</span>
         </a>
+        {% endif %}
+        {% if '/performance' not in disabled_nav_items %}
         <a href="/performance" data-tooltip="My Performance" class="nav-item {% if active == 'performance' %}active{% endif %}">
-          <i class="bi bi-graph-up-arrow"></i><span class="nav-text">My Performance</span>
+          <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">My Performance</span>
         </a>
+        {% endif %}
+        {% if '/journal' not in disabled_nav_items %}
         <a href="/journal" data-tooltip="Trade Journal" class="nav-item {% if active == 'journal' %}active{% endif %}">
-          <i class="bi bi-journal-bookmark-fill"></i><span class="nav-text">Trade Journal</span>
+          <i class="bi bi-journal-bookmark-fill nav-icon-blue"></i><span class="nav-text">Trade Journal</span>
         </a>
+        {% endif %}
       </div>
     </div>
 
@@ -216,19 +277,22 @@
         </div>
         <div class="nav-group-body">
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
-            <i class="bi bi-speedometer2"></i><span class="nav-text">Admin Panel</span>
+            <i class="bi bi-speedometer2 nav-icon-amber"></i><span class="nav-text">Admin Panel</span>
           </a>
           <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
-            <i class="bi bi-people-fill"></i><span class="nav-text">Users</span>
+            <i class="bi bi-people-fill nav-icon-cyan"></i><span class="nav-text">Users</span>
           </a>
           <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
-            <i class="bi bi-plug-fill"></i><span class="nav-text">API Configs</span>
+            <i class="bi bi-plug-fill nav-icon-blue"></i><span class="nav-text">API Configs</span>
           </a>
           <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
-            <i class="bi bi-layers-fill"></i><span class="nav-text">Assets</span>
+            <i class="bi bi-layers-fill nav-icon-purple"></i><span class="nav-text">Assets</span>
           </a>
           <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
-            <i class="bi bi-list-ul"></i><span class="nav-text">System Logs</span>
+            <i class="bi bi-list-ul nav-icon-red"></i><span class="nav-text">System Logs</span>
+          </a>
+          <a href="/admin/platform-config" data-tooltip="Platform Configuration" class="nav-item {% if active == 'admin_platform_config' %}active{% endif %}">
+            <i class="bi bi-sliders nav-icon-green"></i><span class="nav-text">Platform Config</span>
           </a>
         </div>
       </div>
@@ -240,14 +304,18 @@
 
   <!-- Footer links -->
   <div class="sidebar-footer">
+    {% if '/help' not in disabled_nav_items %}
     <a href="/help" data-tooltip="Help &amp; FAQ" class="nav-item {% if active == 'help' %}active{% endif %}">
-      <i class="bi bi-question-circle-fill"></i><span class="nav-text">Help &amp; FAQ</span>
+      <i class="bi bi-question-circle-fill nav-icon-cyan"></i><span class="nav-text">Help &amp; FAQ</span>
     </a>
+    {% endif %}
+    {% if '/settings' not in disabled_nav_items %}
     <a href="/settings" data-tooltip="Settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
-      <i class="bi bi-gear-fill"></i><span class="nav-text">Settings</span>
+      <i class="bi bi-gear-fill nav-icon-blue"></i><span class="nav-text">Settings</span>
     </a>
+    {% endif %}
     <a href="#" data-tooltip="Logout" class="nav-item" id="logoutBtn">
-      <i class="bi bi-box-arrow-right"></i><span class="nav-text">Logout</span>
+      <i class="bi bi-box-arrow-right nav-icon-red"></i><span class="nav-text">Logout</span>
     </a>
   </div>
 
@@ -344,6 +412,13 @@
   <main class="page-content" id="pageContent">
     <div id="approvalBanner" style="display:none" class="approval-banner"></div>
     {% block content %}{% endblock %}
+
+    <div class="financial-disclaimer-strip">
+      <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
+      analytical/algorithmic tools — not personalised investment advice, guaranteed predictions, or assured returns.
+      Trading involves substantial risk, including loss of principal. Always do independent research and consult a
+      qualified financial professional before making financial decisions.
+    </div>
   </main>
 
 </div><!-- /main-wrapper -->
@@ -358,22 +433,24 @@
     </div>
     <div class="cmd-results" id="cmdResults">
       <div class="cmd-group-label">Quick Navigation</div>
-      <a href="/dashboard"        class="cmd-item"><i class="bi bi-grid-1x2-fill"></i><span class="cmd-item-label">Dashboard</span></a>
-      <a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">All Signals</span></a>
-      <a href="/briefing"         class="cmd-item"><i class="bi bi-sunrise"></i><span class="cmd-item-label">Morning Briefing</span></a>
-      <a href="/markets/crypto"   class="cmd-item"><i class="bi bi-currency-bitcoin"></i><span class="cmd-item-label">Crypto Markets</span></a>
-      <a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span></a>
-      <a href="/markets/commodities" class="cmd-item"><i class="bi bi-gem"></i><span class="cmd-item-label">Commodities</span></a>
-      <a href="/markets/indian_stock" class="cmd-item"><i class="bi bi-building"></i><span class="cmd-item-label">Indian Stocks</span></a>
-      <a href="/markets/index"    class="cmd-item"><i class="bi bi-activity"></i><span class="cmd-item-label">Indices</span></a>
-      <a href="/heatmap"          class="cmd-item"><i class="bi bi-grid-3x3-gap-fill"></i><span class="cmd-item-label">Market Heatmap</span></a>
-      <a href="/scanner"          class="cmd-item"><i class="bi bi-radar"></i><span class="cmd-item-label">Scanner</span></a>
-      <a href="/portfolio"        class="cmd-item"><i class="bi bi-pie-chart-fill"></i><span class="cmd-item-label">Portfolio</span></a>
-      <a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>
-      <a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span></a>
-      <a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span></a>
-      <a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span></a>
-      <a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>
+      {% if '/dashboard' not in disabled_nav_items %}<a href="/dashboard"        class="cmd-item"><i class="bi bi-grid-1x2-fill"></i><span class="cmd-item-label">Dashboard</span></a>{% endif %}
+      {% if '/signals' not in disabled_nav_items %}<a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">All Signals</span></a>{% endif %}
+      {% if '/briefing' not in disabled_nav_items %}<a href="/briefing"         class="cmd-item"><i class="bi bi-sunrise"></i><span class="cmd-item-label">Morning Briefing</span></a>{% endif %}
+      {% if '/markets/crypto' not in disabled_nav_items %}<a href="/markets/crypto"   class="cmd-item"><i class="bi bi-currency-bitcoin"></i><span class="cmd-item-label">Crypto Markets</span></a>{% endif %}
+      {% if '/markets/forex' not in disabled_nav_items %}<a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span></a>{% endif %}
+      {% if '/markets/commodities' not in disabled_nav_items %}<a href="/markets/commodities" class="cmd-item"><i class="bi bi-gem"></i><span class="cmd-item-label">Commodities</span></a>{% endif %}
+      {% if '/markets/indian_stock' not in disabled_nav_items %}<a href="/markets/indian_stock" class="cmd-item"><i class="bi bi-building"></i><span class="cmd-item-label">Indian Stocks</span></a>{% endif %}
+      {% if '/markets/index' not in disabled_nav_items %}<a href="/markets/index"    class="cmd-item"><i class="bi bi-activity"></i><span class="cmd-item-label">Indices</span></a>{% endif %}
+      {% if '/heatmap' not in disabled_nav_items %}<a href="/heatmap"          class="cmd-item"><i class="bi bi-grid-3x3-gap-fill"></i><span class="cmd-item-label">Market Heatmap</span></a>{% endif %}
+      {% if '/scanner' not in disabled_nav_items %}<a href="/scanner"          class="cmd-item"><i class="bi bi-radar"></i><span class="cmd-item-label">Scanner</span></a>{% endif %}
+      {% if '/portfolio' not in disabled_nav_items %}<a href="/portfolio"        class="cmd-item"><i class="bi bi-pie-chart-fill"></i><span class="cmd-item-label">Portfolio</span></a>{% endif %}
+      {% if '/watchlist' not in disabled_nav_items %}<a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>{% endif %}
+      {% if '/analytics' not in disabled_nav_items %}<a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span></a>{% endif %}
+      {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span></a>{% endif %}
+      {% if '/journal' not in disabled_nav_items %}<a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span></a>{% endif %}
+      {% if '/settings' not in disabled_nav_items %}<a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>{% endif %}
+      <div class="cmd-group-label cmd-group-label-assets" id="cmdAssetsGroupLabel" style="display:none">Assets</div>
+      <div id="cmdAssetsResults"></div>
     </div>
     <div class="cmd-footer">
       <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
@@ -526,17 +603,43 @@ function toggleNavGroup(header) {
 
 // ── Command Palette ────────────────────────────────────────────────
 (function () {
-  const overlay   = document.getElementById('cmdOverlay');
-  const input     = document.getElementById('cmdInput');
-  const results   = document.getElementById('cmdResults');
-  const closeBtn  = document.getElementById('cmdClose');
-  const trigger   = document.getElementById('cmdTrigger');
+  const overlay      = document.getElementById('cmdOverlay');
+  const input        = document.getElementById('cmdInput');
+  const results      = document.getElementById('cmdResults');
+  const closeBtn     = document.getElementById('cmdClose');
+  const trigger      = document.getElementById('cmdTrigger');
+  const assetsWrap   = document.getElementById('cmdAssetsResults');
+  const assetsLabel  = document.getElementById('cmdAssetsGroupLabel');
   if (!overlay) return;
 
+  // Static page items are rendered server-side; asset items are fetched
+  // once (lazily, on first open) and rendered client-side so the palette's
+  // placeholder ("Search pages, assets, signals…") is actually true instead
+  // of only ever matching the ~15 hardcoded nav pages.
   const allItems = Array.from(results.querySelectorAll('.cmd-item'));
+  let assetsLoaded = false;
+
+  async function ensureAssetsLoaded() {
+    if (assetsLoaded) return;
+    assetsLoaded = true;
+    try {
+      const data = await API.get('/assets/');
+      const assets = data?.assets || [];
+      assetsWrap.innerHTML = assets.map(a => `
+        <a href="/asset/${a.id}" class="cmd-item cmd-item-asset">
+          <i class="bi bi-graph-up-arrow"></i>
+          <span class="cmd-item-label">${a.symbol}<span class="cmd-item-sub">${a.name || ''}</span></span>
+        </a>`).join('');
+      // Newly-added DOM nodes need to join the same filter/keyboard-nav
+      // pool the static items use.
+      allItems.push(...Array.from(assetsWrap.querySelectorAll('.cmd-item')));
+      if (input && input.value) filterItems(input.value);
+    } catch (e) { /* palette still works for static pages if this fails */ }
+  }
 
   function open() {
     overlay.classList.add('open');
+    ensureAssetsLoaded();
     setTimeout(() => input && input.focus(), 50);
   }
   function close() {
@@ -572,17 +675,22 @@ function toggleNavGroup(header) {
 
   function filterItems(q) {
     const query = q.toLowerCase().trim();
-    let hasGroup = false;
+    let hasPageMatch = false;
+    let hasAssetMatch = false;
     allItems.forEach(item => {
-      const label = (item.querySelector('.cmd-item-label') || item).textContent.toLowerCase();
-      const show = !query || label.includes(query);
+      const isAsset = item.classList.contains('cmd-item-asset');
+      // Empty query: show the static page list (existing behavior) but
+      // keep the full asset list collapsed — with real market data this
+      // can be dozens of symbols, and dumping all of them into view before
+      // the user has typed anything would bury Quick Navigation.
+      const show = isAsset ? (!!query && item.textContent.toLowerCase().includes(query))
+                            : (!query || item.textContent.toLowerCase().includes(query));
       item.style.display = show ? '' : 'none';
-      if (show) hasGroup = true;
+      if (show) { if (isAsset) hasAssetMatch = true; else hasPageMatch = true; }
     });
-    // Hide group label if nothing visible
-    results.querySelectorAll('.cmd-group-label').forEach(lbl => {
-      lbl.style.display = hasGroup ? '' : 'none';
-    });
+    const navLabel = results.querySelector('.cmd-group-label:not(.cmd-group-label-assets)');
+    if (navLabel) navLabel.style.display = hasPageMatch ? '' : 'none';
+    if (assetsLabel) assetsLabel.style.display = hasAssetMatch ? '' : 'none';
     highlighted = -1;
     visibleItems().forEach(i => i.classList.remove('highlighted'));
   }

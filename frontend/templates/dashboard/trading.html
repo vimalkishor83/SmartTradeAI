@@ -27,12 +27,14 @@
     </p>
     <form id="connectBrokerForm" style="max-width:360px;margin:0 auto" class="text-start">
       <div class="mb-2">
-        <label class="form-label fs-xs">API Key</label>
-        <input type="text" class="form-control form-control-sm" id="brokerApiKey" required autocomplete="off" />
+        <label class="form-label fs-xs">Delta Exchange API Key</label>
+        <input type="text" class="form-control form-control-sm" id="brokerApiKey" name="delta_broker_api_key_field"
+               required autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" />
       </div>
       <div class="mb-3">
-        <label class="form-label fs-xs">API Secret</label>
-        <input type="password" class="form-control form-control-sm" id="brokerApiSecret" required autocomplete="off" />
+        <label class="form-label fs-xs">Delta Exchange API Secret</label>
+        <input type="password" class="form-control form-control-sm" id="brokerApiSecret" name="delta_broker_api_secret_field"
+               required autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" />
       </div>
       <button type="submit" class="btn btn-primary btn-sm w-100" id="connectBrokerBtn">
         <i class="bi bi-link-45deg me-1"></i>Connect Account
@@ -213,13 +215,32 @@ async function checkConnection() {
 
 document.getElementById('connectBrokerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+
+  const apiKey = document.getElementById('brokerApiKey').value.trim();
+  const apiSecret = document.getElementById('brokerApiSecret').value.trim();
+
+  // Browser password managers sometimes autofill this API Key/Secret pair
+  // with the user's own SmartTrade AI login (a text+password field pair
+  // reads as a login form to autofill heuristics, even with autocomplete
+  // set to discourage it). A real Delta Exchange API key is never
+  // email-shaped, so this catches the mistaken-autofill case before it's
+  // ever sent anywhere.
+  const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (looksLikeEmail.test(apiKey)) {
+    Toast.show('That looks like an email address, not a Delta Exchange API key — check for autofill and re-enter your broker credentials.', 'error');
+    document.getElementById('brokerApiKey').value = '';
+    document.getElementById('brokerApiSecret').value = '';
+    document.getElementById('brokerApiKey').focus();
+    return;
+  }
+
   const btn = document.getElementById('connectBrokerBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Connecting…';
 
   const res = await API.post('/trading/broker/connect', {
-    api_key: document.getElementById('brokerApiKey').value.trim(),
-    api_secret: document.getElementById('brokerApiSecret').value.trim(),
+    api_key: apiKey,
+    api_secret: apiSecret,
   });
 
   btn.disabled = false;

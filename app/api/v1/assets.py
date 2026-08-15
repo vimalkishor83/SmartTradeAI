@@ -11,6 +11,24 @@ assets_bp = Blueprint("assets", __name__)
 @login_required
 def list_assets():
     market = request.args.get("market")
+
+    # Admin-only escape hatch so the Platform Config / Assets admin UI can
+    # see and re-enable currently-disabled assets, which are otherwise
+    # invisible everywhere (this same query is what every asset picker in
+    # the app uses). Bypasses the cache entirely — this path is rare
+    # (admin screens only) so freshness matters more than the 300s cache.
+    include_inactive = request.args.get("include_inactive") == "1"
+    if include_inactive:
+        from app.auth.decorators import get_current_user
+        user = get_current_user()
+        if not user or user.role.name != "admin":
+            return jsonify({"error": "Admin access required"}), 403
+        query = Asset.query
+        if market:
+            query = query.filter_by(market=market)
+        assets = query.order_by(Asset.market, Asset.symbol).all()
+        return jsonify({"assets": [a.to_dict() for a in assets]}), 200
+
     cache_key = f"assets_list_{market or 'all'}"
     cached = cache.get(cache_key)
     if cached:

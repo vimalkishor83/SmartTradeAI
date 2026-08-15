@@ -1,3 +1,4 @@
+import logging
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from app.extensions import db, cache
@@ -7,6 +8,8 @@ from app.models.signal import Signal
 from app.models.user import User
 from app.auth.decorators import login_required
 from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
 
 watchlist_bp = Blueprint("watchlist", __name__)
 
@@ -238,7 +241,8 @@ def watchlist_context():
                 asset_id = futures[fut]
                 try:
                     ticker_by_asset_id[asset_id] = fut.result()
-                except Exception:
+                except Exception as e:
+                    logger.error(f"Watchlist ticker fetch failed [asset_id={asset_id}]: {e}", exc_info=True)
                     ticker_by_asset_id[asset_id] = None
 
     result = []

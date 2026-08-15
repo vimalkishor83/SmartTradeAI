@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SmartTrade AI — AI-Powered Trading Signals for Indian Markets</title>
+  <title>SmartTrade AI — AI-Powered Trading Signals for Global Markets</title>
   <meta name="description" content="Real-time BUY/SELL signals across Crypto, Forex, Stocks & Commodities — backed by 50+ technical indicators." />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
   <style>
@@ -11,23 +11,28 @@
     html { scroll-behavior: smooth; }
 
     :root {
-      --bg:       #0f172a;
-      --bg2:      #1e293b;
-      --bg3:      #0d1525;
-      --card:     #1e293b;
-      --card2:    #243044;
-      --accent:   #6366f1;
-      --accent2:  #818cf8;
-      --green:    #10b981;
-      --text:     #e2e8f0;
+      --bg:       #080b12;
+      --bg2:      #10141c;
+      --bg3:      #060810;
+      --card:     #10141c;
+      --card2:    #161d29;
+      --accent:   #f5a623;
+      --accent2:  #ffc861;
+      --accent-dim: rgba(245,166,35,0.12);
+      --green:    #22d97f;
+      --red:      #ff5a6a;
+      --text:     #eef1f8;
       --text2:    #94a3b8;
       --text3:    #64748b;
       --border:   rgba(255,255,255,0.07);
+      --border-hover: rgba(255,255,255,0.14);
       --radius:   12px;
+      --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
     }
 
     body {
-      font-family: 'Inter', system-ui, sans-serif;
+      font-family: var(--font-sans);
       background: var(--bg);
       color: var(--text);
       font-size: 15px;
@@ -38,12 +43,15 @@
 
     a { color: inherit; text-decoration: none; }
 
+    /* Numeric/data values render in mono for a terminal feel + column alignment */
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
     /* ── NAVBAR ─────────────────────────── */
     .navbar {
       position: sticky;
       top: 0;
       z-index: 100;
-      background: rgba(15,23,42,0.9);
+      background: rgba(8,11,18,0.88);
       backdrop-filter: blur(16px);
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -64,13 +72,14 @@
 
     .nav-brand .brand-icon {
       width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
       border-radius: 9px;
       display: flex; align-items: center; justify-content: center;
       font-size: 18px;
+      box-shadow: 0 0 0 1px rgba(245,166,35,0.35), 0 4px 16px rgba(245,166,35,0.25);
     }
 
-    .nav-brand .ai-part { color: var(--accent2); }
+    .nav-brand .ai-part { color: var(--accent); }
 
     .nav-links {
       display: flex;
@@ -114,18 +123,18 @@
     .btn-ghost:hover { color: var(--text); border-color: var(--border); }
 
     .btn-accent {
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      color: #fff;
-      box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      color: #14100a;
+      box-shadow: 0 4px 14px rgba(245,166,35,0.3);
     }
-    .btn-accent:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.45); }
+    .btn-accent:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,166,35,0.4); }
 
     .btn-outline {
       background: none;
       color: var(--text);
       border: 1px solid var(--border);
     }
-    .btn-outline:hover { border-color: var(--accent2); color: var(--accent2); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
 
     .btn-lg {
       padding: 13px 30px;
@@ -136,10 +145,10 @@
     /* ── HERO ───────────────────────────── */
     .hero {
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.05fr 0.95fr;
       align-items: center;
       gap: 60px;
-      padding: 90px 5% 80px;
+      padding: 90px 5% 60px;
       max-width: 1280px;
       margin: 0 auto;
     }
@@ -148,8 +157,8 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(99,102,241,0.12);
-      border: 1px solid rgba(99,102,241,0.3);
+      background: var(--accent-dim);
+      border: 1px solid rgba(245,166,35,0.3);
       border-radius: 20px;
       padding: 5px 14px;
       font-size: 12.5px;
@@ -165,8 +174,8 @@
       animation: pulse 2s infinite;
     }
     @keyframes pulse {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(16,185,129,0.5); }
-      50%       { box-shadow: 0 0 0 5px rgba(16,185,129,0); }
+      0%, 100% { box-shadow: 0 0 0 0 rgba(34,217,127,0.5); }
+      50%       { box-shadow: 0 0 0 5px rgba(34,217,127,0); }
     }
 
     .hero-title {
@@ -178,7 +187,7 @@
     }
 
     .hero-title .highlight {
-      background: linear-gradient(135deg, var(--accent2), var(--green));
+      background: linear-gradient(135deg, var(--accent), #ffdb96);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -187,7 +196,7 @@
     .hero-sub {
       font-size: 16px;
       color: var(--text2);
-      margin-bottom: 36px;
+      margin-bottom: 32px;
       max-width: 520px;
       line-height: 1.7;
     }
@@ -197,6 +206,58 @@
       align-items: center;
       gap: 14px;
       flex-wrap: wrap;
+      margin-bottom: 36px;
+    }
+
+    /* Fear & Greed sentiment strip — reads live market mood at a glance */
+    .sentiment-strip {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      max-width: 460px;
+    }
+    .sentiment-strip-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .sentiment-strip-label {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text3);
+    }
+    .sentiment-strip-value {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--accent2);
+    }
+    .sentiment-strip-value .num { font-size: 16px; }
+    .sentiment-bar {
+      position: relative;
+      height: 8px;
+      border-radius: 4px;
+      background: linear-gradient(90deg, #ff5a6a 0%, #f5b544 25%, #f5a623 50%, #a3d977 75%, #22d97f 100%);
+      margin-bottom: 8px;
+    }
+    .sentiment-marker {
+      position: absolute;
+      top: -4px;
+      width: 3px;
+      height: 16px;
+      background: #fff;
+      border-radius: 2px;
+      box-shadow: 0 0 0 2px rgba(8,11,18,0.9), 0 0 8px rgba(255,255,255,0.5);
+    }
+    .sentiment-scale {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--text3);
+      font-weight: 600;
     }
 
     /* Stats cards grid */
@@ -229,7 +290,7 @@
       position: absolute;
       top: 0; left: 0; right: 0;
       height: 2px;
-      background: linear-gradient(90deg, var(--accent), #8b5cf6);
+      background: linear-gradient(90deg, var(--accent), #ffdb96);
     }
 
     .stat-icon {
@@ -238,7 +299,7 @@
     }
 
     .stat-num {
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-family: var(--font-mono);
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -1px;
@@ -251,6 +312,51 @@
       font-weight: 500;
       margin-top: 3px;
     }
+
+    /* ── LIVE SIGNAL TICKER ─────────────────────── */
+    :root { --ticker-h: 43px; }
+    .ticker-wrap {
+      position: sticky;
+      top: 0;
+      z-index: 101;
+      height: var(--ticker-h);
+      box-sizing: border-box;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+      overflow: hidden;
+      padding: 12px 0;
+    }
+    .navbar { top: var(--ticker-h); }
+    .ticker-track {
+      display: flex;
+      gap: 40px;
+      width: max-content;
+      animation: scrollTicker 32s linear infinite;
+    }
+    @keyframes scrollTicker {
+      0%   { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+    .ticker-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .ticker-sym { font-weight: 700; color: var(--text); }
+    .ticker-price { font-family: var(--font-mono); color: var(--text2); }
+    .ticker-chip {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 5px;
+    }
+    .ticker-chip.buy  { background: rgba(34,217,127,0.14); color: var(--green); }
+    .ticker-chip.sell { background: rgba(255,90,106,0.14); color: var(--red); }
+    .ticker-chip.hold { background: rgba(245,166,35,0.14); color: var(--accent); }
 
     /* ── FEATURES ───────────────────────── */
     section {
@@ -270,7 +376,7 @@
       font-weight: 700;
       letter-spacing: 2px;
       text-transform: uppercase;
-      color: var(--accent2);
+      color: var(--accent);
       margin-bottom: 14px;
     }
 
@@ -304,7 +410,7 @@
       transition: all 0.25s;
     }
     .feature-card:hover {
-      border-color: rgba(99,102,241,0.4);
+      border-color: rgba(245,166,35,0.35);
       transform: translateY(-3px);
       box-shadow: 0 10px 30px rgba(0,0,0,0.35);
     }
@@ -312,8 +418,8 @@
     .feature-icon {
       width: 48px; height: 48px;
       border-radius: 12px;
-      background: rgba(99,102,241,0.12);
-      border: 1px solid rgba(99,102,241,0.2);
+      background: var(--accent-dim);
+      border: 1px solid rgba(245,166,35,0.22);
       display: flex; align-items: center; justify-content: center;
       font-size: 22px;
       margin-bottom: 18px;
@@ -330,6 +436,191 @@
       font-size: 13.5px;
       color: var(--text2);
       line-height: 1.65;
+    }
+
+    /* ── SIGNAL SNAPSHOT (mono data table proof-point) ───────── */
+    .snapshot-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+    }
+    .snapshot-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      background: var(--card2);
+    }
+    .snapshot-head-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .snapshot-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .snapshot-table th {
+      text-align: left;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text3);
+      padding: 12px 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .snapshot-table td {
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--border);
+      font-size: 13.5px;
+    }
+    .snapshot-table tr:last-child td { border-bottom: none; }
+    .snapshot-table .sig-asset { font-weight: 700; }
+    .snapshot-table .sig-sub { color: var(--text3); font-size: 11.5px; }
+    .sig-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 6px;
+      letter-spacing: 0.3px;
+    }
+    .sig-badge.buy  { background: rgba(34,217,127,0.14); color: var(--green); }
+    .sig-badge.sell { background: rgba(255,90,106,0.14); color: var(--red); }
+    .sig-badge.wait { background: rgba(148,163,184,0.14); color: var(--text2); }
+    .conf-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .conf-bar-track { width: 60px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); overflow: hidden; }
+    .conf-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+
+    /* ── HOW IT WORKS ───────────────────── */
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px;
+      counter-reset: step;
+    }
+    .step-card {
+      position: relative;
+      padding: 28px 22px 24px;
+    }
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid rgba(245,166,35,0.25);
+      width: 34px; height: 34px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 16px;
+    }
+    .step-title {
+      font-size: 15.5px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      letter-spacing: -0.2px;
+    }
+    .step-desc {
+      font-size: 13.5px;
+      color: var(--text2);
+      line-height: 1.65;
+    }
+    .step-connector {
+      display: none;
+    }
+    @media (min-width: 901px) {
+      .step-card:not(:last-child)::after {
+        content: '';
+        position: absolute;
+        top: 34px; right: -24px;
+        width: 24px; height: 1px;
+        background: var(--border);
+      }
+    }
+
+    /* ── STATS BAND ─────────────────────── */
+    .stats-band {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 24px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      text-align: center;
+    }
+    .stats-band-item .num {
+      font-family: var(--font-mono);
+      font-size: clamp(24px, 3vw, 32px);
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: -0.5px;
+    }
+    .stats-band-item .lbl {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+    }
+
+    /* ── FAQ ─────────────────────────────── */
+    .faq-list {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .faq-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .faq-item summary {
+      cursor: pointer;
+      list-style: none;
+      padding: 18px 22px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 14.5px;
+      font-weight: 700;
+    }
+    .faq-item summary::-webkit-details-marker { display: none; }
+    .faq-item summary .faq-chevron {
+      flex-shrink: 0;
+      color: var(--accent);
+      transition: transform 0.2s;
+      font-size: 14px;
+    }
+    .faq-item[open] summary .faq-chevron { transform: rotate(90deg); }
+    .faq-item summary:hover { color: var(--accent2); }
+    .faq-body {
+      padding: 0 22px 18px;
+      color: var(--text2);
+      font-size: 13.5px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 900px) {
+      .steps-grid { grid-template-columns: repeat(2, 1fr); }
+      .stats-band { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 560px) {
+      .steps-grid { grid-template-columns: 1fr; }
+      .stats-band { grid-template-columns: 1fr 1fr; }
     }
 
     /* ── PRICING ────────────────────────── */
@@ -349,6 +640,38 @@
       gap: 22px;
       align-items: start;
     }
+    .pricing-grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+    .referral-callout {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      background: var(--accent-dim);
+      border: 1px dashed rgba(245,166,35,0.35);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      max-width: 780px;
+      margin: 0 auto 32px;
+      font-size: 13.5px;
+      color: var(--text2);
+      line-height: 1.6;
+    }
+    .referral-callout-icon { font-size: 20px; flex-shrink: 0; }
+    .referral-callout strong { color: var(--text); }
+
+    .referral-tag {
+      display: inline-block;
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--accent2);
+      background: rgba(245,166,35,0.12);
+      border: 1px solid rgba(245,166,35,0.3);
+      border-radius: 20px;
+      padding: 2px 8px;
+      margin-left: 6px;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
 
     .pricing-card {
       background: var(--card);
@@ -361,7 +684,7 @@
     .pricing-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.35); }
 
     .pricing-card.featured {
-      background: linear-gradient(145deg, #1e2a4a, #1e293b);
+      background: linear-gradient(145deg, #221a0c, #161d29);
       border-color: var(--accent);
       border-width: 1.5px;
       transform: scale(1.04);
@@ -373,8 +696,8 @@
       top: -13px;
       left: 50%;
       transform: translateX(-50%);
-      background: linear-gradient(135deg, var(--accent), #8b5cf6);
-      color: #fff;
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      color: #14100a;
       font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.8px;
@@ -384,9 +707,9 @@
     }
 
     .savings-badge {
-      background: rgba(16,185,129,0.15);
+      background: rgba(34,217,127,0.14);
       color: var(--green);
-      border: 1px solid rgba(16,185,129,0.3);
+      border: 1px solid rgba(34,217,127,0.3);
       font-size: 11px;
       font-weight: 700;
       padding: 2px 10px;
@@ -405,14 +728,14 @@
     }
 
     .plan-price {
-      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-family: var(--font-mono);
       font-size: 40px;
       font-weight: 700;
       letter-spacing: -1.5px;
       line-height: 1;
     }
     .plan-price .currency { font-size: 22px; font-weight: 700; vertical-align: top; margin-top: 6px; display: inline-block; }
-    .plan-price .period  { font-size: 13px; font-weight: 500; color: var(--text2); font-family: 'Inter', sans-serif; }
+    .plan-price .period  { font-size: 13px; font-weight: 500; color: var(--text2); font-family: var(--font-sans); }
 
     .plan-divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
 
@@ -441,7 +764,7 @@
       margin-bottom: 6px;
       letter-spacing: -0.4px;
     }
-    .footer-brand .ai { color: var(--accent2); }
+    .footer-brand .ai { color: var(--accent); }
 
     .footer-tagline {
       color: var(--text2);
@@ -463,18 +786,65 @@
       font-weight: 500;
       transition: color 0.2s;
     }
-    .footer-links a:hover { color: var(--accent2); }
+    .footer-links a:hover { color: var(--accent); }
+
+    .financial-disclaimer {
+      max-width: 780px;
+      margin: 0 auto 20px;
+      padding: 14px 18px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255,255,255,0.02);
+      color: var(--text3);
+      font-size: 11.5px;
+      line-height: 1.6;
+      text-align: left;
+    }
+    .financial-disclaimer strong { color: var(--text2); }
 
     .footer-copy {
       color: var(--text3);
       font-size: 12.5px;
     }
 
+    /* ── BACK TO TOP ────────────────────── */
+    #backToTop {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: 1px solid rgba(245,166,35,0.35);
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      color: #14100a;
+      font-size: 20px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(245,166,35,0.3);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(10px);
+      transition: opacity 0.25s, transform 0.25s, visibility 0.25s;
+      z-index: 90;
+    }
+    #backToTop.show {
+      opacity: 1;
+      visibility: visible;
+      transform: translateY(0);
+    }
+    #backToTop:hover { opacity: 0.9; transform: translateY(-2px); }
+
     /* ── RESPONSIVE ─────────────────────── */
+    @media (max-width: 1180px) {
+      .pricing-grid-4 { grid-template-columns: repeat(2, 1fr); max-width: 620px; margin: 0 auto; }
+    }
+
     @media (max-width: 1024px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
       .pricing-grid  { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
       .pricing-card.featured { transform: scale(1); }
+      .snapshot-table th:nth-child(4), .snapshot-table td:nth-child(4) { display: none; }
     }
 
     @media (max-width: 768px) {
@@ -482,6 +852,7 @@
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .nav-links { display: none; }
       .features-grid { grid-template-columns: 1fr; }
+      .snapshot-table th:nth-child(3), .snapshot-table td:nth-child(3) { display: none; }
     }
 
     @media (max-width: 480px) {
@@ -492,6 +863,13 @@
 </head>
 <body>
 
+<!-- ═══ LIVE TICKER STRIP ══════════════════════════════════════ -->
+<div class="ticker-wrap">
+  <div class="ticker-track" id="landingTickerTrack">
+    <div class="ticker-item"><span class="ticker-sym">Loading live prices…</span></div>
+  </div>
+</div>
+
 <!-- ═══ NAVBAR ══════════════════════════════════════════════ -->
 <nav class="navbar">
   <a href="/home" class="nav-brand">
@@ -500,14 +878,18 @@
   </a>
 
   <ul class="nav-links">
+    <li><a href="/home">Home</a></li>
     <li><a href="#features">Features</a></li>
+    <li><a href="#how-it-works">How It Works</a></li>
+    <li><a href="#signals">Live Signals</a></li>
     <li><a href="#pricing">Pricing</a></li>
-    <li><a href="/login">Login</a></li>
+    <li><a href="#faq">FAQ</a></li>
+    <li id="navLoginItem"><a href="/login">Login</a></li>
   </ul>
 
-  <div class="nav-cta">
-    <a href="/login" class="btn btn-ghost">Login</a>
-    <a href="/register" class="btn btn-accent">Sign Up Free</a>
+  <div class="nav-cta" id="navCta">
+    <a href="/login" class="btn btn-ghost" id="navLoginBtn">Login</a>
+    <a href="/register" class="btn btn-accent" id="navSignupBtn">Sign Up Free</a>
   </div>
 </nav>
 
@@ -518,19 +900,34 @@
     <div>
       <div class="hero-badge">
         <span class="live-dot"></span>
-        Live across Indian Markets
+        Live across Global Markets
       </div>
       <h1 class="hero-title">
-        <span class="highlight">AI-Powered</span><br>
-        Trading Signals<br>
-        for Indian Markets
+        <span class="highlight">Read the market</span><br>
+        like a terminal
       </h1>
       <p class="hero-sub">
-        Real-time BUY/SELL signals across Crypto, Forex, Stocks &amp; Commodities — backed by 50+ technical indicators
+        Real-time BUY/SELL signals across Crypto, Forex, Stocks &amp; Commodities — backed by 50+ technical indicators, entry/target/stop-loss on every call.
       </p>
       <div class="hero-actions">
         <a href="/register" class="btn btn-accent btn-lg">🚀 Start Free</a>
-        <a href="/dashboard" class="btn btn-outline btn-lg">See Demo →</a>
+        <a href="/register" class="btn btn-outline btn-lg">See Demo →</a>
+      </div>
+
+      <!-- Fear & Greed sentiment strip -->
+      <div class="sentiment-strip">
+        <div class="sentiment-strip-head">
+          <span class="sentiment-strip-label">Market Sentiment</span>
+          <span class="sentiment-strip-value mono"><span class="num">62</span> · Greed</span>
+        </div>
+        <div class="sentiment-bar">
+          <div class="sentiment-marker" style="left:62%"></div>
+        </div>
+        <div class="sentiment-scale">
+          <span>Extreme Fear</span>
+          <span>Neutral</span>
+          <span>Extreme Greed</span>
+        </div>
       </div>
     </div>
 
@@ -538,22 +935,22 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">📊</div>
-        <div class="stat-num">24</div>
+        <div class="stat-num mono">24</div>
         <div class="stat-label">Assets Tracked</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">⏱️</div>
-        <div class="stat-num">7</div>
+        <div class="stat-num mono">7</div>
         <div class="stat-label">Timeframes</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">📐</div>
-        <div class="stat-num">50+</div>
+        <div class="stat-num mono">50+</div>
         <div class="stat-label">Indicators</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">🔔</div>
-        <div class="stat-num" style="color:var(--green)">Live</div>
+        <div class="stat-num mono" style="color:var(--green)">Live</div>
         <div class="stat-label">Real-time Alerts</div>
       </div>
     </div>
@@ -607,6 +1004,75 @@
   </div>
 </section>
 
+<!-- ═══ HOW IT WORKS ═══════════════════════════════════════════ -->
+<section id="how-it-works">
+  <div class="section-header">
+    <span class="section-label">How It Works</span>
+    <h2 class="section-title">From signup to your first signal in minutes</h2>
+    <p class="section-sub">No broker integration required to get started — connect one later if you want one-click paper or live execution.</p>
+  </div>
+
+  <div class="steps-grid">
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-title">Create your account</div>
+      <p class="step-desc">Sign up free — no card required. Have a broker referral code? It unlocks a paid tier free at signup.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-title">Pick your markets</div>
+      <p class="step-desc">Choose from Crypto, Forex, Indian Stocks, Commodities &amp; Indices — watch all of them or focus on a few.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-title">Read the AI's reasoning</div>
+      <p class="step-desc">Every signal ships with a confidence score, entry zone, stop-loss, targets, and a plain-English "why" — never a black box.</p>
+    </div>
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-title">Trade with built-in risk management</div>
+      <p class="step-desc">Position sizing, R:R, and stop-loss are calculated for you on every call — connect a broker for one-click execution.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══ LIVE SIGNAL SNAPSHOT ═══════════════════════════════════ -->
+<section id="signals">
+  <div class="section-header">
+    <span class="section-label">Live Right Now</span>
+    <h2 class="section-title">A glimpse of the signal board</h2>
+    <p class="section-sub">Every call ships with a confidence score, entry zone, and invalidation level — no black boxes.</p>
+  </div>
+
+  <div class="snapshot-card">
+    <div class="snapshot-head">
+      <div class="snapshot-head-title"><span class="live-dot"></span> Today's Top Signals</div>
+      <a href="/register" class="btn btn-ghost" style="padding:6px 14px;font-size:13px">View all →</a>
+    </div>
+    <table class="snapshot-table">
+      <thead>
+        <tr>
+          <th>Asset</th>
+          <th>Signal</th>
+          <th>Confidence</th>
+          <th>Entry</th>
+          <th>Target 1</th>
+        </tr>
+      </thead>
+      <tbody id="landingSignalsBody">
+        <tr><td colspan="5" class="mono" style="color:var(--text3)">Loading live signals…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="stats-band" id="landingStatsBand" style="margin-top:32px">
+    <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Signals Generated</div></div>
+    <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Trades Tracked</div></div>
+    <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Assets Covered</div></div>
+    <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Markets Covered</div></div>
+  </div>
+</section>
+
 <!-- ═══ PRICING ════════════════════════════════════════════════ -->
 <div class="pricing-section" id="pricing">
   <div class="pricing-inner">
@@ -616,7 +1082,16 @@
       <p class="section-sub">No hidden fees. Cancel anytime. Built for Indian traders at Indian prices.</p>
     </div>
 
-    <div class="pricing-grid">
+    <div class="referral-callout">
+      <span class="referral-callout-icon">🎁</span>
+      <div>
+        <strong>Have a broker or partner referral code?</strong>
+        A valid code bumps you one tier above Free — straight to <strong>Basic</strong> — at no cost.
+        Want Premium or Pro on top of that? Those higher tiers are still a paid upgrade, referral or not.
+      </div>
+    </div>
+
+    <div class="pricing-grid pricing-grid-4">
       <!-- Free -->
       <div class="pricing-card">
         <div class="plan-name">Free</div>
@@ -626,15 +1101,33 @@
         </div>
         <hr class="plan-divider" />
         <ul class="plan-features">
-          <li><span class="check">✓</span> 5 signals/day</li>
+          <li><span class="check">✓</span> Delayed signals (30 min)</li>
           <li><span class="check">✓</span> 1 market (Crypto)</li>
           <li><span class="check">✓</span> Basic indicators</li>
           <li><span class="check">✓</span> Community support</li>
           <li><span class="cross">✗</span> AI predictions</li>
           <li><span class="cross">✗</span> Backtesting</li>
-          <li><span class="cross">✗</span> Portfolio tracker</li>
         </ul>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Get Started Free</a>
+      </div>
+
+      <!-- Basic — referral-unlockable tier -->
+      <div class="pricing-card">
+        <div class="plan-name">Basic <span class="referral-tag">🎁 Referral unlocks this free</span></div>
+        <div class="plan-price">
+          <span class="currency">₹</span>299
+          <span class="period">/month</span>
+        </div>
+        <hr class="plan-divider" />
+        <ul class="plan-features">
+          <li><span class="check">✓</span> Near-live signals (5 min)</li>
+          <li><span class="check">✓</span> All markets</li>
+          <li><span class="check">✓</span> 15 watchlist slots</li>
+          <li><span class="check">✓</span> Email support</li>
+          <li><span class="cross">✗</span> AI predictions</li>
+          <li><span class="cross">✗</span> Backtesting</li>
+        </ul>
+        <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Basic</a>
       </div>
 
       <!-- Premium (highlighted) -->
@@ -647,40 +1140,69 @@
         </div>
         <hr class="plan-divider" />
         <ul class="plan-features">
-          <li><span class="check">✓</span> Unlimited signals</li>
+          <li><span class="check">✓</span> Unlimited live signals</li>
           <li><span class="check">✓</span> All markets</li>
           <li><span class="check">✓</span> All 50+ indicators</li>
           <li><span class="check">✓</span> AI predictions</li>
           <li><span class="check">✓</span> Backtesting</li>
           <li><span class="check">✓</span> Portfolio tracker</li>
-          <li><span class="check">✓</span> Priority support</li>
         </ul>
         <a href="/register" class="btn btn-accent" style="width:100%;justify-content:center">Start Premium</a>
       </div>
 
-      <!-- Annual -->
+      <!-- Pro -->
       <div class="pricing-card">
-        <div class="plan-name">Annual</div>
+        <div class="plan-name">Pro</div>
         <div class="plan-price">
-          <span class="currency">₹</span>7,999
-          <span class="period">/year</span>
+          <span class="currency">₹</span>2,499
+          <span class="period">/month</span>
         </div>
-        <div class="savings-badge">🎉 Save 33% vs monthly</div>
+        <div class="savings-badge">For serious/prop traders</div>
         <hr class="plan-divider" />
         <ul class="plan-features">
           <li><span class="check">✓</span> Everything in Premium</li>
           <li><span class="check">✓</span> Priority feature access</li>
           <li><span class="check">✓</span> Dedicated support</li>
-          <li><span class="check">✓</span> API access (coming soon)</li>
-          <li><span class="check">✓</span> Export signals to CSV</li>
-          <li><span class="check">✓</span> Custom watchlists</li>
+          <li><span class="check">✓</span> 200 watchlist slots &amp; alerts</li>
           <li><span class="check">✓</span> Advanced backtesting</li>
         </ul>
-        <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Get Annual Plan</a>
+        <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Pro</a>
       </div>
     </div>
   </div>
 </div>
+
+<!-- ═══ FAQ ════════════════════════════════════════════════════ -->
+<section id="faq">
+  <div class="section-header">
+    <span class="section-label">Questions</span>
+    <h2 class="section-title">Frequently asked questions</h2>
+    <p class="section-sub">Can't find what you're looking for? Reach out from the dashboard once you're signed in.</p>
+  </div>
+
+  <div class="faq-list">
+    <details class="faq-item">
+      <summary>How are the signals generated? <i class="faq-chevron">▸</i></summary>
+      <div class="faq-body">Each signal runs through a multi-stage pipeline — trend, momentum, volume, and multi-timeframe alignment checks, plus a machine-learning confidence score — before it's shown. If a setup doesn't clear the bar, you'll see a HOLD instead of a forced call.</div>
+    </details>
+    <details class="faq-item">
+      <summary>What markets and timeframes are covered? <i class="faq-chevron">▸</i></summary>
+      <div class="faq-body">Crypto, Forex, Indian Stocks, Commodities, and Indices — across 7 timeframes from 1 minute to 1 day. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier).</div>
+    </details>
+    <details class="faq-item">
+      <summary>Do I need to connect a broker? <i class="faq-chevron">▸</i></summary>
+      <div class="faq-body">No — you can use SmartTrade AI purely for signals and analysis. Connecting a supported broker is optional and only needed if you want one-click trade execution from inside the platform.</div>
+    </details>
+    <details class="faq-item">
+      <summary>Is there a free plan? <i class="faq-chevron">▸</i></summary>
+      <div class="faq-body">Yes. The Free plan includes delayed signals and a limited watchlist. Paid tiers unlock live (undelayed) signals, backtesting, AI insights, and larger watchlists — see the pricing table above.</div>
+    </details>
+    <details class="faq-item">
+      <summary>Can I cancel or change my plan anytime? <i class="faq-chevron">▸</i></summary>
+      <div class="faq-body">Yes — plan changes are requested from Settings once you're logged in and reviewed quickly. No lock-in contracts.</div>
+    </details>
+  </div>
+</section>
 
 <!-- ═══ FOOTER ════════════════════════════════════════════════ -->
 <footer class="footer">
@@ -693,8 +1215,150 @@
     <li><a href="#features">Features</a></li>
     <li><a href="#pricing">Pricing</a></li>
   </ul>
+
+  <div class="financial-disclaimer">
+    <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
+    analytical/algorithmic tools. It does not provide personalised investment advice, guaranteed predictions, or
+    assured returns. Trading and investing in financial markets involves substantial risk, including loss of
+    principal. Signals and analysis shown here are for informational purposes only — always conduct independent
+    research and consult a qualified financial professional before making financial decisions.
+  </div>
+
   <div class="footer-copy">Built with ❤️ for Indian traders &nbsp;·&nbsp; © 2026 SmartTrade AI</div>
 </footer>
+
+<!-- Back to top -->
+<button id="backToTop" aria-label="Back to top" title="Back to top">↑</button>
+
+<script>
+(function () {
+  const btn = document.getElementById('backToTop');
+  if (!btn) return;
+  const sync = () => btn.classList.toggle('show', window.scrollY > 500);
+  // Landing directly on a #hash anchor (e.g. /home#faq) jumps the scroll
+  // position without ever firing a 'scroll' event, so the button stayed
+  // hidden even when already deep in the page — check once on load too.
+  sync();
+  window.addEventListener('scroll', sync, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+
+<script>
+// If the visitor already has a valid session, swap the logged-out
+// Login/Sign-Up CTAs for a direct link into the dashboard instead of
+// asking them to log in again on their own landing page.
+(async function () {
+  const token = localStorage.getItem('access_token');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); return; }
+    const me = await res.json();
+    const name = (me.user && (me.user.first_name || me.user.username)) || 'Dashboard';
+
+    const navLoginItem = document.getElementById('navLoginItem');
+    if (navLoginItem) navLoginItem.remove();
+
+    const cta = document.getElementById('navCta');
+    if (cta) {
+      cta.innerHTML = '<a href="/dashboard" class="btn btn-accent">👤 ' + name + ' — Go to Dashboard →</a>';
+    }
+
+    document.querySelectorAll('a[href="/register"]').forEach(el => {
+      el.setAttribute('href', '/dashboard');
+      if (el.textContent.trim().toLowerCase().includes('start free')) el.textContent = '🚀 Go to Dashboard';
+      if (el.textContent.trim().toLowerCase().includes('see demo')) el.textContent = 'Go to Dashboard →';
+    });
+  } catch (e) { /* network error — leave logged-out nav as-is */ }
+})();
+</script>
+
+<script>
+// Live ticker strip + "Today's Top Signals" — both were hardcoded sample
+// data before; now pulled from the unauthenticated /public-ticker and
+// /public-board endpoints so the landing page shows real current prices
+// and real (small, marketing-safe) signal reads instead of frozen numbers.
+(async function () {
+  const track = document.getElementById('landingTickerTrack');
+  if (track) {
+    try {
+      // Guard against a hung/slow request leaving "Loading live prices…"
+      // stuck forever — fall back to the unavailable message after 8s.
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
+      clearTimeout(timeout);
+      const data = await res.json();
+      const items = data.items || [];
+      if (items.length) {
+        const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
+        const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
+        const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
+        const rowHtml = items.map(it => `
+          <div class="ticker-item">
+            <span class="ticker-sym">${it.symbol}</span>
+            <span class="ticker-price mono">${fmt(it.price)}</span>
+            <span class="ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
+          </div>`).join('');
+        // duplicate the set once for the seamless marquee loop (CSS animates track width/2)
+        track.innerHTML = rowHtml + rowHtml;
+      } else {
+        track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
+      }
+    } catch (e) {
+      track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
+    }
+  }
+
+  const statsBand = document.getElementById('landingStatsBand');
+  if (statsBand) {
+    try {
+      const res = await fetch('/api/v1/signals/public-stats');
+      const s = await res.json();
+      const nums = statsBand.querySelectorAll('.stats-band-item .num');
+      const fmtInt = (n) => (n || 0).toLocaleString('en-IN');
+      if (nums.length === 4) {
+        nums[0].textContent = fmtInt(s.signals_generated);
+        nums[1].textContent = fmtInt(s.trades_tracked);
+        nums[2].textContent = fmtInt(s.assets_covered);
+        nums[3].textContent = fmtInt(s.markets_covered);
+      }
+    } catch (e) { /* leave placeholders */ }
+  }
+
+  const body = document.getElementById('landingSignalsBody');
+  if (body) {
+    try {
+      const res = await fetch('/api/v1/signals/public-board');
+      const data = await res.json();
+      const rows = data.rows || [];
+      const marketLabel = { crypto: 'Crypto', forex: 'Forex', commodity: 'Metals', index: 'Index', indian_stock: 'Stock' };
+      const fmt = (p) => p == null ? '—' : (p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2));
+      if (rows.length) {
+        body.innerHTML = rows.map(r => {
+          const badgeClass = r.signal_type === 'BUY' ? 'buy' : r.signal_type === 'SELL' ? 'sell' : 'wait';
+          const badgeArrow = r.signal_type === 'BUY' ? '▲' : r.signal_type === 'SELL' ? '▼' : '●';
+          const conf = Math.round(r.confidence_score || 0);
+          const t1Color = r.signal_type === 'BUY' ? 'var(--green)' : r.signal_type === 'SELL' ? 'var(--red)' : 'var(--text3)';
+          return `
+            <tr>
+              <td><div class="sig-asset">${r.asset}</div><div class="sig-sub">${marketLabel[r.market] || r.market} · ${r.timeframe.toUpperCase()}</div></td>
+              <td><span class="sig-badge ${badgeClass}">${badgeArrow} ${r.signal_type}</span></td>
+              <td><div class="conf-bar-wrap"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${conf}%"></div></div><span class="mono" style="font-size:12px">${conf}%</span></div></td>
+              <td class="mono">${fmt(r.entry_price)}</td>
+              <td class="mono" style="color:${t1Color}">${fmt(r.target1)}</td>
+            </tr>`;
+        }).join('');
+      } else {
+        body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
+      }
+    } catch (e) {
+      body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
+    }
+  }
+})();
+</script>
 
 </body>
 </html>

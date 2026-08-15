@@ -30,8 +30,8 @@
     border: 1px solid var(--border);
   }
   .ag-dropdown-item input.form-check-input:checked {
-    background-color: var(--accent, #6366f1);
-    border-color: var(--accent, #6366f1);
+    background-color: var(--accent, #f5a623);
+    border-color: var(--accent, #f5a623);
   }
 </style>
 <div class="dash-header">
@@ -296,7 +296,7 @@
     <div class="section-card mt-3">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent"></i> AI Prediction</span><span class="badge-tag">PRO</span></div>
       <div class="section-card-body text-center">
-        <a href="/ai-insights" class="btn btn-sm w-100 btn-generate" style="background:linear-gradient(135deg,#6366f1,#4f46e5)"><i class="bi bi-magic me-1"></i>Run AI Prediction</a>
+        <a href="/ai-insights" class="btn btn-sm w-100 btn-generate" style="background:linear-gradient(135deg,#f5a623,#d97f0a)"><i class="bi bi-magic me-1"></i>Run AI Prediction</a>
         <div class="fs-xs text-muted mt-2">Runs 5m–1D ensemble models — ~30s total</div>
       </div>
     </div>
@@ -591,7 +591,7 @@ function renderLog(lines) {
     const color = line.includes('✓') || line.includes('▶') ? '#10b981'
                 : line.includes('✗') || line.includes('✘') ? '#ef4444'
                 : line.includes('⏹') || line.includes('⚠') ? '#f59e0b'
-                : line.startsWith('[') ? '#6366f1'
+                : line.startsWith('[') ? '#f5a623'
                 : '#64748b';
     div.style.color   = color;
     div.textContent   = line;

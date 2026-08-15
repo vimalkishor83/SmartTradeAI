@@ -22,7 +22,7 @@ apscheduler==3.10.4
 
 # Market Data
 requests==2.31.0
-yfinance==0.2.36
+yfinance==1.6.0
 
 # Technical Analysis
 numpy==1.26.4

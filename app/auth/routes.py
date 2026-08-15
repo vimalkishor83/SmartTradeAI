@@ -6,11 +6,36 @@ from flask_jwt_extended import (
     set_refresh_cookies, unset_jwt_cookies
 )
 from app.extensions import db, limiter
-from app.models.user import User, Role, Subscription
+from app.models.user import User, Role, Subscription, ReferralCode, Broker
 from app.models.audit import AuditLog
 from app.auth.decorators import login_required, get_current_user
 
 auth_bp = Blueprint("auth", __name__)
+
+
+@auth_bp.route("/brokers", methods=["GET"])
+def list_active_brokers():
+    """Public (no auth) broker list for the registration form's dropdown —
+    unauthenticated visitors can't hit the admin-only /api/v1/admin/brokers.
+    Admin manages the underlying list from the Admin Panel."""
+    brokers = Broker.query.filter_by(is_active=True).order_by(Broker.sort_order, Broker.name).all()
+    return jsonify({"brokers": [b.to_dict() for b in brokers]}), 200
+
+
+@auth_bp.route("/referral-codes/<code>/check", methods=["GET"])
+@limiter.limit("30 per minute")
+def check_referral_code(code):
+    """Public live-validation for the registration form — lets the UI show
+    a checkmark/error as the user types, without waiting for full signup.
+    Only exposes valid/invalid + which plan it unlocks, nothing else."""
+    rc = ReferralCode.query.filter_by(code=(code or "").strip().upper()).first()
+    if not rc or not rc.is_valid():
+        return jsonify({"valid": False}), 200
+    return jsonify({
+        "valid": True,
+        "unlocks_plan": rc.referred_subscription.name if rc.referred_subscription else None,
+        "broker_name": rc.broker_name,
+    }), 200
 
 
 @auth_bp.route("/register", methods=["POST"])
@@ -39,22 +64,59 @@ def register():
     if User.query.filter_by(email=data["email"]).first():
         return jsonify({"error": "Email already registered"}), 409
 
+    broker_id_raw = data.get("broker_id")
+    broker = None
+    if broker_id_raw:
+        broker = Broker.query.filter_by(id=broker_id_raw, is_active=True).first()
+        if not broker:
+            return jsonify({"error": "Selected broker is invalid"}), 400
+        if not (data.get("broker_account_id") or "").strip():
+            return jsonify({"error": "Broker Account ID is required once a broker is selected"}), 400
+
     free_role = Role.query.filter_by(name="free").first()
     free_sub = Subscription.query.filter_by(name="free").first()
+
+    # A valid, active referral/partner-broker code grants that code's role
+    # and subscription (typically premium) instead of the default free tier.
+    # Invalid/inactive/expired/exhausted codes are silently ignored — the
+    # signup still succeeds, it just falls back to the free tier, so a typo
+    # doesn't block registration.
+    referral_code_raw = (data.get("referral_code") or "").strip()
+    referral = None
+    if referral_code_raw:
+        referral = ReferralCode.query.filter_by(code=referral_code_raw).first()
+        if not referral or not referral.is_valid():
+            referral = None
+
+    role_id = referral.referred_role_id if (referral and referral.referred_role_id) else free_role.id
+    subscription_id = (
+        referral.referred_subscription_id
+        if (referral and referral.referred_subscription_id)
+        else (free_sub.id if free_sub else None)
+    )
 
     user = User(
         username=data["username"],
         email=data["email"],
         first_name=data.get("first_name", ""),
         last_name=data.get("last_name", ""),
-        role_id=free_role.id,
-        subscription_id=free_sub.id if free_sub else None,
+        broker_id=broker.id if broker else None,
+        broker_account_id=(data.get("broker_account_id") or "").strip() or None,
+        referral_code_id=referral.id if referral else None,
+        role_id=role_id,
+        subscription_id=subscription_id,
         # Self-registration always lands pending — an admin must approve
         # before the account gets full access (see require_approved decorator).
+        # A valid referral still requires approval; it only changes which
+        # tier the account lands in once approved.
         approval_status="pending",
     )
     user.set_password(data["password"])
     db.session.add(user)
+
+    if referral:
+        referral.uses_count = (referral.uses_count or 0) + 1
+
     db.session.commit()
 
     _audit(user.id, "register", "user", str(user.id))
@@ -77,6 +139,7 @@ def register():
         "access_token": access_token,
         "refresh_token": refresh_token,
         "user": user.to_dict(),
+        "referral_applied": bool(referral),
     }), 201
 
 

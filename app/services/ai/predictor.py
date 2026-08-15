@@ -467,7 +467,7 @@ class AIPredictor:
         except ImportError:
             pass
         except Exception as e:
-            logger.debug(f"RF predict error: {e}")
+            logger.error(f"RF predict error [{cache_key}]: {e}", exc_info=True)
 
         # ── XGBoost + isotonic calibration ────────────────────
         try:
@@ -496,7 +496,7 @@ class AIPredictor:
         except ImportError:
             pass
         except Exception as e:
-            logger.debug(f"XGB predict error: {e}")
+            logger.error(f"XGB predict error [{cache_key}]: {e}", exc_info=True)
 
         # ── LightGBM + isotonic calibration ───────────────────
         try:
@@ -525,7 +525,7 @@ class AIPredictor:
         except ImportError:
             pass
         except Exception as e:
-            logger.debug(f"LGB predict error: {e}")
+            logger.error(f"LGB predict error [{cache_key}]: {e}", exc_info=True)
 
         if probs:
             return float(np.mean(probs))

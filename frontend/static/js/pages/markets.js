@@ -254,7 +254,7 @@ async function loadAiPerf() {
     data: {
       labels: days.map(d => d.slice(5)), datasets: [
         { label: 'Win Rate', data: winRates, borderColor: _cv('--green', '#10b981'), yAxisID: 'y', tension: .3, pointRadius: 2, borderWidth: 2 },
-        { label: 'Avg R:R', data: rrs, borderColor: _cv('--accent', '#6366f1'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 }]
+        { label: 'Avg R:R', data: rrs, borderColor: _cv('--accent', '#f5a623'), yAxisID: 'y1', tension: .3, pointRadius: 2, borderWidth: 2 }]
     },
     options: {
       responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { boxWidth: 10 } } },

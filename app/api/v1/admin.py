@@ -3,7 +3,7 @@ import psutil
 import requests
 from flask import Blueprint, request, jsonify
 from app.extensions import db
-from app.models.user import User, Role, Subscription
+from app.models.user import User, Role, Subscription, Broker, ReferralCode
 from app.models.asset import Asset
 from app.models.api_config import APIConfig, APILog
 from app.models.audit import AuditLog, SystemLog
@@ -59,6 +59,43 @@ def dashboard():
             "last_sync":last_sync.isoformat() if last_sync else None,
         },
     }), 200
+
+
+# ─── Platform Configuration ──────────────────────────────────────────────────
+
+@admin_bp.route("/platform-config", methods=["GET"])
+@admin_required
+def get_platform_config_route():
+    from app.services.platform_config import get_platform_config
+    return jsonify(get_platform_config()), 200
+
+
+@admin_bp.route("/platform-config", methods=["PUT"])
+@admin_required
+def update_platform_config_route():
+    import re
+    from app.models.platform_config import PlatformConfig
+    from app.services.platform_config import invalidate_platform_config
+
+    data = request.get_json() or {}
+    row = PlatformConfig.get_singleton()
+
+    if "disabled_nav_items" in data:
+        if not isinstance(data["disabled_nav_items"], list):
+            return jsonify({"error": "disabled_nav_items must be a list"}), 400
+        row.disabled_nav_items = data["disabled_nav_items"]
+
+    if "timeframes" in data:
+        tfs = data["timeframes"]
+        if not isinstance(tfs, list) or not tfs:
+            return jsonify({"error": "timeframes must be a non-empty list"}), 400
+        if not all(isinstance(tf, str) and re.match(r"^\d+[mhdw]$", tf) for tf in tfs):
+            return jsonify({"error": "invalid timeframe token"}), 400
+        row.timeframes = tfs
+
+    db.session.commit()
+    invalidate_platform_config()
+    return jsonify(row.to_dict()), 200
 
 
 # ─── Users ──────────────────────────────────────────────────────────────────
@@ -392,6 +429,135 @@ def clear_audit_logs():
     deleted = AuditLog.query.delete()
     db.session.commit()
     return jsonify({"message": f"Cleared {deleted} audit log entries"}), 200
+
+
+@admin_bp.route("/brokers", methods=["GET"])
+@admin_required
+def list_brokers():
+    brokers = Broker.query.order_by(Broker.sort_order, Broker.name).all()
+    return jsonify({"brokers": [b.to_dict() for b in brokers]}), 200
+
+
+@admin_bp.route("/brokers", methods=["POST"])
+@admin_required
+def create_broker():
+    data = request.get_json() or {}
+    if not data.get("name"):
+        return jsonify({"error": "name is required"}), 400
+    if Broker.query.filter_by(name=data["name"]).first():
+        return jsonify({"error": f"A broker named '{data['name']}' already exists"}), 409
+
+    broker = Broker(
+        name=data["name"],
+        referral_link=data.get("referral_link"),
+        is_active=data.get("is_active", True),
+        sort_order=data.get("sort_order", 0),
+    )
+    db.session.add(broker)
+    db.session.commit()
+    return jsonify(broker.to_dict()), 201
+
+
+@admin_bp.route("/brokers/<int:broker_id>", methods=["PUT"])
+@admin_required
+def update_broker(broker_id):
+    broker = Broker.query.get_or_404(broker_id)
+    data = request.get_json() or {}
+
+    field_map = ["name", "referral_link", "is_active", "sort_order"]
+    for k in field_map:
+        if k in data:
+            setattr(broker, k, data[k])
+
+    db.session.commit()
+    return jsonify(broker.to_dict()), 200
+
+
+@admin_bp.route("/brokers/<int:broker_id>", methods=["DELETE"])
+@admin_required
+def delete_broker(broker_id):
+    broker = Broker.query.get_or_404(broker_id)
+    # Don't hard-delete a broker users already reference — deactivate instead
+    # so existing users' broker selection stays intact and the dropdown just
+    # stops offering it to new signups.
+    if broker.users.count() > 0:
+        broker.is_active = False
+        db.session.commit()
+        return jsonify({"message": f"'{broker.name}' has existing users — deactivated instead of deleted"}), 200
+
+    db.session.delete(broker)
+    db.session.commit()
+    return jsonify({"message": f"'{broker.name}' deleted"}), 200
+
+
+@admin_bp.route("/referral-codes", methods=["GET"])
+@admin_required
+def list_referral_codes():
+    codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).all()
+    return jsonify({"referral_codes": [{
+        "id": c.id,
+        "code": c.code,
+        "broker_name": c.broker_name,
+        "description": c.description,
+        "referred_role": c.referred_role.name if c.referred_role else None,
+        "referred_subscription": c.referred_subscription.name if c.referred_subscription else None,
+        "is_active": c.is_active,
+        "max_uses": c.max_uses,
+        "uses_count": c.uses_count,
+        "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+        "created_at": c.created_at.isoformat() if c.created_at else None,
+    } for c in codes]}), 200
+
+
+@admin_bp.route("/referral-codes", methods=["POST"])
+@admin_required
+def create_referral_code():
+    data = request.get_json() or {}
+    code = (data.get("code") or "").strip().upper()
+    if not code:
+        return jsonify({"error": "code is required"}), 400
+    if ReferralCode.query.filter_by(code=code).first():
+        return jsonify({"error": f"Referral code '{code}' already exists"}), 409
+
+    sub_name = data.get("referred_subscription", "premium")
+    sub = Subscription.query.filter_by(name=sub_name).first()
+    role = Role.query.filter_by(name=sub_name).first()
+    if not sub:
+        return jsonify({"error": f"Unknown subscription plan '{sub_name}'"}), 400
+
+    rc = ReferralCode(
+        code=code,
+        broker_name=data.get("broker_name"),
+        description=data.get("description"),
+        referred_role_id=role.id if role else None,
+        referred_subscription_id=sub.id,
+        is_active=data.get("is_active", True),
+        max_uses=data.get("max_uses"),
+    )
+    db.session.add(rc)
+    db.session.commit()
+    return jsonify({"id": rc.id, "code": rc.code}), 201
+
+
+@admin_bp.route("/referral-codes/<int:code_id>", methods=["PUT"])
+@admin_required
+def update_referral_code(code_id):
+    rc = ReferralCode.query.get_or_404(code_id)
+    data = request.get_json() or {}
+    for k in ["broker_name", "description", "is_active", "max_uses"]:
+        if k in data:
+            setattr(rc, k, data[k])
+    db.session.commit()
+    return jsonify({"message": f"'{rc.code}' updated"}), 200
+
+
+@admin_bp.route("/referral-codes/<int:code_id>", methods=["DELETE"])
+@admin_required
+def delete_referral_code(code_id):
+    rc = ReferralCode.query.get_or_404(code_id)
+    db.session.delete(rc)
+    db.session.commit()
+    return jsonify({"message": f"'{rc.code}' deleted"}), 200
 
 
 @admin_bp.route("/system-logs", methods=["GET"])

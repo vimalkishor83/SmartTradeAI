@@ -115,6 +115,17 @@ const Auth = {
     const u = this.user;
     if (!u) return;
 
+    // Landed here via the admin-only redirect below — explain why, once,
+    // then scrub the param so a refresh doesn't re-show it.
+    if (new URLSearchParams(window.location.search).get('denied') === 'admin') {
+      if (typeof Toast !== 'undefined') {
+        Toast.show("That page is for administrators only.", 'warning', 6000);
+      }
+      const url = new URL(window.location);
+      url.searchParams.delete('denied');
+      window.history.replaceState({}, '', url);
+    }
+
     const banner = document.getElementById('approvalBanner');
     if (banner) {
       if (u.approval_status === 'pending') {
@@ -131,14 +142,45 @@ const Auth = {
       }
     }
 
+    // Admin-only pages (marked via <body data-requires-admin>) render their
+    // full layout server-side before this JS runs — the underlying API
+    // calls already 403 for non-admins so no data leaks, but the empty
+    // shell itself shouldn't be visible to a user who typed the URL
+    // directly. Bounce to the dashboard with a toast instead.
+    if (document.body.hasAttribute('data-requires-admin') && u.role !== 'admin') {
+      window.location.replace('/dashboard?denied=admin');
+      return;
+    }
+
     const initial = (u.username || 'U').charAt(0).toUpperCase();
     document.querySelectorAll('#userAvatar, #navUserAvatar').forEach(el => el.textContent = initial);
     document.querySelectorAll('#sidebarUserName, #navUserName').forEach(el => el.textContent = u.full_name || u.username);
     const roleEl = document.getElementById('sidebarUserRole');
     if (roleEl) {
+      // Color-coded by plan tier so the badge reads at a glance — matches
+      // the free->basic->premium->pro->admin ladder (Subscription.tier_level).
+      const roleBadgeClass = {
+        admin:   'danger',
+        pro:     'warning text-dark',
+        premium: 'warning text-dark',
+        basic:   'info text-dark',
+        free:    'secondary',
+      }[u.role] || 'secondary';
       roleEl.textContent = u.role;
-      roleEl.className = `user-role badge bg-${u.role === 'admin' ? 'danger' : u.role === 'premium' ? 'warning text-dark' : 'secondary'}`;
+      roleEl.className = `user-role badge bg-${roleBadgeClass}`;
     }
+
+    // Backtesting/AI Insights are gated by @premium_required (admin,
+    // premium, pro) — the sidebar's "PREMIUM+" badge should only appear
+    // for tiers that are actually still blocked, not for every visitor.
+    const hasPremiumAccess = ['admin', 'premium', 'pro'].includes(u.role);
+    if (hasPremiumAccess) {
+      const backtestGate = document.getElementById('navBacktestingGate');
+      const aiGate = document.getElementById('navAiInsightsGate');
+      if (backtestGate) backtestGate.style.display = 'none';
+      if (aiGate) aiGate.style.display = 'none';
+    }
+
     if (u.role === 'admin') {
       const adminNav = document.getElementById('adminNav');
       if (adminNav) {

@@ -70,8 +70,9 @@ class Config:
     # Scheduler
     SCHEDULER_TIMEZONE = "Asia/Kolkata"
 
-    # Signal timeframes
-    SIGNAL_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+    # Note: the canonical timeframe list is now admin-managed via
+    # PlatformConfig (app/models/platform_config.py) rather than a static
+    # config constant.
 
     # Pagination
     ITEMS_PER_PAGE = 20

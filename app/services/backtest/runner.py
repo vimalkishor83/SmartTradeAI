@@ -33,6 +33,14 @@ _TF_MINUTES = {
 
 # Warm-up: enough bars for the engine's indicators before the first signal.
 _WARMUP = 120
+# Hard ceiling on candles per request — each candle re-runs the full
+# indicator pipeline on the window up to that point, so this bounds worst-
+# case runtime regardless of how large `days`/`limit` is requested.
+_MAX_CANDLES = 400
+# Evaluate every Nth candle instead of every candle. Trades off some entry
+# precision (a signal that would have fired mid-skip is missed) for a
+# proportional reduction in indicator recomputations.
+_WALK_STEP = 3
 
 
 def _expiry_bars(timeframe: str) -> int:
@@ -123,10 +131,16 @@ def run_backtest(asset, timeframe: str, days: int = 60, limit: int | None = None
 
     `days` is advisory — actual depth is bounded by how much history the
     provider returns. `limit` overrides the number of candles requested.
+
+    Each walk-forward step recomputes indicators over the full window seen
+    so far (see the loop below), so runtime scales with candle count — a
+    1000-candle request was observed to hang for 90s+ and spike server CPU
+    to ~100%. _MAX_CANDLES bounds the worst case regardless of `days`/`limit`.
     """
     tf_min = _TF_MINUTES.get(timeframe, 60)
     # Enough candles to cover the requested window plus warm-up.
-    want = limit or min(1000, _WARMUP + int(days * 24 * 60 / tf_min))
+    want = limit or min(_MAX_CANDLES, _WARMUP + int(days * 24 * 60 / tf_min))
+    want = min(want, _MAX_CANDLES)
     df = market_fetcher.fetch(asset, timeframe, limit=want)
 
     if df is None or len(df) < _WARMUP + 10:
@@ -144,7 +158,7 @@ def run_backtest(asset, timeframe: str, days: int = 60, limit: int | None = None
 
     # Walk forward. Skip ahead by a small step to avoid clustered duplicate
     # signals on adjacent bars and to keep runtime reasonable.
-    step = 1
+    step = _WALK_STEP
     i = _WARMUP
     n = len(df)
     while i < n - 2:

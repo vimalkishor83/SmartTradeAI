@@ -353,7 +353,7 @@ function loadCalibration(perf) {
     type: 'line',
     data: {
       labels, datasets: [
-        { label: 'Expected', data: expected, borderColor: (css.getPropertyValue('--accent') || '#6366f1').trim(), borderDash: [4, 3], pointRadius: 2, borderWidth: 1.5 },
+        { label: 'Expected', data: expected, borderColor: (css.getPropertyValue('--accent') || '#f5a623').trim(), borderDash: [4, 3], pointRadius: 2, borderWidth: 1.5 },
         { label: 'Actual', data: actual, borderColor: (css.getPropertyValue('--green') || '#10b981').trim(), pointRadius: 2, borderWidth: 2 },
       ]
     },

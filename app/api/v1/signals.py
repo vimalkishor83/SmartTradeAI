@@ -4,7 +4,7 @@ from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
 from app.models.user import User
 from app.extensions import db, cache
-from app.auth.decorators import login_required, admin_required
+from app.auth.decorators import login_required, admin_required, premium_required, subscription_feature_required
 from app.services.signals.engine import signal_engine
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
@@ -1030,6 +1030,207 @@ def position_analysis(asset_id):
     return jsonify(result), 200
 
 
+@signals_bp.route("/market-board", methods=["GET"])
+@login_required
+def market_board():
+    """
+    One card per active asset in a market, for the selected timeframe —
+    live BUY/SELL/HOLD read via signal_engine.analyze() (never blank the
+    way persisted-signal listings are, since generate_signal() intentionally
+    discards HOLD and low-conviction setups rather than writing a Signal row).
+    Prefers a persisted active BUY/SELL signal when one already exists for
+    an asset/timeframe (carries lane verdicts from generation time); falls
+    back to a live analyze() read otherwise, same precedence as
+    position_analysis() above.
+    Query params: market (required), timeframe (default '1h')
+    """
+    market = request.args.get("market", "")
+    timeframe = request.args.get("timeframe", "1h")
+    if not market:
+        return jsonify({"error": "market is required"}), 400
+
+    from app.auth.decorators import get_current_user
+    from app.models.user import UserAssetPreference
+
+    all_assets = Asset.query.filter_by(is_active=True, market=market).order_by(Asset.symbol).all()
+    # Respect the per-user "Analysis Assets" picker from Settings — same
+    # opt-out preference model used by mtf_matrix() above. No rows for a
+    # user means no preferences saved yet, so everything stays visible.
+    user = get_current_user()
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+    if not assets:
+        return jsonify({"cards": [], "total": 0}), 200
+
+    active_by_asset = {
+        s.asset_id: s for s in Signal.query.filter(
+            Signal.asset_id.in_([a.id for a in assets]),
+            Signal.timeframe == timeframe,
+            Signal.status == "active",
+            Signal.signal_type.in_(["BUY", "SELL"]),
+        ).order_by(Signal.generated_at.desc()).all()
+    }
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    need_fetch = [a for a in assets if a.id not in active_by_asset]
+    df_by_asset = {}
+    if need_fetch:
+        with ThreadPoolExecutor(max_workers=min(15, len(need_fetch))) as pool:
+            futures = {pool.submit(market_fetcher.fetch, a, timeframe): a for a in need_fetch}
+            for fut in as_completed(futures):
+                a = futures[fut]
+                try:
+                    df_by_asset[a.id] = fut.result()
+                except Exception:
+                    df_by_asset[a.id] = None
+
+    cards = []
+    for a in assets:
+        sig = active_by_asset.get(a.id)
+        if sig:
+            payload = sig.to_dict()
+            payload["available"] = True
+            payload["persisted"] = True
+        else:
+            df = df_by_asset.get(a.id)
+            if df is None:
+                payload = {"available": False, "message": "Market data unavailable."}
+            else:
+                # Sequential, not parallel: analyze() reads the same shared
+                # sklearn model cache used elsewhere in this codebase
+                # (_model_mem_cache in predictor.py), which is not
+                # thread-safe for concurrent .predict_proba() calls.
+                result = signal_engine.analyze(df, a, timeframe)
+                if result.get("available"):
+                    result["persisted"] = False
+                    result["current_price"] = result.get("entry_price") or float(df["close"].iloc[-1])
+                else:
+                    reason = result.get("reason", "")
+                    reason_messages = {
+                        "market_closed": "Market is closed for this asset right now.",
+                        "no_indicators": "Not enough data to compute indicators yet.",
+                        "insufficient_data": "Not enough candle history yet.",
+                    }
+                    result["message"] = reason_messages.get(reason) or (
+                        "Volatility is too low to read right now — price is barely moving."
+                        if reason.startswith("volatility_") else "No analysis available right now."
+                    )
+                payload = result
+        payload["asset"] = a.symbol
+        payload["asset_id"] = a.id
+        payload["market"] = a.market
+        payload["timeframe"] = timeframe
+        cards.append(payload)
+
+    return jsonify({"cards": cards, "total": len(cards)}), 200
+
+
+# Fixed marketing set for the public landing page — no auth, so this must
+# never leak reasoning/lane_verdicts/invalidation (paid-tier detail) or hit
+# every asset (that's what /market-board + login is for). Same symbols the
+# landing page's static ticker/sample-table used to hardcode.
+_PUBLIC_TICKER_SYMBOLS = ["BTCUSDT", "ETHUSDT", "NIFTY50", "XAUUSD", "USDJPY", "BANKNIFTY", "TCS", "CLUSD"]
+_PUBLIC_SIGNAL_SYMBOLS = ["BTCUSDT", "NIFTY50", "XAUUSD", "USDJPY"]
+
+
+@signals_bp.route("/public-ticker", methods=["GET"])
+def public_ticker():
+    """Unauthenticated live ticker strip for the landing page — symbol,
+    price, % change only. No signal/entry/target data (that's paid detail)."""
+    assets = Asset.query.filter(Asset.symbol.in_(_PUBLIC_TICKER_SYMBOLS)).all()
+    by_symbol = {a.symbol: a for a in assets}
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    items = []
+    with ThreadPoolExecutor(max_workers=len(_PUBLIC_TICKER_SYMBOLS) or 1) as pool:
+        futures = {pool.submit(market_fetcher.fetch_ticker, a): sym
+                   for sym, a in by_symbol.items()}
+        results = {}
+        for fut in as_completed(futures):
+            sym = futures[fut]
+            try:
+                results[sym] = fut.result()
+            except Exception:
+                results[sym] = None
+
+    for sym in _PUBLIC_TICKER_SYMBOLS:
+        a = by_symbol.get(sym)
+        if not a:
+            continue
+        t = results.get(sym)
+        if not t or not t.get("price"):
+            continue
+        items.append({
+            "symbol": sym,
+            "name": a.name,
+            "price": t["price"],
+            "change_pct": t.get("change_pct", 0),
+            "market": a.market,
+        })
+
+    return jsonify({"items": items}), 200
+
+
+@signals_bp.route("/public-board", methods=["GET"])
+def public_board():
+    """Unauthenticated 'Today's Top Signals' teaser for the landing page —
+    a fixed, small symbol set with signal type/confidence/entry/target1 only
+    (no reasoning, lane verdicts, or invalidation — that detail is reserved
+    for logged-in users). Reuses the same live analyze() read as
+    /market-board so numbers are never fabricated."""
+    assets = Asset.query.filter(Asset.symbol.in_(_PUBLIC_SIGNAL_SYMBOLS)).all()
+    timeframe = "1h"
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    df_by_asset = {}
+    with ThreadPoolExecutor(max_workers=len(assets) or 1) as pool:
+        futures = {pool.submit(market_fetcher.fetch, a, timeframe): a for a in assets}
+        for fut in as_completed(futures):
+            a = futures[fut]
+            try:
+                df_by_asset[a.id] = fut.result()
+            except Exception:
+                df_by_asset[a.id] = None
+
+    rows = []
+    for a in assets:
+        df = df_by_asset.get(a.id)
+        if df is None:
+            continue
+        result = signal_engine.analyze(df, a, timeframe)
+        if not result.get("available"):
+            continue
+        rows.append({
+            "asset": a.symbol,
+            "market": a.market,
+            "timeframe": timeframe,
+            "signal_type": result["signal_type"],
+            "confidence_score": result.get("confidence_score", 0),
+            "entry_price": result.get("entry_price"),
+            "target1": result.get("target1"),
+        })
+
+    return jsonify({"rows": rows}), 200
+
+
+@signals_bp.route("/public-stats", methods=["GET"])
+def public_stats():
+    """Unauthenticated platform activity stats for the landing page — scale
+    numbers only (signals generated, assets covered, trades tracked), not a
+    win-rate claim: this dev/mixed-history DB's raw win rate isn't a clean
+    live track record and would be a misleading headline number."""
+    total_signals = Signal.query.count()
+    resolved = Signal.query.filter(Signal.status.in_(["hit_target", "hit_sl"])).count()
+    assets = Asset.query.filter_by(is_active=True).count()
+    markets = db.session.query(Asset.market).filter_by(is_active=True).distinct().count()
+    return jsonify({
+        "signals_generated": total_signals,
+        "trades_tracked": resolved,
+        "assets_covered": assets,
+        "markets_covered": markets,
+    }), 200
+
+
 @signals_bp.route("/performance/by-asset", methods=["GET"])
 @login_required
 def signal_performance():
@@ -1621,7 +1822,8 @@ def history_stats():
 
 
 @signals_bp.route("/backtest", methods=["GET"])
-@login_required
+@premium_required
+@subscription_feature_required("backtesting_enabled")
 def backtest():
     """
     Walk-forward backtest that replays historical candles through the live

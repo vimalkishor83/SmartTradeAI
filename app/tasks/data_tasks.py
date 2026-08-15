@@ -422,7 +422,6 @@ def prewarm_ai_cache(app):
         from app.services.ai.predictor import ai_predictor
         from app.extensions import cache, db
         from datetime import datetime, timedelta
-        from concurrent.futures import ThreadPoolExecutor
 
         tfs    = ["5m", "15m", "1h", "4h", "1d"]
         assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
@@ -434,7 +433,10 @@ def prewarm_ai_cache(app):
         if blocked:
             assets = [a for a in assets if a.market not in blocked]
 
-        all_data = market_fetcher.fetch_many(assets, tfs, limit=220)
+        # 350, not 220 — see matching comment in api/v1/market_data.py's
+        # ai_summary(): 220 raw candles left too few usable rows after
+        # feature engineering for some assets, forcing a neutral/50% default.
+        all_data = market_fetcher.fetch_many(assets, tfs, limit=350)
 
         cutoff   = datetime.utcnow() - timedelta(minutes=25)
         asset_ids = [a.id for a in assets]
@@ -483,16 +485,17 @@ def prewarm_ai_cache(app):
                         "bearish_prob": round(float(result["bearish_probability"]), 1),
                     }
                 except Exception as e:
-                    logger.debug(f"AI prewarm failed {asset.symbol}/{tf}: {e}")
+                    logger.error(f"AI prewarm failed {asset.symbol}/{tf}: {e}", exc_info=True)
                     row["tf"][tf] = {"direction": "neutral", "confidence": 50.0,
                                      "bullish_prob": 50.0, "bearish_prob": 50.0}
             return row
 
-        # `or 1`: after the blocked-market filter above the list can be empty,
-        # and ThreadPoolExecutor(max_workers=0) raises — guard like the other
-        # pools in this codebase do.
-        with ThreadPoolExecutor(max_workers=min(6, len(assets) or 1)) as ex:
-            rows = list(ex.map(_process, assets))
+        # Sequential, not ThreadPoolExecutor — see matching comment in
+        # api/v1/market_data.py's ai_summary(): concurrent .predict_proba()
+        # calls against predictor.py's shared cached model objects produced
+        # a real, non-deterministic race (same asset correctly predicted on
+        # one run, silently fell back to neutral/50% on the next).
+        rows = [_process(asset) for asset in assets]
 
         try:
             db.session.commit()

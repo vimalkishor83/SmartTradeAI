@@ -1,4 +1,5 @@
-﻿from flask import Blueprint, request, jsonify
+﻿import logging
+from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, subscription_feature_required
@@ -8,6 +9,7 @@ from app.services.sentiment.engine import calculate_sentiment
 from sqlalchemy.orm import joinedload
 import pandas as pd
 
+logger = logging.getLogger(__name__)
 market_data_bp = Blueprint("market_data", __name__)
 
 
@@ -418,7 +420,6 @@ def ai_summary():
     from app.models.user import UserAssetPreference
     from app.services.ai.predictor import ai_predictor
     from datetime import datetime, timedelta
-    from concurrent.futures import ThreadPoolExecutor
 
     user   = get_current_user()
     market = request.args.get("market") or "all"
@@ -464,7 +465,12 @@ def ai_summary():
     for p in recent_preds:
         pred_map[(p.asset_id, p.timeframe)] = p.to_dict()
 
-    all_data = market_fetcher.fetch_many(assets, tfs, limit=220)
+    # 350, not 220: after indicator warm-up + triple-barrier label trimming,
+    # 220 raw candles leaves as few as ~83 usable training rows for some
+    # assets (below the predictor's 100-row minimum), silently forcing a
+    # neutral/50% default even though the model works fine once it has
+    # enough history — confirmed via SLVONUSDT/5m during a QA pass.
+    all_data = market_fetcher.fetch_many(assets, tfs, limit=350)
 
     def _process(asset):
         row = {"id": asset.id, "symbol": asset.symbol, "name": asset.name, "market": asset.market, "tf": {}}
@@ -506,14 +512,21 @@ def ai_summary():
                     "bullish_prob": round(float(result["bullish_probability"]), 1),
                     "bearish_prob": round(float(result["bearish_probability"]), 1),
                 }
-            except Exception:
+            except Exception as e:
+                logger.error(f"AI summary cell failed [{asset.symbol}/{tf}]: {e}", exc_info=True)
                 row["tf"][tf] = {"direction": "neutral", "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
         return row
 
-    # `or 1`: assets can be empty (all prefs disabled, or every market paused),
-    # and ThreadPoolExecutor(max_workers=0) raises.
-    with ThreadPoolExecutor(max_workers=min(6, len(assets) or 1)) as ex:
-        result = list(ex.map(_process, assets))
+    # Sequential, not ThreadPoolExecutor — cached sklearn model objects
+    # (_model_mem_cache in predictor.py) are shared across assets/timeframes
+    # within a process, and concurrent .predict_proba() calls against the
+    # same shared model instance (compounded by RandomForest's own internal
+    # n_jobs=-1 worker threads nested inside this pool) produced a real,
+    # non-deterministic race: identical requests intermittently returned a
+    # correctly-computed prediction on one run and the neutral/50% fallback
+    # on the next, for the same asset. Confirmed via direct reproduction —
+    # every asset predicts correctly every time when run one at a time.
+    result = [_process(asset) for asset in assets]
 
     try:
         db.session.commit()

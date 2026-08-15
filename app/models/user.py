@@ -21,7 +21,14 @@ class Subscription(db.Model):
     __tablename__ = "subscriptions"
 
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True, nullable=False)  # free, premium, admin
+    name = db.Column(db.String(50), unique=True, nullable=False)  # free, basic, premium, pro, admin
+    # Ordinal rank of this plan in the free->basic->premium->pro ladder, so
+    # gating can express "requires at least tier N" (see
+    # app/auth/decorators.py:min_tier_required) instead of hardcoding plan
+    # names at every call site. Admin is intentionally above the paid ladder
+    # (99) so it always satisfies any min_tier_required check. Two plans
+    # should never share a tier_level — order is meaningful, not just a tag.
+    tier_level = db.Column(db.Integer, default=0, nullable=False)
     price = db.Column(db.Float, default=0.0)
     features = db.Column(db.JSON, default=list)
     signal_delay_minutes = db.Column(db.Integer, default=0)
@@ -32,6 +39,72 @@ class Subscription(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     users = db.relationship("User", backref="subscription", lazy="dynamic")
+
+
+class Broker(db.Model):
+    """Admin-managed list of supported brokers, shown as a dropdown on
+    registration. Each broker can carry its own account-opening referral
+    link (e.g. an affiliate signup URL) shown to users who don't have an
+    account yet, distinct from the platform-wide ReferralCode discount
+    system — a Broker entry is "which broker are you with / want to join",
+    a ReferralCode is "what code unlocks a free plan tier"."""
+    __tablename__ = "brokers"
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), unique=True, nullable=False)
+    referral_link = db.Column(db.String(500))  # affiliate/account-opening URL, optional
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    sort_order = db.Column(db.Integer, default=0, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    users = db.relationship("User", backref="broker", lazy="dynamic")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "referral_link": self.referral_link,
+            "is_active": self.is_active,
+            "sort_order": self.sort_order,
+        }
+
+    def __repr__(self):
+        return f"<Broker {self.name}>"
+
+
+class ReferralCode(db.Model):
+    """Partner/broker referral codes. A valid, active code grants the
+    referred_role (typically premium) instead of the default free tier on
+    signup, and can optionally be scoped to a specific broker."""
+    __tablename__ = "referral_codes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    code = db.Column(db.String(40), unique=True, nullable=False, index=True)
+    broker_name = db.Column(db.String(80))
+    description = db.Column(db.String(255))
+    referred_role_id = db.Column(db.Integer, db.ForeignKey("roles.id"))
+    referred_subscription_id = db.Column(db.Integer, db.ForeignKey("subscriptions.id"))
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    max_uses = db.Column(db.Integer)  # NULL = unlimited
+    uses_count = db.Column(db.Integer, default=0, nullable=False)
+    expires_at = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    referred_role = db.relationship("Role", foreign_keys=[referred_role_id])
+    referred_subscription = db.relationship("Subscription", foreign_keys=[referred_subscription_id])
+    users = db.relationship("User", backref="referral_code", lazy="dynamic")
+
+    def is_valid(self):
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < datetime.utcnow():
+            return False
+        if self.max_uses is not None and self.uses_count >= self.max_uses:
+            return False
+        return True
+
+    def __repr__(self):
+        return f"<ReferralCode {self.code}>"
 
 
 class User(db.Model):
@@ -45,6 +118,9 @@ class User(db.Model):
     last_name = db.Column(db.String(80))
     phone = db.Column(db.String(20))
     avatar = db.Column(db.String(255))
+    broker_id = db.Column(db.Integer, db.ForeignKey("brokers.id"), nullable=True)  # which broker (dropdown)
+    broker_account_id = db.Column(db.String(80))  # the user's own account/client ID with that broker
+    referral_code_id = db.Column(db.Integer, db.ForeignKey("referral_codes.id"), nullable=True)
 
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
     subscription_id = db.Column(db.Integer, db.ForeignKey("subscriptions.id"))
@@ -98,6 +174,9 @@ class User(db.Model):
             "full_name": self.full_name,
             "role": self.role.name if self.role else None,
             "subscription": self.subscription.name if self.subscription else "free",
+            "broker": self.broker.name if self.broker else None,
+            "broker_account_id": self.broker_account_id,
+            "referral_code": self.referral_code.code if self.referral_code else None,
             "is_active": self.is_active,
             "approval_status": self.approval_status,
             "is_verified": self.is_verified,

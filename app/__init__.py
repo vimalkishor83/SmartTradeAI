@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 from flask import Flask
 from app.config import get_config
 from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors, mail
@@ -28,6 +29,7 @@ def create_app(config_class=None):
     _init_scheduler(app)
     _start_streams(app)
     _register_asset_versioning(app)
+    _register_platform_config(app)
     _register_approval_gate(app)
 
     return app
@@ -91,6 +93,18 @@ def _register_asset_versioning(app):
         return {"asset_version": asset_version}
 
 
+def _register_platform_config(app):
+    """Injects `disabled_nav_items` into every template that extends
+    base.html, so the sidebar/command-palette can hide admin-disabled pages
+    without a per-page DB query — reads through the cache-backed
+    get_platform_config() helper, same cost class as asset_version() above."""
+    @app.context_processor
+    def _inject_platform_config():
+        from app.services.platform_config import get_platform_config
+        cfg = get_platform_config()
+        return {"disabled_nav_items": set(cfg.get("disabled_nav_items") or [])}
+
+
 def _init_error_tracking(app):
     """Sentry — genuinely no-op unless SENTRY_DSN is set in the environment.
     This app has zero error-tracking/APM anywhere (only DB-backed
@@ -129,6 +143,14 @@ def _init_extensions(app):
     jwt.init_app(app)
     cors_origins = app.config.get("CORS_ORIGINS", ["*"])
     cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=True)
+    # "threading" async mode (Werkzeug dev server) does not fully implement
+    # the WebSocket frame protocol — expect a benign "Invalid frame header"
+    # in the browser console during local dev; the Socket.IO client falls
+    # back to long-polling automatically (see the `transports` list in
+    # app.js's `io(...)` call) so this doesn't break anything. Production
+    # (wsgi.py, gunicorn --worker-class eventlet) uses real eventlet-backed
+    # WebSockets instead — see wsgi.py's own comment for why dev deliberately
+    # does NOT do the same (eventlet monkey-patching risk on the dev server).
     socketio.init_app(app, cors_allowed_origins=cors_origins, async_mode="threading")
     limiter.init_app(app)
     cache.init_app(app)
@@ -200,6 +222,7 @@ def _init_db(app):
         from app.models.user import UserAssetPreference  # ensure model is registered
         from app.models.journal import JournalEntry       # ensure journal table is created
         from app.models.api_config import UserBrokerCredential  # ensure table is created
+        from app.models.platform_config import PlatformConfig  # ensure table is created
 
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):
@@ -343,14 +366,17 @@ def _migrate_columns(app):
 
 
 def _seed_initial_data(app):
-    from app.models.user import Role, Subscription, User
+    from app.models.user import Role, Subscription, User, ReferralCode, Broker
     from app.models.asset import Asset
 
-    # Roles
+    # Roles — tier ladder is free(0) < basic(1) < premium(2) < pro(3), with
+    # admin sitting above the paid ladder entirely (see Subscription.tier_level).
     if not Role.query.first():
         roles = [
             Role(name="admin", description="Full system access", permissions={"all": True}),
+            Role(name="pro", description="Pro subscriber", permissions={"signals": True, "ai": True, "backtest": True, "pro_tools": True}),
             Role(name="premium", description="Premium subscriber", permissions={"signals": True, "ai": True, "backtest": True}),
+            Role(name="basic", description="Basic subscriber", permissions={"signals": True}),
             Role(name="free", description="Free tier user", permissions={"signals": "delayed"}),
         ]
         db.session.add_all(roles)
@@ -358,14 +384,52 @@ def _seed_initial_data(app):
     # Subscriptions
     if not Subscription.query.first():
         subs = [
-            Subscription(name="free", price=0, signal_delay_minutes=30, max_watchlist=5, max_alerts=3),
-            Subscription(name="premium", price=999, signal_delay_minutes=0, max_watchlist=50, max_alerts=50,
+            Subscription(name="free", tier_level=0, price=0, signal_delay_minutes=30, max_watchlist=5, max_alerts=3),
+            Subscription(name="basic", tier_level=1, price=299, signal_delay_minutes=5, max_watchlist=15, max_alerts=10),
+            Subscription(name="premium", tier_level=2, price=999, signal_delay_minutes=0, max_watchlist=50, max_alerts=50,
                          backtesting_enabled=True, ai_enabled=True),
-            Subscription(name="admin", price=0, signal_delay_minutes=0, max_watchlist=999, max_alerts=999,
+            Subscription(name="pro", tier_level=3, price=2499, signal_delay_minutes=0, max_watchlist=200, max_alerts=200,
+                         backtesting_enabled=True, ai_enabled=True),
+            Subscription(name="admin", tier_level=99, price=0, signal_delay_minutes=0, max_watchlist=999, max_alerts=999,
                          backtesting_enabled=True, ai_enabled=True),
         ]
         db.session.add_all(subs)
         db.session.flush()
+
+    # Brokers — admin-manageable dropdown shown on registration (see
+    # app/api/v1/admin.py for the CRUD endpoints Admin Panel uses to add
+    # more). referral_link is an optional account-opening/affiliate URL
+    # shown to users who don't have an account with that broker yet.
+    if not Broker.query.first():
+        db.session.add_all([
+            Broker(name="Zerodha", referral_link="https://zerodha.com/open-account", sort_order=1),
+            Broker(name="Upstox", referral_link="https://upstox.com/open-account", sort_order=2),
+            Broker(name="Angel One", referral_link="https://www.angelone.in/open-demat-account", sort_order=3),
+            Broker(name="Groww", referral_link="https://groww.in/open-demat-account", sort_order=4),
+        ])
+
+    # Referral / partner-broker codes — a valid code grants premium instead
+    # of the free tier on signup (see app/auth/routes.py:register).
+    if not ReferralCode.query.first():
+        premium_role = Role.query.filter_by(name="premium").first()
+        premium_sub = Subscription.query.filter_by(name="premium").first()
+        if premium_role and premium_sub:
+            db.session.add_all([
+                ReferralCode(
+                    code="ZERODHA2026",
+                    broker_name="Zerodha",
+                    description="Zerodha partner referral — free premium access",
+                    referred_role_id=premium_role.id,
+                    referred_subscription_id=premium_sub.id,
+                ),
+                ReferralCode(
+                    code="UPSTOX2026",
+                    broker_name="Upstox",
+                    description="Upstox partner referral — free premium access",
+                    referred_role_id=premium_role.id,
+                    referred_subscription_id=premium_sub.id,
+                ),
+            ])
 
     # Admin user
     admin_role = Role.query.filter_by(name="admin").first()
@@ -498,6 +562,9 @@ def _seed_initial_data(app):
 
     db.session.commit()
 
+    from app.models.platform_config import PlatformConfig
+    PlatformConfig.get_singleton()
+
 
 def _init_scheduler(app):
     from app.tasks.data_tasks import register_data_jobs
@@ -579,6 +646,60 @@ def _resume_auto_generate(app):
         logging.getLogger(__name__).warning(f"Auto Generate resume failed: {e}")
 
 
+class _SystemLogDBHandler(logging.Handler):
+    """Mirrors WARNING+ log records into the system_logs table so the Admin
+    Panel's System Logs viewer shows real application events instead of
+    staying permanently empty (SystemLog was previously only ever defined,
+    never written to anywhere in the codebase).
+
+    Runs inside arbitrary logging calls, some of which fire outside a Flask
+    app/request context (background scheduler jobs, module import time) —
+    everything here is best-effort and swallows its own failures so a
+    logging call can never itself crash the app or recurse into more errors.
+    """
+
+    _local = threading.local()
+
+    def __init__(self, app):
+        super().__init__(level=logging.WARNING)
+        self._app = app
+
+    def emit(self, record):
+        # A warning/error raised by SQLAlchemy itself while this handler is
+        # mid-write (e.g. during db.session.commit()) would otherwise
+        # recurse straight back into emit() on the same thread.
+        if getattr(self._local, "writing", False):
+            return
+        if record.name.startswith("sqlalchemy"):
+            return
+        try:
+            self._local.writing = True
+            from flask import has_app_context
+            from app.extensions import db
+            from app.models.audit import SystemLog
+
+            def _write():
+                entry = SystemLog(
+                    level=record.levelname,
+                    module=record.name,
+                    message=self.format(record) if self.formatter else record.getMessage(),
+                )
+                db.session.add(entry)
+                db.session.commit()
+
+            if has_app_context():
+                _write()
+            else:
+                with self._app.app_context():
+                    _write()
+        except Exception:
+            # Never let logging itself raise — worst case this event is
+            # only in the file log, not the DB-backed admin viewer.
+            pass
+        finally:
+            self._local.writing = False
+
+
 def _configure_logging(app):
     log_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "logs")
     os.makedirs(log_dir, exist_ok=True)
@@ -592,10 +713,18 @@ def _configure_logging(app):
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
     ))
 
+    # DB handler — WARNING+ only, mirrored into system_logs for the Admin
+    # Panel viewer. Kept to a plain "%(message)s" formatter (no timestamp/
+    # level prefix) since SystemLog already has its own created_at/level
+    # columns for that.
+    db_handler = _SystemLogDBHandler(app)
+    db_handler.setFormatter(logging.Formatter("%(message)s"))
+
     root = logging.getLogger()
     root.setLevel(logging.INFO)
     root.handlers.clear()
     root.addHandler(file_handler)
+    root.addHandler(db_handler)
 
     app.logger.setLevel(logging.INFO)
 
@@ -612,6 +741,9 @@ def _configure_logging(app):
         "charset_normalizer",
         "socketio",
         "engineio",
+        "sqlalchemy",
+        "sqlalchemy.engine",
+        "sqlalchemy.pool",
     ):
         logging.getLogger(name).setLevel(logging.ERROR)
 

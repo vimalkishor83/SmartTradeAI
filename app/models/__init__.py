@@ -1,4 +1,4 @@
-from app.models.user import User, Role, Subscription
+from app.models.user import User, Role, Subscription, ReferralCode, Broker
 from app.models.asset import Asset
 # MarketData and TechnicalIndicator removed — data served from API cache, not DB
 from app.models.signal import Signal, SignalHistory

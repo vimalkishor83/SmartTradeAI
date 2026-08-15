@@ -1,0 +1,255 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Platform Configuration — SmartTrade AI{% endblock %}
+{% set active = 'admin_platform_config' %}
+{% block breadcrumb %}<i class="bi bi-sliders me-2"></i> Admin / Platform Configuration{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">Admin</span>
+    <h1 class="page-title">Platform Configuration</h1>
+    <p class="page-subtitle">Control what's visible platform-wide — pages, assets, and timeframes</p>
+  </div>
+  <button class="btn btn-outline-light btn-sm" onclick="loadPlatformConfig()">
+    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+  </button>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4">
+    <div class="kpi-card red">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Pages Hidden</div><div class="kpi-value" id="kpiPagesHidden">—</div></div>
+        <div class="kpi-icon text-red"><i class="bi bi-eye-slash-fill"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="kpi-card blue">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Timeframes</div><div class="kpi-value" id="kpiTimeframes">—</div></div>
+        <div class="kpi-icon text-blue"><i class="bi bi-clock-history"></i></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4">
+    <div class="kpi-card yellow">
+      <div class="kpi-top">
+        <div><div class="kpi-label">Assets Active</div><div class="kpi-value" id="kpiAssetsActive">—</div></div>
+        <div class="kpi-icon text-yellow"><i class="bi bi-layers-fill"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Pages -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-list-ul text-accent"></i> Pages</span>
+    <button class="btn btn-sm btn-primary" onclick="savePages()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-3">Unchecked pages are hidden from the sidebar and command palette for everyone. This is a declutter tool, not access control — direct URLs still work, and subscription tiers already gate real access. Admin pages can't be hidden here to avoid locking yourself out.</p>
+    <div id="pagesGroups"></div>
+  </div>
+</div>
+
+<!-- Timeframes -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-clock-history text-accent"></i> Timeframes</span>
+    <button class="btn btn-sm btn-primary" onclick="saveTimeframes()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-3">The canonical timeframe list, in order. Reorder or remove tokens below — most pages curate their own subset of these independently, so this list is a shared reference, not a universal override yet.</p>
+    <div id="tfChips" class="d-flex flex-wrap gap-2 mb-3"></div>
+    <div class="d-flex gap-2" style="max-width:280px">
+      <input type="text" id="tfInput" class="form-control form-control-sm" placeholder="e.g. 3m, 6h" pattern="^\d+[mhdw]$">
+      <button class="btn btn-sm btn-outline-light" onclick="addTimeframe()"><i class="bi bi-plus-lg"></i></button>
+    </div>
+  </div>
+</div>
+
+<!-- Assets -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-layers-fill text-accent"></i> Assets</span>
+    <a href="/admin/assets" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>Manage Assets</a>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-0" id="assetsSummary">Loading asset summary…</p>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Mirrors base.html's sidebar nav structure — must be kept in sync by hand
+// if a nav item is ever added/removed/renamed there (same drift risk that
+// already exists between the sidebar and the command palette, now
+// centralized in this one array instead of two template blocks).
+const NAV_GROUPS = [
+  { label: 'Overview', items: [
+    ['/dashboard', 'Dashboard'],
+    ['/briefing', 'Morning Briefing'],
+  ]},
+  { label: 'Markets', items: [
+    ['/markets/crypto', 'Crypto'],
+    ['/markets/forex', 'Forex'],
+    ['/markets/commodities', 'Commodities'],
+    ['/markets/indian_stock', 'Indian Stocks'],
+    ['/markets/index', 'Indices'],
+    ['/markets/terminal', 'Terminal'],
+  ]},
+  { label: 'Signals & Tools', items: [
+    ['/signals', 'All Signals'],
+    ['/auto-generate', 'Auto Generate'],
+    ['/scanner', 'Scanner'],
+    ['/heatmap', 'Market Heatmap'],
+    ['/backtesting', 'Backtesting'],
+    ['/ai-insights', 'AI Insights'],
+    ['/signals?tab=history', 'Signal History'],
+  ]},
+  { label: 'Analysis', items: [
+    ['/ta-summary', 'TA Summary'],
+    ['/mtf-analysis', 'MTF Analysis'],
+    ['/model-performance', 'Model Performance'],
+    ['/advanced-analysis', 'Advanced Analysis'],
+    ['/analytics', 'Analytics'],
+    ['/news', 'Market News'],
+    ['/economic-calendar', 'Economic Calendar'],
+  ]},
+  { label: 'Portfolio', items: [
+    ['/portfolio', 'Portfolio'],
+    ['/trading', 'Trading'],
+    ['/broker-connections', 'Broker Connections'],
+    ['/watchlist', 'Watchlist'],
+    ['/risk', 'Risk Manager'],
+    ['/performance', 'My Performance'],
+    ['/journal', 'Trade Journal'],
+  ]},
+  { label: 'Other', items: [
+    ['/help', 'Help & FAQ'],
+    ['/settings', 'Settings'],
+  ]},
+];
+
+let _cfg = { disabled_nav_items: [], timeframes: [] };
+
+async function loadPlatformConfig() {
+  const data = await API.get('/admin/platform-config');
+  if (!data) return;
+  _cfg = data;
+  renderPages();
+  renderTimeframes();
+  updateKpis();
+  loadAssetsSummary();
+}
+
+function updateKpis() {
+  document.getElementById('kpiPagesHidden').textContent = (_cfg.disabled_nav_items || []).length;
+  document.getElementById('kpiTimeframes').textContent = (_cfg.timeframes || []).length;
+}
+
+function renderPages() {
+  const disabled = new Set(_cfg.disabled_nav_items || []);
+  const wrap = document.getElementById('pagesGroups');
+  wrap.innerHTML = NAV_GROUPS.map(group => `
+    <div class="mb-3">
+      <div class="text-muted small text-uppercase fw-bold mb-2" style="letter-spacing:.5px;font-size:10.5px">${group.label}</div>
+      <div class="d-flex flex-wrap gap-3">
+        ${group.items.map(([href, label]) => `
+          <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
+            <input type="checkbox" class="form-check-input page-toggle" data-href="${href}" ${disabled.has(href) ? '' : 'checked'} style="margin:0">
+            ${label}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function savePages() {
+  const checkboxes = document.querySelectorAll('.page-toggle');
+  const disabled_nav_items = Array.from(checkboxes).filter(cb => !cb.checked).map(cb => cb.dataset.href);
+  const res = await API.put('/admin/platform-config', { disabled_nav_items });
+  if (res) {
+    Toast.show('Pages updated — takes effect on next page load', 'success');
+    _cfg.disabled_nav_items = disabled_nav_items;
+    updateKpis();
+  } else {
+    Toast.show('Failed to save pages', 'error');
+  }
+}
+
+function renderTimeframes() {
+  const chips = document.getElementById('tfChips');
+  const tfs = _cfg.timeframes || [];
+  chips.innerHTML = tfs.map((tf, i) => `
+    <span class="badge-tag d-inline-flex align-items-center gap-1" style="padding:5px 8px">
+      <button class="btn-icon-xs" onclick="moveTimeframe(${i},-1)" ${i === 0 ? 'disabled style="opacity:.3"' : ''} title="Move earlier"><i class="bi bi-chevron-left"></i></button>
+      <span class="tabular fw-700">${tf}</span>
+      <button class="btn-icon-xs" onclick="moveTimeframe(${i},1)" ${i === tfs.length - 1 ? 'disabled style="opacity:.3"' : ''} title="Move later"><i class="bi bi-chevron-right"></i></button>
+      <button class="btn-icon-xs text-danger" onclick="removeTimeframe(${i})" title="Remove"><i class="bi bi-x-lg"></i></button>
+    </span>`).join('');
+}
+
+function moveTimeframe(i, dir) {
+  const tfs = _cfg.timeframes;
+  const j = i + dir;
+  if (j < 0 || j >= tfs.length) return;
+  [tfs[i], tfs[j]] = [tfs[j], tfs[i]];
+  renderTimeframes();
+}
+
+function removeTimeframe(i) {
+  _cfg.timeframes.splice(i, 1);
+  renderTimeframes();
+  updateKpis();
+}
+
+function addTimeframe() {
+  const input = document.getElementById('tfInput');
+  const val = input.value.trim();
+  if (!/^\d+[mhdw]$/.test(val)) {
+    Toast.show('Invalid format — use e.g. 3m, 6h, 2d, 1w', 'error');
+    return;
+  }
+  if (_cfg.timeframes.includes(val)) {
+    Toast.show(`${val} is already in the list`, 'error');
+    return;
+  }
+  _cfg.timeframes.push(val);
+  input.value = '';
+  renderTimeframes();
+  updateKpis();
+}
+
+async function saveTimeframes() {
+  const res = await API.put('/admin/platform-config', { timeframes: _cfg.timeframes });
+  if (res) {
+    Toast.show('Timeframes updated', 'success');
+  } else {
+    Toast.show('Failed to save timeframes', 'error');
+  }
+}
+
+async function loadAssetsSummary() {
+  const data = await API.get('/assets/');
+  const el = document.getElementById('assetsSummary');
+  if (!data) { el.textContent = 'Unable to load asset summary.'; return; }
+  const count = (data.assets || []).length;
+  document.getElementById('kpiAssetsActive').textContent = count;
+  el.textContent = `${count} active asset${count === 1 ? '' : 's'} platform-wide. Use Manage Assets to add, disable, or re-enable individual assets.`;
+}
+
+document.addEventListener('app:ready', loadPlatformConfig);
+document.getElementById('tfInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.preventDefault(); addTimeframe(); }
+});
+</script>
+<style>
+.btn-icon-xs { background:none; border:none; color:var(--text-muted); padding:0 2px; font-size:11px; cursor:pointer; line-height:1; }
+.btn-icon-xs:hover:not(:disabled) { color:var(--text-primary); }
+</style>
+{% endblock %}
