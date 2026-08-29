@@ -41,7 +41,14 @@ python-dotenv==1.0.1
 
 # Production Server
 gunicorn==23.0.0
-eventlet==0.35.1
+# 0.35.1 has a green-socket connect() bug on aarch64 + Python 3.12 — it never
+# completes (not even a timeout fires), which hangs every request that touches
+# Redis (rate limiting, caching, Socket.IO queue) under gunicorn's eventlet
+# worker. Confirmed fixed in 0.41.2 on the same host/Python/arch combination
+# before pinning this — reproduce with a bare
+# `socket.create_connection((ip, port))` after eventlet.monkey_patch() if this
+# ever needs re-verifying against a newer pin.
+eventlet==0.41.2
 
 # Caching (optional Redis)
 redis==5.0.1
