@@ -8,7 +8,73 @@
 <div class="page-header">
   <div><span class="page-eyebrow">Admin</span>
 <h1 class="page-title">User Management</h1></div>
-  <input type="text" class="form-control" id="userSearch" placeholder="Search users..." style="width:240px" />
+  <div class="d-flex gap-2">
+    <input type="text" class="form-control" id="userSearch" placeholder="Search users..." style="width:240px" />
+    <button class="btn btn-primary text-nowrap" data-bs-toggle="modal" data-bs-target="#createUserModal"><i class="bi bi-person-plus me-1"></i>Create Test User</button>
+  </div>
+</div>
+
+<!-- Admin-created accounts skip the self-registration approval queue
+     entirely — meant for handing a working login to a tester or
+     stakeholder on the spot, with whatever role/plan you want them
+     testing as, not for real signups. -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Create Test User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="createUserForm">
+          <div class="row g-3 mb-3">
+            <div class="col">
+              <label class="form-label">First Name</label>
+              <input type="text" class="form-control" id="cuFirstName" />
+            </div>
+            <div class="col">
+              <label class="form-label">Last Name</label>
+              <input type="text" class="form-control" id="cuLastName" />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" id="cuUsername" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-control" id="cuEmail" required />
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Password</label>
+            <div class="d-flex gap-2">
+              <input type="text" class="form-control" id="cuPassword" required />
+              <button type="button" class="btn btn-outline-secondary text-nowrap" id="cuGenPwd">Generate</button>
+            </div>
+          </div>
+          <div class="row g-3 mb-3">
+            <div class="col">
+              <label class="form-label">Role</label>
+              <select class="form-select" id="cuRole"></select>
+            </div>
+            <div class="col">
+              <label class="form-label">Plan</label>
+              <select class="form-select" id="cuSubscription"></select>
+            </div>
+          </div>
+          <div class="fs-xs text-muted mb-3">Created accounts are approved and verified immediately — no email step, ready to hand to a tester right away.</div>
+          <button type="submit" class="btn btn-primary w-100">Create Account</button>
+        </form>
+        <div id="cuResult" class="mt-3" style="display:none">
+          <div class="p-3 rounded" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3)">
+            <div class="fw-bold text-green mb-2"><i class="bi bi-check-circle-fill me-1"></i>Account created — share these with the tester:</div>
+            <div class="small">Email: <strong id="cuResultEmail"></strong></div>
+            <div class="small">Password: <strong id="cuResultPassword"></strong></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="section-card mb-3" id="pendingUsersCard" style="display:none">
@@ -47,6 +113,44 @@
 <script>
 let userPage = 1;
 let searchTimeout;
+let allRoles = [];
+let allSubscriptions = [];
+
+async function loadRolesAndSubscriptions() {
+  const [rolesData, subsData] = await Promise.all([
+    API.get('/admin/roles'),
+    API.get('/auth/subscriptions'),
+  ]);
+  allRoles = rolesData?.roles || [];
+  allSubscriptions = subsData?.subscriptions || [];
+
+  const fill = (sel, items) => sel.innerHTML = items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
+  fill(document.getElementById('cuRole'), allRoles);
+  fill(document.getElementById('cuSubscription'), allSubscriptions);
+}
+
+// Changing role/plan straight from the table — same PUT /admin/users/<id>
+// the lock/unlock button already uses, just with role_id/subscription_id
+// instead of is_active. No separate "save" step: a select's onchange IS
+// the save, matching how the rest of this page already behaves.
+function roleSelectHtml(u) {
+  const opts = allRoles.map(r => `<option value="${r.id}" ${r.id === u.role_id ? 'selected' : ''}>${r.name}</option>`).join('');
+  return `<select class="form-select form-select-sm" style="width:auto" onchange="changeUserRole(${u.id}, this.value)">${opts}</select>`;
+}
+function subscriptionSelectHtml(u) {
+  const opts = allSubscriptions.map(s => `<option value="${s.id}" ${s.id === u.subscription_id ? 'selected' : ''}>${s.name}</option>`).join('');
+  return `<select class="form-select form-select-sm" style="width:auto" onchange="changeUserSubscription(${u.id}, this.value)">${opts}</select>`;
+}
+async function changeUserRole(id, roleId) {
+  const res = await API.put(`/admin/users/${id}`, { role_id: parseInt(roleId) });
+  if (res && !res.error) Toast.show('Role updated', 'success');
+  else Toast.show(res?.error || 'Failed to update role', 'error');
+}
+async function changeUserSubscription(id, subId) {
+  const res = await API.put(`/admin/users/${id}`, { subscription_id: parseInt(subId) });
+  if (res && !res.error) Toast.show('Plan updated', 'success');
+  else Toast.show(res?.error || 'Failed to update plan', 'error');
+}
 
 async function loadUsers(page = 1) {
   userPage = page;
@@ -64,8 +168,8 @@ async function loadUsers(page = 1) {
       <td class="text-muted">${u.id}</td>
       <td><strong>${u.username}</strong></td>
       <td>${u.email}</td>
-      <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'premium' ? 'bg-warning text-dark' : 'bg-secondary'}">${u.role}</span></td>
-      <td>${u.subscription || 'free'}</td>
+      <td>${roleSelectHtml(u)}</td>
+      <td>${subscriptionSelectHtml(u)}</td>
       <td>${approvalBadge(u.approval_status)}</td>
       <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
       <td class="text-muted small">${u.last_login ? formatTime(u.last_login) : 'Never'}</td>
@@ -146,6 +250,46 @@ document.getElementById('userSearch').addEventListener('input', () => {
   searchTimeout = setTimeout(() => loadUsers(1), 400);
 });
 
-document.addEventListener('app:ready', () => { loadUsers(); loadPendingUsers(); });
+document.addEventListener('app:ready', async () => {
+  await loadRolesAndSubscriptions(); // must resolve before loadUsers renders the role/plan <select>s
+  loadUsers();
+  loadPendingUsers();
+});
+
+document.getElementById('cuGenPwd').addEventListener('click', () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let pwd = '';
+  for (let i = 0; i < 12; i++) pwd += chars[Math.floor(Math.random() * chars.length)];
+  document.getElementById('cuPassword').value = pwd;
+});
+
+document.getElementById('createUserForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('cuEmail').value;
+  const password = document.getElementById('cuPassword').value;
+  const res = await API.post('/admin/users', {
+    first_name: document.getElementById('cuFirstName').value,
+    last_name: document.getElementById('cuLastName').value,
+    username: document.getElementById('cuUsername').value,
+    email,
+    password,
+    role_id: parseInt(document.getElementById('cuRole').value),
+    subscription_id: parseInt(document.getElementById('cuSubscription').value),
+  });
+  if (res && !res.error) {
+    Toast.show('Test user created', 'success');
+    document.getElementById('cuResultEmail').textContent = email;
+    document.getElementById('cuResultPassword').textContent = password;
+    document.getElementById('cuResult').style.display = '';
+    document.getElementById('createUserForm').reset();
+    loadUsers(userPage);
+  } else {
+    Toast.show(res?.error || 'Failed to create user', 'error');
+  }
+});
+
+document.getElementById('createUserModal').addEventListener('hidden.bs.modal', () => {
+  document.getElementById('cuResult').style.display = 'none';
+});
 </script>
 {% endblock %}

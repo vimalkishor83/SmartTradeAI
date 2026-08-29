@@ -162,6 +162,82 @@ def update_user(user_id):
     return jsonify(user.to_dict()), 200
 
 
+@admin_bp.route("/roles", methods=["GET"])
+@admin_required
+def list_roles():
+    """Populates the role dropdown for admin-side user creation/editing.
+    Small, fixed set (admin/pro/premium/basic/free per the seed data) — not
+    worth hardcoding in the frontend since role names/ids aren't guaranteed
+    identical across every deployment's seed."""
+    roles = Role.query.order_by(Role.id.asc()).all()
+    return jsonify({"roles": [{"id": r.id, "name": r.name, "description": r.description} for r in roles]}), 200
+
+
+@admin_bp.route("/users", methods=["POST"])
+@admin_required
+def create_user():
+    """
+    Admin-created accounts — for handing working credentials to testers/
+    stakeholders without them going through self-registration (which lands
+    pending until an admin approves it anyway). Skips that queue entirely:
+    approved, verified, and usable immediately, since an admin is directly
+    vouching for the account rather than a stranger self-registering.
+    """
+    data = request.get_json() or {}
+    if not all((data.get(f) or "").strip() if isinstance(data.get(f), str) else data.get(f) for f in ["username", "email", "password"]):
+        return jsonify({"error": "username, email, and password are required"}), 400
+
+    if User.query.filter_by(username=data["username"]).first():
+        return jsonify({"error": "Username already taken"}), 409
+    if User.query.filter_by(email=data["email"]).first():
+        return jsonify({"error": "Email already registered"}), 409
+
+    role_id = data.get("role_id")
+    if role_id and not Role.query.get(role_id):
+        return jsonify({"error": "Invalid role"}), 400
+    if not role_id:
+        free_role = Role.query.filter_by(name="free").first()
+        role_id = free_role.id if free_role else None
+
+    subscription_id = data.get("subscription_id")
+    if subscription_id and not Subscription.query.get(subscription_id):
+        return jsonify({"error": "Invalid subscription"}), 400
+    if not subscription_id:
+        free_sub = Subscription.query.filter_by(name="free").first()
+        subscription_id = free_sub.id if free_sub else None
+
+    user = User(
+        username=data["username"],
+        email=data["email"],
+        first_name=(data.get("first_name") or "").strip(),
+        last_name=(data.get("last_name") or "").strip(),
+        role_id=role_id,
+        subscription_id=subscription_id,
+        is_active=True,
+        is_verified=True,
+        approval_status="approved",
+    )
+    user.set_password(data["password"])
+    db.session.add(user)
+    db.session.commit()
+
+    _audit_admin_action(user.id, "admin_create_user")
+
+    return jsonify(user.to_dict()), 201
+
+
+def _audit_admin_action(target_user_id, action):
+    try:
+        from flask_jwt_extended import get_jwt_identity
+        db.session.add(AuditLog(
+            user_id=int(get_jwt_identity()), action=action,
+            resource="user", resource_id=str(target_user_id), status="success",
+        ))
+        db.session.commit()
+    except Exception:
+        db.session.rollback()  # audit logging must never break the actual request
+
+
 @admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
 @admin_required
 def delete_user(user_id):
