@@ -197,4 +197,20 @@ def get_config():
                 "per-process and reset on restart, so they are NOT enforced globally "
                 "across gunicorn workers or replicas. Set REDIS_URL to fix."
             )
+
+        # A real deployment already made exactly this mistake once: FLASK_ENV
+        # was set to production while DATABASE_URL still pointed at the same
+        # SQLite file the dev server writes to (see deploy/SCALING.md's
+        # environments audit) — every dev restart and every production
+        # request landing in the same file, with no schema/data separation.
+        # Name-matched, not path-matched, since dev's own default filename is
+        # exactly what a copy-pasted .env would still contain.
+        db_uri = str(cfg.SQLALCHEMY_DATABASE_URI)
+        if "sqlite" in db_uri and "_dev.db" in db_uri:
+            _log.warning(
+                f"DATABASE_URL in production looks like the development SQLite file "
+                f"({db_uri}) — production and dev would read/write the exact same "
+                f"database. Point DATABASE_URL at a dedicated production database "
+                f"(Postgres is already supported — see .env.example and deploy/SCALING.md)."
+            )
     return cfg
