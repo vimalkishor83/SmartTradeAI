@@ -168,8 +168,19 @@ def list_roles():
     """Populates the role dropdown for admin-side user creation/editing.
     Small, fixed set (admin/pro/premium/basic/free per the seed data) — not
     worth hardcoding in the frontend since role names/ids aren't guaranteed
-    identical across every deployment's seed."""
-    roles = Role.query.order_by(Role.id.asc()).all()
+    identical across every deployment's seed.
+
+    Ordered least-to-most-privileged (not by id) specifically so a <select>
+    built from this list defaults to its first/lowest-privilege option —
+    "admin" happens to be seed row 1, so id-order made a forgotten role
+    selection on Create Test User default to handing out admin access,
+    exactly backwards from what a safe default should do. Unrecognized role
+    names (a custom deployment's seed) sort after the known ones rather
+    than disappearing.
+    """
+    priority = {"free": 0, "basic": 1, "premium": 2, "pro": 3, "admin": 4}
+    roles = Role.query.all()
+    roles.sort(key=lambda r: (priority.get(r.name, len(priority)), r.name))
     return jsonify({"roles": [{"id": r.id, "name": r.name, "description": r.description} for r in roles]}), 200
 
 
