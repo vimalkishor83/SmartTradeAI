@@ -530,6 +530,11 @@ def _seed_initial_data(app):
             subscription_id=admin_sub.id if admin_sub else None,
             is_active=True,
             is_verified=True,
+            # The very first admin account is always a super admin — without
+            # this, a fresh deployment would seed an admin who can view every
+            # admin page but can't actually change anything, with no super
+            # admin yet in existence to grant that to them or anyone else.
+            is_super_admin=True,
         )
         admin.set_password(seed_password)
         db.session.add(admin)

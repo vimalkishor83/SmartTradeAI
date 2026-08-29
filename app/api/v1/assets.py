@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
-from app.auth.decorators import login_required, admin_required
+from app.auth.decorators import login_required, admin_required, super_admin_required
 from app.services.data.fetcher import market_fetcher
 
 assets_bp = Blueprint("assets", __name__)
@@ -72,7 +72,7 @@ _ASSET_EDITABLE_FIELDS = [
 
 
 @assets_bp.route("/", methods=["POST"])
-@admin_required
+@super_admin_required
 def create_asset():
     data = request.get_json()
     required = ["symbol", "name", "market"]
@@ -101,7 +101,7 @@ def create_asset():
 
 
 @assets_bp.route("/<int:asset_id>", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     data = request.get_json()
@@ -122,7 +122,7 @@ def update_asset(asset_id):
 
 
 @assets_bp.route("/<int:asset_id>", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def delete_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     # Soft delete — keeps historical signals intact
@@ -231,7 +231,7 @@ def _search_delta_products(q: str) -> list[dict]:
 
 
 @assets_bp.route("/add-from-search", methods=["POST"])
-@admin_required
+@super_admin_required
 def add_from_search():
     """Add an asset found via search to the platform. Delta-sourced results
     are always added as crypto, routed to Delta Exchange for data — never Yahoo."""

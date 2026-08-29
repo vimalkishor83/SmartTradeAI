@@ -126,6 +126,13 @@ class User(db.Model):
 
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
     subscription_id = db.Column(db.Integer, db.ForeignKey("subscriptions.id"))
+    # Distinguishes the small set of admins who can actually change things
+    # (create/edit/delete users, edit platform config, API configs, etc.)
+    # from regular "admin" role holders who can view every admin page but
+    # not mutate anything — see super_admin_required in auth/decorators.py.
+    # A regular admin account is not automatically trusted with this; it is
+    # only ever set True by another super admin (or the initial seed).
+    is_super_admin = db.Column(db.Boolean, default=False, nullable=False)
 
     is_active = db.Column(db.Boolean, default=True)
     is_verified = db.Column(db.Boolean, default=False)
@@ -195,8 +202,11 @@ class User(db.Model):
             "username": self.username,
             "email": self.email,
             "full_name": self.full_name,
+            "first_name": self.first_name,
+            "last_name": self.last_name,
             "role": self.role.name if self.role else None,
             "role_id": self.role_id,
+            "is_super_admin": self.is_super_admin,
             "subscription": self.subscription.name if self.subscription else "free",
             "subscription_id": self.subscription_id,
             "subscription_tier_level": self.subscription.tier_level if self.subscription else 0,

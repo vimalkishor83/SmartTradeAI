@@ -4,7 +4,7 @@ from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
 from app.models.user import User
 from app.extensions import db, cache
-from app.auth.decorators import login_required, admin_required, premium_required, subscription_feature_required
+from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
 from app.services.signals.engine import signal_engine
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
@@ -337,7 +337,7 @@ def _parse_ag_config(data):
 
 
 @signals_bp.route("/auto-generate/save", methods=["POST"])
-@admin_required
+@super_admin_required
 def ag_save_config():
     """Persist Auto Generate settings to the DB without starting the scheduler."""
     data = request.get_json() or {}
@@ -348,7 +348,7 @@ def ag_save_config():
 
 
 @signals_bp.route("/auto-generate/start", methods=["POST"])
-@admin_required
+@super_admin_required
 def ag_start():
     from app.extensions import scheduler
     data = request.get_json() or {}
@@ -398,7 +398,7 @@ def ag_start():
 
 
 @signals_bp.route("/auto-generate/stop", methods=["POST"])
-@admin_required
+@super_admin_required
 def ag_stop():
     from app.extensions import scheduler
     _AG_STATE["running"] = False
@@ -457,7 +457,7 @@ def ag_watchlist():
 
 
 @signals_bp.route("/auto-generate/run-once", methods=["POST"])
-@admin_required
+@super_admin_required
 def ag_run_once():
     data = request.get_json() or {}
     raw_tfs = data.get("timeframes") or data.get("timeframe")
@@ -885,7 +885,7 @@ def get_signal(signal_id):
 
 
 @signals_bp.route("/generate", methods=["POST"])
-@admin_required
+@super_admin_required
 def generate_signal():
     data = request.get_json()
     symbol = data.get("symbol")

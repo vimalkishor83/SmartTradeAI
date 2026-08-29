@@ -56,6 +56,36 @@ def admin_required(f):
     return roles_required("admin")(f)
 
 
+def super_admin_required(f):
+    """Gates admin endpoints that actually change something (create/edit/
+    delete users, edit platform config, API configs, brokers, referral
+    codes, clearing logs, etc.) behind User.is_super_admin, on top of the
+    existing admin-role check. A regular "admin" role account can still
+    view every admin page (they hit the @admin_required GET endpoints
+    fine) but gets a 403 the moment they try to mutate anything — matches
+    the split between "can see" and "can change" admins."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        try:
+            verify_jwt_in_request()
+        except Exception:
+            return jsonify({"error": "Authentication required"}), 401
+
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+        if not user or not user.is_active:
+            return jsonify({"error": "User not found or inactive"}), 403
+
+        if not user.role or user.role.name != "admin":
+            return jsonify({"error": "Insufficient permissions"}), 403
+
+        if not user.is_super_admin:
+            return jsonify({"error": "This action requires super admin access"}), 403
+
+        return f(*args, **kwargs)
+    return decorated
+
+
 def premium_required(f):
     return roles_required("admin", "premium", "pro")(f)
 

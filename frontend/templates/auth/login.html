@@ -342,13 +342,13 @@
 
       <form id="loginForm">
         <div class="mb-3">
-          <label class="form-label">Email Address</label>
-          <input type="email" class="form-control" id="loginEmail" placeholder="admin@smarttradeai.com" required />
+          <label class="form-label">Email or Username</label>
+          <input type="text" class="form-control" id="loginEmail" placeholder="you@example.com or username" autocomplete="username" required />
         </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
           <div class="input-group">
-            <input type="password" class="form-control" id="loginPassword" placeholder="••••••••" required />
+            <input type="password" class="form-control" id="loginPassword" placeholder="Enter your password" autocomplete="current-password" required />
             <button class="btn btn-outline-light" type="button" id="togglePwd"><i class="bi bi-eye"></i></button>
           </div>
           <div class="text-end mt-1"><a href="/forgot-password" class="text-accent small">Forgot password?</a></div>

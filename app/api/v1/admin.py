@@ -8,7 +8,7 @@ from app.models.asset import Asset
 from app.models.api_config import APIConfig, APILog
 from app.models.audit import AuditLog, SystemLog
 from app.models.signal import Signal, SignalHistory
-from app.auth.decorators import admin_required
+from app.auth.decorators import admin_required, super_admin_required
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint("admin", __name__)
@@ -71,7 +71,7 @@ def get_platform_config_route():
 
 
 @admin_bp.route("/platform-config", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_platform_config_route():
     import re
     from app.models.platform_config import PlatformConfig
@@ -133,7 +133,7 @@ def list_pending_users():
 
 
 @admin_bp.route("/users/<int:user_id>/approve", methods=["POST"])
-@admin_required
+@super_admin_required
 def approve_user(user_id):
     user = User.query.get_or_404(user_id)
     user.approval_status = "approved"
@@ -142,7 +142,7 @@ def approve_user(user_id):
 
 
 @admin_bp.route("/users/<int:user_id>/reject", methods=["POST"])
-@admin_required
+@super_admin_required
 def reject_user(user_id):
     user = User.query.get_or_404(user_id)
     user.approval_status = "rejected"
@@ -151,14 +151,41 @@ def reject_user(user_id):
 
 
 @admin_bp.route("/users/<int:user_id>", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_user(user_id):
+    """Also handles editing a user's own login identity (username/email)
+    and resetting their password — needed so a super admin can fix up test
+    accounts (or their own account) without going through the self-service
+    /auth/me flow, which requires knowing the current password."""
     user = User.query.get_or_404(user_id)
     data = request.get_json()
-    for f in ["is_active", "role_id", "subscription_id", "is_verified", "approval_status"]:
+
+    if "username" in data:
+        new_username = (data["username"] or "").strip()
+        if not new_username:
+            return jsonify({"error": "Username cannot be empty"}), 400
+        if User.query.filter(User.username == new_username, User.id != user.id).first():
+            return jsonify({"error": "Username already taken"}), 409
+        user.username = new_username
+
+    if "email" in data:
+        new_email = (data["email"] or "").strip()
+        if not new_email:
+            return jsonify({"error": "Email cannot be empty"}), 400
+        if User.query.filter(User.email == new_email, User.id != user.id).first():
+            return jsonify({"error": "Email already registered"}), 409
+        user.email = new_email
+
+    if data.get("password"):
+        user.set_password(data["password"])
+
+    for f in ["is_active", "role_id", "subscription_id", "is_verified",
+              "approval_status", "is_super_admin", "first_name", "last_name"]:
         if f in data:
             setattr(user, f, data[f])
+
     db.session.commit()
+    _audit_admin_action(user.id, "admin_update_user")
     return jsonify(user.to_dict()), 200
 
 
@@ -185,7 +212,7 @@ def list_roles():
 
 
 @admin_bp.route("/users", methods=["POST"])
-@admin_required
+@super_admin_required
 def create_user():
     """
     Admin-created accounts — for handing working credentials to testers/
@@ -250,7 +277,7 @@ def _audit_admin_action(target_user_id, action):
 
 
 @admin_bp.route("/users/<int:user_id>", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
@@ -279,7 +306,7 @@ def list_backups():
 
 
 @admin_bp.route("/backups/run", methods=["POST"])
-@admin_required
+@super_admin_required
 def run_backup_now():
     from flask import current_app
     from app.services.backup.db_backup import create_backup
@@ -315,7 +342,7 @@ def get_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs", methods=["POST"])
-@admin_required
+@super_admin_required
 def create_api_config():
     data = request.get_json() or {}
     required = ["name", "provider", "market"]
@@ -354,7 +381,7 @@ def create_api_config():
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_api_config(cfg_id):
     cfg  = APIConfig.query.get_or_404(cfg_id)
     data = request.get_json() or {}
@@ -397,7 +424,7 @@ def update_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def delete_api_config(cfg_id):
     cfg = APIConfig.query.get_or_404(cfg_id)
     db.session.delete(cfg)
@@ -406,7 +433,7 @@ def delete_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>/pause", methods=["POST"])
-@admin_required
+@super_admin_required
 def pause_api_config(cfg_id):
     cfg = APIConfig.query.get_or_404(cfg_id)
     cfg.status    = "paused"
@@ -420,7 +447,7 @@ def pause_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>/resume", methods=["POST"])
-@admin_required
+@super_admin_required
 def resume_api_config(cfg_id):
     cfg = APIConfig.query.get_or_404(cfg_id)
     cfg.status     = "active"
@@ -435,7 +462,7 @@ def resume_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>/set-default", methods=["POST"])
-@admin_required
+@super_admin_required
 def set_default_api_config(cfg_id):
     cfg = APIConfig.query.get_or_404(cfg_id)
     APIConfig.query.filter(
@@ -448,7 +475,7 @@ def set_default_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>/duplicate", methods=["POST"])
-@admin_required
+@super_admin_required
 def duplicate_api_config(cfg_id):
     src = APIConfig.query.get_or_404(cfg_id)
     new_name = f"{src.name} (copy)"
@@ -472,7 +499,7 @@ def duplicate_api_config(cfg_id):
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>/test", methods=["POST"])
-@admin_required
+@super_admin_required
 def test_api_config(cfg_id):
     cfg = APIConfig.query.get_or_404(cfg_id)
     result = _test_connection(cfg)
@@ -517,7 +544,7 @@ def audit_logs():
 
 
 @admin_bp.route("/audit-logs", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def clear_audit_logs():
     deleted = AuditLog.query.delete()
     db.session.commit()
@@ -532,7 +559,7 @@ def list_brokers():
 
 
 @admin_bp.route("/brokers", methods=["POST"])
-@admin_required
+@super_admin_required
 def create_broker():
     data = request.get_json() or {}
     if not data.get("name"):
@@ -552,7 +579,7 @@ def create_broker():
 
 
 @admin_bp.route("/brokers/<int:broker_id>", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_broker(broker_id):
     broker = Broker.query.get_or_404(broker_id)
     data = request.get_json() or {}
@@ -567,7 +594,7 @@ def update_broker(broker_id):
 
 
 @admin_bp.route("/brokers/<int:broker_id>", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def delete_broker(broker_id):
     broker = Broker.query.get_or_404(broker_id)
     # Don't hard-delete a broker users already reference — deactivate instead
@@ -605,7 +632,7 @@ def list_referral_codes():
 
 
 @admin_bp.route("/referral-codes", methods=["POST"])
-@admin_required
+@super_admin_required
 def create_referral_code():
     data = request.get_json() or {}
     code = (data.get("code") or "").strip().upper()
@@ -635,7 +662,7 @@ def create_referral_code():
 
 
 @admin_bp.route("/referral-codes/<int:code_id>", methods=["PUT"])
-@admin_required
+@super_admin_required
 def update_referral_code(code_id):
     rc = ReferralCode.query.get_or_404(code_id)
     data = request.get_json() or {}
@@ -647,7 +674,7 @@ def update_referral_code(code_id):
 
 
 @admin_bp.route("/referral-codes/<int:code_id>", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def delete_referral_code(code_id):
     rc = ReferralCode.query.get_or_404(code_id)
     db.session.delete(rc)
@@ -669,7 +696,7 @@ def system_logs():
 
 
 @admin_bp.route("/system-logs", methods=["DELETE"])
-@admin_required
+@super_admin_required
 def clear_system_logs():
     """Bulk-delete system logs — optionally scoped to a level (matches the
     page's existing filter), otherwise clears everything."""

@@ -147,16 +147,23 @@ def register():
 @limiter.limit("10 per minute")
 def login():
     data = request.get_json()
-    if not data or not data.get("email") or not data.get("password"):
-        return jsonify({"error": "Email and password required"}), 400
+    # Accepts either a username or an email address in the same field — kept
+    # as "email" (rather than adding a second body key) so existing clients
+    # and the QA quick-login buttons keep working unchanged; it's just an
+    # identifier now, not necessarily an email.
+    identifier = (data.get("email") or data.get("username") or "").strip() if data else ""
+    if not data or not identifier or not data.get("password"):
+        return jsonify({"error": "Email/username and password required"}), 400
 
-    user = User.query.filter_by(email=data["email"]).first()
+    user = User.query.filter(
+        (User.email == identifier) | (User.username == identifier)
+    ).first()
     if not user or not user.check_password(data["password"]):
         # Audited even though the account may not exist / user_id is None —
         # gives the admin a signal for credential-stuffing/brute-force
         # patterns (repeated failures against one email or from one IP),
         # which the audit log couldn't previously show at all.
-        _audit(user.id if user else None, "login_failed", "user", data.get("email", ""), status="failed")
+        _audit(user.id if user else None, "login_failed", "user", identifier, status="failed")
         return jsonify({"error": "Invalid credentials"}), 401
 
     if not user.is_active:
