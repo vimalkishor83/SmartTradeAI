@@ -22,6 +22,10 @@
   </div>
 </div>
 
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to System Logs. Only a super admin can clear them.
+</div>
+
 <div class="section-card">
   <div class="table-responsive">
     <table class="smart-table">
@@ -72,6 +76,11 @@ async function clearLogs() {
 
 document.getElementById('levelFilter').addEventListener('change', () => loadLogs(1));
 document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
-document.addEventListener('app:ready', () => loadLogs());
+document.addEventListener('app:ready', () => {
+  const isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('clearLogsBtn').style.display = isSuperAdmin ? '' : 'none';
+  loadLogs();
+});
 </script>
 {% endblock %}

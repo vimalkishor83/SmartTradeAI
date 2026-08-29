@@ -11,7 +11,11 @@
     <h1 class="page-title">API Configurations</h1>
     <p class="text-muted mb-0">Manage data providers and broker connections per market</p>
   </div>
-  <button class="btn btn-primary" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+  <button class="btn btn-primary" id="addConfigBtn" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+</div>
+
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to API Configurations. Only a super admin can add, edit, test, or remove one.
 </div>
 
 <!-- Summary KPIs -->
@@ -496,6 +500,7 @@ const PROVIDERS = {};
 const PROVIDER_DEFAULTS = {};
 let allConfigs = [];
 let currentTab = 'all';
+let isSuperAdmin = false;
 
 const MARKET_LABELS = {
   crypto:'Crypto', indian_stock:'Indian Stocks', us_stock:'US Stocks',
@@ -505,6 +510,10 @@ const STATUS_COLOR = { active:'bg-success', paused:'bg-warning text-dark', error
 const CONN_DOT = { ok:'var(--green)', error:'var(--red)', unknown:'var(--text-muted)' };
 
 async function init() {
+  isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('addConfigBtn').style.display = isSuperAdmin ? '' : 'none';
+
   // Load provider metadata
   const pd = await API.get('/admin/api-configs/providers');
   if (pd) { Object.assign(PROVIDERS, pd.providers); Object.assign(PROVIDER_DEFAULTS, pd.defaults); }
@@ -541,7 +550,7 @@ function renderTable(market) {
     wrap.innerHTML = `<div class="p-5 text-center text-muted">
       <i class="bi bi-plug" style="font-size:2rem;opacity:.3"></i>
       <p class="mt-2">No configurations for this market yet.</p>
-      <button class="btn btn-accent btn-sm" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+      ${isSuperAdmin ? `<button class="btn btn-accent btn-sm" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>` : ''}
     </div>`;
     return;
   }
@@ -597,6 +606,7 @@ function configRow(c) {
     </div>
     <!-- Actions -->
     <div class="d-flex gap-1 flex-wrap">
+      ${isSuperAdmin ? `
       <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openEditModal(${c.id})"><i class="bi bi-pencil"></i></button>
       <button class="btn btn-sm btn-outline-info"  title="Test Connection" onclick="testConfig(${c.id},'${c.name}')"><i class="bi bi-wifi"></i></button>
       ${c.status === 'paused'
@@ -604,9 +614,9 @@ function configRow(c) {
         : `<button class="btn btn-sm btn-outline-warning" title="Pause"  onclick="doAction(${c.id},'pause')"><i class="bi bi-pause-fill"></i></button>`
       }
       ${!c.is_default ? `<button class="btn btn-sm btn-outline-secondary" title="Set as Default" onclick="doAction(${c.id},'set-default')"><i class="bi bi-star"></i></button>` : `<button class="btn btn-sm btn-warning" title="Default" disabled><i class="bi bi-star-fill"></i></button>`}
-      <button class="btn btn-sm btn-outline-secondary" title="Duplicate" onclick="doAction(${c.id},'duplicate')"><i class="bi bi-copy"></i></button>
+      <button class="btn btn-sm btn-outline-secondary" title="Duplicate" onclick="doAction(${c.id},'duplicate')"><i class="bi bi-copy"></i></button>` : ''}
       <button class="btn btn-sm btn-outline-secondary" title="View Logs"  onclick="viewLogs(${c.id},'${c.name}')"><i class="bi bi-list-ul"></i></button>
-      <button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id},'${c.name}')"><i class="bi bi-trash"></i></button>
+      ${isSuperAdmin ? `<button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id},'${c.name}')"><i class="bi bi-trash"></i></button>` : ''}
     </div>
   </div>`;
 }

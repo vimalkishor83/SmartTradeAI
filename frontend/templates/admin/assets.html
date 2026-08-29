@@ -16,6 +16,10 @@
   </button>
 </div>
 
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to Assets. Only a super admin can add, enable/disable, or remove assets.
+</div>
+
 <!-- KPIs -->
 <div class="row g-3 mb-4">
   <div class="col-6 col-md-3">
@@ -104,7 +108,7 @@
 </div>
 
 <!-- Search & Add -->
-<div class="section-card">
+<div class="section-card" id="assetSearchCard">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-search text-accent"></i> Search &amp; Add New Asset</span>
     <span class="text-muted small">Powered by Yahoo Finance</span>
@@ -132,6 +136,7 @@
 <script>
 const MK_COLORS = { crypto:'#f59e0b', forex:'#3b82f6', commodity:'#10b981', indian_stock:'#8b5cf6', index:'#06b6d4', gold:'#fbbf24', silver:'#94a3b8' };
 let _allAssets = [];
+let isSuperAdmin = false;
 
 async function loadAssets() {
   // include_inactive=1 so disabled assets (previously invisible everywhere
@@ -174,6 +179,17 @@ function renderTable(assets) {
     const col = MK_COLORS[a.market] || '#94a3b8';
     const mkt = (a.market || '').replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
     const dt  = a.created_at ? a.created_at.slice(0, 10) : '—';
+    const statusCell = isSuperAdmin
+      ? `<div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" role="switch"
+            ${a.is_active ? 'checked' : ''} onchange="toggleAssetActive(${a.id},'${a.symbol}',this.checked)">
+        </div>`
+      : `<span class="badge ${a.is_active ? 'bg-success' : 'bg-danger'}">${a.is_active ? 'Active' : 'Disabled'}</span>`;
+    const actionCell = isSuperAdmin
+      ? `<button class="btn btn-sm btn-outline-danger" onclick="removeAsset(${a.id},'${a.symbol}')">
+          <i class="bi bi-trash3"></i>
+        </button>`
+      : '<span class="text-muted small">View only</span>';
     return `<tr id="arow_${a.id}" ${a.is_active ? '' : 'style="opacity:.55"'}>
       <td><code style="color:var(--accent)">${a.symbol}</code></td>
       <td>${a.name || '—'}</td>
@@ -181,17 +197,8 @@ function renderTable(assets) {
       <td style="font-size:12px">${a.exchange || '—'}</td>
       <td style="font-size:12px">${a.data_source || '—'}</td>
       <td style="font-size:12px">${dt}</td>
-      <td>
-        <div class="form-check form-switch mb-0">
-          <input class="form-check-input" type="checkbox" role="switch"
-            ${a.is_active ? 'checked' : ''} onchange="toggleAssetActive(${a.id},'${a.symbol}',this.checked)">
-        </div>
-      </td>
-      <td>
-        <button class="btn btn-sm btn-outline-danger" onclick="removeAsset(${a.id},'${a.symbol}')">
-          <i class="bi bi-trash3"></i>
-        </button>
-      </td>
+      <td>${statusCell}</td>
+      <td>${actionCell}</td>
     </tr>`;
   }).join('');
 }
@@ -229,6 +236,10 @@ async function toggleAssetActive(id, symbol, isActive) {
 
 // ── Search & Add ─────────────────────────────────────────────────
 document.addEventListener('app:ready', () => {
+  isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('assetSearchCard').style.display = isSuperAdmin ? '' : 'none';
+
   loadAssets();
   document.getElementById('assetSearchInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') searchAssets();

@@ -16,8 +16,12 @@
   </button>
 </div>
 
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to the Admin panel. Only a super admin can create, edit, or remove anything here.
+</div>
+
 <!-- ═══ Asset Search & Add ════════════════════════════════════ -->
-<div class="section-card mb-4">
+<div class="section-card mb-4" id="assetSearchCard">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-search me-2 text-accent"></i>Search &amp; Add Asset / Index</span>
     <a href="/admin/assets" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul me-1"></i>Manage Assets</a>
@@ -152,7 +156,7 @@
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Audit Log</span>
     <div class="d-flex gap-2">
-      <button onclick="clearAuditLogs()" class="btn btn-sm" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px">
+      <button onclick="clearAuditLogs()" class="btn btn-sm" id="clearAuditBtn" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px">
         <i class="bi bi-trash3 me-1"></i>Clear Log
       </button>
       <a href="/admin/logs" class="btn btn-sm btn-outline-light">View All</a>
@@ -237,9 +241,10 @@ async function loadUsers() {
       <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
       <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
       <td>
+        ${isSuperAdmin ? `
         <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" onclick="toggleUser(${u.id}, ${!u.is_active})">
           ${u.is_active ? 'Disable' : 'Enable'}
-        </button>
+        </button>` : '<span class="text-muted small">—</span>'}
       </td>
     </tr>`).join('');
 }
@@ -324,7 +329,14 @@ async function clearAuditLogs() {
   }
 }
 
+let isSuperAdmin = false;
+
 document.addEventListener('app:ready', () => {
+  isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('assetSearchCard').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('clearAuditBtn').style.display = isSuperAdmin ? '' : 'none';
+
   loadAdminDashboard();
   setInterval(loadAdminDashboard, 30000);
 });
