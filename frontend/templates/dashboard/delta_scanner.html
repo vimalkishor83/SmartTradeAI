@@ -1,0 +1,292 @@
+{% extends "partials/base.html" %}
+{% block title %}Delta Scanner — SmartTrade AI{% endblock %}
+{% set active = 'delta_scanner' %}
+{% block breadcrumb %}<i class="bi bi-graph-up-arrow me-2"></i> Signals & Tools / Delta Scanner{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-graph-up-arrow text-accent me-2"></i>Delta Scanner</h1>
+    <p class="page-subtitle mb-0" id="pageSubtitle">Multi-timeframe BUY/SELL scan of every live Delta Exchange contract — 5m EMA(9/21/50) zone + 15m &amp; 1h Supertrend(10,3) confirmation, ranked by volume</p>
+  </div>
+  <div class="dash-header-actions">
+    <span class="text-muted small me-2" id="scanMeta"></span>
+    <button class="btn btn-sm px-3 btn-generate" id="rescanBtn"><i class="bi bi-arrow-repeat me-1"></i>Rescan</button>
+  </div>
+</div>
+
+<div class="section-card mb-3">
+  <div class="section-card-body py-2">
+    <div class="d-flex gap-2" id="scannerModeTabs">
+      <button class="scan-chip c-blue active" data-mode="mtf">MTF Signals</button>
+      <button class="scan-chip c-blue" data-mode="screener">Market Screener</button>
+      <button class="scan-chip c-blue" data-mode="indicator">Indicator Screener</button>
+    </div>
+  </div>
+</div>
+
+<div id="mtfModePanel">
+
+<div class="section-card mb-3">
+  <div class="section-card-body py-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <div class="d-flex gap-2" id="mtfSubTabs">
+      <button class="scan-chip c-blue active" data-subtab="common"><i class="bi bi-star-fill me-1"></i>Common Coins</button>
+      <button class="scan-chip c-blue" data-subtab="all">All Coins</button>
+    </div>
+    <button class="btn btn-xs btn-outline-secondary" id="mtfConfigureBtn"><i class="bi bi-gear me-1"></i>Configure Common Coins</button>
+  </div>
+</div>
+
+<div id="mtfCommonPanel">
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i class="bi bi-star-fill text-yellow me-1"></i>Common Coins — Live Status</span>
+      <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small" id="commonMeta"></span>
+        <button class="btn btn-xs btn-outline-secondary" id="commonResetSort" title="Reset to default order"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset sort</button>
+      </div>
+    </div>
+    <div class="table-responsive">
+      <table class="smart-table signals-table-adv">
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Name</th><th>Price</th><th>24h%</th>
+            <th>5m 9EMA</th><th>5m 21EMA</th><th>5m 50EMA</th>
+            <th>15m ST</th><th>1h ST</th><th>Vol Trend</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="commonBody"><tr><td colspan="11" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="mtfAllPanel" style="display:none">
+<div class="kpi-grid-auto mb-3">
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Contracts Scanned</div><div class="kpi-value" id="kpiScanned">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-collection"></i></div></div><div class="kpi-change">live Delta perpetuals</div></div>
+  <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">BUY Setups</div><div class="kpi-value text-green" id="kpiBuy">—</div></div><div class="kpi-icon text-green"><i class="bi bi-arrow-up-circle-fill"></i></div></div><div class="kpi-change" id="kpiBuyStrong">— strong</div></div>
+  <div class="kpi-card red"><div class="kpi-top"><div><div class="kpi-label">SELL Setups</div><div class="kpi-value text-red" id="kpiSell">—</div></div><div class="kpi-icon text-red"><i class="bi bi-arrow-down-circle-fill"></i></div></div><div class="kpi-change" id="kpiSellStrong">— strong</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Last Scan</div><div class="kpi-value" id="kpiUpdated" style="font-size:16px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-clock-history"></i></div></div><div class="kpi-change">auto-refreshes every 5 min</div></div>
+</div>
+
+<div class="section-card mb-3" id="scanMessageCard" style="display:none">
+  <div class="section-card-body">
+    <div class="text-center text-muted py-4">
+      <i class="bi bi-info-circle d-block mb-2" style="font-size:26px;opacity:.5"></i>
+      <span id="scanMessageText"></span>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex gap-2 mb-3" id="dsDirTabs">
+  <button class="scan-chip c-green active" data-dir="buy"><i class="bi bi-arrow-up-circle-fill me-1"></i>BUY <span class="badge-tag ms-1" id="buyCount">0</span></button>
+  <button class="scan-chip c-red" data-dir="sell"><i class="bi bi-arrow-down-circle-fill me-1"></i>SELL <span class="badge-tag ms-1" id="sellCount">0</span></button>
+</div>
+
+<div class="section-card mb-3" id="buySection">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-arrow-up-circle-fill text-green me-1"></i>BUY — Highest to Lowest Volume</span>
+    <button class="btn btn-xs btn-outline-secondary" id="buyResetSort" title="Reset to default order (highest to lowest volume)"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset sort</button>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table signals-table-adv">
+      <thead>
+        <tr>
+          <th>#</th><th>Symbol</th><th>Name</th><th>Price</th><th>Vol 24h</th>
+          <th>5m 9EMA</th><th>5m 21EMA</th><th>5m 50EMA</th><th>EMA Dist%</th>
+          <th>15m ST</th><th>1h ST</th><th>Vol Trend</th><th>Score</th><th>Tier</th><th>Why</th>
+        </tr>
+      </thead>
+      <tbody id="buyBody"><tr><td colspan="15" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="section-card" id="sellSection" style="display:none">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-arrow-down-circle-fill text-red me-1"></i>SELL — Highest to Lowest Volume</span>
+    <button class="btn btn-xs btn-outline-secondary" id="sellResetSort" title="Reset to default order (highest to lowest volume)"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset sort</button>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table signals-table-adv">
+      <thead>
+        <tr>
+          <th>#</th><th>Symbol</th><th>Name</th><th>Price</th><th>Vol 24h</th>
+          <th>5m 9EMA</th><th>5m 21EMA</th><th>5m 50EMA</th><th>EMA Dist%</th>
+          <th>15m ST</th><th>1h ST</th><th>Vol Trend</th><th>Score</th><th>Tier</th><th>Why</th>
+        </tr>
+      </thead>
+      <tbody id="sellBody"><tr><td colspan="15" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+</div>
+
+</div>
+
+<div id="screenerModePanel" style="display:none">
+  <div class="section-card mb-3">
+    <div class="section-card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+          <label class="scan-lbl d-block mb-1">Asset Type</label>
+          <div class="d-flex gap-2" id="screenerAssetTypeTabs">
+            <button class="scan-chip c-blue active" data-type="perpetual_futures">Perpetual Futures</button>
+            <button class="scan-chip c-blue" data-type="spot">Spot</button>
+            <button class="scan-chip c-blue" data-type="move_options">Move Options</button>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="d-flex align-items-center gap-2 justify-content-end mb-1">
+            <button class="btn btn-xs btn-outline-secondary" id="screenerSaveBtn" title="Save this filter"><i class="bi bi-bookmark me-1"></i>Save screen</button>
+            <div class="dropdown">
+              <button class="btn btn-xs btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" id="screenerSavedBtn">
+                <i class="bi bi-collection me-1"></i>Saved
+              </button>
+              <ul class="dropdown-menu dropdown-menu-end" id="screenerSavedMenu" style="min-width:220px">
+                <li><span class="dropdown-item-text text-muted small">No saved screens yet</span></li>
+              </ul>
+            </div>
+            <a class="btn btn-xs btn-outline-secondary" id="screenerExportBtn" title="Export current results as CSV"><i class="bi bi-download me-1"></i>Export</a>
+          </div>
+          <div class="text-muted small" id="screenerMeta">&nbsp;</div>
+          <div class="fw-bold" id="screenerMatchCount">— of — match</div>
+        </div>
+      </div>
+
+      <label class="scan-lbl d-block mb-1">Presets</label>
+      <div class="scan-chips mb-3" id="screenerPresets">
+        <button class="scan-chip c-blue" data-preset="oversold">Oversold · RSI &lt; 30</button>
+        <button class="scan-chip c-blue" data-preset="overbought">Overbought · RSI &gt; 70</button>
+        <button class="scan-chip c-blue" data-preset="high_funding">High funding · ≥ 0.05%</button>
+        <button class="scan-chip c-blue" data-preset="top_volume">Top volume · ≥ $100M</button>
+        <button class="scan-chip c-blue" data-preset="big_movers">Big movers · |24h| ≥ 8%</button>
+      </div>
+
+      <label class="scan-lbl d-block mb-1">Conditions</label>
+      <div id="screenerConditions"></div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <button class="btn btn-sm btn-outline-secondary" id="screenerAddCondition"><i class="bi bi-plus-lg me-1"></i>Add</button>
+        <div class="btn-group btn-group-sm" role="group" id="screenerCombinator">
+          <button type="button" class="btn btn-outline-secondary active" data-combinator="AND">AND</button>
+          <button type="button" class="btn btn-outline-secondary" data-combinator="OR">OR</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="screenerReset">Reset</button>
+        <button class="btn btn-sm btn-generate ms-auto" id="screenerApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Results</span>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-xs btn-outline-secondary" id="screenerResetSort" title="Reset to default order"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset sort</button>
+        <div class="btn-group btn-group-sm" role="group" id="screenerViewToggle">
+          <button type="button" class="btn btn-outline-secondary active" data-view="table"><i class="bi bi-table me-1"></i>Table</button>
+          <button type="button" class="btn btn-outline-secondary" data-view="cards"><i class="bi bi-grid-3x3-gap me-1"></i>Cards</button>
+        </div>
+      </div>
+    </div>
+    <div class="table-responsive" id="screenerTableWrap">
+      <table class="smart-table signals-table-adv">
+        <thead>
+          <tr>
+            <th></th><th>Symbol</th><th>Price</th><th>24h</th><th>Volume</th><th>RSI(14)</th><th>Funding</th><th>OI</th>
+          </tr>
+        </thead>
+        <tbody id="screenerBody"><tr><td colspan="8" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="scanner-cards-grid" id="screenerCardsWrap" style="display:none"></div>
+  </div>
+</div>
+
+<div id="indicatorModePanel" style="display:none">
+  <div class="section-card mb-3">
+    <div class="section-card-body">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+        <div>
+          <label class="scan-lbl d-block mb-1">Asset Type</label>
+          <div class="d-flex gap-2 mb-2" id="indicatorAssetTypeTabs">
+            <button class="scan-chip c-blue active" data-type="perpetual_futures">Perpetual Futures</button>
+            <button class="scan-chip c-blue" data-type="spot">Spot</button>
+            <button class="scan-chip c-blue" data-type="move_options">Move Options</button>
+          </div>
+          <label class="scan-lbl d-block mb-1">Candle</label>
+          <div class="d-flex gap-2" id="indicatorTimeframeTabs">
+            <button class="scan-chip c-blue active" data-tf="5m">5 minute</button>
+            <button class="scan-chip c-blue" data-tf="15m">15 minute</button>
+            <button class="scan-chip c-blue" data-tf="1h">1 hour</button>
+          </div>
+        </div>
+        <div class="text-end">
+          <div class="text-muted small" id="indicatorMeta">&nbsp;</div>
+          <div class="fw-bold" id="indicatorMatchCount">— of — match</div>
+        </div>
+      </div>
+
+      <label class="scan-lbl d-block mb-1">Conditions</label>
+      <div id="indicatorConditions"></div>
+      <div class="d-flex align-items-center gap-2 mt-2">
+        <button class="btn btn-sm btn-outline-secondary" id="indicatorAddCondition"><i class="bi bi-plus-lg me-1"></i>Condition</button>
+        <div class="btn-group btn-group-sm" role="group" id="indicatorCombinator">
+          <button type="button" class="btn btn-outline-secondary active" data-combinator="AND">AND</button>
+          <button type="button" class="btn btn-outline-secondary" data-combinator="OR">OR</button>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="indicatorReset">Reset</button>
+        <button class="btn btn-sm btn-generate ms-auto" id="indicatorApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card mb-3" id="indicatorSummaryCard" style="display:none">
+    <div class="section-card-body py-2">
+      <span class="text-muted small">Scanning for: </span><span id="indicatorSummaryText" class="fw-bold"></span>
+    </div>
+  </div>
+
+  <div class="section-card">
+    <div class="section-card-header">
+      <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Results</span>
+    </div>
+    <div class="table-responsive">
+      <table class="smart-table signals-table-adv">
+        <thead id="indicatorTableHead">
+          <tr><th></th><th>Symbol</th><th>Price</th><th>Vol (bar)</th></tr>
+        </thead>
+        <tbody id="indicatorBody"><tr><td colspan="4" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="modal fade" id="commonCoinsModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-scrollable">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h6 class="modal-title"><i class="bi bi-star-fill text-yellow me-1"></i>Configure Common Coins</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="d-flex justify-content-between align-items-center mb-1">
+          <label class="scan-lbl mb-0">Selected <span id="ccSelectedCount">0</span>/30</label>
+          <button class="btn btn-xs btn-outline-secondary" id="ccClearBtn">Clear all</button>
+        </div>
+        <div class="d-flex flex-wrap gap-1 mb-3" id="ccSelectedChips" style="min-height:32px"></div>
+
+        <input type="text" class="form-control mb-2" id="ccSearchInput" placeholder="Search symbol or name (e.g. BTC, Solana, Gold)…" autocomplete="off">
+        <div id="ccSearchResults" style="max-height:320px;overflow-y:auto"></div>
+      </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-sm btn-generate" id="ccSaveBtn">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/delta_scanner.js"></script>
+{% endblock %}

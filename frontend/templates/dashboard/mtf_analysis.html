@@ -60,7 +60,11 @@
 
 {% block extra_js %}
 <script>
-const TFS   = ['5m','15m','30m','1h','2h','4h','1d'];
+// Default matches the backend's own fallback (get_ta_timeframes() in
+// ema_mtf.py) — overwritten by loadMatrix() with the /signals/mtf-matrix
+// response's own `timeframes` field, which reflects Platform Config
+// (admin-managed, /admin/platform-config).
+let TFS   = ['5m','15m','30m','1h','2h','4h','1d'];
 let _matrix = {};
 let _assets = [];
 
@@ -118,7 +122,20 @@ function computeTrend(assetId) {
     : trend.startsWith('↗') ? '#6ee7b7'
     : trend.startsWith('↘') ? '#fca5a5'
     : 'var(--text-muted)';
-  return { trend, trendColor };
+
+  // Directional group (long rows before short before mixed/flat) and an
+  // avg-confidence score within that direction, same "long high-to-low,
+  // then short high-to-low" ordering used on the Terminal card grid —
+  // here it ranks matrix ROWS instead of individual signal cards.
+  const group = trend.startsWith('▲') || trend.startsWith('↗') ? 0
+              : trend.startsWith('▼') || trend.startsWith('↘') ? 1
+              : total === 0 ? 3 : 2;
+  const dirCells = cells.filter(c => c?.signal_type === (group === 0 ? 'BUY' : 'SELL'));
+  const score = dirCells.length
+    ? dirCells.reduce((sum, c) => sum + (c.confidence || 0), 0) / dirCells.length
+    : 0;
+
+  return { trend, trendColor, group, score };
 }
 
 let _matrixRenderedAssetIds = null;
@@ -145,7 +162,10 @@ function renderMatrix() {
     return;
   }
 
-  const currentIds = _assets.map(a => a.id).join(',');
+  // TFS is part of the cache key, not just asset IDs — an admin editing
+  // Platform Config's timeframe list mid-session must force a full table
+  // rebuild (new columns), not just a same-shape cell-content patch.
+  const currentIds = _assets.map(a => a.id).join(',') + '|' + TFS.join(',');
   if (currentIds === _matrixRenderedAssetIds && wrap.querySelector('table')) {
     updateMatrixContents();
     return;
@@ -155,6 +175,13 @@ function renderMatrix() {
   const byMarket = {};
   _assets.forEach(a => { (byMarket[a.market] = byMarket[a.market]||[]).push(a); });
   const mktLabel = m => ({'crypto':'Crypto','forex':'Forex','commodity':'Commodities','indian_stock':'Indian Stocks','index':'Indices'}[m]||m);
+
+  // Bullish rows first (highest avg confidence to lowest), then Bearish,
+  // then Mixed/flat, then no-data — within each market group.
+  Object.values(byMarket).forEach(list => list.sort((a, b) => {
+    const ta = computeTrend(a.id), tb = computeTrend(b.id);
+    return ta.group !== tb.group ? ta.group - tb.group : tb.score - ta.score;
+  }));
 
   let html = `<table class="smart-table" style="min-width:800px">
     <thead><tr>
@@ -286,6 +313,7 @@ async function loadMatrix(showSpinner = true) {
   if (!data) return;
   _matrix = data.matrix || {};
   _assets = data.assets || [];
+  if (Array.isArray(data.timeframes) && data.timeframes.length) TFS = data.timeframes;
   renderMatrix();
   try { localStorage.setItem(_mtfCacheKey(market), JSON.stringify({ matrix: _matrix, assets: _assets })); } catch {}
 }

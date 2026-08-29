@@ -13,7 +13,7 @@ class EconomicEvent(db.Model):
     forecast = db.Column(db.String(50))
     previous = db.Column(db.String(50))
     actual = db.Column(db.String(50))
-    event_time = db.Column(db.DateTime)
+    event_time = db.Column(db.DateTime, index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):

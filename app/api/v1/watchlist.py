@@ -92,9 +92,57 @@ def add_to_watchlist(wl_id):
                              f"{sub.name} plan). Remove an alert or upgrade your plan.",
                 }), 403
 
-    asset = Asset.query.filter_by(symbol=data.get("symbol")).first()
+    requested_symbol = (data.get("symbol") or "").strip().upper()
+    asset = Asset.query.filter_by(symbol=requested_symbol).first()
+
+    if not asset:
+        # Not in the curated catalog under that exact symbol — the Delta
+        # Market Screener (app/services/scanner/delta_market_screener.py)
+        # surfaces ALL ~220 live Delta Exchange contracts directly from
+        # Delta's ticker feed, not just the curated Asset rows, and those
+        # raw symbols use Delta's {BASE}USD convention rather than this
+        # app's {BASE}USDT storage convention — so BTCUSD as typed never
+        # matches the stored "BTCUSDT" row even when one already exists.
+        # If it's a genuine live Delta symbol, auto-create (or find under
+        # its canonical form) an Asset row for it so any of the 220 can be
+        # watchlisted, not only the small curated set.
+        from app.services.data.fetcher import _delta_live_symbols, from_delta_symbol
+        if requested_symbol in _delta_live_symbols():
+            canonical_symbol = from_delta_symbol(requested_symbol)
+            asset = Asset.query.filter_by(symbol=canonical_symbol, exchange="delta_exchange").first()
+            if not asset:
+                asset = Asset(
+                    symbol=canonical_symbol,
+                    name=(data.get("name") or requested_symbol).strip()[:100],
+                    market="crypto",
+                    exchange="delta_exchange",
+                    data_source="delta_exchange",
+                    # Inactive on purpose: every prewarm job (TA/AI/heatmap
+                    # summary, signal generation) and every asset picker in
+                    # the app scopes to Asset.query.filter_by(is_active=True).
+                    # Auto-creating this from a plain watchlist click must not
+                    # silently enrol it in that background-job workload —
+                    # only an admin activating it from /admin/assets should.
+                    is_active=False,
+                )
+                db.session.add(asset)
+                db.session.flush()
+
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
+
+    # Idempotent add: WatchlistItem has no unique constraint on
+    # (watchlist_id, asset_id), so re-adding an already-watchlisted symbol
+    # (e.g. a second click on the screener's star icon before its UI state
+    # updates) would otherwise insert a second identical row every time.
+    # A plain alert-less "star" add and an existing item that already HAS an
+    # alert configured are treated as the same item — this only short-circuits
+    # a bare re-add, never an intentional edit (changing alert_price/alert_repeat
+    # goes through the dedicated update endpoint below, not this one).
+    if not data.get("alert_price"):
+        existing_item = WatchlistItem.query.filter_by(watchlist_id=wl.id, asset_id=asset.id).first()
+        if existing_item:
+            return jsonify({"id": existing_item.id, "symbol": asset.symbol, "already_existed": True}), 200
 
     alert_price = data.get("alert_price")
     alert_set_at_price = None

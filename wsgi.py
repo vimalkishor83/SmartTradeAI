@@ -11,6 +11,15 @@
 import eventlet
 eventlet.monkey_patch()
 
+import os  # noqa: E402
+
+# Match Socket.IO's async mode to the worker class actually serving this
+# module (gunicorn --worker-class eventlet, see Dockerfile). Set before
+# create_app() so Config picks it up. Previously async_mode was hardcoded to
+# "threading" in _init_extensions regardless of how the app was served, so the
+# eventlet monkey-patch above bought nothing for the WebSocket transport.
+os.environ.setdefault("SOCKETIO_ASYNC_MODE", "eventlet")
+
 from app import create_app  # noqa: E402
 from app.extensions import socketio  # noqa: E402
 

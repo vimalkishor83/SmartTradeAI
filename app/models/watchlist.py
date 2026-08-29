@@ -20,7 +20,7 @@ class WatchlistItem(db.Model):
     __tablename__ = "watchlist_items"
 
     id = db.Column(db.Integer, primary_key=True)
-    watchlist_id = db.Column(db.Integer, db.ForeignKey("watchlists.id"), nullable=False)
+    watchlist_id = db.Column(db.Integer, db.ForeignKey("watchlists.id"), nullable=False, index=True)
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
     alert_price = db.Column(db.Float)
     # Price at the moment the alert was set — lets the checker fire only on

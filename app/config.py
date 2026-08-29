@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import timedelta
 from dotenv import load_dotenv
@@ -34,7 +35,17 @@ class Config:
     # aren't shared across multiple worker processes.
     RATELIMIT_STORAGE_URI = os.environ.get("REDIS_URL", "memory://")
 
-    SOCKETIO_ASYNC_MODE = "threading"
+    # "threading" suits the Werkzeug dev server (run.py). wsgi.py sets
+    # SOCKETIO_ASYNC_MODE=eventlet before create_app() so the gunicorn
+    # eventlet-worker path actually uses the eventlet transport.
+    SOCKETIO_ASYNC_MODE = os.environ.get("SOCKETIO_ASYNC_MODE", "threading")
+
+    # Redis pub/sub backing for Socket.IO so emit()/broadcast_ticker() fan out
+    # across every worker and replica. Without it, Socket.IO delivery is
+    # process-local: a client attached to worker B never sees an event emitted
+    # from worker A, and it fails silently (stale prices) rather than erroring.
+    # Falls back to REDIS_URL; empty means single-process mode.
+    SOCKETIO_MESSAGE_QUEUE = os.environ.get("SOCKETIO_MESSAGE_QUEUE") or os.environ.get("REDIS_URL", "")
 
     ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
 
@@ -152,4 +163,38 @@ def get_config():
             "Set real random values via the SECRET_KEY and JWT_SECRET_KEY environment "
             "variables before deploying publicly."
         )
+
+    # The two checks below are WARNINGS, not hard failures. Both describe
+    # configurations that are genuinely wrong for a multi-instance enterprise
+    # deployment but perfectly serviceable for the single-process LAN/IIS
+    # deployment this app also supports — hard-failing would brick those.
+    # The dangerous half of the CORS case is already neutralised structurally
+    # in _init_extensions(), which refuses to enable credentialed CORS
+    # alongside a wildcard origin regardless of what is configured here.
+    if cfg is ProductionConfig:
+        _log = logging.getLogger(__name__)
+
+        # Flask-CORS reflects the caller's own Origin back when origins="*"
+        # and credentials are enabled, which would let any site make
+        # authenticated /api/* calls for a logged-in user. _init_extensions
+        # drops credentials support in that case, so the exploit is closed —
+        # but a wildcard is still not what you want in production.
+        if "*" in cfg.CORS_ORIGINS:
+            _log.warning(
+                "CORS_ORIGINS='*' in production — credentialed CORS has been DISABLED "
+                "to keep this safe, which will break browser clients on another origin "
+                "that rely on cookies. Set an explicit allowlist, e.g. "
+                "CORS_ORIGINS=https://app.example.com,https://www.example.com"
+            )
+
+        # In-memory limiter state is per-process: it resets on restart and is
+        # not shared across workers/replicas, so configured limits stop being
+        # global the moment more than one process exists — brute-force
+        # protection silently becomes N times weaker.
+        if str(cfg.RATELIMIT_STORAGE_URI).startswith("memory://"):
+            _log.warning(
+                "Rate limiter is using in-memory storage in production — limits are "
+                "per-process and reset on restart, so they are NOT enforced globally "
+                "across gunicorn workers or replicas. Set REDIS_URL to fix."
+            )
     return cfg

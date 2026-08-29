@@ -138,6 +138,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 indicators        = result["indicators"],
                 patterns          = result["patterns"],
                 reasoning         = result["reasoning"],
+                reasoning_detail  = result.get("reasoning_detail"),
                 regime            = result.get("regime"),
                 expires_at        = result["expires_at"],
             )

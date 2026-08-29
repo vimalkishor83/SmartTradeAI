@@ -100,7 +100,7 @@
       <div class="nav-group-body">
         {% if '/markets/crypto' not in disabled_nav_items %}
         <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
-          <i class="bi bi-currency-bitcoin nav-icon-green"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
+          <i class="bi bi-currency-bitcoin nav-icon-blue"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
         </a>
         {% endif %}
         {% if '/markets/forex' not in disabled_nav_items %}
@@ -110,22 +110,22 @@
         {% endif %}
         {% if '/markets/commodities' not in disabled_nav_items %}
         <a href="/markets/commodities" data-tooltip="Commodities — requires Basic or higher" class="nav-item {% if active in ['commodity', 'commodities', 'gold', 'silver'] %}active{% endif %}">
-          <i class="bi bi-gem nav-icon-yellow"></i><span class="nav-text">Commodities</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-gem nav-icon-blue"></i><span class="nav-text">Commodities</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/indian_stock' not in disabled_nav_items %}
         <a href="/markets/indian_stock" data-tooltip="Indian Stocks — requires Basic or higher" class="nav-item {% if active == 'stocks' or active == 'indian_stock' %}active{% endif %}">
-          <i class="bi bi-building nav-icon-cyan"></i><span class="nav-text">Indian Stocks</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-building nav-icon-blue"></i><span class="nav-text">Indian Stocks</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/index' not in disabled_nav_items %}
         <a href="/markets/index" data-tooltip="Indices — requires Basic or higher" class="nav-item {% if active == 'indices' or active == 'index' %}active{% endif %}">
-          <i class="bi bi-activity nav-icon-purple"></i><span class="nav-text">Indices</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-activity nav-icon-blue"></i><span class="nav-text">Indices</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/markets/terminal' not in disabled_nav_items %}
         <a href="/markets/terminal" data-tooltip="Terminal — requires Basic or higher" class="nav-item {% if active == 'terminal' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap-fill nav-icon-red"></i><span class="nav-text">Terminal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-blue"></i><span class="nav-text">Terminal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -140,12 +140,12 @@
       <div class="nav-group-body">
         {% if '/signals' not in disabled_nav_items %}
         <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-          <i class="bi bi-lightning-charge-fill nav-icon-yellow"></i><span class="nav-text">All Signals</span>
+          <i class="bi bi-lightning-charge-fill nav-icon-green"></i><span class="nav-text">All Signals</span>
         </a>
         {% endif %}
         {% if '/auto-generate' not in disabled_nav_items %}
         <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
-          <i class="bi bi-robot nav-icon-cyan"></i><span class="nav-text">Auto Generate</span>
+          <i class="bi bi-robot nav-icon-green"></i><span class="nav-text">Auto Generate</span>
           <span class="badge-live" id="navAutoGenBadge" style="display:none">ON</span>
         </a>
         {% endif %}
@@ -156,22 +156,32 @@
         {% endif %}
         {% if '/heatmap' not in disabled_nav_items %}
         <a href="/heatmap" data-tooltip="Market Heatmap — requires Premium or higher" class="nav-item {% if active == 'heatmap' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap-fill nav-icon-purple"></i><span class="nav-text">Market Heatmap</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+          <i class="bi bi-grid-3x3-gap-fill nav-icon-green"></i><span class="nav-text">Market Heatmap</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+        </a>
+        {% endif %}
+        {% if '/delta-scanner' not in disabled_nav_items %}
+        <a href="/delta-scanner" data-tooltip="Delta Scanner — requires Premium or higher" class="nav-item {% if active == 'delta_scanner' %}active{% endif %}">
+          <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">Delta Scanner</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+        </a>
+        {% endif %}
+        {% if '/delta-bubbles' not in disabled_nav_items %}
+        <a href="/delta-bubbles" data-tooltip="Delta Bubbles — requires Premium or higher" class="nav-item {% if active == 'delta_bubbles' %}active{% endif %}">
+          <i class="bi bi-circle-fill nav-icon-green"></i><span class="nav-text">Delta Bubbles</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/backtesting' not in disabled_nav_items %}
         <a href="/backtesting" data-tooltip="Backtesting — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history nav-icon-blue"></i><span class="nav-text">Backtesting</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
+          <i class="bi bi-clock-history nav-icon-green"></i><span class="nav-text">Backtesting</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/ai-insights' not in disabled_nav_items %}
         <a href="/ai-insights" data-tooltip="AI Insights — requires Premium or higher" class="nav-item {% if active == 'ai' %}active{% endif %}">
-          <i class="bi bi-cpu-fill nav-icon-purple"></i><span class="nav-text">AI Insights</span><span class="badge-pro" id="navAiInsightsGate" title="Requires Premium or higher">PREMIUM</span>
+          <i class="bi bi-cpu-fill nav-icon-green"></i><span class="nav-text">AI Insights</span><span class="badge-pro" id="navAiInsightsGate" title="Requires Premium or higher">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/signals?tab=history' not in disabled_nav_items %}
         <a href="/signals?tab=history" data-tooltip="Signal History — requires Basic or higher" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
-          <i class="bi bi-journal-text nav-icon-cyan"></i><span class="nav-text">Signal History</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-journal-text nav-icon-green"></i><span class="nav-text">Signal History</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -186,7 +196,7 @@
       <div class="nav-group-body">
         {% if '/ta-summary' not in disabled_nav_items %}
         <a href="/ta-summary" data-tooltip="TA Summary — requires Premium or higher" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-          <i class="bi bi-speedometer2 nav-icon-blue"></i><span class="nav-text">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+          <i class="bi bi-speedometer2 nav-icon-cyan"></i><span class="nav-text">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/mtf-analysis' not in disabled_nav_items %}
@@ -196,27 +206,27 @@
         {% endif %}
         {% if '/model-performance' not in disabled_nav_items %}
         <a href="/model-performance" data-tooltip="Model Performance — requires Pro" class="nav-item {% if active == 'model_perf' %}active{% endif %}">
-          <i class="bi bi-bar-chart-steps nav-icon-purple"></i><span class="nav-text">Model Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="3">PRO</span>
+          <i class="bi bi-bar-chart-steps nav-icon-cyan"></i><span class="nav-text">Model Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="3">PRO</span>
         </a>
         {% endif %}
         {% if '/advanced-analysis' not in disabled_nav_items %}
         <a href="/advanced-analysis" data-tooltip="Advanced Analysis — requires Premium or higher" class="nav-item {% if active == 'advanced_analysis' %}active{% endif %}">
-          <i class="bi bi-layers nav-icon-blue"></i><span class="nav-text">Advanced Analysis</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+          <i class="bi bi-layers nav-icon-cyan"></i><span class="nav-text">Advanced Analysis</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/analytics' not in disabled_nav_items %}
         <a href="/analytics" data-tooltip="Analytics — requires Premium or higher" class="nav-item {% if active == 'analytics' %}active{% endif %}">
-          <i class="bi bi-graph-up nav-icon-green"></i><span class="nav-text">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+          <i class="bi bi-graph-up nav-icon-cyan"></i><span class="nav-text">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/news' not in disabled_nav_items %}
         <a href="/news" data-tooltip="Market News" class="nav-item {% if active == 'news' %}active{% endif %}">
-          <i class="bi bi-newspaper nav-icon-yellow"></i><span class="nav-text">Market News</span>
+          <i class="bi bi-newspaper nav-icon-cyan"></i><span class="nav-text">Market News</span>
         </a>
         {% endif %}
         {% if '/economic-calendar' not in disabled_nav_items %}
         <a href="/economic-calendar" data-tooltip="Economic Calendar" class="nav-item {% if active == 'economic_calendar' %}active{% endif %}">
-          <i class="bi bi-calendar-event nav-icon-red"></i><span class="nav-text">Economic Calendar</span>
+          <i class="bi bi-calendar-event nav-icon-cyan"></i><span class="nav-text">Economic Calendar</span>
         </a>
         {% endif %}
       </div>
@@ -236,33 +246,33 @@
         {% endif %}
         {% if '/trading' not in disabled_nav_items %}
         <a href="/trading" data-tooltip="Trading" class="nav-item {% if active == 'trading' %}active{% endif %}">
-          <i class="bi bi-currency-exchange nav-icon-green"></i><span class="nav-text">Trading</span>
+          <i class="bi bi-currency-exchange nav-icon-purple"></i><span class="nav-text">Trading</span>
           <span class="badge-tag" style="font-size:9px">LIVE</span>
         </a>
         {% endif %}
         {% if '/broker-connections' not in disabled_nav_items %}
         <a href="/broker-connections" data-tooltip="Broker Connections — requires Premium or higher" class="nav-item {% if active == 'broker_connections' %}active{% endif %}">
-          <i class="bi bi-link-45deg nav-icon-cyan"></i><span class="nav-text">Broker Connections</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+          <i class="bi bi-link-45deg nav-icon-purple"></i><span class="nav-text">Broker Connections</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/watchlist' not in disabled_nav_items %}
         <a href="/watchlist" data-tooltip="Watchlist" class="nav-item {% if active == 'watchlist' %}active{% endif %}">
-          <i class="bi bi-star-fill nav-icon-yellow"></i><span class="nav-text">Watchlist</span>
+          <i class="bi bi-star-fill nav-icon-purple"></i><span class="nav-text">Watchlist</span>
         </a>
         {% endif %}
         {% if '/risk' not in disabled_nav_items %}
         <a href="/risk" data-tooltip="Risk Manager" class="nav-item {% if active == 'risk' %}active{% endif %}">
-          <i class="bi bi-shield-check nav-icon-red"></i><span class="nav-text">Risk Manager</span>
+          <i class="bi bi-shield-check nav-icon-purple"></i><span class="nav-text">Risk Manager</span>
         </a>
         {% endif %}
         {% if '/performance' not in disabled_nav_items %}
         <a href="/performance" data-tooltip="My Performance — requires Basic or higher" class="nav-item {% if active == 'performance' %}active{% endif %}">
-          <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">My Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-graph-up-arrow nav-icon-purple"></i><span class="nav-text">My Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
         {% if '/journal' not in disabled_nav_items %}
         <a href="/journal" data-tooltip="Trade Journal — requires Basic or higher" class="nav-item {% if active == 'journal' %}active{% endif %}">
-          <i class="bi bi-journal-bookmark-fill nav-icon-blue"></i><span class="nav-text">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+          <i class="bi bi-journal-bookmark-fill nav-icon-purple"></i><span class="nav-text">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>
@@ -277,22 +287,22 @@
         </div>
         <div class="nav-group-body">
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
-            <i class="bi bi-speedometer2 nav-icon-amber"></i><span class="nav-text">Admin Panel</span>
+            <i class="bi bi-speedometer2 nav-icon-red"></i><span class="nav-text">Admin Panel</span>
           </a>
           <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
-            <i class="bi bi-people-fill nav-icon-cyan"></i><span class="nav-text">Users</span>
+            <i class="bi bi-people-fill nav-icon-red"></i><span class="nav-text">Users</span>
           </a>
           <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
-            <i class="bi bi-plug-fill nav-icon-blue"></i><span class="nav-text">API Configs</span>
+            <i class="bi bi-plug-fill nav-icon-red"></i><span class="nav-text">API Configs</span>
           </a>
           <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
-            <i class="bi bi-layers-fill nav-icon-purple"></i><span class="nav-text">Assets</span>
+            <i class="bi bi-layers-fill nav-icon-red"></i><span class="nav-text">Assets</span>
           </a>
           <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
             <i class="bi bi-list-ul nav-icon-red"></i><span class="nav-text">System Logs</span>
           </a>
           <a href="/admin/platform-config" data-tooltip="Platform Configuration" class="nav-item {% if active == 'admin_platform_config' %}active{% endif %}">
-            <i class="bi bi-sliders nav-icon-green"></i><span class="nav-text">Platform Config</span>
+            <i class="bi bi-sliders nav-icon-red"></i><span class="nav-text">Platform Config</span>
           </a>
         </div>
       </div>
@@ -306,12 +316,12 @@
   <div class="sidebar-footer">
     {% if '/help' not in disabled_nav_items %}
     <a href="/help" data-tooltip="Help &amp; FAQ" class="nav-item {% if active == 'help' %}active{% endif %}">
-      <i class="bi bi-question-circle-fill nav-icon-cyan"></i><span class="nav-text">Help &amp; FAQ</span>
+      <i class="bi bi-question-circle-fill nav-icon-red"></i><span class="nav-text">Help &amp; FAQ</span>
     </a>
     {% endif %}
     {% if '/settings' not in disabled_nav_items %}
     <a href="/settings" data-tooltip="Settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
-      <i class="bi bi-gear-fill nav-icon-blue"></i><span class="nav-text">Settings</span>
+      <i class="bi bi-gear-fill nav-icon-red"></i><span class="nav-text">Settings</span>
     </a>
     {% endif %}
     <a href="#" data-tooltip="Logout" class="nav-item" id="logoutBtn">

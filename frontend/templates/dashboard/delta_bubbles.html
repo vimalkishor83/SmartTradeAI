@@ -1,0 +1,55 @@
+{% extends "partials/base.html" %}
+{% block title %}Delta Bubbles — SmartTrade AI{% endblock %}
+{% set active = 'delta_bubbles' %}
+{% block breadcrumb %}<i class="bi bi-circle-fill me-2"></i> Signals & Tools / Delta Bubbles{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-circle-fill text-accent me-2"></i>Delta Bubbles</h1>
+    <p class="page-subtitle mb-0">Delta Exchange India market map — bubble size = trading activity, color = direction, grouped by coin category</p>
+  </div>
+  <div class="dash-header-actions">
+    <span class="text-muted small me-2" id="bubbleMeta"></span>
+    <button class="btn btn-sm btn-outline-secondary px-3 me-2" id="tableViewBtn"><i class="bi bi-table me-1"></i>Table View</button>
+    <button class="btn btn-sm px-3 btn-generate" id="refreshBubblesBtn"><i class="bi bi-arrow-repeat me-1"></i>Refresh</button>
+  </div>
+</div>
+
+<div class="section-card mb-3">
+  <div class="section-card-body py-2">
+    <div class="d-flex flex-wrap gap-2" id="bubbleTypeTabs">
+      <button class="scan-chip c-blue active" data-group="major">Major</button>
+      <button class="scan-chip c-blue" data-group="midcap">Mid-cap</button>
+      <button class="scan-chip c-blue" data-group="altcoin">Altcoin</button>
+      <button class="scan-chip c-blue" data-group="metals">Metals</button>
+      <button class="scan-chip c-blue" data-group="options">Options</button>
+    </div>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title" id="bubbleSectionTitle"><i class="bi bi-circle-fill text-accent me-1"></i>Major</span>
+    <div class="bubble-legend" id="bubbleLegend" style="display:none">
+      <span class="bubble-legend-label pos"><span class="bubble-legend-dot" style="background:var(--green)"></span><span id="legendPos">Up</span></span>
+      <span class="bubble-legend-label neg"><span class="bubble-legend-dot" style="background:var(--red)"></span><span id="legendNeg">Down</span></span>
+    </div>
+  </div>
+  <div class="section-card-body">
+    <div id="bubbleCanvas" class="bubble-canvas">
+      <div class="text-center text-muted py-5 w-100"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:24px"></i>Loading…</div>
+    </div>
+    <div id="bubbleTableWrap" class="table-responsive" style="display:none">
+      <table class="smart-table signals-table-adv">
+        <thead><tr><th>Symbol</th><th>Price</th><th id="thColor">24h Change %</th><th id="thSize">24h Turnover (USD)</th></tr></thead>
+        <tbody id="bubbleTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/js/pages/delta_bubbles.js"></script>
+{% endblock %}

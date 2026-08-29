@@ -180,10 +180,16 @@
 
 {% block extra_js %}
 <script>
-const TA_TFS    = ['5m','15m','30m','1h','2h','4h','1d'];
-const AI_TFS    = ['5m','15m','1h','4h','1d'];
-const EMA_TFS   = TA_TFS;                                   // same ladder used by the EMA 9/21 MTF grid
-const HIGHER_TF_LABEL = {'5m':'15m','15m':'30m','30m':'1h','1h':'2h','2h':'4h','4h':'1d','1d':null};
+// Defaults match the backend's own fallback (see get_ta_timeframes() /
+// _AI_SUMMARY_SUBSET in market_data.py) — only used until the first API
+// response arrives and overwrites these with whatever Platform Config
+// (admin-managed, /admin/platform-config) actually resolves to server-side.
+// These are `let`, not `const`, specifically so each load*() function below
+// can reassign them from that response's own `timeframes` field.
+let TA_TFS    = ['5m','15m','30m','1h','2h','4h','1d'];
+let AI_TFS    = ['5m','15m','1h','4h','1d'];
+let EMA_TFS   = TA_TFS;
+let HIGHER_TF_LABEL = {'5m':'15m','15m':'30m','30m':'1h','1h':'2h','2h':'4h','4h':'1d','1d':null};
 let _data       = [];
 let _aiData     = [];
 let _emaData    = [];
@@ -233,11 +239,30 @@ function overallRating(tf_obj) {
   }
   if (!wTotal) return null;
   const score = wSum / wTotal;
-  if (score >= 0.6)  return {rating:'Strong Buy',  cls:'ta-strong-buy'};
-  if (score >= 0.2)  return {rating:'Buy',          cls:'ta-buy'};
-  if (score <= -0.6) return {rating:'Strong Sell',  cls:'ta-strong-sell'};
-  if (score <= -0.2) return {rating:'Sell',         cls:'ta-sell'};
-  return {rating:'Neutral', cls:'ta-neutral'};
+  if (score >= 0.6)  return {rating:'Strong Buy',  cls:'ta-strong-buy',  score};
+  if (score >= 0.2)  return {rating:'Buy',          cls:'ta-buy',         score};
+  if (score <= -0.6) return {rating:'Strong Sell',  cls:'ta-strong-sell', score};
+  if (score <= -0.2) return {rating:'Sell',         cls:'ta-sell',        score};
+  return {rating:'Neutral', cls:'ta-neutral', score};
+}
+
+// Buy-leaning rows first (highest score to lowest), then Sell-leaning
+// (most negative last), Neutral/no-data pinned to the very end — same
+// "long high-to-low, then short high-to-low" ordering used on the
+// Terminal card grid and MTF Analysis matrix, applied to these ranking
+// tables' rows.
+function _rankGroup(overall) {
+  if (!overall) return 2;
+  return overall.score >= 0.2 ? 0 : overall.score <= -0.2 ? 1 : 2;
+}
+function _sortAssetsByRating(assets, overallFn) {
+  return assets.slice().sort((a, b) => {
+    const oa = overallFn(a), ob = overallFn(b);
+    const ga = _rankGroup(oa), gb = _rankGroup(ob);
+    if (ga !== gb) return ga - gb;
+    if (ga === 2) return 0;
+    return ga === 0 ? (ob?.score ?? 0) - (oa?.score ?? 0) : (oa?.score ?? 0) - (ob?.score ?? 0);
+  });
 }
 
 const MKT_LABEL = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
@@ -252,7 +277,11 @@ function renderRatings() {
   const wrap = document.getElementById('ratingsWrap');
   if (!_data.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; _raRenderedAssetIds = null; return; }
 
-  const currentIds = _data.map(a => a.id).join(',');
+  // Timeframe list is part of the cache key, not just asset IDs — an admin
+  // editing Platform Config's timeframe list mid-session (or on the next
+  // load) must force a full table rebuild (new columns), not just a
+  // same-shape cell-content patch.
+  const currentIds = _data.map(a => a.id).join(',') + '|' + TA_TFS.join(',');
   if (currentIds === _raRenderedAssetIds && wrap.querySelector('table')) {
     _updateRatingCellContents();
     return;
@@ -271,7 +300,7 @@ function renderRatings() {
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
     html += `<tr class="asset-row-header"><td colspan="${TA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
-    assets.forEach(a => {
+    _sortAssetsByRating(assets, a => overallRating(a.tf)).forEach(a => {
       const overall = overallRating(a.tf);
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
@@ -434,6 +463,7 @@ async function loadData(showSpinner = true) {
     clearInterval(barTimer);
     if (!data?.assets) return;
     _data = data.assets;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
     renderBoth();
     const elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
     document.getElementById('lastUpdated').textContent = `Updated (${elapsed}s)`;
@@ -442,6 +472,7 @@ async function loadData(showSpinner = true) {
     const data = await API.get('/market-data/ta-summary', { market });
     if (!data?.assets) return;
     _data = data.assets;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
     renderBoth();
   }
 }
@@ -478,9 +509,11 @@ function aiOverall(tf_obj) {
   const bullScore = bullW / total;
   const bearScore = bearW / total;
   const conf = Math.round(Math.max(bullScore, bearScore) * 100);
-  if (bullScore > bearScore + 0.1) return { dir: 'BULLISH', cls: 'ai-bull', conf };
-  if (bearScore > bullScore + 0.1) return { dir: 'BEARISH', cls: 'ai-bear', conf };
-  return { dir: 'NEUTRAL', cls: 'ai-neut', conf };
+  // score signed like overallRating()'s -1..+1 so the same _sortAssetsByRating
+  // helper (positive = long/bullish, negative = short/bearish) works here too.
+  if (bullScore > bearScore + 0.1) return { dir: 'BULLISH', cls: 'ai-bull', conf, score: bullScore };
+  if (bearScore > bullScore + 0.1) return { dir: 'BEARISH', cls: 'ai-bear', conf, score: -bearScore };
+  return { dir: 'NEUTRAL', cls: 'ai-neut', conf, score: 0 };
 }
 
 // Same pattern as EMA MTF tab's _emaRenderedAssetIds — the periodic 120s
@@ -494,7 +527,7 @@ function renderAiRatings() {
   const wrap = document.getElementById('aiRatingsWrap');
   if (!_aiData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No predictions available</div>'; _aiRenderedAssetIds = null; return; }
 
-  const currentIds = _aiData.map(a => a.id).join(',');
+  const currentIds = _aiData.map(a => a.id).join(',') + '|' + AI_TFS.join(',');
   if (currentIds === _aiRenderedAssetIds && wrap.querySelector('table')) {
     _updateAiCellContents();
     return;
@@ -514,7 +547,7 @@ function renderAiRatings() {
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
     html += `<tr class="asset-row-header"><td colspan="${AI_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
-    assets.forEach(a => {
+    _sortAssetsByRating(assets, a => aiOverall(a.tf)).forEach(a => {
       const overall = aiOverall(a.tf);
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
@@ -587,6 +620,7 @@ async function loadAiData(showSpinner = true) {
     if (!data?.assets) return;
     _aiData   = data.assets;
     _aiLoaded = true;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
     renderAiRatings();
     const elapsed = ((Date.now() - _aiLoadStart) / 1000).toFixed(1);
     document.getElementById('aiLastUpdated').textContent = `Updated (${elapsed}s)`;
@@ -594,6 +628,7 @@ async function loadAiData(showSpinner = true) {
     const data = await API.get('/market-data/ai-summary', { market });
     if (!data?.assets) return;
     _aiData = data.assets;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
     if (_currentTab === 'ai') renderAiRatings();
   }
 }
@@ -628,7 +663,7 @@ function renderEmaRatings() {
   const wrap = document.getElementById('emaRatingsWrap');
   if (!_emaData.length) { wrap.innerHTML = '<div class="text-center py-5 text-muted">No data</div>'; _emaRenderedAssetIds = null; return; }
 
-  const currentIds = _emaData.map(a => a.id).join(',');
+  const currentIds = _emaData.map(a => a.id).join(',') + '|' + EMA_TFS.join(',');
   if (currentIds === _emaRenderedAssetIds && wrap.querySelector('table')) {
     _updateEmaCellContents();
     return;
@@ -654,7 +689,7 @@ function renderEmaRatings() {
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
     html += `<tr class="asset-row-header"><td colspan="${EMA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
-    assets.forEach(a => {
+    _sortAssetsByRating(assets, a => overallRating(a.tf)).forEach(a => {
       const overall = overallRating(a.tf);   // same -1..1 score convention as Technical Ratings
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
@@ -733,6 +768,8 @@ async function loadEmaData(showSpinner = true) {
     if (!data?.assets) return;
     _emaData   = data.assets;
     _emaLoaded = true;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
+    if (data.higher_tf_map) HIGHER_TF_LABEL = data.higher_tf_map;
     renderEmaRatings();
     const elapsed = ((Date.now() - _emaLoadStart) / 1000).toFixed(1);
     document.getElementById('emaLastUpdated').textContent =
@@ -741,6 +778,8 @@ async function loadEmaData(showSpinner = true) {
     const data = await API.get(_emaEndpoint(), _emaParams());
     if (!data?.assets) return;
     _emaData = data.assets;
+    if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
+    if (data.higher_tf_map) HIGHER_TF_LABEL = data.higher_tf_map;
     if (_currentTab === 'ema') renderEmaRatings();
   }
 }

@@ -28,7 +28,7 @@ class PortfolioItem(db.Model):
     __tablename__ = "portfolio_items"
 
     id = db.Column(db.Integer, primary_key=True)
-    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolios.id"), nullable=False)
+    portfolio_id = db.Column(db.Integer, db.ForeignKey("portfolios.id"), nullable=False, index=True)
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False)
     quantity = db.Column(db.Float, nullable=False)
     buy_price = db.Column(db.Float, nullable=False)
@@ -76,6 +76,8 @@ class PortfolioItem(db.Model):
             "current_price": self.current_price,
             "current_value": self.current_value,
             "invested_value": self.invested_value,
+            "stop_loss": self.stop_loss,
+            "target": self.target,
             "pnl": self.pnl,
             "pnl_pct": round(self.pnl_pct, 2),
             "holding_days": self.holding_days,

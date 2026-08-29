@@ -35,6 +35,9 @@ class Signal(db.Model):
     indicators = db.Column(db.JSON, default=dict)
     patterns = db.Column(db.JSON, default=list)
     reasoning = db.Column(db.Text)
+    # [{text, lean, aligned}] — which scored factors actually supported the
+    # final direction vs. were outweighed (see SignalEngine._labeled_reasons).
+    reasoning_detail = db.Column(db.JSON, default=list)
 
     # Market regime at generation time (trend × volatility), e.g. "uptrend_normal"
     regime = db.Column(db.String(30))
@@ -115,6 +118,7 @@ class Signal(db.Model):
             "pnl_pct": self.pnl_pct,
             "patterns": self.patterns,
             "reasoning": self.reasoning,
+            "reasoning_detail": self.reasoning_detail,
             "regime": self.regime,
             "lane_verdicts": self.lane_verdicts,
             "invalidation_conditions": self.invalidation_conditions,

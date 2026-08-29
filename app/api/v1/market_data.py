@@ -24,16 +24,27 @@ def get_ohlcv(asset_id):
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503
 
-    records = []
-    for ts, row in df.iterrows():
-        records.append({
-            "t": int(ts.timestamp() * 1000) if hasattr(ts, "timestamp") else str(ts),
-            "o": round(float(row["open"]), 6),
-            "h": round(float(row["high"]), 6),
-            "l": round(float(row["low"]), 6),
-            "c": round(float(row["close"]), 6),
-            "v": round(float(row.get("volume", 0)), 2),
-        })
+    # Vectorized instead of a per-row Python loop (df.iterrows(), which
+    # materializes a Series per row) — this is the backing endpoint for every
+    # chart load and timeframe switch, hit far more often than most endpoints
+    # in this file. Every fetcher (Binance/Delta/Yahoo) returns a
+    # DatetimeIndex, so .asi8 (integer nanoseconds since epoch) converts the
+    # whole index in one pass; the isinstance check is a defensive fallback
+    # in case a future data source doesn't set one.
+    if isinstance(df.index, pd.DatetimeIndex):
+        timestamps_ms = (df.index.asi8 // 1_000_000).tolist()
+    else:
+        timestamps_ms = [int(ts.timestamp() * 1000) if hasattr(ts, "timestamp") else str(ts) for ts in df.index]
+
+    volume = df["volume"] if "volume" in df.columns else pd.Series(0.0, index=df.index)
+    records = pd.DataFrame({
+        "t": timestamps_ms,
+        "o": df["open"].astype(float).round(6),
+        "h": df["high"].astype(float).round(6),
+        "l": df["low"].astype(float).round(6),
+        "c": df["close"].astype(float).round(6),
+        "v": volume.astype(float).fillna(0).round(2),
+    }).to_dict(orient="records")
 
     return jsonify({"symbol": asset.symbol, "timeframe": timeframe, "data": records}), 200
 
@@ -90,7 +101,8 @@ def ta_summary():
 
     # ── Cold path: compute on-demand (first boot before scheduler runs) ──
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-    tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+    from app.services.indicators.ema_mtf import get_ta_timeframes
+    tfs = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
@@ -239,10 +251,11 @@ def ema_summary():
     exact rules; each cell carries the raw EMA9/EMA21/close numbers used."""
     from app.auth.decorators import get_current_user
     from app.models.user import UserAssetPreference
-    from app.services.indicators.ema_mtf import TA_TIMEFRAMES, HIGHER_TF_MAP, compute_ema921_cell
+    from app.services.indicators.ema_mtf import get_ta_timeframes, get_higher_tf_map, compute_ema921_cell
 
     user   = get_current_user()
     market = request.args.get("market") or "all"
+    higher_tf_map = get_higher_tf_map()
 
     # ── Serve from pre-warmed global cache (near-instant) ────────
     global_cache = cache.get("ema_summary_all")
@@ -257,12 +270,12 @@ def ema_summary():
         return jsonify({
             "assets": assets,
             "timeframes": global_cache["timeframes"],
-            "higher_tf_map": HIGHER_TF_MAP,
+            "higher_tf_map": higher_tf_map,
         }), 200
 
     # ── Cold path: compute on-demand (first boot before scheduler runs) ──
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-    tfs = TA_TIMEFRAMES
+    tfs = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
@@ -289,9 +302,11 @@ def ema_summary():
         read_cache: dict = {}
         for tf in tfs:
             try:
-                higher_tf = HIGHER_TF_MAP.get(tf)
+                higher_tf = higher_tf_map.get(tf)
                 higher_df = dfs.get(higher_tf) if higher_tf else None
-                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, _read_cache=read_cache).to_dict()
+                row["tf"][tf] = compute_ema921_cell(
+                    dfs.get(tf), tf, higher_df, _read_cache=read_cache, _higher_tf_map=higher_tf_map,
+                ).to_dict()
             except Exception:
                 row["tf"][tf] = None
         return row
@@ -305,7 +320,7 @@ def ema_summary():
     # key, but this cold-path re-cache had never received the TTL fix and
     # was still using 150s, shorter than the prewarm interval.
     cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
-    return jsonify({"assets": result, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP}), 200
+    return jsonify({"assets": result, "timeframes": tfs, "higher_tf_map": higher_tf_map}), 200
 
 
 #: Cap on how far back a single request may scrub, per timeframe's own bars.
@@ -324,10 +339,11 @@ def ema_summary_history():
     see app/services/indicators/ema_mtf.py)."""
     from app.auth.decorators import get_current_user
     from app.models.user import UserAssetPreference
-    from app.services.indicators.ema_mtf import TA_TIMEFRAMES, HIGHER_TF_MAP, compute_ema921_cell
+    from app.services.indicators.ema_mtf import get_ta_timeframes, get_higher_tf_map, compute_ema921_cell
 
     user = get_current_user()
     market = request.args.get("market") or "all"
+    higher_tf_map = get_higher_tf_map()
     try:
         bars_back = int(request.args.get("bars_back", 0))
     except (TypeError, ValueError):
@@ -358,10 +374,10 @@ def ema_summary_history():
             assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
         return jsonify({
             "assets": assets_out, "timeframes": global_cache["timeframes"],
-            "higher_tf_map": HIGHER_TF_MAP, "bars_back": bars_back,
+            "higher_tf_map": higher_tf_map, "bars_back": bars_back,
         }), 200
 
-    tfs = TA_TIMEFRAMES
+    tfs = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
@@ -384,9 +400,11 @@ def ema_summary_history():
         read_cache: dict = {}  # shared per-asset across the 7 tf columns — see ema_summary() above
         for tf in tfs:
             try:
-                higher_tf = HIGHER_TF_MAP.get(tf)
+                higher_tf = higher_tf_map.get(tf)
                 higher_df = dfs.get(higher_tf) if higher_tf else None
-                row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, bars_back, _read_cache=read_cache).to_dict()
+                row["tf"][tf] = compute_ema921_cell(
+                    dfs.get(tf), tf, higher_df, bars_back, _read_cache=read_cache, _higher_tf_map=higher_tf_map,
+                ).to_dict()
             except Exception:
                 row["tf"][tf] = None
         return row
@@ -404,7 +422,7 @@ def ema_summary_history():
     result_out = [r for r in result if prefs.get(r["id"], True)] if prefs else result
 
     return jsonify({
-        "assets": result_out, "timeframes": tfs, "higher_tf_map": HIGHER_TF_MAP,
+        "assets": result_out, "timeframes": tfs, "higher_tf_map": higher_tf_map,
         "bars_back": bars_back,
     }), 200
 
@@ -436,7 +454,13 @@ def ai_summary():
             assets = [a for a in assets if prefs.get(a["id"], True)]
         return jsonify({"assets": assets, "timeframes": global_ai["timeframes"]}), 200
 
-    tfs      = ["5m", "15m", "1h", "4h", "1d"]
+    # AI Ratings intentionally skips 30m/2h even when Platform Config includes
+    # them — each timeframe column costs one model inference per asset, and
+    # this 5-timeframe subset was the deliberate compute-cost boundary.
+    _AI_SUMMARY_SUBSET = ["5m", "15m", "1h", "4h", "1d"]
+    from app.services.platform_config import get_display_timeframes
+    _configured = [tf for tf in get_display_timeframes() if tf in _AI_SUMMARY_SUBSET]
+    tfs      = _configured or _AI_SUMMARY_SUBSET
     prefs    = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
     asset_q  = Asset.query.filter_by(is_active=True)
     if market != "all":
@@ -717,41 +741,53 @@ def _compute_liquidity(highs, lows, timestamps):
 
 
 def _compute_fvg(opens, highs, lows, closes, timestamps):
-    fvgs = []
+    # Detect every gap candidate WITHOUT the "filled" scan first (cheap, O(n)
+    # single pass), THEN compute "filled" only for the last 10 survivors —
+    # only 10 of these ever reach the response (return fvgs[-10:] below), so
+    # running the O(n) any(...) "filled" scan for every candidate found (up
+    # to ~500 on a full request) was doing that expensive check for
+    # candidates guaranteed to be discarded. Same gaps, same filled values —
+    # just deferred to after truncation.
+    candidates = []
     for i in range(1, len(highs) - 1):
         if lows[i - 1] > highs[i + 1]:
-            top    = float(lows[i - 1])
-            bottom = float(highs[i + 1])
-            filled = any(highs[k] >= top for k in range(i + 2, len(highs)))
-            fvgs.append({"type": "bearish", "top": round(top, 6), "bottom": round(bottom, 6),
-                         "time": int(timestamps[i]), "filled": filled})
+            candidates.append(("bearish", float(lows[i - 1]), float(highs[i + 1]), i))
         elif highs[i - 1] < lows[i + 1]:
-            top    = float(lows[i + 1])
-            bottom = float(highs[i - 1])
+            candidates.append(("bullish", float(lows[i + 1]), float(highs[i - 1]), i))
+
+    fvgs = []
+    for kind, top, bottom, i in candidates[-10:]:
+        if kind == "bearish":
+            filled = any(highs[k] >= top for k in range(i + 2, len(highs)))
+        else:
             filled = any(lows[k] <= bottom for k in range(i + 2, len(lows)))
-            fvgs.append({"type": "bullish", "top": round(top, 6), "bottom": round(bottom, 6),
-                         "time": int(timestamps[i]), "filled": filled})
-    return fvgs[-10:]
+        fvgs.append({"type": kind, "top": round(top, 6), "bottom": round(bottom, 6),
+                     "time": int(timestamps[i]), "filled": filled})
+    return fvgs
 
 
 def _compute_order_blocks(opens, highs, lows, closes, timestamps):
-    obs = []
+    # Same deferred-check restructuring as _compute_fvg: find every candidate
+    # cheaply first, then only run the O(n) "broken" scan for the last 8 that
+    # actually reach the response (return obs[-8:] below).
     threshold = 0.005
+    candidates = []
     for i in range(1, len(closes) - 1):
         move = (closes[i + 1] - closes[i]) / closes[i] if closes[i] else 0
         if move > threshold and closes[i] < opens[i]:
-            top    = float(opens[i])
-            bottom = float(closes[i])
-            broken = any(lows[k] < bottom for k in range(i + 1, len(lows)))
-            obs.append({"type": "bullish", "top": round(top, 6), "bottom": round(bottom, 6),
-                        "time": int(timestamps[i]), "broken": broken})
+            candidates.append(("bullish", float(opens[i]), float(closes[i]), i))
         elif move < -threshold and closes[i] > opens[i]:
-            top    = float(closes[i])
-            bottom = float(opens[i])
+            candidates.append(("bearish", float(closes[i]), float(opens[i]), i))
+
+    obs = []
+    for kind, top, bottom, i in candidates[-8:]:
+        if kind == "bullish":
+            broken = any(lows[k] < bottom for k in range(i + 1, len(lows)))
+        else:
             broken = any(highs[k] > top for k in range(i + 1, len(highs)))
-            obs.append({"type": "bearish", "top": round(top, 6), "bottom": round(bottom, 6),
-                        "time": int(timestamps[i]), "broken": broken})
-    return obs[-8:]
+        obs.append({"type": kind, "top": round(top, 6), "bottom": round(bottom, 6),
+                    "time": int(timestamps[i]), "broken": broken})
+    return obs
 
 
 def _compute_market_structure(highs, lows, timestamps):
@@ -880,6 +916,17 @@ def get_advanced(asset_id):
     asset     = Asset.query.get_or_404(asset_id)
     timeframe = request.args.get("timeframe", "1h")
 
+    # This is the only per-timeframe analysis grid in this file with no
+    # caching at all (contrast ta_summary/ema_summary/ai_summary/heatmap,
+    # all cached below). It's user-triggered (Analyze button / timeframe
+    # switch), not polled, but a short TTL still avoids redoing the SMC
+    # pattern detection (FVG/order blocks/liquidity/market structure) when a
+    # user switches back to a timeframe they already viewed moments ago.
+    cache_key = f"market_advanced_{asset_id}_{timeframe}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached), 200
+
     df = market_fetcher.fetch(asset, timeframe, 500)
     if df is None or len(df) < 10:
         return jsonify({"error": "Insufficient data"}), 503
@@ -889,12 +936,13 @@ def get_advanced(asset_id):
     lows       = df["low"].astype(float).values.tolist()
     closes     = df["close"].astype(float).values.tolist()
     volumes    = df["volume"].astype(float).values.tolist() if "volume" in df.columns else [0.0] * len(df)
-    timestamps = []
-    for ts in df.index:
-        try:
-            timestamps.append(int(ts.timestamp() * 1000))
-        except Exception:
-            timestamps.append(0)
+    # Vectorized instead of a per-row Python loop — every fetcher
+    # (Binance/Delta/Yahoo) returns a DatetimeIndex, so .asi8 (integer
+    # nanoseconds since epoch) converts the whole index in one pass.
+    if isinstance(df.index, pd.DatetimeIndex):
+        timestamps = (df.index.asi8 // 1_000_000).tolist()
+    else:
+        timestamps = [int(ts.timestamp() * 1000) if hasattr(ts, "timestamp") else 0 for ts in df.index]
 
     def safe(fn, fallback):
         try:
@@ -902,7 +950,7 @@ def get_advanced(asset_id):
         except Exception:
             return fallback
 
-    return jsonify({
+    payload = {
         "symbol":           asset.symbol,
         "timeframe":        timeframe,
         "fib":              safe(lambda: _compute_fibonacci(highs, lows), {}),
@@ -913,5 +961,7 @@ def get_advanced(asset_id):
         "trend_lines":      safe(lambda: _compute_trend_lines(highs, lows, timestamps), []),
         "vwap":             safe(lambda: _compute_vwap(opens, highs, lows, closes, volumes, timestamps), []),
         "volume_profile":   safe(lambda: _compute_volume_profile(highs, lows, closes, volumes), []),
-    }), 200
+    }
+    cache.set(cache_key, payload, timeout=120)
+    return jsonify(payload), 200
 

@@ -73,7 +73,25 @@ class _CircuitBreaker:
     """
     Open (block) after `failure_threshold` consecutive failures.
     Half-open (allow one probe) after `recovery_timeout` seconds.
+
+    State is local-first with a SHARED Redis overlay. Purely local state was
+    correct for a single process, but with N web replicas each process kept its
+    own failure count: one replica could have tripped and stopped calling a
+    dead upstream while the others carried on hammering it, so the breaker gave
+    roughly 1/N of its intended protection and each provider saw N× the
+    retry load during an outage.
+
+    Design constraints this respects:
+      * No Redis configured (SimpleCache / single-process LAN deploy) -> behaves
+        exactly as before, purely local, no network calls.
+      * Redis unreachable -> fails OPEN (requests allowed). A broken cache must
+        degrade fetching to "unprotected", never to "everything blocked".
+      * The shared lookup is throttled (_SHARED_POLL_SECONDS) so this stays off
+        the per-fetch hot path; the cost is a few seconds of propagation delay
+        between processes, which is immaterial against a 120s recovery window.
     """
+    _SHARED_POLL_SECONDS = 5.0
+
     def __init__(self, name: str, failure_threshold: int = 5, recovery_timeout: int = 120):
         self._name             = name
         self._threshold        = failure_threshold
@@ -81,26 +99,90 @@ class _CircuitBreaker:
         self._failures         = 0
         self._opened_at: float = 0.0
         self._lock             = threading.Lock()
+        # Memoized view of the shared "is open" flag: (value, fetched_at)
+        self._shared_open      = False
+        self._shared_checked_at: float = 0.0
+
+    @property
+    def _shared_key(self) -> str:
+        return f"circuit_breaker_open_{self._name}"
+
+    def _shared_state(self):
+        """Return the cross-process open flag, or None when unavailable.
+
+        None means "no shared view" (no app context, cache not Redis-backed, or
+        Redis erroring) and callers treat it as no opinion rather than as closed.
+        """
+        try:
+            from flask import has_app_context, current_app
+            if not has_app_context():
+                return None
+            if current_app.config.get("CACHE_TYPE") != "RedisCache":
+                return None
+            from app.extensions import cache
+            return bool(cache.get(self._shared_key))
+        except Exception:
+            # Redis down / cache misconfigured — fail open.
+            return None
+
+    def _publish_open(self):
+        try:
+            from flask import has_app_context, current_app
+            if not has_app_context() or current_app.config.get("CACHE_TYPE") != "RedisCache":
+                return
+            from app.extensions import cache
+            # TTL does the half-open transition for us: once it expires, other
+            # processes stop seeing the breaker as open and a probe is allowed.
+            cache.set(self._shared_key, "1", timeout=self._recovery_timeout)
+        except Exception:
+            pass
+
+    def _publish_closed(self):
+        try:
+            from flask import has_app_context, current_app
+            if not has_app_context() or current_app.config.get("CACHE_TYPE") != "RedisCache":
+                return
+            from app.extensions import cache
+            cache.delete(self._shared_key)
+        except Exception:
+            pass
 
     def allow(self) -> bool:
         with self._lock:
-            if self._failures < self._threshold:
-                return True
-            if time.time() - self._opened_at >= self._recovery_timeout:
-                self._failures = 0   # reset — probe allowed
-                return True
-            return False
+            local_open = self._failures >= self._threshold
+            if local_open and time.time() - self._opened_at < self._recovery_timeout:
+                return False
+            if local_open:
+                self._failures = 0   # local recovery window elapsed — probe allowed
+
+            now = time.time()
+            if now - self._shared_checked_at >= self._SHARED_POLL_SECONDS:
+                shared = self._shared_state()
+                self._shared_checked_at = now
+                # None (no shared view) must not latch a stale True.
+                self._shared_open = bool(shared) if shared is not None else False
+
+            return not self._shared_open
 
     def success(self):
         with self._lock:
+            was_open = self._failures >= self._threshold
             self._failures = 0
+            self._shared_open = False
+            self._shared_checked_at = 0.0  # re-read promptly rather than trusting the memo
+        if was_open:
+            # Clear the shared flag outside the lock — this touches the network.
+            self._publish_closed()
 
     def failure(self):
         with self._lock:
             self._failures += 1
-            if self._failures >= self._threshold:
+            tripped = self._failures >= self._threshold
+            if tripped:
                 self._opened_at = time.time()
                 logger.warning(f"Circuit breaker OPEN for {self._name} after {self._failures} failures")
+        if tripped:
+            self._publish_open()
 
 
 _breaker_binance = _CircuitBreaker("binance")
@@ -216,7 +298,68 @@ class _OHLCVCache:
                 # of µs — <1% of the ~15ms TA-summary read and orders of
                 # magnitude below the network round-trip this cache replaces.
                 return entry[0].copy()
+
+        # Local miss — consult the shared (Redis) tier before going to the
+        # network. This is what lets the single worker process's prewarm jobs
+        # warm the cache for EVERY web replica: without it each replica had its
+        # own dict and had to refetch the same candles independently,
+        # multiplying upstream API load by the replica count and letting two
+        # replicas serve contradictory data for the same asset.
+        shared = self._shared_get(key, min_rows)
+        if shared is not None:
+            with self._lock:
+                self._store[key] = (shared, time.time())
+            return shared.copy()
         return None
+
+    # ---- shared (cross-process) tier -------------------------------------
+    # All of these degrade to a no-op when there is no app context or the
+    # deployment isn't Redis-backed, so single-process/LAN deployments keep
+    # the exact in-memory behaviour they had before.
+
+    @staticmethod
+    def _shared_key(key: str) -> str:
+        return f"ohlcv_{key}"
+
+    def _shared_enabled(self):
+        try:
+            from flask import has_app_context, current_app
+            if not has_app_context():
+                return None
+            if current_app.config.get("CACHE_TYPE") != "RedisCache":
+                return None
+            from app.extensions import cache
+            return cache
+        except Exception:
+            return None
+
+    def _shared_get(self, key: str, min_rows: int) -> pd.DataFrame | None:
+        cache = self._shared_enabled()
+        if cache is None:
+            return None
+        try:
+            df = cache.get(self._shared_key(key))
+        except Exception:
+            # Redis unreachable — treat as a miss and fall through to network.
+            return None
+        if df is None or not isinstance(df, pd.DataFrame):
+            return None
+        # The same short-frame guard the local tier applies: a 200-bar entry
+        # must not satisfy a caller that needs 1000 bars.
+        if len(df) < min_rows:
+            return None
+        return df
+
+    def _shared_set(self, key: str, df: pd.DataFrame):
+        cache = self._shared_enabled()
+        if cache is None:
+            return
+        try:
+            ttl = self._TTL.get(key.rsplit("_", 1)[-1], 180)
+            cache.set(self._shared_key(key), df, timeout=ttl)
+        except Exception:
+            # Never let a cache-write failure break a successful fetch.
+            pass
 
     def set(self, key: str, df: pd.DataFrame):
         # No copy here: every caller builds a fresh frame it no longer touches
@@ -224,6 +367,10 @@ class _OHLCVCache:
         # private to the cache. Isolation is enforced on the read side (get).
         with self._lock:
             self._store[key] = (df, time.time())
+        # Publish to the shared tier too, so a fetch performed by the worker
+        # (or by whichever replica happened to serve this request) saves every
+        # OTHER process the same upstream call.
+        self._shared_set(key, df)
 
     def clear(self):
         with self._lock:
@@ -250,11 +397,54 @@ class _TickerCache:
             entry = self._store.get(key)
             if entry and time.time() - entry[1] < self._TTL:
                 return entry[0]
-        return None
+        # Fall through to the shared tier so replicas collapse duplicate
+        # ticker calls against the upstream too, not just calls originating
+        # inside one process.
+        shared = self._shared_get(key)
+        if shared is not None:
+            with self._lock:
+                self._store[key] = (shared, time.time())
+        return shared
 
     def set(self, key: str, value: dict):
         with self._lock:
             self._store[key] = (value, time.time())
+        self._shared_set(key, value)
+
+    # ---- shared (cross-process) tier; no-ops without Redis ----------------
+
+    @staticmethod
+    def _shared_key(key: str) -> str:
+        return f"ticker_{key}"
+
+    def _shared_cache(self):
+        try:
+            from flask import has_app_context, current_app
+            if not has_app_context() or current_app.config.get("CACHE_TYPE") != "RedisCache":
+                return None
+            from app.extensions import cache
+            return cache
+        except Exception:
+            return None
+
+    def _shared_get(self, key: str) -> dict | None:
+        cache = self._shared_cache()
+        if cache is None:
+            return None
+        try:
+            value = cache.get(self._shared_key(key))
+            return value if isinstance(value, dict) else None
+        except Exception:
+            return None
+
+    def _shared_set(self, key: str, value: dict):
+        cache = self._shared_cache()
+        if cache is None:
+            return
+        try:
+            cache.set(self._shared_key(key), value, timeout=self._TTL)
+        except Exception:
+            pass
 
 
 _ticker_cache = _TickerCache()

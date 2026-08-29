@@ -20,6 +20,26 @@ def create_app(config_class=None):
     cfg = config_class or get_config()
     app.config.from_object(cfg)
 
+    # Every supported deployment puts a reverse proxy in front of this app
+    # (Docker/gunicorn, or IIS+ARR per deploy/README.md). Without ProxyFix,
+    # request.remote_addr is the *proxy's* address for every request, so
+    # Flask-Limiter keys all clients to one bucket (rate limits become
+    # effectively global rather than per-IP) and every AuditLog row records
+    # the proxy IP — making the login/brute-force audit trail useless.
+    # TRUSTED_PROXY_COUNT is how many proxies sit in front; only trust as many
+    # hops as you actually run, since a client can forge extra
+    # X-Forwarded-For entries beyond the ones your own proxies append.
+    proxy_hops = int(os.environ.get("TRUSTED_PROXY_COUNT", "1"))
+    if proxy_hops > 0:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=proxy_hops,
+            x_proto=proxy_hops,
+            x_host=proxy_hops,
+            x_prefix=proxy_hops,
+        )
+
     _init_error_tracking(app)
     _init_extensions(app)
     configure_sqlite_concurrency(app)
@@ -94,15 +114,21 @@ def _register_asset_versioning(app):
 
 
 def _register_platform_config(app):
-    """Injects `disabled_nav_items` into every template that extends
-    base.html, so the sidebar/command-palette can hide admin-disabled pages
-    without a per-page DB query — reads through the cache-backed
-    get_platform_config() helper, same cost class as asset_version() above."""
+    """Injects `disabled_nav_items` and `display_timeframes` into every
+    template that extends base.html — nav visibility and the canonical
+    admin-managed timeframe list, both read through the cache-backed
+    get_platform_config()/get_display_timeframes() helpers (same cost class
+    as asset_version() above), so pages like Terminal that render their
+    timeframe row as static HTML at request time don't need their own
+    per-view DB/cache lookup."""
     @app.context_processor
     def _inject_platform_config():
-        from app.services.platform_config import get_platform_config
+        from app.services.platform_config import get_platform_config, get_display_timeframes
         cfg = get_platform_config()
-        return {"disabled_nav_items": set(cfg.get("disabled_nav_items") or [])}
+        return {
+            "disabled_nav_items": set(cfg.get("disabled_nav_items") or []),
+            "display_timeframes": get_display_timeframes(),
+        }
 
 
 def _init_error_tracking(app):
@@ -142,7 +168,19 @@ def _init_extensions(app):
     bcrypt.init_app(app)
     jwt.init_app(app)
     cors_origins = app.config.get("CORS_ORIGINS", ["*"])
-    cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}}, supports_credentials=True)
+    # supports_credentials is only safe against an explicit origin allowlist.
+    # With origins="*" Flask-CORS reflects the caller's own Origin header back,
+    # which would let any site issue credentialed /api/* calls for a logged-in
+    # user. get_config() hard-refuses that combination in production; here we
+    # additionally drop credentials support whenever the list is a wildcard so
+    # a dev/LAN config can't accidentally become the permissive-and-credentialed
+    # case either.
+    cors_wildcard = "*" in cors_origins
+    cors.init_app(
+        app,
+        resources={r"/api/*": {"origins": cors_origins}},
+        supports_credentials=not cors_wildcard,
+    )
     # "threading" async mode (Werkzeug dev server) does not fully implement
     # the WebSocket frame protocol — expect a benign "Invalid frame header"
     # in the browser console during local dev; the Socket.IO client falls
@@ -151,7 +189,21 @@ def _init_extensions(app):
     # (wsgi.py, gunicorn --worker-class eventlet) uses real eventlet-backed
     # WebSockets instead — see wsgi.py's own comment for why dev deliberately
     # does NOT do the same (eventlet monkey-patching risk on the dev server).
-    socketio.init_app(app, cors_allowed_origins=cors_origins, async_mode="threading")
+    # async_mode was hardcoded to "threading" while the Dockerfile serves this
+    # under gunicorn's *eventlet* worker — an implicit coupling that made the
+    # comment above (claiming production gets "real eventlet-backed WebSockets")
+    # untrue: threading mode never takes the eventlet transport path. Derive it
+    # from config instead, defaulting to the historical "threading" so the dev
+    # server is unaffected; wsgi.py sets SOCKETIO_ASYNC_MODE=eventlet for the
+    # gunicorn path. message_queue wires cross-process broadcast fan-out —
+    # without it an emit() from one worker never reaches clients attached to
+    # another (see _start_streams / broadcast_ticker).
+    socketio.init_app(
+        app,
+        cors_allowed_origins=cors_origins,
+        async_mode=app.config.get("SOCKETIO_ASYNC_MODE", "threading"),
+        message_queue=app.config.get("SOCKETIO_MESSAGE_QUEUE") or None,
+    )
     limiter.init_app(app)
     cache.init_app(app)
     mail.init_app(app)
@@ -159,7 +211,14 @@ def _init_extensions(app):
     # deeply nested) run tens-to-hundreds of KB uncompressed. No reverse
     # proxy in front of gunicorn here does compression, so it wasn't
     # happening anywhere -- gzip cuts this 70-85% for near-zero CPU cost.
-    app.config.setdefault("COMPRESS_MIMETYPES", ["application/json", "text/html", "text/css", "application/javascript"])
+    # "text/javascript" matters: Python 3.9+ resolves .js to text/javascript
+    # (not application/javascript), so with only the latter listed every JS
+    # response — vendor libs plus the page bundles, several hundred KB on a
+    # typical page — silently skipped compression entirely.
+    app.config.setdefault("COMPRESS_MIMETYPES", [
+        "application/json", "text/html", "text/css",
+        "application/javascript", "text/javascript",
+    ])
     app.config.setdefault("COMPRESS_LEVEL", 6)
     app.config.setdefault("COMPRESS_MIN_SIZE", 500)
     compress.init_app(app)
@@ -435,12 +494,36 @@ def _seed_initial_data(app):
             ])
 
     # Admin user
+    #
+    # The seeded password comes from SEED_ADMIN_PASSWORD. It used to be the
+    # hardcoded literal "Admin@123", seeded unconditionally in EVERY
+    # environment — that is a published credential (it is printed on the login
+    # page as the demo account), so any production deployment built from this
+    # repo shipped with a known-good admin login. Dev/test keep that same
+    # default so the demo flow and the existing test fixtures still work
+    # unchanged; production must set a real value or the seed refuses to
+    # create the account at all (see the raise below) rather than silently
+    # installing a backdoor.
     admin_role = Role.query.filter_by(name="admin").first()
     admin_sub = Subscription.query.filter_by(name="admin").first()
     if admin_role and not User.query.filter_by(username="admin").first():
+        # Keyed off FLASK_ENV to match get_config()'s own production check —
+        # deliberately NOT `not DEBUG`, which is also False under
+        # TestingConfig and would break the test suite's seeded fixtures.
+        is_production = os.environ.get("FLASK_ENV") == "production" and not app.config.get("TESTING", False)
+        seed_password = os.environ.get("SEED_ADMIN_PASSWORD")
+        if not seed_password:
+            if is_production:
+                raise RuntimeError(
+                    "Refusing to seed the default admin account in production without "
+                    "SEED_ADMIN_PASSWORD. Set SEED_ADMIN_PASSWORD to a real secret before "
+                    "first boot, or pre-create the admin user out of band."
+                )
+            seed_password = "Admin@123"  # dev/demo only — matches the login page's demo hint
+
         admin = User(
             username="admin",
-            email="admin@smarttradeai.com",
+            email=os.environ.get("SEED_ADMIN_EMAIL", "admin@smarttradeai.com"),
             first_name="Admin",
             last_name="User",
             role_id=admin_role.id,
@@ -448,7 +531,7 @@ def _seed_initial_data(app):
             is_active=True,
             is_verified=True,
         )
-        admin.set_password("Admin@123")
+        admin.set_password(seed_password)
         db.session.add(admin)
 
     # Migrate forex assets from alphavantage → yahoo (yfinance)
@@ -569,7 +652,32 @@ def _seed_initial_data(app):
     PlatformConfig.get_singleton()
 
 
+def run_background_work() -> bool:
+    """Whether THIS process should own the scheduler and the market-data stream.
+
+    Historically create_app() started both unconditionally, so every gunicorn
+    worker and every replica ran the full job roster and opened its own
+    exchange WebSocket. That made `-w 1` load-bearing rather than a tuning
+    choice: at `-w 4` you got 4x the outbound API polling (risking upstream
+    rate-limit bans), 4x nightly backups/cleanups/retrains, and 4 competing
+    copies of every dispatch job.
+
+    RUN_SCHEDULER defaults to "1" so existing single-process deployments
+    (docker `-w 1`, serve.py/IIS, run.py) behave exactly as before. To scale
+    out: run web replicas with RUN_SCHEDULER=0 and exactly ONE worker process
+    with RUN_SCHEDULER=1 (see worker.py).
+    """
+    return os.environ.get("RUN_SCHEDULER", "1").lower() in ("1", "true", "yes")
+
+
 def _init_scheduler(app):
+    if not run_background_work():
+        logging.getLogger(__name__).info(
+            "RUN_SCHEDULER=0 — skipping scheduler startup in this process "
+            "(expected for web workers when a dedicated worker process owns background jobs)."
+        )
+        return
+
     from app.tasks.data_tasks import register_data_jobs
     from app.tasks.notification_tasks import register_notification_jobs
     from app.tasks.protective_order_tasks import register_protective_order_jobs
@@ -756,6 +864,15 @@ def _configure_logging(app):
 
 def _start_streams(app):
     """Start Delta Exchange India WebSocket price stream in background (crypto live prices)."""
+    if not run_background_work():
+        # One upstream connection per process would multiply exchange
+        # connections by the worker count for no benefit — the ingesting
+        # process fans ticks out to every other process over the Socket.IO
+        # Redis message queue (SOCKETIO_MESSAGE_QUEUE).
+        logging.getLogger(__name__).info(
+            "RUN_SCHEDULER=0 — skipping Delta market stream in this process."
+        )
+        return
     try:
         from app.services.data.delta_stream import delta_stream
         delta_stream.start(app)

@@ -299,6 +299,9 @@ html.sidebar-preload-collapsed .main-wrapper {
 html.sidebar-preload-collapsed .sidebar .brand-name,
 html.sidebar-preload-collapsed .sidebar .nav-text,
 html.sidebar-preload-collapsed .sidebar .nav-badge,
+html.sidebar-preload-collapsed .sidebar .badge-live,
+html.sidebar-preload-collapsed .sidebar .badge-pro,
+html.sidebar-preload-collapsed .sidebar .badge-tag,
 html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   display: none !important;
 }
@@ -595,6 +598,13 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .sidebar.collapsed .brand-name,
 .sidebar.collapsed .nav-text,
 .sidebar.collapsed .nav-badge,
+/* .nav-badge above is dead CSS — no template ever used that class. The
+   real badges (LIVE / BASIC / PREMIUM / PRO / ON) are .badge-live,
+   .badge-pro and .badge-tag, which this never matched — so they stayed
+   visible as loose text next to the icon in icon-only mode. */
+.sidebar.collapsed .badge-live,
+.sidebar.collapsed .badge-pro,
+.sidebar.collapsed .badge-tag,
 .sidebar.collapsed .sidebar-user-info {
   display: none !important;
 }
@@ -1724,6 +1734,35 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   border-bottom: none;
 }
 
+/* Click-to-sort table headers (Delta Scanner BUY/SELL, etc.) */
+.smart-table thead th.sortable-th {
+  cursor: pointer;
+  user-select: none;
+}
+.smart-table thead th.sortable-th > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.smart-table thead th.sortable-th:hover {
+  color: var(--text-primary);
+  background: var(--glass);
+}
+.smart-table thead th.sortable-th .sort-th-icon {
+  font-size: 9px;
+  opacity: 0.45;
+}
+.smart-table thead th.sortable-th:hover .sort-th-icon {
+  opacity: 0.8;
+}
+.smart-table thead th.sortable-th.sort-active {
+  color: var(--accent);
+}
+.smart-table thead th.sortable-th.sort-active .sort-th-icon {
+  opacity: 1;
+  color: var(--accent);
+}
+
 .smart-table thead th:first-child {
   border-top-left-radius: var(--radius-xs);
 }
@@ -2805,7 +2844,8 @@ select option {
 .ai-cell {
   gap: 5px;
   min-width: 108px;
-  font-size: 11.5px;
+  font-size: 13px;
+  font-weight: 800;
   letter-spacing: .4px;
   cursor: default;
 }
@@ -2833,9 +2873,9 @@ select option {
 }
 
 .ai-conf {
-  font-size: 10px;
-  font-weight: 400;
-  opacity: .8;
+  font-size: 11px;
+  font-weight: 700;
+  opacity: .85;
   margin-left: 2px;
 }
 
@@ -3313,6 +3353,17 @@ select option {
 .smart-table td {
   color: var(--text-primary) !important;
 }
+
+/* .smart-table td above outranks the plain .text-green/.text-red utilities
+   (same !important tier, but higher specificity), so gain/loss cells were
+   silently losing their color and rendering as plain text everywhere —
+   Portfolio holdings, signal P&L, etc. These re-assert it at matching
+   specificity so both rules can coexist: readable text by default, real
+   color where a row is explicitly marked as a gain or loss. */
+.smart-table td.text-green, .smart-table td.text-green * { color: var(--green) !important; }
+.smart-table td.text-red,   .smart-table td.text-red   * { color: var(--red)   !important; }
+.smart-table td.text-yellow, .smart-table td.text-yellow * { color: var(--yellow) !important; }
+.smart-table td.text-blue,   .smart-table td.text-blue   * { color: var(--blue)   !important; }
 
 .smart-table th {
   color: var(--text-muted) !important;
@@ -5178,4 +5229,197 @@ select option {
   font-size: 10px;
   color: var(--text-muted);
   margin: -2px 0 6px 2px
+}
+
+.bubble-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bubble-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.bubble-legend-label {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.bubble-legend-label.neg {
+  color: var(--red);
+}
+
+.bubble-legend-label.pos {
+  color: var(--green);
+}
+
+.bubble-canvas {
+  position: relative;
+  overflow: auto;
+  max-height: 75vh;
+  padding: 12px;
+}
+
+/* Packed circle-map bubble: a light "card" disc with a green/red ring
+   showing direction, rather than a fully color-filled disc — closer to how
+   traders read a market bubble map (color is a status ring, not the whole
+   shape) and gives small bubbles a fighting chance at legibility since text
+   sits on a near-white surface regardless of direction/theme. */
+.mkt-bubble {
+  position: absolute;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  cursor: default;
+  background: radial-gradient(circle at 30% 25%, #ffffff 0%, #f1f5f9 62%, #e2e8f0 100%);
+  box-shadow: 0 4px 14px -4px rgba(0, 0, 0, 0.5), inset 0 -4px 8px -4px rgba(0, 0, 0, 0.15);
+  transition: transform .15s ease-out, box-shadow .15s ease-out, z-index 0s;
+  animation: mktBubbleFloat 4.5s ease-in-out infinite, mktBubblePop .5s cubic-bezier(.34,1.56,.64,1) backwards;
+}
+
+.mkt-bubble.dir-up { border: 3px solid var(--green); }
+.mkt-bubble.dir-down { border: 3px solid var(--red); }
+
+.mkt-bubble:hover {
+  transform: scale(1.1);
+  z-index: 5;
+  animation-play-state: paused;
+  box-shadow: 0 8px 22px -4px rgba(0, 0, 0, 0.6), inset 0 -4px 8px -4px rgba(0, 0, 0, 0.15);
+}
+
+@keyframes mktBubbleFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+@keyframes mktBubblePop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mkt-bubble { animation: none; }
+}
+
+.mkt-bubble-avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mkt-bubble-ticker {
+  color: #64748b;
+  font-weight: 700;
+  letter-spacing: .02em;
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mkt-bubble-name {
+  color: #0f172a;
+  font-weight: 800;
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mkt-bubble-pct {
+  font-weight: 800;
+}
+
+.scanner-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.scanner-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 8px);
+  padding: 14px;
+}
+
+.scanner-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.scanner-card-symbol {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.scanner-card-price {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.scanner-card-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+}
+
+.scanner-card-metrics span.num {
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  float: right;
+}
+
+.scanner-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.scanner-card-actions .btn {
+  flex: 1;
+}
+
+/* MTF Scanner cell backgrounds — bullish/bearish/mixed at a glance, on both
+   the Common Coins status panel and the All Coins BUY/SELL tables. Amber is
+   reserved for genuine disagreement (a mixed multi-timeframe read, or an
+   unchanged live tick) — it is never used for a plain bullish/bearish call. */
+.mtf-cell-bull {
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: var(--green) !important;
+  font-weight: 700;
+}
+
+.mtf-cell-bear {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: var(--red) !important;
+  font-weight: 700;
+}
+
+.mtf-cell-mixed {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: var(--yellow) !important;
+  font-weight: 700;
 }

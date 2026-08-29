@@ -155,6 +155,13 @@
   }
   document.addEventListener('app:ready', init);
   setTimeout(init, 1200);
+  // Exposed so the account-settings loader below (which sets these same
+  // fields' .value directly from the saved API response, after this IIFE's
+  // own init() has already run) can re-sync the KPI tiles. Setting .value
+  // in JS doesn't fire an 'input' event, so without this the tiles were
+  // stuck showing whatever the fields held at page-load — the JS fallback
+  // defaults — until the user manually edited a field.
+  window.rkUpdate = rkUpdate;
 })();
 </script>
 
@@ -281,6 +288,25 @@
   <div id="quickSignalsList">
     <div class="text-center py-4 text-muted">
       <div class="spinner-border spinner-border-sm me-2"></div>Loading signals…
+    </div>
+  </div>
+</div>
+
+<!-- ── Portfolio Risk (correlation + concentration across open holdings) ── -->
+<!-- Backend for this (app/services/risk/portfolio_risk.py, GET /api/v1/risk/portfolio)
+     already existed and was fully tested but had no UI consumer anywhere in
+     the app — the calculator above only sizes ONE trade in isolation, so
+     nothing ever warned a user that, say, 5 individually "safe" positions
+     were all >70% correlated crypto majors, or that one symbol was 60% of
+     the whole book. This surfaces that existing endpoint. -->
+<div class="section-card mt-4" id="portfolioRiskCard">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-diagram-3 text-purple"></i> Portfolio Risk</span>
+    <span class="text-muted fs-xs">Concentration &amp; correlation across your open holdings</span>
+  </div>
+  <div class="section-card-body" id="portfolioRiskBody">
+    <div class="text-center py-4 text-muted">
+      <div class="spinner-border spinner-border-sm me-2"></div>Analyzing portfolio…
     </div>
   </div>
 </div>
@@ -434,6 +460,8 @@ document.addEventListener('app:ready', () => {
   if (u) {
     if (u.account_size)       document.getElementById('accAccountSize').value = u.account_size;
     if (u.risk_per_trade_pct) document.getElementById('accRiskPct').value     = u.risk_per_trade_pct;
+    recalculate();
+    window.rkUpdate?.();
   }
   // Fallback: fetch from API
   API.get('/auth/me').then(me => {
@@ -441,9 +469,95 @@ document.addEventListener('app:ready', () => {
     if (me.account_size)       document.getElementById('accAccountSize').value = me.account_size;
     if (me.risk_per_trade_pct) document.getElementById('accRiskPct').value     = me.risk_per_trade_pct;
     recalculate();
+    window.rkUpdate?.();
   });
 
   loadQuickSignals();
+  loadPortfolioRisk();
 });
+
+/* ── Portfolio Risk (concentration + correlation) ────────── */
+async function loadPortfolioRisk() {
+  const body = document.getElementById('portfolioRiskBody');
+  const data = await API.get('/risk/portfolio').catch(() => null);
+  if (!data) {
+    body.innerHTML = '<div class="text-center py-4 text-muted">Couldn\'t load portfolio risk right now.</div>';
+    return;
+  }
+  if (!data.holdings) {
+    body.innerHTML = `<div class="text-center py-4 text-muted">
+      <i class="bi bi-diagram-3" style="font-size:2rem;opacity:.2;display:block;margin-bottom:10px"></i>
+      Add positions to your <a href="/portfolio">Portfolio</a> to see concentration and correlation risk across your open holdings.
+    </div>`;
+    return;
+  }
+
+  const conc = data.concentration || {};
+  const corr = data.correlation || {};
+  const parts = [];
+  // Backend warning strings embed the raw market key (e.g. "indian_stock
+  // holdings are...") — cosmetic cleanup only, doesn't touch the API.
+  const prettyMarket = s => s.replace(/\b(indian_stock|index|crypto|forex|commodity)\b/gi,
+    m => m.replace('_', ' ').replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1)));
+
+  // Concentration warnings — the most actionable part, so it goes first.
+  if (conc.warnings && conc.warnings.length) {
+    parts.push(`<div class="mb-3">` + conc.warnings.map(w => `
+      <div class="d-flex align-items-start gap-2 mb-2" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 12px">
+        <i class="bi bi-exclamation-triangle-fill text-red mt-1"></i>
+        <span class="fs-sm">${prettyMarket(w)}</span>
+      </div>`).join('') + `</div>`);
+  } else {
+    parts.push(`<div class="d-flex align-items-center gap-2 mb-3" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:10px 12px">
+      <i class="bi bi-check-circle-fill text-green"></i>
+      <span class="fs-sm">No concentration warnings — no single asset or market dominates your book.</span>
+    </div>`);
+  }
+
+  // Concentration by market — horizontal bars, reusing the same visual
+  // language as the account-size / risk-pct bars elsewhere on this page.
+  if (conc.by_market && conc.by_market.length) {
+    const barRows = conc.by_market.map(m => {
+      const over = m.pct >= 40;
+      return `
+      <div class="mb-2">
+        <div class="d-flex justify-content-between fs-xs mb-1">
+          <span class="text-capitalize">${(m.market || 'unknown').replace('_', ' ')}</span>
+          <span class="${over ? 'text-red' : 'text-muted'}">${m.pct.toFixed(1)}%</span>
+        </div>
+        <div style="height:6px;border-radius:3px;background:var(--bg-secondary);overflow:hidden">
+          <div style="height:100%;width:${Math.min(m.pct, 100)}%;background:${over ? 'var(--red)' : 'var(--purple)'};border-radius:3px"></div>
+        </div>
+      </div>`;
+    }).join('');
+    parts.push(`<div class="row g-4"><div class="col-md-6"><div class="fs-xs text-muted text-uppercase mb-2" style="letter-spacing:.05em">Exposure by market</div>${barRows}</div>`);
+  } else {
+    parts.push(`<div class="row g-4"><div class="col-md-6"></div>`);
+  }
+
+  // High-correlation pairs — the "these two moves are basically the same
+  // bet" signal per-trade sizing can never see.
+  if (corr.high_correlation_pairs && corr.high_correlation_pairs.length) {
+    const pairRows = corr.high_correlation_pairs.map(p => `
+      <div class="d-flex justify-content-between align-items-center fs-sm mb-2" style="padding:8px 10px;background:var(--bg-secondary);border-radius:6px">
+        <span><strong>${p.symbol_a}</strong> &harr; <strong>${p.symbol_b}</strong></span>
+        <span class="badge-tag ${Math.abs(p.correlation) >= 0.85 ? 'text-red' : 'text-yellow'}">${p.correlation.toFixed(2)} corr</span>
+      </div>`).join('');
+    parts.push(`<div class="col-md-6"><div class="fs-xs text-muted text-uppercase mb-2" style="letter-spacing:.05em">High-correlation pairs</div>${pairRows}
+      <div class="fs-xs text-muted mt-1">These move together — a single macro swing affects both at once, so they don't diversify each other the way two "different" positions normally would.</div>
+    </div></div>`);
+  } else if (corr.symbols && corr.symbols.length >= 2) {
+    parts.push(`<div class="col-md-6"><div class="fs-xs text-muted text-uppercase mb-2" style="letter-spacing:.05em">Correlation</div>
+      <div class="d-flex align-items-center gap-2" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:10px 12px">
+        <i class="bi bi-check-circle-fill text-green"></i>
+        <span class="fs-sm">No highly-correlated pairs (&ge;0.7) among your ${corr.symbols.length} priced holdings.</span>
+      </div>
+    </div></div>`);
+  } else {
+    parts.push(`<div class="col-md-6"><div class="fs-xs text-muted">Add a second holding to see correlation risk.</div></div></div>`);
+  }
+
+  body.innerHTML = parts.join('');
+}
 </script>
 {% endblock %}

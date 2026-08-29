@@ -12,10 +12,10 @@ import logging
 import time
 from datetime import datetime, timezone
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, current_app
 from sqlalchemy import text
 
-from app.extensions import db, scheduler
+from app.extensions import db, scheduler, cache
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +46,13 @@ def _check_database() -> dict:
 
 
 def _check_scheduler() -> dict:
+    # A web worker running with RUN_SCHEDULER=0 is SUPPOSED to have no
+    # scheduler — background jobs belong to the dedicated worker process.
+    # Reporting that as unhealthy would mark every web replica permanently
+    # unready and pull them all out of the load balancer.
+    from app import run_background_work
+    if not run_background_work():
+        return {"name": "scheduler", "healthy": True, "detail": "not in this process (RUN_SCHEDULER=0)"}
     try:
         running = bool(getattr(scheduler, "running", False))
         jobs = len(scheduler.get_jobs()) if running else 0
@@ -53,6 +60,28 @@ def _check_scheduler() -> dict:
     except Exception as e:
         logger.warning(f"readiness: scheduler check failed: {e}")
         return {"name": "scheduler", "healthy": False, "detail": "error"}
+
+
+def _check_redis() -> dict:
+    """Redis is a hard dependency only when the app is actually configured to
+    use it (CACHE_TYPE=RedisCache). In that mode the cache AND the rate limiter
+    both live in Redis, so an unreachable Redis means degraded correctness —
+    not just a slower cache — and readiness should reflect that. On
+    SimpleCache deployments this reports healthy/not-applicable so the
+    single-process LAN deployment isn't marked unready for a service it never
+    uses.
+    """
+    if current_app.config.get("CACHE_TYPE") != "RedisCache":
+        return {"name": "redis", "healthy": True, "detail": "not in use (SimpleCache)"}
+    try:
+        # Round-trip through the configured cache client rather than opening a
+        # second connection, so this validates the exact client the app uses.
+        cache.set("_readiness_probe", "1", timeout=10)
+        ok = cache.get("_readiness_probe") == "1"
+        return {"name": "redis", "healthy": ok, "detail": "reachable" if ok else "read-back failed"}
+    except Exception as e:
+        logger.warning(f"readiness: redis check failed: {e}")
+        return {"name": "redis", "healthy": False, "detail": "unreachable"}
 
 
 def _check_market_stream() -> dict:
@@ -72,9 +101,11 @@ def _check_market_stream() -> dict:
 @system_bp.route("/ready", methods=["GET"])
 def ready():
     """Readiness probe — 200 only if all HARD dependencies are healthy."""
-    checks = [_check_database(), _check_scheduler(), _check_market_stream()]
-    # Only database + scheduler are hard requirements; market stream is soft.
-    hard = {"database", "scheduler"}
+    checks = [_check_database(), _check_scheduler(), _check_redis(), _check_market_stream()]
+    # Database, scheduler and (when configured) Redis are hard requirements;
+    # the market stream is soft. _check_redis self-reports healthy when the
+    # deployment isn't using Redis at all.
+    hard = {"database", "scheduler", "redis"}
     ready_ = all(c["healthy"] for c in checks if c["name"] in hard)
     payload = {
         "status": "ready" if ready_ else "not_ready",

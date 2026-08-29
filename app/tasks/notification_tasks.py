@@ -26,17 +26,57 @@ def send_pending_notifications(app):
             user = users_by_id.get(notif.user_id)
             if not user:
                 continue
+
+            # Claim BEFORE sending, not after. This loop previously sent first
+            # and only flipped is_sent at the end of the whole batch, so two
+            # overlapping runs of this job — which happens by design the moment
+            # more than one process registers it, and can also happen on a slow
+            # batch — would both read the same is_sent=False row and both send
+            # the email/Telegram. Mirrors _claim_signal_close() in
+            # data_tasks.py: a conditional UPDATE whose rowcount tells us
+            # whether we won the race.
+            if not _claim_notification(notif):
+                continue
+
             try:
                 if user.email_notifications and notif.channel in ("email", None):
                     _send_email(user.email, notif.title, notif.message)
                 if user.telegram_enabled and user.telegram_chat_id:
-                    _send_telegram(user.telegram_chat_id, f"*{notif.title}*\n{notif.message}")
-                notif.is_sent = True
-                notif.sent_at = datetime.utcnow()
+                    _send_telegram(user, f"*{notif.title}*\n{notif.message}")
             except Exception as e:
+                # Release the claim so a later run retries rather than silently
+                # dropping the notification — claiming up front must not turn a
+                # transient SMTP/Telegram failure into permanent loss.
                 logger.error(f"Notification send failed: {e}")
+                db.session.execute(
+                    Notification.__table__.update()
+                    .where(Notification.id == notif.id)
+                    .values(is_sent=False, sent_at=None)
+                )
+                db.session.commit()
 
         db.session.commit()
+
+
+def _claim_notification(notif) -> bool:
+    """Atomically claim one pending notification for sending.
+
+    Returns True only if THIS caller flipped is_sent False->True, i.e. won the
+    race against any concurrently-running copy of send_pending_notifications.
+    A loser gets rowcount 0 and skips the send, which is what prevents the
+    duplicate email/Telegram spam that a plain read-then-mutate allowed.
+    """
+    from app.models.notification import Notification
+    from app.extensions import db
+    from datetime import datetime
+
+    result = db.session.execute(
+        Notification.__table__.update()
+        .where(Notification.id == notif.id, Notification.is_sent == False)  # noqa: E712
+        .values(is_sent=True, sent_at=datetime.utcnow())
+    )
+    db.session.commit()
+    return result.rowcount > 0
 
 
 def _send_email(to_email: str, subject: str, body: str):
@@ -49,16 +89,26 @@ def _send_email(to_email: str, subject: str, body: str):
     send_email(to_email, subject, body)
 
 
-def _send_telegram(chat_id: str, text: str):
+def _telegram_token_for(user) -> str | None:
+    """Each user's own bot token first — not one shared TELEGRAM_BOT_TOKEN
+    for everyone — falling back to the platform's bot only if the user
+    hasn't set their own. Mirrors _resolve_telegram_token in auth/routes.py
+    (kept separate: that one also takes a live request-body override for
+    the Settings-page test button, which doesn't apply to a background job)."""
+    from flask import current_app
+    token = user.get_telegram_bot_token()
+    return token or current_app.config.get("TELEGRAM_BOT_TOKEN")
+
+
+def _send_telegram(user, text: str):
     try:
         import requests
-        from flask import current_app
-        token = current_app.config.get("TELEGRAM_BOT_TOKEN")
-        if not token:
+        token = _telegram_token_for(user)
+        if not token or not user.telegram_chat_id:
             return
         requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            json={"chat_id": user.telegram_chat_id, "text": text, "parse_mode": "Markdown"},
             timeout=5,
         )
     except Exception as e:
@@ -149,7 +199,7 @@ def fire_signal_alerts(app):
                         f"Entry: `{sig.entry_price:.4f}` | TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}%\n"
                         f"SL: `{sig.stop_loss:.4f}` | T1: `{sig.target1:.4f}`"
                     )
-                    _send_telegram(user.telegram_chat_id, tg_msg)
+                    _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
                         from app.services.push import send_push_to_user
@@ -196,7 +246,7 @@ def fire_signal_alerts(app):
                 except Exception:
                     pass
                 if user.telegram_enabled and user.telegram_chat_id:
-                    _send_telegram(user.telegram_chat_id, tg_close)
+                    _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
                     try:
                         from app.services.push import send_push_to_user
@@ -254,7 +304,7 @@ def send_daily_summary(app):
 
         for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
             if user.telegram_chat_id:
-                _send_telegram(user.telegram_chat_id, text)
+                _send_telegram(user, text)
 
 
 def register_notification_jobs(scheduler, app):

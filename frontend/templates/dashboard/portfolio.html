@@ -32,17 +32,20 @@
 <div class="section-card">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-briefcase text-accent"></i> Holdings</span>
-    <span class="badge-tag" id="holdingCount">0 positions</span>
+    <div class="d-flex gap-2 align-items-center">
+      <span class="badge-tag" id="openRiskBadge" style="display:none" title="Capital that would be lost if every position with a stop loss set hit it"></span>
+      <span class="badge-tag" id="holdingCount">0 positions</span>
+    </div>
   </div>
   <div class="table-responsive">
     <table class="smart-table">
       <thead>
         <tr><th>Asset</th><th>Qty</th><th>Buy Price</th><th>Current Price</th>
-        <th>Invested</th><th>Current Value</th><th>P&amp;L</th><th>P&amp;L %</th>
+        <th>Invested</th><th>Current Value</th><th>Stop Loss</th><th>P&amp;L</th><th>P&amp;L %</th>
         <th>Days</th><th>Action</th></tr>
       </thead>
       <tbody id="holdingsBody">
-        <tr><td colspan="10"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-pie-chart" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px"></i>No positions yet — click <strong style="color:var(--accent)">Add Position</strong> to start tracking</div></td></tr>
+        <tr><td colspan="11"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-pie-chart" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px"></i>No positions yet — click <strong style="color:var(--accent)">Add Position</strong> to start tracking</div></td></tr>
       </tbody>
     </table>
   </div>
@@ -106,6 +109,41 @@ function _ccyLocale(market) {
   return (market === 'indian_stock' || market === 'index') ? 'en-IN' : 'en-US';
 }
 
+// Sums one numeric field per currency instead of across all holdings, so a
+// mixed ₹+$ portfolio never has to blend unlike currencies into one number
+// (previously: one combined figure captioned "not currency-converted" —
+// technically honest, but a headline number that says up front it's
+// meaningless isn't useful). No FX conversion happening here, just grouping.
+function _sumByCcy(holdings, field) {
+  const sums = {};
+  holdings.forEach(h => {
+    const v = h[field];
+    if (v == null) return;
+    const sym = _ccySym(h.market);
+    sums[sym] = (sums[sym] || 0) + v;
+  });
+  return sums;
+}
+function _fmtCcyGroups(sums, { signed = false } = {}) {
+  const entries = Object.entries(sums);
+  if (!entries.length) return '—';
+  return entries.map(([sym, v]) => {
+    const sign = signed ? (v >= 0 ? '+' : '-') : '';
+    return sign + sym + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
+  }).join(' + ');
+}
+// Per-currency P&L needs per-group color: a blended sign (e.g. summing a
+// large ₹ gain and a small $ loss as raw units) doesn't reliably reflect
+// whether each currency's position actually gained or lost.
+function _fmtCcyPnlHtml(sums) {
+  const entries = Object.entries(sums);
+  if (!entries.length) return '—';
+  return entries.map(([sym, v]) => {
+    const cls = v >= 0 ? 'text-green' : 'text-red';
+    return `<span class="${cls}">${v >= 0 ? '+' : '-'}${sym}${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>`;
+  }).join(' <span class="text-muted">&middot;</span> ');
+}
+
 async function loadPortfolio() {
   const data = await API.get('/portfolio/');
   if (!data) return;
@@ -114,22 +152,57 @@ async function loadPortfolio() {
   const holdings = data.holdings || [];
   const markets = new Set(holdings.map(h => h.market).filter(Boolean));
   const mixed = markets.size > 1;
-  // Totals sum raw numbers across holdings that may be in different native
-  // currencies (no FX conversion here) — showing one currency symbol on a
-  // blended figure would be its own kind of wrong, so make the blend explicit
-  // instead of picking a currency that doesn't apply to most of the total.
-  const totalSym = mixed ? '' : _ccySym([...markets][0]);
-  const totalNote = mixed ? 'Sum of native prices, not currency-converted (₹ + $ mixed)' : '';
 
-  document.getElementById('totalInvested').textContent = totalSym + (p.total_invested || 0).toLocaleString('en-US');
-  document.getElementById('totalCurrent').textContent = totalSym + (p.total_current || 0).toLocaleString('en-US');
-  document.getElementById('totalInvestedSub').textContent = totalNote;
-  document.getElementById('totalCurrentSub').textContent = totalNote;
+  const investedByCcy = _sumByCcy(holdings, 'invested_value');
+  const currentByCcy  = _sumByCcy(holdings, 'current_value');
+  const pnlByCcy       = _sumByCcy(holdings, 'pnl');
+
+  document.getElementById('totalInvested').textContent = mixed
+    ? _fmtCcyGroups(investedByCcy)
+    : _ccySym([...markets][0]) + (p.total_invested || 0).toLocaleString('en-US');
+  document.getElementById('totalCurrent').textContent = mixed
+    ? _fmtCcyGroups(currentByCcy)
+    : _ccySym([...markets][0]) + (p.total_current || 0).toLocaleString('en-US');
+  document.getElementById('totalInvestedSub').textContent = mixed ? 'Per-currency, not FX-converted' : '';
+  document.getElementById('totalCurrentSub').textContent = mixed ? 'Per-currency, not FX-converted' : '';
+
   const pnl = p.total_pnl || 0;
-  document.getElementById('totalPnl').textContent = (pnl >= 0 ? '+' : '-') + totalSym + Math.abs(pnl).toLocaleString('en-US');
-  document.getElementById('totalPnl').className = `kpi-value ${pnl >= 0 ? 'text-green' : 'text-red'}`;
+  const pnlEl = document.getElementById('totalPnl');
+  if (mixed) {
+    pnlEl.innerHTML = _fmtCcyPnlHtml(pnlByCcy);
+    pnlEl.className = 'kpi-value';
+  } else {
+    pnlEl.textContent = (pnl >= 0 ? '+' : '-') + _ccySym([...markets][0]) + Math.abs(pnl).toLocaleString('en-US');
+    pnlEl.className = `kpi-value ${pnl >= 0 ? 'text-green' : 'text-red'}`;
+  }
   document.getElementById('totalPnlPct').textContent = (p.total_pnl_pct >= 0 ? '+' : '') + p.total_pnl_pct + '%';
   document.getElementById('holdingCount').textContent = `${holdings.length} positions`;
+
+  // Open risk: capital that would actually be lost if every stop-set
+  // position hit its stop right now — the number the aggregate KPIs above
+  // (Invested/Current/P&L, all mark-to-market) can't show, since a position
+  // can look fine today and still have no stop protecting it at all.
+  const protectedHoldings = holdings.filter(h => h.stop_loss != null && h.current_price != null);
+  const riskByCcy = {};
+  protectedHoldings.forEach(h => {
+    const risk = Math.max(0, (h.current_price - h.stop_loss)) * h.quantity;
+    const sym = _ccySym(h.market);
+    riskByCcy[sym] = (riskByCcy[sym] || 0) + risk;
+  });
+  const riskBadge = document.getElementById('openRiskBadge');
+  if (holdings.length) {
+    riskBadge.style.display = '';
+    if (!protectedHoldings.length) {
+      riskBadge.textContent = 'No stop losses set';
+      riskBadge.className = 'badge-tag text-yellow';
+    } else {
+      const unprotected = holdings.length - protectedHoldings.length;
+      riskBadge.textContent = `Open risk: ${_fmtCcyGroups(riskByCcy)}` + (unprotected ? ` (+${unprotected} unprotected)` : '');
+      riskBadge.className = 'badge-tag text-red';
+    }
+  } else {
+    riskBadge.style.display = 'none';
+  }
 
   if (!holdings.length) return;
 
@@ -143,12 +216,42 @@ async function loadPortfolio() {
       <td>${sym}${formatPrice(h.current_price)}</td>
       <td>${h.invested_value != null ? sym + h.invested_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
       <td>${h.current_value != null ? sym + h.current_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
+      <td class="sl-cell" data-id="${h.id}" data-sym="${sym}" data-sl="${h.stop_loss ?? ''}" onclick="editStopLoss(this)" style="cursor:pointer" title="Click to set or edit the stop loss for this position">
+        ${h.stop_loss != null ? sym + formatPrice(h.stop_loss) : '<span class="text-muted"><i class="bi bi-plus-circle me-1"></i>Set</span>'}
+      </td>
       <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}${sym}${Math.abs(h.pnl || 0).toLocaleString(loc, {maximumFractionDigits:0})}</td>
       <td class="${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
       <td>${h.holding_days}d</td>
       <td><button class="btn btn-sm btn-outline-danger" onclick="removePosition(${h.id})"><i class="bi bi-trash"></i></button></td>
     </tr>`;
   }).join('');
+}
+
+// Click-to-edit stop loss: the "add position" form was the only place a
+// stop could ever be set — no way to add one later, or trail it as a
+// position moved in your favor, which is normal risk management practice.
+function editStopLoss(cell) {
+  if (cell.querySelector('input')) return; // already editing
+  const id = cell.dataset.id, sym = cell.dataset.sym, current = cell.dataset.sl;
+  cell.innerHTML = `<input type="number" step="any" class="form-control form-control-sm" style="width:110px;display:inline-block" value="${current}" placeholder="${sym}0.00">`;
+  const input = cell.querySelector('input');
+  input.focus();
+  input.select();
+  let cancelled = false;
+  const commit = async () => {
+    if (cancelled) return;
+    const val = input.value.trim();
+    const res = await API.put(`/portfolio/${id}`, { stop_loss: val === '' ? null : parseFloat(val) });
+    if (res && !res.error) Toast.show('Stop loss updated', 'success');
+    else Toast.show(res?.error || 'Failed to update stop loss', 'error');
+    loadPortfolio();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') input.blur();
+    if (e.key === 'Escape') { cancelled = true; loadPortfolio(); }
+  });
+  input.addEventListener('blur', commit, { once: true });
+  input.addEventListener('click', e => e.stopPropagation());
 }
 
 async function removePosition(id) {

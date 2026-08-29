@@ -122,7 +122,13 @@ def list_users():
 def list_pending_users():
     """Self-registered accounts awaiting approval — surfaced separately from
     the main user list so the admin panel can show a pending badge/queue."""
-    users = User.query.filter_by(approval_status="pending").order_by(User.created_at.asc()).all()
+    # No pagination here on purpose — an admin needs to see the FULL pending
+    # queue to process approvals, and hiding some behind a page-2 would be
+    # worse UX than a slightly larger response. The .limit() is only a
+    # safety cap against a pathological case (e.g. a signup-spam burst),
+    # not a normal-operation constraint.
+    users = (User.query.filter_by(approval_status="pending")
+             .order_by(User.created_at.asc()).limit(1000).all())
     return jsonify({"users": [u.to_dict() for u in users], "total": len(users)}), 200
 
 
@@ -493,7 +499,9 @@ def delete_broker(broker_id):
 @admin_bp.route("/referral-codes", methods=["GET"])
 @admin_required
 def list_referral_codes():
-    codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).all()
+    # Safety cap, not a normal-operation constraint — referral codes are
+    # created manually by admins, so this table stays small in practice.
+    codes = ReferralCode.query.order_by(ReferralCode.created_at.desc()).limit(1000).all()
     return jsonify({"referral_codes": [{
         "id": c.id,
         "code": c.code,

@@ -128,6 +128,29 @@ def add_position():
     return jsonify(item.to_dict()), 201
 
 
+@portfolio_bp.route("/<int:item_id>", methods=["PUT"])
+@login_required
+def update_position(item_id):
+    # Stop loss / target were only ever settable at Add Position time — a
+    # position opened without a stop (or one that needs trailing up as it
+    # moves) had no way to record that afterwards, which also meant the
+    # portfolio's aggregate "capital at risk" figure could never be trusted.
+    user_id = get_jwt_identity()
+    item = PortfolioItem.query.join(Portfolio).filter(
+        PortfolioItem.id == item_id, Portfolio.user_id == user_id
+    ).first_or_404()
+
+    data = request.get_json() or {}
+    if "stop_loss" in data:
+        sl = data["stop_loss"]
+        item.stop_loss = float(sl) if sl not in (None, "") else None
+    if "target" in data:
+        tgt = data["target"]
+        item.target = float(tgt) if tgt not in (None, "") else None
+    db.session.commit()
+    return jsonify(item.to_dict()), 200
+
+
 @portfolio_bp.route("/<int:item_id>", methods=["DELETE"])
 @login_required
 def remove_position(item_id):
@@ -146,7 +169,10 @@ def export_portfolio_csv():
     """Export portfolio holdings as CSV."""
     user_id   = get_jwt_identity()
     portfolio = _get_user_portfolio(user_id)
-    items     = portfolio.items.all()
+    # Same joinedload the list endpoint above already uses — the row loop reads
+    # item.asset for every holding, which without this lazy-loads one SELECT
+    # per row.
+    items     = portfolio.items.options(db.joinedload(PortfolioItem.asset)).all()
 
     buf    = io.StringIO()
     writer = csv.writer(buf)

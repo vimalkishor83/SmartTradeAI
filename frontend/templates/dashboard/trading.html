@@ -409,5 +409,16 @@ document.getElementById('orderForm').addEventListener('submit', async (e) => {
 document.getElementById('refreshAllBtn').addEventListener('click', () => { checkConnection(); });
 
 document.addEventListener('app:ready', checkConnection);
+
+// Prefill from a scanner/watchlist "Trade" shortcut — /trading?symbol=BTCUSDT&side=buy.
+// Only prefills the form; no order is placed until the user submits it themselves.
+(function prefillFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const symbol = params.get('symbol');
+  if (symbol) document.getElementById('ordSymbol').value = symbol.trim().toUpperCase();
+  const side = (params.get('side') || '').toLowerCase();
+  if (side === 'sell') document.getElementById('sideSell').checked = true;
+  else if (side === 'buy') document.getElementById('sideBuy').checked = true;
+})();
 </script>
 {% endblock %}

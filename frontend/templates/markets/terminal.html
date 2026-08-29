@@ -55,6 +55,7 @@
 .sc-why summary .bi { transition:transform .15s; }
 .sc-why[open] summary .bi { transform:rotate(90deg); }
 .sc-why-text { font-size:11.5px; color:var(--text-secondary); line-height:1.45; margin-top:5px; }
+.sc-why-text > div { padding:1.5px 0; }
 
 .terminal-empty { text-align:center; padding:64px 16px; color:var(--text-muted); }
 .terminal-empty .bi { font-size:32px; display:block; margin-bottom:10px; }
@@ -86,13 +87,9 @@
       <div class="d-flex align-items-center gap-2 flex-wrap">
         <span class="text-muted fs-xs">Timeframe</span>
         <div class="terminal-tabs" id="terminalTfTabs">
-          <div class="terminal-tab" data-tf="1m">1m</div>
-          <div class="terminal-tab" data-tf="5m">5m</div>
-          <div class="terminal-tab" data-tf="15m">15m</div>
-          <div class="terminal-tab" data-tf="30m">30m</div>
-          <div class="terminal-tab active" data-tf="1h">1h</div>
-          <div class="terminal-tab" data-tf="4h">4h</div>
-          <div class="terminal-tab" data-tf="1d">1d</div>
+          {% for tf in display_timeframes %}
+          <div class="terminal-tab {% if tf == '1h' %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</div>
+          {% endfor %}
         </div>
       </div>
     </div>
@@ -116,7 +113,13 @@
 {% block extra_js %}
 <script>
 let _termMarket = 'crypto';
-let _termTf = '1h';
+// Matches whichever tab the server-rendered markup actually marked active
+// (see the Jinja loop above) — '1h' is the ordinary case, but an admin
+// could remove it from Platform Config's timeframe list entirely, in which
+// case the first configured timeframe becomes the true default instead.
+let _termTf = document.querySelector('#terminalTfTabs .terminal-tab.active')?.dataset.tf
+  || document.querySelector('#terminalTfTabs .terminal-tab')?.dataset.tf
+  || '1h';
 
 const MARKET_LABEL = {
   crypto: 'Crypto', forex: 'Forex', commodity: 'Commodity',
@@ -130,6 +133,28 @@ function _termConfColor(conf) {
 function _sideColor(type) {
   return type === 'SELL' ? 'var(--red)' : type === 'HOLD' ? 'var(--yellow)' : 'var(--green)';
 }
+
+// Renders reasoning_detail (structured [{text, lean, aligned}]) as labeled
+// chips when available — dimmed/struck-through for factors that were
+// outweighed by a stronger opposing signal (e.g. a big reversal pattern
+// beating out a smaller trend/momentum tilt the other way), so the list
+// doesn't read as self-contradictory next to a BUY/SELL badge. Falls back
+// to the old flat `|`-joined string for signals generated before this
+// field existed.
+function _renderReasoning(s) {
+  const detail = s.reasoning_detail;
+  if (Array.isArray(detail) && detail.length) {
+    return detail.map(r => {
+      const icon = r.aligned ? '<i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i>'
+                              : '<i class="bi bi-x-circle" style="color:var(--text-muted);font-size:10px"></i>';
+      const style = r.aligned ? '' : 'opacity:.55;text-decoration:line-through';
+      return `<div style="display:flex;align-items:center;gap:5px;${style}">${icon}<span>${_escHtmlLocal(r.text)}</span></div>`;
+    }).join('');
+  }
+  const reasoning = (s.reasoning || '').trim();
+  return reasoning ? _escHtmlLocal(reasoning) : '';
+}
+function _escHtmlLocal(s) { return String(s).replace(/</g, '&lt;'); }
 
 function renderTerminalCard(s) {
   const mkt = s.market;
@@ -153,11 +178,11 @@ function renderTerminalCard(s) {
   }
 
   if (s.signal_type === 'HOLD') {
-    const reasoning = (s.reasoning || '').trim();
-    const whyHtml = reasoning
+    const reasoningHtml = _renderReasoning(s);
+    const whyHtml = reasoningHtml
       ? `<details class="sc-why">
            <summary><i class="bi bi-chevron-right"></i>Why hold?</summary>
-           <div class="sc-why-text">${reasoning.replace(/</g, '&lt;')}</div>
+           <div class="sc-why-text">${reasoningHtml}</div>
          </details>`
       : '';
     return `
@@ -195,11 +220,11 @@ function renderTerminalCard(s) {
       <span class="sc-grid-val tabular" style="color:${v !== null && v !== undefined ? 'var(--green)' : 'var(--text-muted)'}">${v !== null && v !== undefined ? formatPrice(v, mkt) : '—'}</span>
     </div>`).join('');
 
-  const reasoning = (s.reasoning || '').trim();
-  const whyHtml = reasoning
+  const reasoningHtml = _renderReasoning(s);
+  const whyHtml = reasoningHtml
     ? `<details class="sc-why">
          <summary><i class="bi bi-chevron-right"></i>Why this signal?</summary>
-         <div class="sc-why-text">${reasoning.replace(/</g, '&lt;')}</div>
+         <div class="sc-why-text">${reasoningHtml}</div>
        </details>`
     : '';
 
@@ -249,6 +274,22 @@ function renderTerminalCard(s) {
     </div>`;
 }
 
+// BUY and SELL cards are interleaved by confidence_score, highest first —
+// direction doesn't matter for ranking, a 91%-confidence SELL should
+// outrank a 44%-confidence BUY. HOLD (no actionable trade) and unavailable
+// (no data) cards have no meaningful confidence to rank by, so they always
+// sink below every actionable BUY/SELL card regardless of score.
+function _terminalCardSort(a, b) {
+  if (a.available === false || b.available === false) {
+    return (a.available === false ? 1 : 0) - (b.available === false ? 1 : 0);
+  }
+  const aActionable = a.signal_type === 'BUY' || a.signal_type === 'SELL';
+  const bActionable = b.signal_type === 'BUY' || b.signal_type === 'SELL';
+  if (aActionable !== bActionable) return aActionable ? -1 : 1;
+  if (!aActionable) return 0;   // both HOLD — no ranking basis, keep original order
+  return (b.confidence_score || 0) - (a.confidence_score || 0);
+}
+
 async function loadTerminal() {
   const grid = document.getElementById('terminalGrid');
   const countEl = document.getElementById('terminalCount');
@@ -264,7 +305,7 @@ async function loadTerminal() {
     return;
   }
 
-  const cards = data.cards || [];
+  const cards = (data.cards || []).slice().sort(_terminalCardSort);
   countEl.textContent = cards.length ? `${data.total} asset${data.total === 1 ? '' : 's'} · ${MARKET_LABEL[_termMarket] || _termMarket} · ${tf}` : '';
 
   if (!cards.length) {

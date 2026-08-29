@@ -156,7 +156,14 @@ class SignalEngine:
                 "ai_score":          raw_scores.get("ai", 0),
                 "indicators":        indicators,
                 "patterns":          patterns,
-                "reasoning":         " | ".join(text for _, text in reasons),
+                "reasoning":         " | ".join(text for _, text, _ in reasons),
+                # Structured breakdown so the UI can show which factors
+                # actually supported the final direction vs. which were
+                # outweighed (e.g. a strong bearish reversal pattern winning
+                # out over weaker bullish trend/momentum tags) — the plain
+                # `reasoning` string above stays as-is for backward
+                # compatibility with anything already reading/persisting it.
+                "reasoning_detail":  self._labeled_reasons(reasons, raw_direction),
                 "volatility_regime": vol_regime,
                 "higher_tf_bias":    higher_bias,
                 "regime":            self._regime_label(higher_bias, vol_regime, raw_direction),
@@ -166,11 +173,11 @@ class SignalEngine:
                 "lane_technical":         self._lane_verdict(
                     raw_scores.get("trend", 0) + raw_scores.get("momentum", 0) + raw_scores.get("pattern", 0),
                     65,  # max trend(30) + momentum(20) + pattern(15)
-                    [text for cat, text in reasons if cat in ("trend", "momentum", "pattern")],
+                    [text for cat, text, _ in reasons if cat in ("trend", "momentum", "pattern")],
                 ),
                 "lane_flow":              self._lane_verdict(
                     raw_scores.get("volume", 0), 15,
-                    [text for cat, text in reasons if cat == "volume"],
+                    [text for cat, text, _ in reasons if cat == "volume"],
                 ),
                 "invalidation_conditions": self._invalidation_conditions(
                     raw_direction, timeframe, structure_level, rsi, higher_bias,
@@ -238,11 +245,11 @@ class SignalEngine:
             technical = self._lane_verdict(
                 raw_scores.get("trend", 0) + raw_scores.get("momentum", 0) + raw_scores.get("pattern", 0),
                 65,
-                [text for cat, text in reasons if cat in ("trend", "momentum", "pattern")],
+                [text for cat, text, _ in reasons if cat in ("trend", "momentum", "pattern")],
             )
             flow = self._lane_verdict(
                 raw_scores.get("volume", 0), 15,
-                [text for cat, text in reasons if cat == "volume"],
+                [text for cat, text, _ in reasons if cat == "volume"],
             )
 
             result = {
@@ -258,7 +265,8 @@ class SignalEngine:
                 "ai_score":          raw_scores.get("ai", 0),
                 "lane_technical":    technical,
                 "lane_flow":         flow,
-                "reasoning":         " | ".join(text for _, text in reasons),
+                "reasoning":         " | ".join(text for _, text, _ in reasons),
+                "reasoning_detail":  self._labeled_reasons(reasons, raw_direction),
                 "volatility_regime": vol_regime,
                 "higher_tf_bias":    higher_bias,
                 "regime":            self._regime_label(higher_bias, vol_regime, raw_direction if raw_direction != "HOLD" else "BUY"),
@@ -448,32 +456,32 @@ class SignalEngine:
 
         if ema20 and ema50:
             if ema20 > ema50:
-                trend_bull += 8; reasons.append(("trend", "EMA20>EMA50 (uptrend)"))
+                trend_bull += 8; reasons.append(("trend", "EMA20>EMA50 (uptrend)", "bull"))
             else:
-                trend_bear += 8; reasons.append(("trend", "EMA20<EMA50 (downtrend)"))
+                trend_bear += 8; reasons.append(("trend", "EMA20<EMA50 (downtrend)", "bear"))
 
         if ema50 and ema200:
             if ema50 > ema200:
-                trend_bull += 5; reasons.append(("trend", "Golden cross zone"))
+                trend_bull += 5; reasons.append(("trend", "Golden cross zone", "bull"))
             else:
-                trend_bear += 5; reasons.append(("trend", "Death cross zone"))
+                trend_bear += 5; reasons.append(("trend", "Death cross zone", "bear"))
 
         if vwap and close:
             if close > vwap:
-                trend_bull += 6; reasons.append(("trend", "Price above VWAP"))
+                trend_bull += 6; reasons.append(("trend", "Price above VWAP", "bull"))
             else:
                 trend_bear += 6
 
         if supertrend_dir == "up":
-            trend_bull += 7; reasons.append(("trend", "SuperTrend bullish"))
+            trend_bull += 7; reasons.append(("trend", "SuperTrend bullish", "bull"))
         else:
-            trend_bear += 7; reasons.append(("trend", "SuperTrend bearish"))
+            trend_bear += 7; reasons.append(("trend", "SuperTrend bearish", "bear"))
 
         if ichi_a and ichi_b and close:
             cloud_top = max(ichi_a, ichi_b)
             cloud_bot = min(ichi_a, ichi_b)
             if close > cloud_top:
-                trend_bull += 4; reasons.append(("trend", "Price above Ichimoku cloud"))
+                trend_bull += 4; reasons.append(("trend", "Price above Ichimoku cloud", "bull"))
             elif close < cloud_bot:
                 trend_bear += 4
 
@@ -491,18 +499,18 @@ class SignalEngine:
         if 40 <= rsi <= 60:
             pass
         elif 30 <= rsi < 40:
-            mom_bull += 6; reasons.append(("momentum", f"RSI recovering from oversold ({rsi:.0f})"))
+            mom_bull += 6; reasons.append(("momentum", f"RSI recovering from oversold ({rsi:.0f})", "bull"))
         elif rsi < 30:
-            mom_bull += 10; reasons.append(("momentum", f"RSI oversold ({rsi:.0f})"))
+            mom_bull += 10; reasons.append(("momentum", f"RSI oversold ({rsi:.0f})", "bull"))
         elif 60 < rsi <= 70:
-            mom_bull += 4; reasons.append(("momentum", f"RSI bullish zone ({rsi:.0f})"))
+            mom_bull += 4; reasons.append(("momentum", f"RSI bullish zone ({rsi:.0f})", "bull"))
         elif rsi > 70:
-            mom_bear += 8; reasons.append(("momentum", f"RSI overbought ({rsi:.0f})"))
+            mom_bear += 8; reasons.append(("momentum", f"RSI overbought ({rsi:.0f})", "bear"))
 
         if macd > macd_sig and macd_hist > 0:
-            mom_bull += 10; reasons.append(("momentum", "MACD bullish crossover"))
+            mom_bull += 10; reasons.append(("momentum", "MACD bullish crossover", "bull"))
         elif macd < macd_sig and macd_hist < 0:
-            mom_bear += 10; reasons.append(("momentum", "MACD bearish crossover"))
+            mom_bear += 10; reasons.append(("momentum", "MACD bearish crossover", "bear"))
         elif macd_hist > 0:
             mom_bull += 4
         elif macd_hist < 0:
@@ -520,15 +528,17 @@ class SignalEngine:
             curr_vol = df["volume"].iloc[-1]
             if avg_vol and avg_vol > 0:
                 vol_ratio = curr_vol / avg_vol
+                # Volume reasons describe conviction/quality, not direction —
+                # tagged "neutral" rather than bull/bear.
                 if vol_ratio >= 2.0:
-                    scores["volume"] = 15; reasons.append(("volume", "Strong volume spike (2×+)"))
+                    scores["volume"] = 15; reasons.append(("volume", "Strong volume spike (2×+)", "neutral"))
                 elif vol_ratio >= 1.5:
-                    scores["volume"] = 10; reasons.append(("volume", "Volume spike (1.5×+)"))
+                    scores["volume"] = 10; reasons.append(("volume", "Volume spike (1.5×+)", "neutral"))
                 elif vol_ratio >= 1.0:
-                    scores["volume"] = 6; reasons.append(("volume", "Volume in line with average"))
+                    scores["volume"] = 6; reasons.append(("volume", "Volume in line with average", "neutral"))
                 else:
                     scores["volume"] = 2  # low volume — weak signal
-                    reasons.append(("volume", "Below-average volume"))
+                    reasons.append(("volume", "Below-average volume", "neutral"))
 
         # ── Pattern component (up to 15 pts) ──────────────
         try:
@@ -539,12 +549,12 @@ class SignalEngine:
             if bull_pat:
                 best = max(bull_pat, key=lambda p: p["strength"])
                 scores["pattern"] = min(15, int(best["strength"] / 7))
-                reasons.append(("pattern", f"Pattern: {best['name']}"))
+                reasons.append(("pattern", f"Pattern: {best['name']}", "bull"))
                 bull += best["strength"]
             elif bear_pat:
                 best = max(bear_pat, key=lambda p: p["strength"])
                 scores["pattern"] = min(15, int(best["strength"] / 7))
-                reasons.append(("pattern", f"Pattern: {best['name']}"))
+                reasons.append(("pattern", f"Pattern: {best['name']}", "bear"))
                 bear += best["strength"]
         except Exception:
             pass
@@ -695,6 +705,23 @@ class SignalEngine:
             "verdict": verdict,
             "reasons": reasons[:3] or ["No strong signal from this factor"],
         }
+
+    @staticmethod
+    def _labeled_reasons(reasons: list[tuple[str, str, str]], direction: str) -> list[dict]:
+        """Marks each scored factor as `aligned` (supports the final BUY/SELL
+        direction) or not (outweighed by stronger opposing factors — most
+        often a single high-strength reversal pattern beating several
+        smaller trend/momentum tags pointing the other way). Without this,
+        the UI's flat reasoning list reads as self-contradictory whenever
+        that override happens — e.g. a SELL signal listing "SuperTrend
+        bullish" with no indication it lost the vote. Volume reasons are
+        quality/conviction signals, not directional ones, so they're always
+        aligned rather than compared against `direction`."""
+        target_lean = "bull" if direction == "BUY" else "bear" if direction == "SELL" else None
+        return [
+            {"text": text, "lean": lean, "aligned": lean == "neutral" or lean == target_lean}
+            for _, text, lean in reasons
+        ]
 
     def _calculate_targets(self, direction: str, price: float, atr: float) -> tuple[float, float, float]:
         # T1 at 1.2×ATR (closer than the 1.8×ATR stop) so it is reached far more

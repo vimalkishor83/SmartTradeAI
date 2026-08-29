@@ -13,3 +13,5 @@ from app.models.economic import EconomicEvent
 from app.models.api_config import APIConfig, APILog
 from app.models.audit import AuditLog, SystemLog
 from app.models.auto_generate_config import AutoGenerateConfig
+from app.models.saved_screen import SavedScreen
+from app.models.mtf_watch_config import MtfWatchConfig

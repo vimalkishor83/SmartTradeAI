@@ -26,14 +26,32 @@ import pandas as pd
 
 from app.services.indicators.calculator import calculate_ema
 
-# Ordered timeframe ladder used everywhere in the app for the TA Summary grid.
-TA_TIMEFRAMES = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+# EMA9/21 confirmation intentionally excludes 1m (no established use for
+# this feature's "next timeframe up" pairing at that granularity) even when
+# an admin includes 1m in Platform Config's broader display list.
+_EMA_MTF_SUBSET = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
 
-#: base timeframe -> its confirming higher timeframe (None = no higher pair).
-HIGHER_TF_MAP: dict[str, str | None] = {
-    tf: (TA_TIMEFRAMES[i + 1] if i + 1 < len(TA_TIMEFRAMES) else None)
-    for i, tf in enumerate(TA_TIMEFRAMES)
-}
+
+def get_ta_timeframes() -> list[str]:
+    """Ordered timeframe ladder for the TA Summary / EMA 9/21 MTF grids —
+    the admin-managed Platform Config list, intersected with the fixed set
+    this feature's higher-timeframe-confirmation logic supports, falling
+    back to that full fixed set if the admin list excludes all of them
+    (e.g. an admin who only kept "1m" and "1w", neither of which this
+    feature can pair)."""
+    from app.services.platform_config import get_display_timeframes
+    configured = get_display_timeframes()
+    result = [tf for tf in configured if tf in _EMA_MTF_SUBSET]
+    return result or list(_EMA_MTF_SUBSET)
+
+
+def get_higher_tf_map() -> dict[str, str | None]:
+    """base timeframe -> its confirming higher timeframe (None = no higher
+    pair) — derived live from get_ta_timeframes() so admin reordering is
+    reflected immediately rather than needing a restart (the old
+    module-level HIGHER_TF_MAP was computed once at import time)."""
+    tfs = get_ta_timeframes()
+    return {tf: (tfs[i + 1] if i + 1 < len(tfs) else None) for i, tf in enumerate(tfs)}
 
 #: Minimum candles needed for a stable EMA21 read (a few periods of warm-up
 #: beyond the span itself so the EMA has settled rather than reading the
@@ -198,6 +216,7 @@ def _explain(base: TfEmaRead, higher: TfEmaRead | None, rating: str, conflicting
 def compute_ema921_cell(
     base_df: pd.DataFrame | None, base_tf: str, higher_df: pd.DataFrame | None,
     bars_back: int = 0, _read_cache: dict | None = None,
+    _higher_tf_map: dict[str, str | None] | None = None,
 ) -> Ema921Cell:
     """One-call convenience: read both timeframes and combine them.
 
@@ -212,7 +231,7 @@ def compute_ema921_cell(
     compute_ema921_cell() calls for the SAME asset (one per timeframe column
     in the 7-timeframe grid). Every timeframe appears as a "base" column in
     its own right AND as the "higher" confirmation leg for the timeframe one
-    step below it (per HIGHER_TF_MAP) — e.g. 1h is read once as the "1h"
+    step below it (per get_higher_tf_map()) — e.g. 1h is read once as the "1h"
     column's base and again as "30m"'s higher leg. In the common live case
     (bars_back=0 uniformly across a grid row) the as-of join for the higher
     leg resolves to the exact same bar as that timeframe's own live read, so
@@ -222,7 +241,8 @@ def compute_ema921_cell(
     different historical offset than that timeframe's own column.
     """
     cache = _read_cache if _read_cache is not None else {}
-    higher_tf = HIGHER_TF_MAP.get(base_tf)
+    higher_tf_map = _higher_tf_map if _higher_tf_map is not None else get_higher_tf_map()
+    higher_tf = higher_tf_map.get(base_tf)
 
     base_key = (base_tf, bars_back)
     if base_key in cache:

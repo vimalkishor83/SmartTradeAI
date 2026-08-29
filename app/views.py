@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, redirect, url_for, request
 from app.models.asset import Asset
+from app.auth.decorators import page_admin_required
 
 views_bp = Blueprint("views", __name__)
 
@@ -81,6 +82,16 @@ def markets_terminal():
 @views_bp.route("/scanner")
 def scanner():
     return render_template("dashboard/scanner.html", requires_tier=2)
+
+
+@views_bp.route("/delta-scanner")
+def delta_scanner():
+    return render_template("dashboard/delta_scanner.html", requires_tier=2)
+
+
+@views_bp.route("/delta-bubbles")
+def delta_bubbles():
+    return render_template("dashboard/delta_bubbles.html", requires_tier=2)
 
 
 @views_bp.route("/backtesting")
@@ -190,31 +201,37 @@ def journal():
 
 
 @views_bp.route("/admin")
+@page_admin_required
 def admin():
     return render_template("admin/index.html")
 
 
 @views_bp.route("/admin/users")
+@page_admin_required
 def admin_users():
     return render_template("admin/users.html")
 
 
 @views_bp.route("/admin/logs")
+@page_admin_required
 def admin_logs():
     return render_template("admin/logs.html")
 
 
 @views_bp.route("/admin/api-configs")
+@page_admin_required
 def admin_api_configs():
     return render_template("admin/api_configs.html")
 
 
 @views_bp.route("/admin/assets")
+@page_admin_required
 def admin_assets():
     return render_template("admin/assets.html")
 
 
 @views_bp.route("/admin/platform-config")
+@page_admin_required
 def admin_platform_config():
     return render_template("admin/platform_config.html")
 

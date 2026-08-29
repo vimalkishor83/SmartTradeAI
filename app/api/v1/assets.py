@@ -91,7 +91,12 @@ def create_asset():
     asset = Asset(**{k: data[k] for k in data if k in _ASSET_EDITABLE_FIELDS})
     db.session.add(asset)
     db.session.commit()
-    cache.delete("assets_list")
+    # list_assets caches under f"assets_list_{market or 'all'}" — deleting the
+    # bare "assets_list" key (as this did) matched nothing, so a newly created
+    # asset stayed invisible until the entry aged out on its own. Sweep every
+    # market key the same way delete_asset does.
+    for mk in Asset.MARKETS + ["all"]:
+        cache.delete(f"assets_list_{mk}")
     return jsonify(asset.to_dict()), 201
 
 
@@ -108,7 +113,11 @@ def update_asset(asset_id):
         if k in _ASSET_EDITABLE_FIELDS:
             setattr(asset, k, v)
     db.session.commit()
-    cache.delete("assets_list")
+    # Sweep every market key, not the bare "assets_list" (which list_assets
+    # never writes). The full sweep also covers a market change on this edit,
+    # where BOTH the old and new market's cached lists are now stale.
+    for mk in Asset.MARKETS + ["all"]:
+        cache.delete(f"assets_list_{mk}")
     return jsonify(asset.to_dict()), 200
 
 

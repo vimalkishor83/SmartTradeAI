@@ -229,6 +229,15 @@ def logout():
 @jwt_required(refresh=True)
 def refresh():
     user_id = get_jwt_identity()
+    # Re-check the account on every refresh. /login already refuses a
+    # deactivated user, but refresh tokens live for 30 days — without this
+    # lookup a user deactivated mid-window could keep minting fresh 24h access
+    # tokens for the rest of that window, so deactivation wouldn't actually
+    # revoke anything until the refresh token itself expired.
+    user = User.query.get(int(user_id)) if user_id else None
+    if not user or not user.is_active:
+        return jsonify({"error": "Account is disabled"}), 403
+
     access_token = create_access_token(identity=user_id)
     return jsonify({"access_token": access_token}), 200
 
@@ -411,6 +420,13 @@ def update_profile():
         if field in data:
             setattr(user, field, data[field])
 
+    # Never round-tripped back to the client (to_dict only exposes
+    # has_telegram_bot_token), so the field arrives blank on every page
+    # load by design — only touch the stored token when the user actually
+    # typed a new one, never wipe it just because the field was empty.
+    if data.get("telegram_bot_token"):
+        user.set_telegram_bot_token(data["telegram_bot_token"])
+
     if "password" in data and "current_password" in data:
         if not user.check_password(data["current_password"]):
             return jsonify({"error": "Current password is incorrect"}), 400
@@ -418,6 +434,106 @@ def update_profile():
 
     db.session.commit()
     return jsonify({"message": "Profile updated", "user": user.to_dict()}), 200
+
+
+def _resolve_telegram_token(user, override: str | None = None) -> str | None:
+    """Per-user bot token first, then the request's just-typed-but-not-yet-
+    saved override, then the platform-wide fallback bot (if an admin has
+    configured one) — a user isn't required to run their own bot, but can."""
+    from flask import current_app
+    if override:
+        return override
+    own = user.get_telegram_bot_token()
+    if own:
+        return own
+    return current_app.config.get("TELEGRAM_BOT_TOKEN")
+
+
+@auth_bp.route("/me/telegram-find-chat-id", methods=["POST"])
+@login_required
+def find_telegram_chat_id():
+    """
+    Finding your own numeric Chat ID is the one genuinely fiddly step in
+    setting up Telegram alerts. Telegram's getUpdates returns every message
+    your bot has received — if you've just messaged it (per the Settings
+    page guide), the chat ID is sitting right there, so auto-fill it
+    instead of asking the user to read it out of a raw JSON blob by hand.
+    """
+    import requests
+    user = get_current_user()
+    data = request.get_json(silent=True) or {}
+    token = _resolve_telegram_token(user, data.get("bot_token"))
+    if not token:
+        return jsonify({"error": "Add your bot token first (or save it), then try again."}), 400
+
+    try:
+        resp = requests.get(f"https://api.telegram.org/bot{token}/getUpdates", timeout=8)
+    except requests.RequestException as e:
+        return jsonify({"error": f"Could not reach Telegram: {e}"}), 502
+
+    body = resp.json() if resp.content else {}
+    if not body.get("ok"):
+        return jsonify({"error": body.get("description", "Telegram rejected that bot token.")}), 400
+
+    updates = body.get("result", [])
+    if not updates:
+        return jsonify({"error": "No messages found yet — open your bot in Telegram and send it any message, then try again."}), 404
+
+    # Most recent sender wins — this account's own chat with the bot.
+    chat = updates[-1].get("message", {}).get("chat", {})
+    chat_id = chat.get("id")
+    if not chat_id:
+        return jsonify({"error": "Couldn't find a chat ID in your bot's recent messages."}), 404
+
+    label = chat.get("username") or chat.get("first_name") or "you"
+    return jsonify({"chat_id": str(chat_id), "message": f"Found it — chat with {label}."}), 200
+
+
+@auth_bp.route("/me/telegram-test", methods=["POST"])
+@login_required
+def send_telegram_test():
+    """
+    Send one real Telegram message right now and report whether it actually
+    worked. The scheduled sender (_send_telegram in notification_tasks.py)
+    is fire-and-forget by design — fine for a background alert job, but it
+    silently swallows every failure, so a user who mistyped their chat ID
+    or never configured a bot has no way to find out except waiting for a
+    real alert to silently never arrive. This exists purely to close that
+    loop from the Settings page.
+    """
+    import requests
+    user = get_current_user()
+    data = request.get_json(silent=True) or {}
+
+    token = _resolve_telegram_token(user, data.get("bot_token"))
+    if not token:
+        return jsonify({"error": "Add your own bot token in Settings first (see the guide above), or ask your admin to configure a shared one."}), 503
+
+    chat_id = data.get("chat_id") or user.telegram_chat_id
+    if not chat_id:
+        return jsonify({"error": "Enter a Telegram Chat ID first, then save and try again."}), 400
+
+    try:
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={
+                "chat_id": chat_id,
+                "text": f"✅ *SmartTrade AI* test notification\n\nIf you can read this, Telegram alerts are working for your account.",
+                "parse_mode": "Markdown",
+            },
+            timeout=8,
+        )
+    except requests.RequestException as e:
+        return jsonify({"error": f"Could not reach Telegram: {e}"}), 502
+
+    body = resp.json() if resp.content else {}
+    if resp.status_code == 200 and body.get("ok"):
+        return jsonify({"message": "Test message sent — check Telegram."}), 200
+
+    # Telegram's own error text (e.g. "chat not found", "bot was blocked by
+    # the user") is far more actionable than a generic failure would be.
+    reason = body.get("description", f"HTTP {resp.status_code}")
+    return jsonify({"error": f"Telegram rejected the message: {reason}"}), 400
 
 
 @auth_bp.route("/subscriptions", methods=["GET"])

@@ -16,6 +16,7 @@ Method (avoids look-ahead bias):
 from __future__ import annotations
 
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
 
@@ -218,27 +219,38 @@ def run_backtest(asset, timeframe: str, days: int = 60, limit: int | None = None
     }
 
 
-def backtest_portfolio(assets, timeframe: str, days: int = 60) -> dict:
+def backtest_portfolio(assets, timeframe: str, days: int = 60, max_workers: int = 8) -> dict:
     """
     Run the backtest across many assets and aggregate. Returns per-asset
     results plus a combined summary and a per-market breakdown.
+
+    Each run_backtest() call is dominated by market_fetcher.fetch() (network
+    I/O) plus its own walk-forward loop over up to _MAX_CANDLES bars -- with
+    the default portfolio size (up to 15 assets), running these one at a time
+    serialized what should be independent, unrelated work into one long
+    request. run_backtest() touches no DB session and no Flask app context
+    (only market_fetcher + pure pandas), so it's safe to fan out across
+    threads the same way fetch_many()/prewarm_ta_cache() already do elsewhere
+    in this codebase.
     """
     per_asset = []
-    all_trades: list[dict] = []
     by_market: dict[str, list[dict]] = {}
 
-    for asset in assets:
-        try:
-            res = run_backtest(asset, timeframe, days=days)
-        except Exception as e:
-            logger.error(f"Backtest failed for {getattr(asset, 'symbol', '?')}: {e}")
-            continue
-        per_asset.append(res)
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futures = {pool.submit(run_backtest, asset, timeframe, days): asset for asset in assets}
+        for fut in as_completed(futures):
+            asset = futures[fut]
+            try:
+                res = fut.result()
+            except Exception as e:
+                logger.error(f"Backtest failed for {getattr(asset, 'symbol', '?')}: {e}")
+                continue
+            per_asset.append(res)
 
-        # Rebuild trade list for aggregation from the summary counts is lossy,
-        # so re-run is avoided by aggregating the summary stats directly below.
-        mkt = res.get("market") or "unknown"
-        by_market.setdefault(mkt, []).append(res)
+            # Rebuild trade list for aggregation from the summary counts is lossy,
+            # so re-run is avoided by aggregating the summary stats directly below.
+            mkt = res.get("market") or "unknown"
+            by_market.setdefault(mkt, []).append(res)
 
     def _agg(results: list[dict]) -> dict:
         t = sum(r["trades"] for r in results)

@@ -206,6 +206,40 @@ def close_and_record_signals(app):
             capture(e, job="close_and_record_signals")
 
 
+def _claim_watchlist_alert(item, current_price: float, alert_price: float) -> bool:
+    """Atomically claim a watchlist price-alert trigger.
+
+    Returns True only if THIS caller transitioned the item out of its
+    "armed at this baseline" state, so only one concurrent runner notifies the
+    user. Performs the same state change the loop used to do in-session:
+
+      * repeat alerts  -> re-arm by moving alert_set_at_price to the price it
+        just fired at, guarded on the baseline still being the old value.
+      * one-shot alerts -> disarm by clearing alert_price, guarded on
+        alert_price still being set.
+
+    Guarding on the *previous* value is what makes this a claim rather than a
+    blind write: a second runner that already lost the race sees rowcount 0.
+    """
+    from app.models.watchlist import WatchlistItem
+    from app.extensions import db
+
+    tbl = WatchlistItem.__table__
+    if item.alert_repeat:
+        baseline = item.alert_set_at_price
+        cond = (tbl.c.alert_set_at_price.is_(None) if baseline is None
+                else tbl.c.alert_set_at_price == baseline)
+        stmt = tbl.update().where(tbl.c.id == item.id, cond).values(alert_set_at_price=current_price)
+    else:
+        stmt = tbl.update().where(
+            tbl.c.id == item.id, tbl.c.alert_price.isnot(None)
+        ).values(alert_price=None)
+
+    result = db.session.execute(stmt)
+    db.session.commit()
+    return result.rowcount > 0
+
+
 def _claim_signal_close(signal, new_status: str) -> bool:
     """Atomically transition a signal from "active" to a closed status.
 
@@ -271,10 +305,11 @@ def prewarm_ta_cache(app):
         from concurrent.futures import ThreadPoolExecutor
         from app.api.v1.market_data import _compute_ta_rating
         from app.api.v1.signals import _mtf_rating
-        from app.services.indicators.ema_mtf import HIGHER_TF_MAP, compute_ema921_cell
+        from app.services.indicators.ema_mtf import get_ta_timeframes, get_higher_tf_map, compute_ema921_cell
 
-        ta_tfs  = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
-        mtf_tfs = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+        ta_tfs  = get_ta_timeframes()
+        mtf_tfs = ta_tfs
+        higher_tf_map = get_higher_tf_map()
         assets  = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
 
         # Skip markets whose data feed is PAUSED in APIConfig before doing any
@@ -346,9 +381,11 @@ def prewarm_ta_cache(app):
             read_cache: dict = {}  # shared per-asset across tf columns — see ema_mtf.compute_ema921_cell docstring
             for tf in ta_tfs:
                 try:
-                    higher_tf = HIGHER_TF_MAP.get(tf)
+                    higher_tf = higher_tf_map.get(tf)
                     higher_df = dfs.get(higher_tf) if higher_tf else None
-                    row["tf"][tf] = compute_ema921_cell(dfs.get(tf), tf, higher_df, _read_cache=read_cache).to_dict()
+                    row["tf"][tf] = compute_ema921_cell(
+                        dfs.get(tf), tf, higher_df, _read_cache=read_cache, _higher_tf_map=higher_tf_map,
+                    ).to_dict()
                 except Exception:
                     row["tf"][tf] = None
             return row
@@ -423,7 +460,14 @@ def prewarm_ai_cache(app):
         from app.extensions import cache, db
         from datetime import datetime, timedelta
 
-        tfs    = ["5m", "15m", "1h", "4h", "1d"]
+        # Same 5-timeframe compute-cost boundary as ai_summary() in
+        # api/v1/market_data.py — each column costs one model inference per
+        # asset, so this intentionally stays a subset of the full Platform
+        # Config timeframe list even when that list is broader.
+        _AI_SUMMARY_SUBSET = ["5m", "15m", "1h", "4h", "1d"]
+        from app.services.platform_config import get_display_timeframes
+        _configured = [tf for tf in get_display_timeframes() if tf in _AI_SUMMARY_SUBSET]
+        tfs    = _configured or _AI_SUMMARY_SUBSET
         assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
 
         # Skip PAUSED-feed markets before fetching/predicting — same rationale
@@ -783,7 +827,13 @@ def fetch_economic_calendar(app):
             except Exception as e:
                 logger.debug(f"Economic calendar fetch failed for {url}: {e}")
 
-        saved = 0
+        # Parse every event first (pure computation, no DB) so the existing
+        # rows can be batch-fetched in ONE query instead of one
+        # EconomicEvent.query.filter_by(title=..., event_time=...) SELECT per
+        # event — this job pulls ~200-400 events per run (two ForexFactory
+        # weeks), so that was 200-400 round trips every 6h for what a single
+        # ranged query covers.
+        parsed = []
         for ev in all_events:
             title = ev.get("title", "").strip()
             date_str = ev.get("date", "")
@@ -809,29 +859,52 @@ def fetch_economic_calendar(app):
                 continue
 
             impact_raw = (ev.get("impact") or "").lower()
-            # Normalize: High/Medium/Low
             impact = impact_raw if impact_raw in ("high", "medium", "low") else "low"
-
             country = ev.get("country", "")
-            # Upsert by title + event_time
-            existing = EconomicEvent.query.filter_by(title=title, event_time=event_time).first()
-            if existing:
-                existing.actual = ev.get("actual") or existing.actual
-                existing.forecast = ev.get("forecast") or existing.forecast
-                existing.previous = ev.get("previous") or existing.previous
-            else:
-                event = EconomicEvent(
-                    title=title,
-                    country=country,
-                    currency=country,  # FF uses currency code as country
-                    impact=impact,
-                    forecast=ev.get("forecast"),
-                    previous=ev.get("previous"),
-                    actual=ev.get("actual"),
-                    event_time=event_time,
-                )
-                db.session.add(event)
-                saved += 1
+            parsed.append({
+                "title": title, "event_time": event_time, "impact": impact,
+                "country": country, "forecast": ev.get("forecast"),
+                "previous": ev.get("previous"), "actual": ev.get("actual"),
+            })
+
+        saved = 0
+        if parsed:
+            times = [p["event_time"] for p in parsed]
+            existing_rows = (
+                EconomicEvent.query
+                .filter(EconomicEvent.event_time.between(min(times), max(times)))
+                .all()
+            )
+            existing_by_key = {(e.title, e.event_time): e for e in existing_rows}
+
+            for p in parsed:
+                key = (p["title"], p["event_time"])
+                existing = existing_by_key.get(key)
+                if existing:
+                    existing.actual = p["actual"] or existing.actual
+                    existing.forecast = p["forecast"] or existing.forecast
+                    existing.previous = p["previous"] or existing.previous
+                else:
+                    event = EconomicEvent(
+                        title=p["title"],
+                        country=p["country"],
+                        currency=p["country"],  # FF uses currency code as country
+                        impact=p["impact"],
+                        forecast=p["forecast"],
+                        previous=p["previous"],
+                        actual=p["actual"],
+                        event_time=p["event_time"],
+                    )
+                    db.session.add(event)
+                    # The two overlapping ForexFactory week-URLs can return the
+                    # same event twice in one run. Record it in the lookup
+                    # immediately so a duplicate later in THIS SAME batch
+                    # updates this in-memory row instead of inserting a
+                    # second one — existing_by_key was only seeded from the
+                    # DB once, before the loop, so without this a repeat key
+                    # would never be seen as "existing" and would insert twice.
+                    existing_by_key[key] = event
+                    saved += 1
 
         try:
             db.session.commit()
@@ -854,7 +927,16 @@ def check_watchlist_alerts(app):
         from app.services.data.fetcher import market_fetcher
         from app.extensions import db
 
-        items = WatchlistItem.query.filter(WatchlistItem.alert_price.isnot(None)).all()
+        # joinedload(asset): the loop below reads item.asset for every item, so
+        # without eager loading this fired one extra SELECT per watchlist item
+        # on a job that runs every 2 minutes across ALL users' watchlists. The
+        # watchlist->user lookups below were already batched for exactly this
+        # reason; the asset relationship had been missed.
+        from sqlalchemy.orm import joinedload
+        items = (WatchlistItem.query
+                 .options(joinedload(WatchlistItem.asset))
+                 .filter(WatchlistItem.alert_price.isnot(None))
+                 .all())
         if not items:
             return
 
@@ -916,6 +998,16 @@ def check_watchlist_alerts(app):
                     user_id = watchlist.user_id
                     user = users_map.get(user_id)
 
+                    # Claim the trigger BEFORE notifying. This loop used to
+                    # send Telegram/push/WebSocket and only mutate the item's
+                    # alert state in-session, committing at the very end — so
+                    # two overlapping runs of this job (guaranteed the moment
+                    # more than one process registers it) could both observe
+                    # the same un-fired alert and both notify the user. Same
+                    # conditional-UPDATE approach as _claim_signal_close.
+                    if not _claim_watchlist_alert(item, current_price, alert_price):
+                        continue
+
                     direction = "above" if current_price >= alert_price else "below"
                     title = f"{symbol} hit your alert price"
                     msg = (
@@ -932,15 +1024,10 @@ def check_watchlist_alerts(app):
                     )
                     db.session.add(notif)
 
-                    if item.alert_repeat:
-                        # Re-arm: reset the crossing baseline to the price
-                        # it just fired at, so the NEXT crossing (in
-                        # either direction) fires again instead of the
-                        # alert going silent forever after the first hit.
-                        item.alert_set_at_price = current_price
-                    else:
-                        # One-shot alert: clear the alert_price so it doesn't fire again
-                        item.alert_price = None
+                    # The re-arm (repeat) / disarm (one-shot) state change is
+                    # performed atomically by _claim_watchlist_alert above —
+                    # doing it here as well would be redundant and would
+                    # re-open the race it closes.
                     triggered += 1
 
                     # Broadcast via WebSocket if available
@@ -1063,6 +1150,55 @@ def nightly_cleanup(app):
             logger.error(f"Nightly cleanup failed: {e}")
 
 
+def prewarm_delta_market_screener(app):
+    """Pre-compute the flexible-condition screener's metric universe (price,
+    24h change, volume, RSI(14), funding, open interest) for each asset type,
+    so every filter combination a user tries is served from cache instead of
+    recomputing RSI for ~220 contracts on the first request after it expires."""
+    with app.app_context():
+        from app.api.v1.scanner import get_delta_screener_universe
+        from app.services.scanner.delta_market_screener import ASSET_TYPES
+
+        for asset_type in ASSET_TYPES:
+            try:
+                get_delta_screener_universe(asset_type)
+            except Exception:
+                logger.exception("Delta market screener prewarm failed for %s", asset_type)
+
+
+def prewarm_delta_indicator_screener(app):
+    """Pre-compute the indicator-crossover screener's per-symbol OHLCV +
+    indicator universe for perpetual_futures (the ~220-contract asset type)
+    across all three candle timeframes. Spot/move_options are only ~4
+    contracts each — cheap enough to compute on first request rather than
+    reserving scheduler time for them."""
+    with app.app_context():
+        from app.api.v1.scanner import get_delta_indicator_universe
+        from app.services.scanner.delta_indicator_scanner import TIMEFRAMES
+
+        for timeframe in TIMEFRAMES:
+            try:
+                get_delta_indicator_universe("perpetual_futures", timeframe)
+            except Exception:
+                logger.exception("Delta indicator screener prewarm failed for %s", timeframe)
+
+
+def prewarm_delta_scanner(app):
+    """Pre-compute the Delta Exchange multi-timeframe EMA+Supertrend scan and
+    store it in cache so /delta-scanner page loads are instant instead of
+    waiting on a ~100-contract-wide live scan (see api/v1/scanner.py)."""
+    with app.app_context():
+        from app.extensions import cache
+        from app.services.scanner.delta_mtf_scanner import run_scan
+        from app.api.v1.scanner import DELTA_SCANNER_CACHE_KEY
+
+        try:
+            result = run_scan()
+            cache.set(DELTA_SCANNER_CACHE_KEY, result, timeout=330)
+        except Exception:
+            logger.exception("Delta MTF scanner prewarm failed")
+
+
 def register_data_jobs(scheduler, app):
     # Non-crypto ticker fallback — every 15 seconds (crypto handled by Binance WS stream)
     scheduler.add_job(update_tickers, "interval", seconds=15,
@@ -1077,6 +1213,16 @@ def register_data_jobs(scheduler, app):
     # refresh) so /market-data/heatmap is always served from a warm cache.
     scheduler.add_job(prewarm_heatmap, "interval", minutes=3,
                       args=[app], id="prewarm_heatmap", replace_existing=True)
+    # Delta Exchange MTF scanner pre-warm — every 5 minutes (cache TTL 330s)
+    scheduler.add_job(prewarm_delta_scanner, "interval", minutes=5,
+                      args=[app], id="prewarm_delta_scanner", replace_existing=True)
+    # Delta market screener universe pre-warm — every 2 minutes (cache TTL 120s)
+    scheduler.add_job(prewarm_delta_market_screener, "interval", minutes=2,
+                      args=[app], id="prewarm_delta_screener", replace_existing=True)
+    # Delta indicator-crossover screener pre-warm — every 3 minutes (cache TTL 180s),
+    # perpetual_futures across all 3 candle timeframes (~5-8s each).
+    scheduler.add_job(prewarm_delta_indicator_screener, "interval", minutes=3,
+                      args=[app], id="prewarm_delta_indicator_screener", replace_existing=True)
     # AI predictions pre-warm — every 30 minutes
     scheduler.add_job(prewarm_ai_cache, "interval", minutes=30,
                       args=[app], id="prewarm_ai", replace_existing=True)
@@ -1113,5 +1259,17 @@ def register_data_jobs(scheduler, app):
                       run_date=datetime.utcnow() + timedelta(seconds=20),
                       args=[app], id="prewarm_heatmap_startup",
                       replace_existing=True, misfire_grace_time=60)
+    scheduler.add_job(prewarm_delta_scanner, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=25),
+                      args=[app], id="prewarm_delta_scanner_startup",
+                      replace_existing=True, misfire_grace_time=120)
+    scheduler.add_job(prewarm_delta_market_screener, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=35),
+                      args=[app], id="prewarm_delta_screener_startup",
+                      replace_existing=True, misfire_grace_time=120)
+    scheduler.add_job(prewarm_delta_indicator_screener, "date",
+                      run_date=datetime.utcnow() + timedelta(seconds=45),
+                      args=[app], id="prewarm_delta_indicator_screener_startup",
+                      replace_existing=True, misfire_grace_time=120)
 
     logger.info("Data jobs registered (TA + heatmap + AI startup pre-warm queued)")

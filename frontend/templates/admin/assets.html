@@ -75,6 +75,10 @@
         <option value="indian_stock">Indian Stocks</option>
         <option value="index">Indices</option>
       </select>
+      <div class="form-check mb-0">
+        <input class="form-check-input" type="checkbox" id="showDisabled" onchange="applyFilter()">
+        <label class="form-check-label small text-muted" for="showDisabled">Show disabled</label>
+      </div>
       <span class="text-muted small" id="assetCount"></span>
     </div>
   </div>
@@ -150,7 +154,9 @@ function updateKpis() {
 function applyFilter() {
   const q  = (document.getElementById('assetSearch').value || '').toLowerCase();
   const mk = document.getElementById('assetMarketFilter').value;
+  const showDisabled = document.getElementById('showDisabled').checked;
   const filtered = _allAssets.filter(a =>
+    (showDisabled || a.is_active) &&
     (!mk || a.market === mk) &&
     (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q))
   );
@@ -191,11 +197,15 @@ function renderTable(assets) {
 }
 
 async function removeAsset(id, symbol) {
-  if (!confirm(`Remove "${symbol}" from the platform?\n\nHistorical signals are preserved.`)) return;
+  if (!confirm(`Remove "${symbol}" from the platform?\n\nHistorical signals are preserved — it can be re-enabled later via "Show disabled".`)) return;
   const ok = await API.delete(`/assets/${id}`);
   if (ok) {
     Toast.show(`${symbol} removed`, 'success');
-    _allAssets = _allAssets.filter(a => a.id !== id);
+    // Soft delete — the row stays in _allAssets (now is_active:false) so
+    // "Show disabled" can still find and re-enable it; applyFilter() is
+    // what actually hides it from the default view, not removal from the array.
+    const a = _allAssets.find(x => x.id === id);
+    if (a) a.is_active = false;
     updateKpis();
     applyFilter();
   } else {

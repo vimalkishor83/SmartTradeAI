@@ -980,7 +980,7 @@
     <div class="feature-card">
       <div class="feature-icon">🤖</div>
       <div class="feature-title">AI Predictions</div>
-      <p class="feature-desc">Machine learning ensemble predicts next move with probability scores. Trained on millions of Indian market candles.</p>
+      <p class="feature-desc">Machine learning ensemble predicts next move with probability scores. Trained on millions of historical candles across every asset class we cover.</p>
     </div>
 
     <div class="feature-card">
@@ -1078,7 +1078,7 @@
     <div class="section-header">
       <span class="section-label">Simple Pricing</span>
       <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
-      <p class="section-sub">No hidden fees. Cancel anytime. Built for Indian traders at Indian prices.</p>
+      <p class="section-sub">No hidden fees. Cancel anytime. Priced in INR, built for every market you trade.</p>
     </div>
 
     <div class="referral-callout">
@@ -1206,7 +1206,7 @@
 <!-- ═══ FOOTER ════════════════════════════════════════════════ -->
 <footer class="footer">
   <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
-  <div class="footer-tagline">Your edge in the Indian markets — powered by artificial intelligence.</div>
+  <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
   <ul class="footer-links">
     <li><a href="/dashboard">Dashboard</a></li>
     <li><a href="/login">Login</a></li>
@@ -1224,7 +1224,7 @@
     <a href="/disclaimer" style="color:var(--accent2)">Read full disclaimer →</a>
   </div>
 
-  <div class="footer-copy">Built with ❤️ for Indian traders &nbsp;·&nbsp; © 2026 SmartTrade AI</div>
+  <div class="footer-copy">Built with ❤️ for traders everywhere &nbsp;·&nbsp; © 2026 SmartTrade AI</div>
 </footer>
 
 <!-- Back to top -->
@@ -1255,20 +1255,34 @@
     const res = await fetch('/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
     if (!res.ok) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); return; }
     const me = await res.json();
-    const name = (me.user && (me.user.first_name || me.user.username)) || 'Dashboard';
+    // /api/v1/auth/me returns a flat object ({full_name, username, ...}),
+    // not the {user: {...}} shape this used to assume — that mismatch made
+    // `name` silently miss every time and fall back to the literal string
+    // "Dashboard", which is why the button read "Dashboard → Dashboard".
+    const name = (me.full_name || me.username || '').trim().split(' ')[0] || null;
 
     const navLoginItem = document.getElementById('navLoginItem');
     if (navLoginItem) navLoginItem.remove();
 
     const cta = document.getElementById('navCta');
     if (cta) {
-      cta.innerHTML = '<a href="/dashboard" class="btn btn-accent">👤 ' + name + ' — Go to Dashboard →</a>';
+      cta.innerHTML = name
+        ? '<a href="/dashboard" class="btn btn-accent">👤 ' + name + ' → Dashboard</a>'
+        : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
     }
 
     document.querySelectorAll('a[href="/register"]').forEach(el => {
-      el.setAttribute('href', '/dashboard');
-      if (el.textContent.trim().toLowerCase().includes('start free')) el.textContent = '🚀 Go to Dashboard';
-      if (el.textContent.trim().toLowerCase().includes('see demo')) el.textContent = 'Go to Dashboard →';
+      const label = el.textContent.trim().toLowerCase();
+      if (label.includes('start free')) {
+        el.setAttribute('href', '/dashboard');
+        el.textContent = '🚀 Go to Dashboard';
+      } else if (label.includes('see demo')) {
+        // Keep this a distinct secondary action instead of duplicating the
+        // primary CTA's label — jump to the live signals preview already
+        // on this page rather than repeating "Go to Dashboard" twice.
+        el.setAttribute('href', '#signals');
+        el.textContent = 'View Live Signals';
+      }
     });
   } catch (e) { /* network error — leave logged-out nav as-is */ }
 })();

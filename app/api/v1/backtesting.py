@@ -66,13 +66,24 @@ def run_backtest():
     db.session.add(bt)
     db.session.commit()
 
-    df = market_fetcher.fetch(asset, timeframe, 1000)
+    engine_strategy = _resolve_strategy(data.get("strategy"))
+
+    # multi_factor calls signal_engine.generate_signal() once per bar (a full
+    # 7-stage pipeline including calculate_all_indicators + pattern
+    # detection), measured at ~70ms/bar vs ~0.5ms/bar for the
+    # pre-computed-series rsi/macd/ema_crossover paths. At the fixed 1000
+    # candles every strategy used to fetch here, that's ~940 sequential
+    # full-pipeline calls (~65s) blocking one Flask worker thread for the
+    # whole request — the exact cost /walk-forward already caps for the same
+    # reason. Apply the same cap here rather than only on the windowed
+    # endpoint.
+    candle_count = 600 if engine_strategy == "multi_factor" else 1000
+
+    df = market_fetcher.fetch(asset, timeframe, candle_count)
     if df is None:
         bt.status = "failed"
         db.session.commit()
         return jsonify({"error": "Failed to fetch data"}), 503
-
-    engine_strategy = _resolve_strategy(data.get("strategy"))
 
     # Allow caller to override defaults; clamp to sane ranges
     commission = max(0.0, min(0.01, float(data.get("commission", 0.001))))

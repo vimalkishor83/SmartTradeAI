@@ -135,6 +135,13 @@ class User(db.Model):
     email_notifications = db.Column(db.Boolean, default=True)
     telegram_chat_id = db.Column(db.String(100))
     telegram_enabled = db.Column(db.Boolean, default=False)
+    # Each user's own bot token, not one shared TELEGRAM_BOT_TOKEN for the
+    # whole platform — a user who already runs their own bot (or doesn't
+    # want their alerts flowing through a bot they don't control) can set
+    # it themselves. Encrypted at rest via the same Fernet helper broker
+    # API credentials use (app/services/security/crypto.py), since a bot
+    # token is just as capable of sending-as-you as any other API secret.
+    telegram_bot_token_encrypted = db.Column(db.Text)
     push_enabled = db.Column(db.Boolean, default=False)
     theme = db.Column(db.String(10), default="dark")
     account_size = db.Column(db.Float, default=100000.0)
@@ -164,6 +171,20 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
+    def set_telegram_bot_token(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.telegram_bot_token_encrypted = encrypt_value(plaintext) if plaintext else ""
+
+    def get_telegram_bot_token(self) -> str | None:
+        """Decrypt this user's own bot token. Falls back to legacy plaintext
+        if it doesn't look encrypted, matching APIConfig/UserBrokerCredential."""
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.telegram_bot_token_encrypted:
+            return None
+        if not is_encrypted(self.telegram_bot_token_encrypted):
+            return self.telegram_bot_token_encrypted
+        return decrypt_value(self.telegram_bot_token_encrypted)
+
     @property
     def full_name(self):
         return f"{self.first_name or ''} {self.last_name or ''}".strip() or self.username
@@ -184,6 +205,17 @@ class User(db.Model):
             "approval_status": self.approval_status,
             "is_verified": self.is_verified,
             "theme": self.theme,
+            # Settings page reads all four of these to populate the
+            # Notifications card on load — they were captured by PUT /me
+            # correctly, but never actually sent back by this to_dict(), so
+            # the toggle/fields silently reset to blank on every page visit
+            # regardless of what was saved. has_telegram_bot_token mirrors
+            # APIConfig's has_key/has_secret pattern: never return the
+            # decrypted token itself, just whether one is on file.
+            "email_notifications": self.email_notifications,
+            "telegram_enabled": self.telegram_enabled,
+            "telegram_chat_id": self.telegram_chat_id,
+            "has_telegram_bot_token": bool(self.telegram_bot_token_encrypted),
             "account_size": self.account_size or 100000.0,
             "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,
             "min_confidence_filter": self.min_confidence_filter if self.min_confidence_filter is not None else 60,

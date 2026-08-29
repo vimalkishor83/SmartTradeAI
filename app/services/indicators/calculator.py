@@ -52,6 +52,22 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, period=14) 
     return tr.ewm(com=period - 1, min_periods=period).mean()
 
 
+def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """Wilder's ADX (Average Directional Index) — trend-strength indicator,
+    independent of direction. Not previously in this module; added for the
+    Delta indicator-crossover scanner's condition builder."""
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+    atr = calculate_atr(high, low, close, period)
+    plus_di = 100 * plus_dm.ewm(com=period - 1, min_periods=period).mean() / atr.replace(0, np.nan)
+    minus_di = 100 * minus_dm.ewm(com=period - 1, min_periods=period).mean() / atr.replace(0, np.nan)
+    dx = 100 * (plus_di - minus_di).abs() / (plus_di + minus_di).replace(0, np.nan)
+    return dx.ewm(com=period - 1, min_periods=period).mean().fillna(0)
+
+
 def calculate_supertrend(high, low, close, period=10, multiplier=3.0, atr=None):
     # `atr` may be a pre-computed Series (same period) passed in by the
     # caller to avoid recomputing it — calculate_all_indicators() calls both
@@ -63,41 +79,84 @@ def calculate_supertrend(high, low, close, period=10, multiplier=3.0, atr=None):
     upper_band = hl2 + multiplier * atr
     lower_band = hl2 - multiplier * atr
 
-    supertrend = pd.Series(index=close.index, dtype=float)
-    direction = pd.Series(index=close.index, dtype=str)
-
     # ATR has a warmup period (NaN for the first `period` rows, by design in
     # calculate_atr's min_periods=period) — seeding supertrend from
     # lower_band.iloc[0] when atr.iloc[0] is still NaN previously made the
-    # very first value NaN, and the recurrence's "else" branch
-    # (supertrend.iloc[i] = prev_st) then propagated that NaN forward
-    # through the ENTIRE remaining series whenever price stayed inside the
-    # (also-NaN) bands during warmup — supertrend/supertrend_direction were
-    # silently None for many asset/timeframe combos until this fix. Skip to
-    # the first row where ATR (and therefore the bands) are actually valid.
+    # very first value NaN, and the recurrence's "else" branch propagated
+    # that NaN forward through the ENTIRE remaining series whenever price
+    # stayed inside the (also-NaN) bands during warmup — supertrend/
+    # supertrend_direction were silently None for many asset/timeframe
+    # combos until this fix. Skip to the first row where ATR (and therefore
+    # the bands) are actually valid.
     valid = atr.notna()
+    n = len(close)
     if not valid.any():
-        return supertrend, direction  # no valid ATR anywhere — nothing to compute
+        return pd.Series(index=close.index, dtype=float), pd.Series(index=close.index, dtype=str)
     start = valid.values.argmax()
 
-    supertrend.iloc[start] = lower_band.iloc[start]
-    direction.iloc[start] = "up"
+    # Converted to numpy arrays before the per-bar recurrence loop.
+    # Series.iloc does index alignment + Python-object boxing on every single
+    # get/set, which dominates cost at this call volume — calculate_all_
+    # indicators() runs this on every signal generation, every scanner pass,
+    # and every 5-min TA/MTF prewarm cycle (~50 assets x 7 timeframes = 350
+    # calls/cycle). The recurrence itself (each value depends on the
+    # previous) can't be vectorized away, but plain array indexing is
+    # materially cheaper than Series.iloc for the same access pattern.
+    # Wrapped back into Series at the end so the return type/values are
+    # unchanged for every caller.
+    close_arr = close.to_numpy()
+    upper_arr = upper_band.to_numpy()
+    lower_arr = lower_band.to_numpy()
 
-    for i in range(start + 1, len(close)):
-        prev_st = supertrend.iloc[i - 1]
-        prev_dir = direction.iloc[i - 1]
+    # Final (trailing) bands, per the standard Supertrend algorithm: a band
+    # ratchets toward price every bar — it can tighten, but only snaps back
+    # outward once the trend actually reverses (prior close broke through
+    # it). A prior version instead froze the line at its last crossing value
+    # and left it untouched on every bar where price stayed inside the raw
+    # bands — on a ranging symbol that can mean dozens of hours with no
+    # crossing at all, during which the frozen line drifts arbitrarily far
+    # from price while still reporting a "bullish"/"bearish" direction that
+    # hasn't actually been true in a long time.
+    final_upper = np.full(n, np.nan, dtype=float)
+    final_lower = np.full(n, np.nan, dtype=float)
+    st_arr = np.full(n, np.nan, dtype=float)
+    dir_arr = np.full(n, np.nan, dtype=object)  # np.nan placeholder to match the old Series' pre-`start` fill value
 
-        if close.iloc[i] > upper_band.iloc[i]:
-            supertrend.iloc[i] = lower_band.iloc[i]
-            direction.iloc[i] = "up"
-        elif close.iloc[i] < lower_band.iloc[i]:
-            supertrend.iloc[i] = upper_band.iloc[i]
-            direction.iloc[i] = "down"
+    final_upper[start] = upper_arr[start]
+    final_lower[start] = lower_arr[start]
+    # Seed direction from where price actually sits relative to the bands at
+    # the first valid bar, rather than an unconditional "up" — the old
+    # hardcoded seed stuck around verbatim (value included) for the entire
+    # series on any symbol/timeframe that never had a single band crossing
+    # within its lookback window.
+    dir_arr[start] = "up" if close_arr[start] >= final_lower[start] else "down"
+    st_arr[start] = final_lower[start] if dir_arr[start] == "up" else final_upper[start]
+
+    for i in range(start + 1, n):
+        final_upper[i] = (
+            upper_arr[i]
+            if (upper_arr[i] < final_upper[i - 1] or close_arr[i - 1] > final_upper[i - 1])
+            else final_upper[i - 1]
+        )
+        final_lower[i] = (
+            lower_arr[i]
+            if (lower_arr[i] > final_lower[i - 1] or close_arr[i - 1] < final_lower[i - 1])
+            else final_lower[i - 1]
+        )
+
+        prev_st = st_arr[i - 1]
+        if prev_st == final_upper[i - 1] and close_arr[i] <= final_upper[i]:
+            st_arr[i], dir_arr[i] = final_upper[i], "down"
+        elif prev_st == final_upper[i - 1] and close_arr[i] > final_upper[i]:
+            st_arr[i], dir_arr[i] = final_lower[i], "up"
+        elif prev_st == final_lower[i - 1] and close_arr[i] >= final_lower[i]:
+            st_arr[i], dir_arr[i] = final_lower[i], "up"
+        elif prev_st == final_lower[i - 1] and close_arr[i] < final_lower[i]:
+            st_arr[i], dir_arr[i] = final_upper[i], "down"
         else:
-            supertrend.iloc[i] = prev_st
-            direction.iloc[i] = prev_dir
+            st_arr[i], dir_arr[i] = prev_st, dir_arr[i - 1]
 
-    return supertrend, direction
+    return pd.Series(st_arr, index=close.index), pd.Series(dir_arr, index=close.index)
 
 
 def calculate_stoch_rsi(series: pd.Series, rsi_period=14, stoch_period=14, k_period=3, d_period=3):

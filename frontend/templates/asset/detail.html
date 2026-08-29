@@ -96,11 +96,14 @@
      shorter chart card — the candle chart itself grows to fill it via the
      flex chain below, sized in JS from the actual available height. */
   #assetDetailRoot .row.g-3 > .col-lg-9 { display: flex; flex-direction: column; }
-  /* display:flex by default — #tabChart is shown from first page load with
-     no JS call (showAssetTab() only runs when a tab is clicked), so the
-     base rule has to set it, not just the inline style JS applies on switch. */
-  #tabChart { display: flex; flex: 1; min-height: 0; flex-direction: column; }
-  #tabChart .section-card { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  /* TradingView is the default-visible tab (shown from first page load with
+     no JS call — showAssetTab() only runs when a tab is clicked), so its
+     initial HTML markup carries active-flex directly; #tabChart only gets
+     the class once showAssetTab('chart') actually runs. */
+  #tabChart.active-flex, #tabTv.active-flex { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+  #tabChart.active-flex .section-card, #tabTv.active-flex .section-card {
+    flex: 1; display: flex; flex-direction: column; min-height: 0;
+  }
 
   .chart-ind-btn {
     padding: 3px 9px;
@@ -262,8 +265,13 @@
       <!-- Tab navigation -->
       <ul class="nav tab-nav mb-0" id="assetTabs" style="border-bottom:1px solid var(--border)">
         <li class="nav-item">
-          <a class="nav-link active" id="tabChartBtn" href="#" onclick="showAssetTab('chart');return false">
+          <a class="nav-link" id="tabChartBtn" href="#" onclick="showAssetTab('chart');return false">
             <i class="bi bi-bar-chart-fill me-1"></i>Chart
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link active" id="tabTvBtn" href="#" onclick="showAssetTab('tv');return false">
+            <i class="bi bi-graph-up-arrow me-1"></i>TradingView
           </a>
         </li>
         <li class="nav-item">
@@ -284,14 +292,14 @@
       </ul>
 
       <!-- ── Tab 1: Chart ─────────────────────────────────────── -->
-      <div id="tabChart">
+      <div id="tabChart" style="display:none">
         <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0">
           <!-- Timeframe + indicator toggles — one compact row -->
           <div class="chart-toolbar-row px-3 py-2 d-flex align-items-center justify-content-between flex-wrap gap-2"
                style="border-bottom:1px solid var(--border)">
             <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="text-muted fs-xs me-1">Timeframe:</span>
-              {% for tf in ['5m','15m','30m','1h','4h','1d'] %}
+              {% for tf in display_timeframes %}
               <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
                       onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
               {% endfor %}
@@ -321,12 +329,36 @@
         </div>
       </div>
 
+      <!-- ── Tab: TradingView (external widget, default tab) ──── -->
+      <div id="tabTv" class="active-flex" style="display:flex">
+        <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0;padding:0">
+          <!-- Our own timeframe row (not TradingView's built-in one) — this is
+               what actually drives the AI Position Analysis panel, since
+               TradingView's free widget has no way to report clicks on its
+               own internal timeframe buttons back to this page. Clicking
+               here also rebuilds the TradingView widget at that interval, so
+               it and the AI panel move together. -->
+          <div class="chart-toolbar-row px-3 py-2 d-flex align-items-center gap-2 flex-wrap"
+               style="border-bottom:1px solid var(--border)">
+            <span class="text-muted fs-xs me-1">Timeframe:</span>
+            {% for tf in display_timeframes %}
+            <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
+                    onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
+            {% endfor %}
+            <span class="text-muted fs-xs ms-2">
+              <i class="bi bi-info-circle me-1"></i>Drives both this chart and AI Position Analysis on the right
+            </span>
+          </div>
+          <div id="tvWidgetContainer" style="height:640px"></div>
+        </div>
+      </div>
+
       <!-- ── Tab 2: Indicators ────────────────────────────────── -->
       <div id="tabIndicators" style="display:none">
         <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0;padding:20px">
           <div class="d-flex align-items-center gap-2 mb-3">
             <span class="text-muted fs-xs">Timeframe:</span>
-            {% for tf in ['5m','15m','30m','1h','4h','1d'] %}
+            {% for tf in display_timeframes %}
             <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
                     onclick="setIndTF('{{ tf }}')" data-ind-tf="{{ tf }}">{{ tf }}</button>
             {% endfor %}
@@ -684,7 +716,11 @@ const ASSET_MARKET = "{{ asset.market }}";
 
 // Chart timeframe is remembered across page loads / assets via localStorage,
 // so the chart reopens on the timeframe you last used instead of always 1h.
-const CHART_TFS = ['5m', '15m', '30m', '1h', '4h', '1d'];
+// Sourced from Platform Config (admin-managed, /admin/platform-config) via
+// the display_timeframes context var — same list the buttons above render
+// from — so a saved '2h' selection isn't silently rejected just because it
+// used to be missing from a hardcoded array here.
+const CHART_TFS = {{ display_timeframes | tojson }};
 function _savedTF() {
   try { const v = localStorage.getItem('st_chart_tf'); return CHART_TFS.includes(v) ? v : '1h'; }
   catch (e) { return '1h'; }
@@ -708,18 +744,79 @@ let _lastCandles      = null;       // cached candle data so toggling indicators
 
 /* ── Tab switching ────────────────────────────────────── */
 function showAssetTab(tab) {
-  ['chart','indicators','signals','dca'].forEach(t => {
-    document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = 'none';
+  ['chart','tv','indicators','signals','dca'].forEach(t => {
+    const el = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
+    el.style.display = 'none';
+    el.classList.remove('active-flex');
     document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1) + 'Btn')?.classList.remove('active');
   });
-  // #tabChart is a flex column (so the chart fills the row's stretched
-  // height, see extra_css) — the other two tabs are plain block content.
-  document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).style.display = tab === 'chart' ? 'flex' : 'block';
+  // #tabChart and #tabTv are both flex columns (so the chart/widget fills
+  // the row's stretched height, see extra_css) — the other tabs are plain
+  // block content. active-flex carries the .section-card height chain,
+  // since the base CSS no longer forces #tabChart's flex layout
+  // unconditionally now that TradingView is the default tab instead.
+  const activeEl = document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1));
+  const isFlexTab = tab === 'chart' || tab === 'tv';
+  activeEl.style.display = isFlexTab ? 'flex' : 'block';
+  if (isFlexTab) activeEl.classList.add('active-flex');
   document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1) + 'Btn')?.classList.add('active');
 
+  if (tab === 'tv')         loadTvWidget();
   if (tab === 'indicators') loadIndicators();
   if (tab === 'signals')    loadAssetSignals();
   if (tab === 'dca')        loadDcaSetup();
+}
+
+// ── TradingView widget (external data feed, independent of our own chart) ──
+// Best-effort BINANCE:/FX:/NSE: mapping — a handful of our synthetic/
+// tokenized crypto symbols (e.g. XAUTUSDT) may not exist on Binance's feed;
+// TradingView's own widget shows its own "invalid symbol" message in that
+// case rather than us maintaining a per-asset override table.
+function _tvSymbol() {
+  const s = ASSET_NAME;
+  switch (ASSET_MARKET) {
+    case 'crypto':       return `BINANCE:${s}`;
+    case 'forex':        return `FX:${s}`;
+    case 'index':        return `NSE:${s}`;
+    case 'indian_stock':  return `NSE:${s}`;
+    case 'commodity':    return `TVC:${s}`;
+    default:             return s;
+  }
+}
+
+// TradingView's free tv.js widget has no method to change interval after
+// creation (allow_symbol_change only covers the symbol-search box) — the
+// only way to reflect a new timeframe is to tear down and rebuild the
+// widget with a different `interval`. Our own tf strings ('5m','1h','1d')
+// map to TradingView's own numeric-minutes-or-'D' convention.
+const TV_INTERVAL_MAP = { '5m': '5', '15m': '15', '30m': '30', '1h': '60', '2h': '120', '4h': '240', '1d': 'D' };
+
+let _tvScriptLoaded = false;   // the tv.js <script> only ever needs to load once
+let _tvWidget = null;
+function loadTvWidget() {
+  if (_tvScriptLoaded) { _rebuildTvWidget(); return; }
+  _tvScriptLoaded = true;
+  const script = document.createElement('script');
+  script.src = 'https://s3.tradingview.com/tv.js';
+  script.onload = _rebuildTvWidget;
+  document.head.appendChild(script);
+}
+
+function _rebuildTvWidget() {
+  document.getElementById('tvWidgetContainer').innerHTML = '';
+  _tvWidget = new TradingView.widget({
+    autosize: true,
+    symbol: _tvSymbol(),
+    interval: TV_INTERVAL_MAP[_tf] || '60',
+    timezone: 'Asia/Kolkata',
+    theme: 'dark',
+    style: '1',
+    locale: 'en',
+    toolbar_bg: '#0d1117',
+    enable_publishing: false,
+    allow_symbol_change: true,
+    container_id: 'tvWidgetContainer',
+  });
 }
 
 /* ── DCA Setup tab ────────────────────────────────────── */
@@ -836,9 +933,13 @@ async function loadDcaSetup() {
 function setTF(tf) {
   _tf = tf;
   try { localStorage.setItem('st_chart_tf', tf); } catch (e) {}
+  // data-tf is shared by both the Chart tab's row and the TradingView tab's
+  // row (see markup) so one click keeps both in sync regardless of which
+  // tab is currently open.
   document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === tf));
   loadChart();
   loadPositionAnalysis();
+  if (_tvScriptLoaded) _rebuildTvWidget();   // only rebuild if the widget has actually been created at least once
 }
 
 function setIndTF(tf) {
@@ -1122,12 +1223,28 @@ async function loadChart() {
   // t may be ms (13 digits) or s (10 digits) — normalise to seconds
   const toSec = t => t > 1e10 ? Math.floor(t / 1000) : Math.floor(t);
 
+  // lightweight-charts always renders the numeric `time` field as UTC clock
+  // time on its axis (no timezone option exists in this library version).
+  // Candle data from the API is correctly UTC — e.g. the most recent 1h bar
+  // is genuinely "01:00" UTC — but that reads as "1 AM" on the chart to an
+  // IST viewer whose wall clock says ~06:30, a 5.5h-looking gap that looks
+  // exactly like stale data even though it isn't. Shifting every timestamp
+  // by the viewer's local UTC offset before it reaches the chart makes the
+  // axis read local wall-clock time instead, matching what a broker
+  // terminal / TradingView shows by default. Applied once here so every
+  // downstream series (candles, volume, EMA/Bollinger/VWAP/RSI/MACD in
+  // renderChartIndicators, all keyed off _lastCandles) stays time-aligned —
+  // none of that indicator math depends on the timestamp's absolute value,
+  // only relative ordering, so a uniform shift is safe.
+  const tzOffsetSec = -(new Date().getTimezoneOffset()) * 60;
+  const toLocalSec = t => toSec(t) + tzOffsetSec;
+
   // Deduplicate by time (lightweight-charts requires unique timestamps)
   const seen = new Set();
   const unique = rawData.filter(d => { const s = toSec(d.t); if (seen.has(s)) return false; seen.add(s); return true; });
 
   const candles = unique.map(d => ({
-    time:   toSec(d.t),
+    time:   toLocalSec(d.t),
     open:   parseFloat(d.o),
     high:   parseFloat(d.h),
     low:    parseFloat(d.l),
@@ -1136,7 +1253,7 @@ async function loadChart() {
   })).sort((a, b) => a.time - b.time);
 
   const volumes = unique.map(d => ({
-    time:  toSec(d.t),
+    time:  toLocalSec(d.t),
     value: parseFloat(d.v) || 0,
     color: parseFloat(d.c) >= parseFloat(d.o) ? 'rgba(16,185,129,.5)' : 'rgba(239,68,68,.5)',
   })).sort((a, b) => a.time - b.time);
@@ -1534,8 +1651,38 @@ async function loadPositionAnalysis() {
     </div>`;
   }).join('');
 
-  const reasoningLine = data.reasoning
-    ? _escHtml(data.reasoning.split(' | ').slice(0, 3).join(' · ')) : '';
+  // reasoning_detail (structured, marks each factor aligned/outweighed) is
+  // preferred over the old flat `reasoning` string — the flat version used
+  // to show the first 3 factors regardless of whether they actually
+  // supported the final direction, which reads as contradictory for a
+  // signal where a strong reversal pattern overrode a weaker opposing
+  // trend/momentum tilt (e.g. a SELL listing "SuperTrend bullish" first).
+  // Falls back to the flat string for signals generated before this field
+  // existed.
+  let reasoningLine = '';
+  let reasoningDetailHtml = '';
+  if (Array.isArray(data.reasoning_detail) && data.reasoning_detail.length) {
+    const aligned    = data.reasoning_detail.filter(r => r.aligned);
+    const outweighed = data.reasoning_detail.filter(r => !r.aligned);
+    const top = (aligned.length ? aligned : data.reasoning_detail).slice(0, 3).map(r => _escHtml(r.text));
+    reasoningLine = top.join(' · ');
+    if (outweighed.length) {
+      reasoningLine += ` <span style="opacity:.6">(+${outweighed.length} outweighed — see below)</span>`;
+      reasoningDetailHtml = `<details class="pa-reasoning-detail mb-2">
+        <summary class="fs-xs fw-600" style="cursor:pointer;color:var(--accent-light)">
+          <i class="bi bi-chevron-right me-1"></i>Full factor breakdown
+        </summary>
+        <div class="mt-1">${data.reasoning_detail.map(r => {
+          const icon = r.aligned ? '<i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i>'
+                                  : '<i class="bi bi-x-circle" style="color:var(--text-muted);font-size:10px"></i>';
+          const style = r.aligned ? '' : 'opacity:.55;text-decoration:line-through';
+          return `<div class="fs-xs" style="display:flex;align-items:center;gap:5px;padding:1.5px 0;${style}">${icon}<span>${_escHtml(r.text)}</span></div>`;
+        }).join('')}</div>
+      </details>`;
+    }
+  } else if (data.reasoning) {
+    reasoningLine = _escHtml(data.reasoning.split(' | ').slice(0, 3).join(' · '));
+  }
 
   const belowThresholdNote = (!isHold && data.qualifies_as_signal === false)
     ? `<div class="text-muted fs-xs mb-2" style="font-style:italic">Below the ${'70'}% auto-alert threshold — informational only.</div>`
@@ -1592,6 +1739,7 @@ async function loadPositionAnalysis() {
       <span class="badge-tag">${_escHtml(lv.lanes_agreeing || '—')} LANES</span>
     </div>
     ${reasoningLine ? `<div class="text-muted fs-xs mb-2">${reasoningLine}</div>` : ''}
+    ${reasoningDetailHtml}
     ${belowThresholdNote}
     ${tradeSectionHtml}
 
@@ -1710,7 +1858,8 @@ function _initPage() {
   // Highlight the remembered timeframe button (markup renders 1h active by default).
   document.querySelectorAll('[data-tf]').forEach(b => b.classList.toggle('active', b.dataset.tf === _tf));
   loadLivePrice();
-  loadChart();
+  loadChart();       // pre-warms our own Chart tab so switching to it later is instant
+  loadTvWidget();     // TradingView is the default visible tab
   loadSentiment();
   loadPositionAnalysis();
   loadAssetSwitcher();

@@ -73,7 +73,8 @@ def portfolio_risk():
     "safe" trades can still be one correlated macro move away from a much
     larger combined drawdown than any single trade's own risk_pct implies.
     """
-    from app.models.portfolio import Portfolio
+    from app.extensions import db
+    from app.models.portfolio import Portfolio, PortfolioItem
     from app.services.data.fetcher import market_fetcher
 
     user_id = get_jwt_identity()
@@ -82,7 +83,10 @@ def portfolio_risk():
         return jsonify({"holdings": 0, "correlation": {"symbols": [], "matrix": [], "high_correlation_pairs": []},
                         "concentration": {"total_value": 0, "by_symbol": [], "by_market": [], "warnings": []}}), 200
 
-    items = [i for i in portfolio.items.all() if i.asset]
+    # joinedload: same N+1 that GET /portfolio/ already had to fix (asset is
+    # lazy-loaded by default) — this route just hadn't had any real traffic
+    # yet to expose it, since nothing in the UI called it until now.
+    items = [i for i in portfolio.items.options(db.joinedload(PortfolioItem.asset)).all() if i.asset]
     if not items:
         return jsonify({"holdings": 0, "correlation": {"symbols": [], "matrix": [], "high_correlation_pairs": []},
                         "concentration": {"total_value": 0, "by_symbol": [], "by_market": [], "warnings": []}}), 200

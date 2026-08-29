@@ -81,7 +81,13 @@ def economic_calendar():
             except Exception as e:
                 logger.debug(f"Economic calendar fetch failed: {e}")
 
-        saved_events = []
+        # Parse everything first (pure computation) so existing rows can be
+        # batch-fetched in ONE query instead of one
+        # EconomicEvent.query.filter_by(title=..., event_time=...) SELECT per
+        # event — mirrors the same fix in app/tasks/data_tasks.py's
+        # fetch_economic_calendar (this cold path and that scheduled job
+        # were near-identical duplicates of the same upsert loop).
+        parsed = []
         for ev in all_raw:
             title = ev.get("title", "").strip()
             date_str = ev.get("date", "")
@@ -105,25 +111,44 @@ def economic_calendar():
 
             impact_raw = (ev.get("impact") or "").lower()
             impact = impact_raw if impact_raw in ("high", "medium", "low") else "low"
-            country = ev.get("country", "")
+            parsed.append({
+                "title": title, "event_time": event_time, "impact": impact,
+                "country": ev.get("country", ""), "forecast": ev.get("forecast"),
+                "previous": ev.get("previous"), "actual": ev.get("actual"),
+            })
 
-            existing = EconomicEvent.query.filter_by(title=title, event_time=event_time).first()
-            if existing:
-                existing.actual = ev.get("actual") or existing.actual
-                saved_events.append(existing)
-            else:
-                event = EconomicEvent(
-                    title=title,
-                    country=country,
-                    currency=country,
-                    impact=impact,
-                    forecast=ev.get("forecast"),
-                    previous=ev.get("previous"),
-                    actual=ev.get("actual"),
-                    event_time=event_time,
-                )
-                db.session.add(event)
-                saved_events.append(event)
+        if parsed:
+            times = [p["event_time"] for p in parsed]
+            existing_rows = (
+                EconomicEvent.query
+                .filter(EconomicEvent.event_time.between(min(times), max(times)))
+                .all()
+            )
+            existing_by_key = {(e.title, e.event_time): e for e in existing_rows}
+
+            for p in parsed:
+                key = (p["title"], p["event_time"])
+                existing = existing_by_key.get(key)
+                if existing:
+                    existing.actual = p["actual"] or existing.actual
+                else:
+                    event = EconomicEvent(
+                        title=p["title"],
+                        country=p["country"],
+                        currency=p["country"],
+                        impact=p["impact"],
+                        forecast=p["forecast"],
+                        previous=p["previous"],
+                        actual=p["actual"],
+                        event_time=p["event_time"],
+                    )
+                    db.session.add(event)
+                    # Same-batch duplicate guard — the two overlapping
+                    # ForexFactory week-URLs can return one event twice in a
+                    # single request; without this, existing_by_key (seeded
+                    # once before the loop) would never see it as "existing"
+                    # and would insert it a second time.
+                    existing_by_key[key] = event
         try:
             db.session.commit()
         except Exception as e:

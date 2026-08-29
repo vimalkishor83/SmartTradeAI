@@ -9,7 +9,7 @@ from app.services.signals.engine import signal_engine
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
-from sqlalchemy import and_, func
+from sqlalchemy import and_, case, func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -224,7 +224,7 @@ def _run_auto_generate(app):
                            if k in ["signal_type","entry_price","stop_loss","target1","target2","target3",
                                     "risk_reward","confidence_score","confidence_label","trend_score",
                                     "momentum_score","volume_score","pattern_score","ai_score",
-                                    "indicators","patterns","reasoning","regime","expires_at",
+                                    "indicators","patterns","reasoning","reasoning_detail","regime","expires_at",
                                     "lane_verdicts","invalidation_conditions","target_allocations"]},
                     )
                     db.session.add(sig)
@@ -516,7 +516,8 @@ def mtf_matrix():
 
     # ── Cold path ─────────────────────────────────────────────────
     prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-    timeframes = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+    from app.services.indicators.ema_mtf import get_ta_timeframes
+    timeframes = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
     if market != "all":
         asset_q = asset_q.filter_by(market=market)
@@ -650,7 +651,8 @@ def get_confluence(asset_id):
     if cached:
         return jsonify(cached), 200
 
-    timeframes = ["5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+    from app.services.indicators.ema_mtf import get_ta_timeframes
+    timeframes = get_ta_timeframes()
 
     # The prewarm job (data_tasks.py) already computes _mtf_rating for
     # every asset/timeframe into mtf_matrix_all every 5 minutes. If this
@@ -923,7 +925,7 @@ def generate_signal():
            if k in ["signal_type", "entry_price", "stop_loss", "target1", "target2", "target3",
                     "risk_reward", "confidence_score", "confidence_label", "trend_score",
                     "momentum_score", "volume_score", "pattern_score", "ai_score",
-                    "indicators", "patterns", "reasoning", "regime", "expires_at",
+                    "indicators", "patterns", "reasoning", "reasoning_detail", "regime", "expires_at",
                     "lane_verdicts", "invalidation_conditions", "target_allocations"]},
     )
     signal.set_confidence_label()
@@ -1459,64 +1461,70 @@ def get_analytics():
     avg_rr_row = db.session.query(func.avg(Signal.risk_reward)).scalar()
     avg_rr     = round(float(avg_rr_row), 2) if avg_rr_row else 0.0
 
+    # Every section below used to run one GROUP BY for totals, then loop over
+    # each group issuing 1-2 MORE queries for its win/loss count — 30-50 DB
+    # round trips per cache miss on this file's busiest cached endpoint.
+    # Conditional aggregation (SUM(CASE WHEN ... THEN 1 ELSE 0 END)) computes
+    # totals AND wins/losses in the SAME GROUP BY query.
+    wins_sum = func.sum(case((SignalHistory.outcome == "win", 1), else_=0))
+    losses_sum = func.sum(case((SignalHistory.outcome == "loss", 1), else_=0))
+
     # ── By market ────────────────────────────────────────────────────────────
     mkt_rows = (
-        db.session.query(Asset.market, func.count(SignalHistory.id).label("total"))
+        db.session.query(Asset.market, func.count(SignalHistory.id).label("total"), wins_sum, losses_sum)
         .join(SignalHistory, SignalHistory.asset_id == Asset.id)
         .group_by(Asset.market)
         .all()
     )
-    by_market = []
-    for mkt, total in mkt_rows:
-        w = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
-            Asset.market == mkt, SignalHistory.outcome == "win").count()
-        l = SignalHistory.query.join(Asset, SignalHistory.asset_id == Asset.id).filter(
-            Asset.market == mkt, SignalHistory.outcome == "loss").count()
-        by_market.append({
-            "market": mkt, "total": total, "wins": w, "losses": l,
-            "win_rate": round(w / total * 100, 1) if total else 0.0,
-        })
+    by_market = [{
+        "market": mkt, "total": total, "wins": w or 0, "losses": l or 0,
+        "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
+    } for mkt, total, w, l in mkt_rows]
 
     # ── By timeframe ─────────────────────────────────────────────────────────
     tf_rows = (
-        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("total"))
+        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("total"), wins_sum)
         .group_by(SignalHistory.timeframe)
         .all()
     )
-    by_timeframe = []
-    for tf, total in tf_rows:
-        w = SignalHistory.query.filter_by(timeframe=tf, outcome="win").count()
-        by_timeframe.append({
-            "timeframe": tf, "total": total, "wins": w,
-            "win_rate": round(w / total * 100, 1) if total else 0.0,
-        })
+    by_timeframe = [{
+        "timeframe": tf, "total": total, "wins": w or 0,
+        "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
+    } for tf, total, w in tf_rows]
 
     # ── By signal type ───────────────────────────────────────────────────────
     st_rows = (
-        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("total"))
+        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("total"), wins_sum)
         .group_by(SignalHistory.signal_type)
         .all()
     )
-    by_signal_type = []
-    for st, total in st_rows:
-        w = SignalHistory.query.filter_by(signal_type=st, outcome="win").count()
-        by_signal_type.append({
-            "signal_type": st, "total": total, "wins": w,
-            "win_rate": round(w / total * 100, 1) if total else 0.0,
-        })
+    by_signal_type = [{
+        "signal_type": st, "total": total, "wins": w or 0,
+        "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
+    } for st, total, w in st_rows]
 
     # ── Confidence buckets ───────────────────────────────────────────────────
+    # Bucketed with one CASE expression, grouped by that expression, instead
+    # of 5 separate range-filtered queries (each doubled for its win count).
+    bucket_bounds = [(50, 60, "50-60%"), (60, 70, "60-70%"), (70, 80, "70-80%"), (80, 90, "80-90%"), (90, 101, "90-100%")]
+    bucket_expr = case(
+        *[(and_(SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi), label)
+          for lo, hi, label in bucket_bounds],
+        else_=None,
+    )
+    bucket_rows = dict(
+        (label, (total, w))
+        for label, total, w in db.session.query(bucket_expr, func.count(SignalHistory.id), wins_sum)
+        .filter(bucket_expr.isnot(None))
+        .group_by(bucket_expr)
+        .all()
+    )
     confidence_buckets = []
-    for lo, hi, label in [(50,60,"50-60%"),(60,70,"60-70%"),(70,80,"70-80%"),(80,90,"80-90%"),(90,101,"90-100%")]:
-        rows = SignalHistory.query.filter(
-            SignalHistory.confidence_score >= lo,
-            SignalHistory.confidence_score < hi,
-        )
-        total = rows.count()
-        w     = rows.filter(SignalHistory.outcome == "win").count()
+    for _, _, label in bucket_bounds:
+        total, w = bucket_rows.get(label, (0, 0))
         confidence_buckets.append({
             "range": label, "total": total,
-            "win_rate": round(w / total * 100, 1) if total else 0.0,
+            "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
         })
 
     # ── Recent performance (last 30 days) ────────────────────────────────────
@@ -1525,28 +1533,21 @@ def get_analytics():
         db.session.query(
             func.date(SignalHistory.closed_at).label("day"),
             func.count(SignalHistory.id).label("total"),
+            wins_sum, losses_sum,
         )
         .filter(SignalHistory.closed_at >= cutoff)
         .group_by(func.date(SignalHistory.closed_at))
         .order_by(func.date(SignalHistory.closed_at))
         .all()
     )
-    recent_performance = []
-    for row in recent_rows:
-        day_str = str(row.day)
-        w = SignalHistory.query.filter(
-            func.date(SignalHistory.closed_at) == row.day,
-            SignalHistory.outcome == "win",
-        ).count()
-        l = SignalHistory.query.filter(
-            func.date(SignalHistory.closed_at) == row.day,
-            SignalHistory.outcome == "loss",
-        ).count()
-        recent_performance.append({"date": day_str, "signals": row.total, "wins": w, "losses": l})
+    recent_performance = [
+        {"date": str(day), "signals": total, "wins": w or 0, "losses": l or 0}
+        for day, total, w, l in recent_rows
+    ]
 
     # ── Top assets (min 5 trades) ─────────────────────────────────────────────
     asset_rows = (
-        db.session.query(Asset.symbol, Asset.market, func.count(SignalHistory.id).label("total"))
+        db.session.query(Asset.symbol, Asset.market, func.count(SignalHistory.id).label("total"), wins_sum)
         .join(SignalHistory, SignalHistory.asset_id == Asset.id)
         .group_by(Asset.id, Asset.symbol, Asset.market)
         .having(func.count(SignalHistory.id) >= 5)
@@ -1554,18 +1555,10 @@ def get_analytics():
         .limit(20)
         .all()
     )
-    top_assets = []
-    for sym, mkt, total in asset_rows:
-        w = (
-            SignalHistory.query
-            .join(Asset, SignalHistory.asset_id == Asset.id)
-            .filter(Asset.symbol == sym, SignalHistory.outcome == "win")
-            .count()
-        )
-        top_assets.append({
-            "symbol": sym, "market": mkt, "total": total, "wins": w,
-            "win_rate": round(w / total * 100, 1) if total else 0.0,
-        })
+    top_assets = [{
+        "symbol": sym, "market": mkt, "total": total, "wins": w or 0,
+        "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
+    } for sym, mkt, total, w in asset_rows]
     top_assets.sort(key=lambda x: x["win_rate"], reverse=True)
 
     return jsonify({
@@ -1629,68 +1622,67 @@ def get_performance():
     best_win   = round(float(best_row),  2) if best_row  is not None else 0.0
     worst_loss = round(float(worst_row), 2) if worst_row is not None else 0.0
 
+    # Every section below used to run one GROUP BY for trade counts, then loop
+    # over each group issuing 1-2 MORE queries for its win count and/or avg
+    # P&L — collapsed into one conditionally-aggregated query per section
+    # (same fix as get_analytics above).
+    wins_sum = func.sum(case((SignalHistory.outcome == "win", 1), else_=0))
+
     # ── By market ─────────────────────────────────────────────────────────────
     mkt_rows = (
-        db.session.query(Asset.market, func.count(SignalHistory.id).label("trades"))
+        db.session.query(Asset.market, func.count(SignalHistory.id).label("trades"),
+                         wins_sum, func.avg(SignalHistory.pnl_pct))
         .join(SignalHistory, SignalHistory.asset_id == Asset.id)
         .group_by(Asset.market).all()
     )
-    by_market = []
-    for mkt, trades in mkt_rows:
-        w = (SignalHistory.query
-             .join(Asset, SignalHistory.asset_id == Asset.id)
-             .filter(Asset.market == mkt, SignalHistory.outcome == "win").count())
-        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
-                     .join(Asset, SignalHistory.asset_id == Asset.id)
-                     .filter(Asset.market == mkt).scalar())
-        by_market.append({
-            "market": mkt, "trades": trades,
-            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
-            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
-        })
+    by_market = [{
+        "market": mkt, "trades": trades,
+        "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0,
+        "avg_pnl": round(float(avg_pnl), 2) if avg_pnl else 0.0,
+    } for mkt, trades, w, avg_pnl in mkt_rows]
 
     # ── By timeframe ─────────────────────────────────────────────────────────
     tf_rows = (
-        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("trades"))
+        db.session.query(SignalHistory.timeframe, func.count(SignalHistory.id).label("trades"),
+                         wins_sum, func.avg(SignalHistory.pnl_pct))
         .group_by(SignalHistory.timeframe).all()
     )
-    by_timeframe = []
-    for tf, trades in tf_rows:
-        w = SignalHistory.query.filter_by(timeframe=tf, outcome="win").count()
-        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
-                     .filter(SignalHistory.timeframe == tf).scalar())
-        by_timeframe.append({
-            "timeframe": tf, "trades": trades,
-            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
-            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
-        })
+    by_timeframe = [{
+        "timeframe": tf, "trades": trades,
+        "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0,
+        "avg_pnl": round(float(avg_pnl), 2) if avg_pnl else 0.0,
+    } for tf, trades, w, avg_pnl in tf_rows]
 
     # ── By signal type ────────────────────────────────────────────────────────
     st_rows = (
-        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("trades"))
+        db.session.query(SignalHistory.signal_type, func.count(SignalHistory.id).label("trades"), wins_sum)
         .group_by(SignalHistory.signal_type).all()
     )
-    by_signal_type = []
-    for st, trades in st_rows:
-        w = SignalHistory.query.filter_by(signal_type=st, outcome="win").count()
-        by_signal_type.append({
-            "type": st, "trades": trades,
-            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
-        })
+    by_signal_type = [{
+        "type": st, "trades": trades,
+        "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0,
+    } for st, trades, w in st_rows]
 
     # ── By confidence bucket ──────────────────────────────────────────────────
+    conf_bucket_bounds = [(50, 60, "50-60%"), (60, 70, "60-70%"), (70, 80, "70-80%"), (80, 90, "80-90%"), (90, 101, "90-100%")]
+    conf_bucket_expr = case(
+        *[(and_(SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi), label)
+          for lo, hi, label in conf_bucket_bounds],
+        else_=None,
+    )
+    conf_bucket_rows = {
+        label: (trades, w, avg_pnl)
+        for label, trades, w, avg_pnl in db.session.query(
+            conf_bucket_expr, func.count(SignalHistory.id), wins_sum, func.avg(SignalHistory.pnl_pct)
+        ).filter(conf_bucket_expr.isnot(None)).group_by(conf_bucket_expr).all()
+    }
     by_confidence = []
-    for lo, hi, label in [(50,60,"50-60%"),(60,70,"60-70%"),(70,80,"70-80%"),(80,90,"80-90%"),(90,101,"90-100%")]:
-        brows  = SignalHistory.query.filter(
-            SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi)
-        trades = brows.count()
-        w      = brows.filter(SignalHistory.outcome == "win").count()
-        avg_pnl_r = (db.session.query(func.avg(SignalHistory.pnl_pct))
-                     .filter(SignalHistory.confidence_score >= lo, SignalHistory.confidence_score < hi).scalar())
+    for _, _, label in conf_bucket_bounds:
+        trades, w, avg_pnl = conf_bucket_rows.get(label, (0, 0, None))
         by_confidence.append({
             "bucket": label, "trades": trades,
-            "win_rate": round(w / trades * 100, 1) if trades else 0.0,
-            "avg_pnl": round(float(avg_pnl_r), 2) if avg_pnl_r else 0.0,
+            "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0,
+            "avg_pnl": round(float(avg_pnl), 2) if avg_pnl else 0.0,
         })
 
     # ── Daily P&L last 30 days ────────────────────────────────────────────────
@@ -1700,24 +1692,19 @@ def get_performance():
             func.date(SignalHistory.closed_at).label("day"),
             func.count(SignalHistory.id).label("trades"),
             func.sum(SignalHistory.pnl_pct).label("pnl"),
+            wins_sum,
         )
         .filter(SignalHistory.closed_at >= cutoff)
         .group_by(func.date(SignalHistory.closed_at))
         .order_by(func.date(SignalHistory.closed_at))
         .all()
     )
-    daily_pnl = []
-    for row in day_rows:
-        day_str = str(row.day)
-        w = SignalHistory.query.filter(
-            func.date(SignalHistory.closed_at) == row.day,
-            SignalHistory.outcome == "win").count()
-        daily_pnl.append({
-            "date": day_str,
-            "pnl_pct": round(float(row.pnl), 2) if row.pnl else 0.0,
-            "trades": row.trades,
-            "wins": w,
-        })
+    daily_pnl = [{
+        "date": str(day),
+        "pnl_pct": round(float(pnl), 2) if pnl else 0.0,
+        "trades": trades,
+        "wins": w or 0,
+    } for day, trades, pnl, w in day_rows]
 
     # ── Hourly win rate (UTC+5:30 = +330 min) ────────────────────────────────
     IST_OFFSET = 330
@@ -1728,21 +1715,15 @@ def get_performance():
                     SignalHistory.closed_at, f'+{IST_OFFSET} minutes'
                 )).label("hour"),
                 func.count(SignalHistory.id).label("trades"),
+                wins_sum,
             )
             .group_by("hour")
             .all()
         )
-        hourly_win_rate = []
-        for row in hourly_rows:
-            h = int(row.hour)
-            w = SignalHistory.query.filter(
-                func.strftime('%H', func.datetime(
-                    SignalHistory.closed_at, f'+{IST_OFFSET} minutes'
-                )) == str(h).zfill(2),
-                SignalHistory.outcome == "win"
-            ).count()
-            hourly_win_rate.append({"hour": h, "win_rate": round(w / row.trades * 100, 1) if row.trades else 0.0, "trades": row.trades})
-        hourly_win_rate.sort(key=lambda x: x["hour"])
+        hourly_win_rate = sorted((
+            {"hour": int(hour), "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0, "trades": trades}
+            for hour, trades, w in hourly_rows
+        ), key=lambda x: x["hour"])
     except Exception:
         hourly_win_rate = []
 
@@ -1804,6 +1785,12 @@ def _confidence_calibration_bands():
 
 @signals_bp.route("/history-stats", methods=["GET"])
 @login_required
+# Same rationale as get_analytics/get_performance/get_summary in this file:
+# no request args, deterministic and user-independent output, but this was
+# the one endpoint of the four with NO caching at all — every hit ran an
+# unconditional SignalHistory.query.all() (unbounded — the table is only
+# implicitly capped by nightly_cleanup's 60-day retention, not a query limit).
+@cache.cached(timeout=60, key_prefix="signals_history_stats")
 def history_stats():
     """
     Proven performance from real closed signals (SignalHistory), with both the
