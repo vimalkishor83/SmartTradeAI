@@ -377,6 +377,13 @@
         <a href="/register" class="text-accent small ms-1 fw-semibold">Create Account</a>
       </div>
 
+      {% if config.DEBUG %}
+      <!-- Same reasoning as the QA block below: this hint hardcodes
+           Admin@123 regardless of what SEED_ADMIN_PASSWORD actually is, so
+           it was both wrong (misleading anyone whose deployment set a real
+           password) and a real disclosure risk on a public production login
+           page. Was missing this gate while the QA block right below it had
+           it — inconsistent, not intentional. -->
       <div class="p-3 rounded mb-3" style="background:rgba(245,166,35,0.08);border:1px solid rgba(245,166,35,0.25)">
         <div class="d-flex align-items-center gap-2 mb-2">
           <i class="bi bi-info-circle text-accent" style="font-size:14px"></i>
@@ -386,6 +393,7 @@
         <div class="small mt-1" style="color:var(--text-muted)">Password: <span style="color:var(--text-primary);font-weight:600">Admin@123</span></div>
         <button class="btn btn-sm btn-primary mt-2 w-100" id="fillDemo"><i class="bi bi-box-arrow-in-right me-1"></i>Use Demo Account</button>
       </div>
+      {% endif %}
 
       {% if config.DEBUG %}
       <!-- Dev-only quick-fill for QA across tiers — gated on config.DEBUG so
@@ -479,7 +487,10 @@ document.getElementById('togglePwd').addEventListener('click', () => {
   else                         { pwd.type = 'password'; icon.className = 'bi bi-eye'; }
 });
 
-document.getElementById('fillDemo').addEventListener('click', () => {
+// Dev-only, like the QA panel below — gated on config.DEBUG server-side
+// (this element is absent in production), guard here too for the same
+// reason: the script is shared between both environments.
+document.getElementById('fillDemo')?.addEventListener('click', () => {
   document.getElementById('loginEmail').value    = 'admin@smarttradeai.com';
   document.getElementById('loginPassword').value = 'Admin@123';
 });

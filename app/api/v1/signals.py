@@ -1707,24 +1707,33 @@ def get_performance():
     } for day, trades, pnl, w in day_rows]
 
     # ── Hourly win rate (UTC+5:30 = +330 min) ────────────────────────────────
+    # strftime()/datetime(..., '+N minutes') are SQLite-only — Postgres has no
+    # such functions, so this raised on every call there (this whole endpoint
+    # had never run against Postgres before). The bucketing is cheap enough to
+    # do in Python instead, which also sidesteps the dialect entirely rather
+    # than trading one DB-specific expression for another.
     IST_OFFSET = 330
     try:
-        hourly_rows = (
-            db.session.query(
-                func.strftime('%H', func.datetime(
-                    SignalHistory.closed_at, f'+{IST_OFFSET} minutes'
-                )).label("hour"),
-                func.count(SignalHistory.id).label("trades"),
-                wins_sum,
-            )
-            .group_by("hour")
+        closed_rows = (
+            db.session.query(SignalHistory.closed_at, SignalHistory.outcome)
+            .filter(SignalHistory.closed_at.isnot(None))
             .all()
         )
+        hourly_buckets = {}
+        for closed_at, outcome in closed_rows:
+            hour = ((closed_at + timedelta(minutes=IST_OFFSET)).hour)
+            trades, wins = hourly_buckets.get(hour, (0, 0))
+            hourly_buckets[hour] = (trades + 1, wins + (1 if outcome == "win" else 0))
         hourly_win_rate = sorted((
-            {"hour": int(hour), "win_rate": round((w or 0) / trades * 100, 1) if trades else 0.0, "trades": trades}
-            for hour, trades, w in hourly_rows
+            {"hour": hour, "win_rate": round(wins / trades * 100, 1) if trades else 0.0, "trades": trades}
+            for hour, (trades, wins) in hourly_buckets.items()
         ), key=lambda x: x["hour"])
     except Exception:
+        # A prior failed query in this same request can leave the session's
+        # transaction aborted (Postgres refuses everything until it's rolled
+        # back) — without this, the *next* query below would fail too,
+        # turning one degraded chart into a 500 for the whole endpoint.
+        db.session.rollback()
         hourly_win_rate = []
 
     # ── Confidence calibration: does an 80%-confidence signal actually win ~80%? ──
