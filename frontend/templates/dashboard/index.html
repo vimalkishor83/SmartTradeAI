@@ -202,7 +202,7 @@
   const h = new Date().getHours();
   const part = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
   const setName = () => {
-    const n = document.getElementById('navUserName')?.textContent?.trim();
+    const n = document.getElementById('sidebarUserName')?.textContent?.trim();
     el.textContent = `Good ${part}${n && n !== 'User' ? ', ' + n.split(' ')[0] : ''} 👋`;
   };
   setName(); setTimeout(setName, 2000);
