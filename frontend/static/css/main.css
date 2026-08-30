@@ -165,6 +165,14 @@
 
 html {
   scroll-behavior: smooth;
+  /* body already has this, but body's own overflow-x doesn't reliably stop
+     page-level horizontal scroll — html is the actual scrolling root in
+     most browsers, and position:fixed elements (the off-canvas mobile
+     sidebar included) escape body's overflow clipping entirely since they
+     sit relative to the viewport, not to body. Without this, mobile
+     browsers could still scroll the whole page horizontally and reveal
+     bare background past the right/left edge of the real content. */
+  overflow-x: hidden;
 }
 
 body {

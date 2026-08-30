@@ -8,7 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { scroll-behavior: smooth; }
+    /* overflow-x here too, not just on body below — html is the real
+       scrolling root in most mobile browsers, and body's own overflow-x
+       doesn't reliably stop page-level horizontal scroll on its own. */
+    html { scroll-behavior: smooth; overflow-x: hidden; }
 
     :root {
       --bg:       #080b12;
@@ -866,6 +869,17 @@
       .nav-links { display: none; }
       .features-grid { grid-template-columns: 1fr; }
       .snapshot-table th:nth-child(3), .snapshot-table td:nth-child(3) { display: none; }
+
+      /* Without this, a long real name in the logged-in "👤 Name →
+         Dashboard" nav button had no width limit and overlapped the
+         logo beside it — there was nothing bounding either side to
+         guarantee they'd both fit at phone widths. */
+      .navbar { padding: 0 4%; }
+      .nav-brand { font-size: 15px; gap: 7px; }
+      .nav-brand .brand-icon { width: 30px; height: 30px; font-size: 15px; }
+      .nav-cta { gap: 8px; }
+      .nav-cta .btn { padding: 7px 12px; font-size: 12.5px; }
+      .nav-cta-name { display: none; }
     }
 
     @media (max-width: 480px) {
@@ -1326,9 +1340,13 @@
 
     const cta = document.getElementById('navCta');
     if (cta) {
+      // The name span is hidden on narrow screens (see the mobile media
+      // query) — a long real name here (not every user's is short) made
+      // this button wide enough to overlap the logo next to it, since
+      // there was nothing bounding its width on mobile.
       cta.innerHTML = name
-        ? '<a href="/dashboard" class="btn btn-accent">👤 ' + name + ' → Dashboard</a>'
-        : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
+        ? '<a href="/dashboard" class="btn btn-accent nav-cta-dash">👤 <span class="nav-cta-name">' + name + ' </span>→ Dashboard</a>'
+        : '<a href="/dashboard" class="btn btn-accent nav-cta-dash">Go to Dashboard →</a>';
     }
 
     document.querySelectorAll('a[href="/register"]').forEach(el => {
