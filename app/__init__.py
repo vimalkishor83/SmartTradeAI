@@ -712,54 +712,98 @@ def _init_scheduler(app):
     if not scheduler.running:
         scheduler.start()
 
-    # Auto-resume auto-generate if it was running before server restart
-    with app.app_context():
-        _resume_auto_generate(app)
+    # Sync the live Auto Generate job against its DB-persisted config now
+    # (covers resuming after this process restarts), then keep re-checking
+    # on a short interval (covers the split web/worker topology: the web
+    # tier runs with RUN_SCHEDULER=0 and never owns this scheduler, so a
+    # Start/Stop/Save click made there can only ever reach this process via
+    # that persisted row — never as a live signal. Without this poll, a
+    # click made after this process's boot had no real effect on the actual
+    # running job until this process happened to restart again and catch up,
+    # which looked from the admin panel like Auto Generate "randomly stops"
+    # and needing Start clicked again every time).
+    _sync_auto_generate_from_db(app)
+    scheduler.add_job(
+        _sync_auto_generate_from_db,
+        "interval",
+        args=[app],
+        id="ag_config_sync",
+        seconds=20,
+        replace_existing=True,
+    )
 
 
-def _resume_auto_generate(app):
-    """If ag_state.json says running=True, re-register the scheduler job."""
+_AG_LAST_APPLIED = None  # fingerprint of the config currently armed on the scheduler, or None if stopped
+
+
+def _sync_auto_generate_from_db(app):
+    """Reconciles the live `user_auto_generate` scheduler job against
+    AutoGenerateConfig — the single source of truth shared between the web
+    tier (writes only, via /auto-generate/start|stop|save) and this worker
+    process (the only one that actually runs the job). See the call site
+    above for why this needs to run on a poll, not just once at boot."""
+    global _AG_LAST_APPLIED
     try:
-        from app.api.v1.signals import _ag_load, _AG_STATE, _AG_JOB_ID, _run_auto_generate
-        saved = _ag_load()
-        if not saved or not saved.get("running"):
-            return
-        # Restore settings into live state
-        raw_tfs = saved.get("timeframes") or saved.get("timeframe", "1h")
-        timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
-        _AG_STATE.update({
-            "running":            True,
-            "asset_ids":          saved.get("asset_ids", []),
-            "markets":            saved.get("markets", []),
-            "timeframes":         timeframes,
-            "signal_filter":      saved.get("signal_filter", "all"),
-            "min_confidence":     float(saved.get("min_confidence", 0)),
-            "max_per_run":        int(saved.get("max_per_run", 0)),
-            "interval_minutes":   int(saved.get("interval_minutes", 5)),
-            "telegram_on_signal": bool(saved.get("telegram_on_signal", True)),
-        })
-        interval = _AG_STATE["interval_minutes"]
         from datetime import datetime
-        if interval > 0:
-            try:
-                scheduler.remove_job(_AG_JOB_ID)
-            except Exception:
-                pass
-            scheduler.add_job(
-                _run_auto_generate,
-                "interval",
-                args=[app],
-                id=_AG_JOB_ID,
-                minutes=interval,
-                replace_existing=True,
-                next_run_time=datetime.utcnow(),
+        with app.app_context():
+            from app.api.v1.signals import _ag_load, _AG_STATE, _AG_JOB_ID, _run_auto_generate
+            saved = _ag_load()
+
+            if not saved or not saved.get("running"):
+                if _AG_LAST_APPLIED is not None:
+                    try:
+                        scheduler.remove_job(_AG_JOB_ID)
+                    except Exception:
+                        pass
+                    _AG_STATE["running"] = False
+                    _AG_LAST_APPLIED = None
+                    logging.getLogger(__name__).info("Auto Generate stopped (picked up from saved config).")
+                return
+
+            raw_tfs = saved.get("timeframes") or saved.get("timeframe", "1h")
+            timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
+            fingerprint = (
+                tuple(saved.get("asset_ids") or []), tuple(saved.get("markets") or []),
+                tuple(timeframes), saved.get("signal_filter", "all"),
+                float(saved.get("min_confidence", 0)), int(saved.get("max_per_run", 0)),
+                int(saved.get("interval_minutes", 5)), bool(saved.get("telegram_on_signal", True)),
             )
-        n_assets = len(_AG_STATE["asset_ids"]) or "all"
-        logging.getLogger(__name__).info(
-            f"Auto Generate resumed: {n_assets} assets × {timeframes} every {interval}min"
-        )
+            if fingerprint == _AG_LAST_APPLIED:
+                return  # already armed with this exact config — nothing changed since the last poll
+
+            _AG_STATE.update({
+                "running":            True,
+                "asset_ids":          saved.get("asset_ids", []),
+                "markets":            saved.get("markets", []),
+                "timeframes":         timeframes,
+                "signal_filter":      saved.get("signal_filter", "all"),
+                "min_confidence":     float(saved.get("min_confidence", 0)),
+                "max_per_run":        int(saved.get("max_per_run", 0)),
+                "interval_minutes":   int(saved.get("interval_minutes", 5)),
+                "telegram_on_signal": bool(saved.get("telegram_on_signal", True)),
+            })
+            interval = _AG_STATE["interval_minutes"]
+            if interval > 0:
+                try:
+                    scheduler.remove_job(_AG_JOB_ID)
+                except Exception:
+                    pass
+                scheduler.add_job(
+                    _run_auto_generate,
+                    "interval",
+                    args=[app],
+                    id=_AG_JOB_ID,
+                    minutes=interval,
+                    replace_existing=True,
+                    next_run_time=datetime.utcnow(),
+                )
+            n_assets = len(_AG_STATE["asset_ids"]) or "all"
+            logging.getLogger(__name__).info(
+                f"Auto Generate (re)armed: {n_assets} assets × {timeframes} every {interval}min"
+            )
+            _AG_LAST_APPLIED = fingerprint
     except Exception as e:
-        logging.getLogger(__name__).warning(f"Auto Generate resume failed: {e}")
+        logging.getLogger(__name__).warning(f"Auto Generate sync failed: {e}")
 
 
 class _SystemLogDBHandler(logging.Handler):
