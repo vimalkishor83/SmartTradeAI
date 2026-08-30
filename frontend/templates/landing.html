@@ -1353,6 +1353,23 @@
         : '<a href="/dashboard" class="btn btn-accent nav-cta-dash">Go to Dashboard →</a>';
     }
 
+    // Every pricing card's CTA (Free/Basic/Premium/Pro all say something
+    // different — "Get Started Free", "Start Basic", "Start Premium",
+    // "Start Pro") points at /register. These were only ever matched by
+    // exact label text ("start free"), which doesn't even match "Get
+    // Started Free" itself (the word is "started", not "start "+"free"
+    // back to back) — so in practice NONE of the four ever actually got
+    // swapped, and an already-logged-in visitor clicking any of them,
+    // Free included, still got bounced through the full /register page
+    // (which does correctly redirect them onward, but that extra round
+    // trip is exactly the confusing hop this is meant to avoid). Matching
+    // by structure instead of copy means this keeps working automatically
+    // if any plan's button text changes again later.
+    document.querySelectorAll('.pricing-card a[href="/register"]').forEach(el => {
+      el.setAttribute('href', '/dashboard');
+      el.textContent = '🚀 Go to Dashboard';
+    });
+
     document.querySelectorAll('a[href="/register"]').forEach(el => {
       const label = el.textContent.trim().toLowerCase();
       if (label.includes('start free')) {

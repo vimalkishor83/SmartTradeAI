@@ -330,7 +330,28 @@ def reset_password():
 @login_required
 def me():
     user = get_current_user()
-    return jsonify(user.to_dict()), 200
+    response = jsonify(user.to_dict())
+
+    # Re-assert the access-token cookie whenever this request actually
+    # authenticated via the Authorization header. This matters because
+    # admin pages (app/views.py, gated by page_admin_required) are plain
+    # server-rendered routes reached by clicking a normal <a href> link —
+    # that's a browser navigation, not a fetch() call, so it can only ever
+    # send a cookie, never a custom header. If this session's cookie is
+    # ever missing or stale relative to its still-valid header token (a
+    # domain migration, cookies cleared independently of localStorage, or
+    # any other drift with no general-purpose recovery path), every admin
+    # page click bounced through /login before landing — annoying, and
+    # confusing since every fetch()-based call on the same page worked
+    # fine throughout. /me runs on every single page load (see Auth.init()
+    # in app.js), so re-syncing here means the cookie self-heals on the
+    # very next normal page visit, before the user ever clicks an admin
+    # link at all.
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        set_access_cookies(response, auth_header[7:])
+
+    return response, 200
 
 
 @auth_bp.route("/me/export", methods=["GET"])
