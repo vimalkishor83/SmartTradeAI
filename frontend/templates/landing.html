@@ -1270,8 +1270,8 @@
   <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
   <ul class="footer-links">
     <li><a href="/dashboard">Dashboard</a></li>
-    <li><a href="/login">Login</a></li>
-    <li><a href="/register">Register</a></li>
+    <li id="footerLoginItem"><a href="/login">Login</a></li>
+    <li id="footerRegisterItem"><a href="/register">Register</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#pricing">Pricing</a></li>
     <li><a href="#about">About Us</a></li>
@@ -1335,8 +1335,12 @@
       }
     }
 
-    const navLoginItem = document.getElementById('navLoginItem');
-    if (navLoginItem) navLoginItem.remove();
+    // Same idea as the navbar CTA swap below: an already-logged-in visitor
+    // has no reason to see Login/Register links — clicking them would just
+    // round-trip through /login's own "already have a token" redirect back
+    // to /dashboard anyway, so remove them here instead of making that trip.
+    document.getElementById('footerLoginItem')?.remove();
+    document.getElementById('footerRegisterItem')?.remove();
 
     const cta = document.getElementById('navCta');
     if (cta) {
