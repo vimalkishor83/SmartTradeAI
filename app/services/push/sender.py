@@ -19,7 +19,7 @@ def send_push_notification(subscription_json: str, title: str, body: str,
 
         vapid_private = current_app.config.get("VAPID_PRIVATE_KEY")
         vapid_claims  = {
-            "sub": current_app.config.get("VAPID_CLAIMS_EMAIL", "mailto:admin@smarttradeai.com")
+            "sub": current_app.config.get("VAPID_CLAIMS_EMAIL", "mailto:support@smarttradeai.online")
         }
 
         if not vapid_private:

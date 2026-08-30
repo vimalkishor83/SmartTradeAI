@@ -63,7 +63,7 @@ class Config:
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "noreply@smarttradeai.com")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "support@smarttradeai.online")
     # No SMTP credentials configured yet? Suppress actual sending and log the
     # email instead (see app/services/mailer.py) so registration/reset flows
     # keep working end-to-end before you've wired up a real mail provider.
@@ -76,7 +76,7 @@ class Config:
     # Web Push (VAPID)
     VAPID_PUBLIC_KEY    = os.environ.get("VAPID_PUBLIC_KEY", "")
     VAPID_PRIVATE_KEY   = os.environ.get("VAPID_PRIVATE_KEY", "")
-    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:admin@smarttradeai.com")
+    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:support@smarttradeai.online")
 
     # Scheduler
     SCHEDULER_TIMEZONE = "Asia/Kolkata"
