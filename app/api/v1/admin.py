@@ -288,17 +288,19 @@ def delete_user(user_id):
 # ─── Plan trials ─────────────────────────────────────────────────────────────
 # Time-boxed access to a paid plan's features, granted by a super admin —
 # for letting someone try Pro/Premium/Basic without a real subscription.
-# Not offered for admin-role accounts: their access already comes from the
-# role itself (Subscription "admin" is seeded at tier_level=99 regardless of
-# what's selected here), so a "trial" on one of them would be a no-op that
-# only adds confusing state to clean up later.
+# Works for any account regardless of Role: feature access (min_tier_required /
+# subscription_feature_required) is gated purely on Subscription.tier_level,
+# not on Role — an admin-role account only has full feature access because
+# it's ALSO seeded onto the "admin" Subscription row, not because of the role
+# itself. So trialing a different plan on an admin-role account is a real,
+# meaningful change (e.g. previewing what a Premium subscriber's dashboard
+# looks like), not a no-op — only Role governs Admin Panel access, and that's
+# untouched here either way.
 
 @admin_bp.route("/users/<int:user_id>/trial", methods=["POST"])
 @super_admin_required
 def start_trial(user_id):
     user = User.query.get_or_404(user_id)
-    if user.role and user.role.name == "admin":
-        return jsonify({"error": "Trials aren't applicable to admin accounts — they already have full access"}), 400
 
     data = request.get_json() or {}
     subscription_id = data.get("subscription_id")

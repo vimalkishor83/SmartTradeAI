@@ -279,9 +279,10 @@ async function loadUsers(page = 1) {
   data.users.forEach(u => allUsersById[u.id] = u);
   const actionsHtml = (u) => {
     if (!isSuperAdmin) return '<span class="text-muted small">View only</span>';
-    // Trials aren't offered for admin-role accounts — see the backend's
-    // matching rejection in POST /admin/users/<id>/trial.
-    const trialBtn = u.role === 'admin' ? '' : u.is_on_trial
+    // Available for any account, admin-role included — feature access is
+    // gated on Subscription (see the backend for why), so trialing a
+    // different plan on an admin-role account is a real, meaningful change.
+    const trialBtn = u.is_on_trial
       ? `<button class="btn btn-sm btn-outline-warning" onclick="cancelTrial(${u.id})" title="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
       : `<button class="btn btn-sm btn-outline-secondary" onclick="openTrialModal(${u.id})" title="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
     return `
