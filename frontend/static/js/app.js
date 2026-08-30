@@ -192,6 +192,20 @@ const Auth = {
       }
     }
 
+    const trialBanner = document.getElementById('trialBanner');
+    if (trialBanner) {
+      if (u.is_on_trial && u.trial_days_remaining != null) {
+        const days = u.trial_days_remaining;
+        trialBanner.style.display = '';
+        trialBanner.className = 'approval-banner approval-banner-trial';
+        trialBanner.innerHTML = `<i class="bi bi-hourglass-split me-2"></i>Trial active — ` +
+          `<strong>${days} day${days === 1 ? '' : 's'} left</strong> on the ${u.subscription} plan. ` +
+          `Your account switches back to Free automatically once it ends.`;
+      } else {
+        trialBanner.style.display = 'none';
+      }
+    }
+
     // Admin-only pages (marked via <body data-requires-admin>) render their
     // full layout server-side before this JS runs — the underlying API
     // calls already 403 for non-admins so no data leaks, but the empty

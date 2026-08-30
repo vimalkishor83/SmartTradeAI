@@ -146,6 +146,37 @@
   </div>
 </div>
 
+<!-- Super-admin-only: give a user (not an admin account — they already
+     have full access) time-boxed access to a paid plan. Reverts to Free
+     automatically when it expires; the site-wide banner (base.html /
+     app.js) tells the user how many days are left on every page while it's
+     active, including the public Home page if they're logged in. -->
+<div class="modal fade" id="trialModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
+      <div class="modal-header" style="border-color:var(--border)">
+        <h5 class="modal-title"><i class="bi bi-hourglass-split me-2"></i>Start Plan Trial</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small mb-3">Grants <strong id="trUsername"></strong> full access to the selected plan for a limited time. Their account automatically switches back to Free once it ends — no need to remember to revoke it.</p>
+        <form id="trialForm">
+          <input type="hidden" id="trUserId" />
+          <div class="mb-3">
+            <label class="form-label">Plan to trial</label>
+            <select class="form-select" id="trPlan"></select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Duration (days)</label>
+            <input type="number" class="form-control" id="trDays" min="1" max="365" value="7" required />
+          </div>
+          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-play-fill me-1"></i>Start Trial</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="section-card mb-3" id="pendingUsersCard" style="display:none">
   <div class="d-flex align-items-center justify-content-between p-3 pb-0">
     <h2 class="h6 mb-0"><i class="bi bi-hourglass-split me-2"></i>Pending Approval
@@ -198,6 +229,7 @@ async function loadRolesAndSubscriptions() {
   const fill = (sel, items) => sel.innerHTML = items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
   fill(document.getElementById('cuRole'), allRoles);
   fill(document.getElementById('cuSubscription'), allSubscriptions);
+  fill(document.getElementById('trPlan'), allSubscriptions.filter(s => s.name !== 'free'));
 }
 
 // Changing role/plan straight from the table — same PUT /admin/users/<id>
@@ -214,9 +246,12 @@ function roleSelectHtml(u) {
   return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" onchange="changeUserRole(${u.id}, this.value)">${opts}</select>${badge}</div>`;
 }
 function subscriptionSelectHtml(u) {
-  if (!isSuperAdmin) return `<span class="text-capitalize">${u.subscription || '—'}</span>`;
+  const trialBadge = u.is_on_trial
+    ? `<span class="badge bg-warning text-dark ms-1" title="Reverts to Free automatically">Trial · ${u.trial_days_remaining}d left</span>`
+    : '';
+  if (!isSuperAdmin) return `<span class="text-capitalize">${u.subscription || '—'}</span>${trialBadge}`;
   const opts = allSubscriptions.map(s => `<option value="${s.id}" ${s.id === u.subscription_id ? 'selected' : ''}>${s.name}</option>`).join('');
-  return `<select class="form-select form-select-sm" style="width:auto" onchange="changeUserSubscription(${u.id}, this.value)">${opts}</select>`;
+  return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" onchange="changeUserSubscription(${u.id}, this.value)">${opts}</select>${trialBadge}</div>`;
 }
 async function changeUserRole(id, roleId) {
   const res = await API.put(`/admin/users/${id}`, { role_id: parseInt(roleId) });
@@ -244,11 +279,17 @@ async function loadUsers(page = 1) {
   data.users.forEach(u => allUsersById[u.id] = u);
   const actionsHtml = (u) => {
     if (!isSuperAdmin) return '<span class="text-muted small">View only</span>';
+    // Trials aren't offered for admin-role accounts — see the backend's
+    // matching rejection in POST /admin/users/<id>/trial.
+    const trialBtn = u.role === 'admin' ? '' : u.is_on_trial
+      ? `<button class="btn btn-sm btn-outline-warning" onclick="cancelTrial(${u.id})" title="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
+      : `<button class="btn btn-sm btn-outline-secondary" onclick="openTrialModal(${u.id})" title="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
     return `
         <div class="d-flex gap-1">
           <button class="btn btn-sm btn-outline-secondary" onclick="openEditUser(${u.id})" title="Edit">
             <i class="bi bi-pencil"></i>
           </button>
+          ${trialBtn}
           <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" onclick="toggleUser(${u.id}, ${!u.is_active})" title="${u.is_active ? 'Disable' : 'Enable'}">
             ${u.is_active ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
           </button>
@@ -438,5 +479,38 @@ document.getElementById('editUserModal').addEventListener('hidden.bs.modal', () 
   document.getElementById('euResult').style.display = 'none';
   document.getElementById('editUserForm').reset();
 });
+
+// ── Plan Trials (super admin only) ──────────────────────────────────────
+function openTrialModal(id) {
+  const u = allUsersById[id];
+  if (!u) return;
+  document.getElementById('trUserId').value = u.id;
+  document.getElementById('trUsername').textContent = u.username;
+  document.getElementById('trDays').value = 7;
+  new bootstrap.Modal(document.getElementById('trialModal')).show();
+}
+
+document.getElementById('trialForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const id = document.getElementById('trUserId').value;
+  const res = await API.post(`/admin/users/${id}/trial`, {
+    subscription_id: parseInt(document.getElementById('trPlan').value),
+    days: parseInt(document.getElementById('trDays').value),
+  });
+  if (res && !res.error) {
+    Toast.show('Trial started', 'success');
+    bootstrap.Modal.getInstance(document.getElementById('trialModal'))?.hide();
+    loadUsers(userPage);
+  } else {
+    Toast.show(res?.error || 'Failed to start trial', 'error');
+  }
+});
+
+async function cancelTrial(id) {
+  if (!confirm('End this trial now? The account switches back to Free immediately.')) return;
+  const ok = await API.delete(`/admin/users/${id}/trial`);
+  if (ok) { Toast.show('Trial ended', 'success'); loadUsers(userPage); }
+  else Toast.show('Failed to end trial', 'error');
+}
 </script>
 {% endblock %}

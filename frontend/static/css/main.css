@@ -5042,6 +5042,12 @@ select option {
   border: 1px solid rgba(239, 68, 68, .35)
 }
 
+.approval-banner-trial {
+  background: rgba(245, 166, 35, .12);
+  color: var(--accent, #f5a623);
+  border: 1px solid rgba(245, 166, 35, .35)
+}
+
 /* ═══ Global page polish (lifts all .page-header pages) ═══════════ */
 .page-header {
   padding-bottom: 14px;

@@ -46,6 +46,19 @@
     /* Numeric/data values render in mono for a terminal feel + column alignment */
     .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
+    /* ── TRIAL BANNER (logged-in visitors on an active plan trial) ────── */
+    .trial-banner {
+      display: none;
+      background: linear-gradient(90deg, rgba(245,166,35,0.18), rgba(245,166,35,0.08));
+      border-bottom: 1px solid rgba(245,166,35,0.35);
+      color: var(--text);
+      text-align: center;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 10px 16px;
+    }
+    .trial-banner strong { color: var(--accent2); }
+
     /* ── NAVBAR ─────────────────────────── */
     .navbar {
       position: sticky;
@@ -863,6 +876,10 @@
 </head>
 <body>
 
+<!-- ═══ TRIAL BANNER — only shown to a logged-in visitor on an active
+     plan trial (populated by the auth-check script below) ══════════ -->
+<div id="landingTrialBanner" class="trial-banner"></div>
+
 <!-- ═══ LIVE TICKER STRIP ══════════════════════════════════════ -->
 <div class="ticker-wrap">
   <div class="ticker-track" id="landingTickerTrack">
@@ -1260,6 +1277,16 @@
     // `name` silently miss every time and fall back to the literal string
     // "Dashboard", which is why the button read "Dashboard → Dashboard".
     const name = (me.full_name || me.username || '').trim().split(' ')[0] || null;
+
+    if (me.is_on_trial && me.trial_days_remaining != null) {
+      const days = me.trial_days_remaining;
+      const tb = document.getElementById('landingTrialBanner');
+      if (tb) {
+        tb.innerHTML = `⏳ Trial active — <strong>${days} day${days === 1 ? '' : 's'} left</strong> ` +
+          `on the ${me.subscription} plan. Your account switches back to Free automatically once it ends.`;
+        tb.style.display = 'block';
+      }
+    }
 
     const navLoginItem = document.getElementById('navLoginItem');
     if (navLoginItem) navLoginItem.remove();

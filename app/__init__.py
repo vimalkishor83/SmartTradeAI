@@ -732,6 +732,54 @@ def _init_scheduler(app):
         replace_existing=True,
     )
 
+    # Revert any user whose plan trial (User.trial_expires_at, granted via
+    # POST /admin/users/<id>/trial) has run out back to the Free plan. Runs
+    # once at boot to catch anything that expired while this process was
+    # down, then on a poll — trials are day-granularity so this doesn't need
+    # anywhere near the 20s cadence above, just often enough that "N days"
+    # is honored close to on time.
+    _expire_trials(app)
+    scheduler.add_job(
+        _expire_trials,
+        "interval",
+        args=[app],
+        id="trial_expiry_check",
+        minutes=15,
+        replace_existing=True,
+    )
+
+
+def _expire_trials(app):
+    try:
+        from datetime import datetime
+        with app.app_context():
+            from app.models.user import User, Subscription
+            from app.models.notification import Notification
+
+            expired = User.query.filter(
+                User.trial_expires_at.isnot(None),
+                User.trial_expires_at <= datetime.utcnow(),
+            ).all()
+            if not expired:
+                return
+
+            free_sub = Subscription.query.filter_by(name="free").first()
+            for user in expired:
+                trial_plan = user.subscription.name if user.subscription else "your trial plan"
+                if free_sub:
+                    user.subscription_id = free_sub.id
+                user.trial_expires_at = None
+                db.session.add(Notification(
+                    user_id=user.id,
+                    title="Your trial has ended",
+                    message=f"Your {trial_plan} trial has ended — your account is now on the Free plan.",
+                    notification_type="trial_ended", channel="web",
+                ))
+            db.session.commit()
+            logging.getLogger(__name__).info(f"Expired {len(expired)} plan trial(s), reverted to Free.")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"Trial expiry check failed: {e}")
+
 
 _AG_LAST_APPLIED = None  # fingerprint of the config currently armed on the scheduler, or None if stopped
 

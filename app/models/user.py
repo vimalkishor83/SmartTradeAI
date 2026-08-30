@@ -1,3 +1,4 @@
+import math
 from datetime import datetime
 from app.extensions import db, bcrypt
 
@@ -126,6 +127,15 @@ class User(db.Model):
 
     role_id = db.Column(db.Integer, db.ForeignKey("roles.id"), nullable=False)
     subscription_id = db.Column(db.Integer, db.ForeignKey("subscriptions.id"))
+    # Set (by a super admin) alongside bumping subscription_id to a paid plan
+    # to grant a time-boxed trial of that plan. While in the future, the user
+    # keeps every feature that plan unlocks through the existing
+    # subscription-based gates (min_tier_required/subscription_feature_required)
+    # unchanged — no separate trial-gating logic needed there. A periodic job
+    # (_expire_trials in app/__init__.py) reverts subscription_id to the free
+    # plan and clears this once it's in the past — see that function for why
+    # "free" specifically, not whatever plan the user had before the trial.
+    trial_expires_at = db.Column(db.DateTime, nullable=True)
     # Distinguishes the small set of admins who can actually change things
     # (create/edit/delete users, edit platform config, API configs, etc.)
     # from regular "admin" role holders who can view every admin page but
@@ -196,6 +206,20 @@ class User(db.Model):
     def full_name(self):
         return f"{self.first_name or ''} {self.last_name or ''}".strip() or self.username
 
+    @property
+    def is_on_trial(self):
+        return bool(self.trial_expires_at and self.trial_expires_at > datetime.utcnow())
+
+    @property
+    def trial_days_remaining(self):
+        if not self.is_on_trial:
+            return None
+        # Round up — a trial ending in 40 minutes should still read "1 day
+        # left", not "0 days left", so the banner doesn't undersell exactly
+        # how much time remains right up until expiry.
+        remaining = self.trial_expires_at - datetime.utcnow()
+        return max(1, math.ceil(remaining.total_seconds() / 86400))
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -210,6 +234,9 @@ class User(db.Model):
             "subscription": self.subscription.name if self.subscription else "free",
             "subscription_id": self.subscription_id,
             "subscription_tier_level": self.subscription.tier_level if self.subscription else 0,
+            "is_on_trial": self.is_on_trial,
+            "trial_expires_at": self.trial_expires_at.isoformat() if self.trial_expires_at else None,
+            "trial_days_remaining": self.trial_days_remaining,
             "broker": self.broker.name if self.broker else None,
             "broker_account_id": self.broker_account_id,
             "referral_code": self.referral_code.code if self.referral_code else None,

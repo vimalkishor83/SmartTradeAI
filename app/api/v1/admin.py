@@ -285,6 +285,66 @@ def delete_user(user_id):
     return jsonify({"message": "User deleted"}), 200
 
 
+# ─── Plan trials ─────────────────────────────────────────────────────────────
+# Time-boxed access to a paid plan's features, granted by a super admin —
+# for letting someone try Pro/Premium/Basic without a real subscription.
+# Not offered for admin-role accounts: their access already comes from the
+# role itself (Subscription "admin" is seeded at tier_level=99 regardless of
+# what's selected here), so a "trial" on one of them would be a no-op that
+# only adds confusing state to clean up later.
+
+@admin_bp.route("/users/<int:user_id>/trial", methods=["POST"])
+@super_admin_required
+def start_trial(user_id):
+    user = User.query.get_or_404(user_id)
+    if user.role and user.role.name == "admin":
+        return jsonify({"error": "Trials aren't applicable to admin accounts — they already have full access"}), 400
+
+    data = request.get_json() or {}
+    subscription_id = data.get("subscription_id")
+    days = data.get("days")
+
+    sub = Subscription.query.get(subscription_id) if subscription_id else None
+    if not sub:
+        return jsonify({"error": "Invalid subscription plan"}), 400
+    if sub.name == "free":
+        return jsonify({"error": "Free is the default plan — nothing to trial"}), 400
+
+    try:
+        days = int(days)
+    except (TypeError, ValueError):
+        return jsonify({"error": "days must be a number"}), 400
+    if not (1 <= days <= 365):
+        return jsonify({"error": "days must be between 1 and 365"}), 400
+
+    user.subscription_id = sub.id
+    user.trial_expires_at = datetime.utcnow() + timedelta(days=days)
+    db.session.commit()
+
+    _audit_admin_action(user.id, f"start_trial:{sub.name}:{days}d")
+
+    return jsonify(user.to_dict()), 200
+
+
+@admin_bp.route("/users/<int:user_id>/trial", methods=["DELETE"])
+@super_admin_required
+def cancel_trial(user_id):
+    """Ends a trial early — reverts to Free immediately instead of waiting
+    for it to expire on its own."""
+    user = User.query.get_or_404(user_id)
+    if not user.trial_expires_at:
+        return jsonify({"error": "This user isn't on a trial"}), 400
+
+    free_sub = Subscription.query.filter_by(name="free").first()
+    user.subscription_id = free_sub.id if free_sub else user.subscription_id
+    user.trial_expires_at = None
+    db.session.commit()
+
+    _audit_admin_action(user.id, "cancel_trial")
+
+    return jsonify(user.to_dict()), 200
+
+
 # ─── Database backups ────────────────────────────────────────────────────────
 # A daily scheduled job (register_backup_job, app/__init__.py) already
 # creates these automatically — this is the admin-facing on-demand
