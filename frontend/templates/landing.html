@@ -1353,38 +1353,47 @@
 // data before; now pulled from the unauthenticated /public-ticker and
 // /public-board endpoints so the landing page shows real current prices
 // and real (small, marketing-safe) signal reads instead of frozen numbers.
-(async function () {
+//
+// This page is public (no login), so it can't open the authenticated
+// Socket.IO connection the logged-in dashboard uses for tick-by-tick
+// pushes (see app/websocket/events.py — on_connect requires a JWT). A
+// short poll is the practical equivalent here: still feels "live" to a
+// visitor without needing an unauthenticated WebSocket room.
+async function loadLandingTicker() {
   const track = document.getElementById('landingTickerTrack');
-  if (track) {
-    try {
-      // Guard against a hung/slow request leaving "Loading live prices…"
-      // stuck forever — fall back to the unavailable message after 8s.
-      const ctrl = new AbortController();
-      const timeout = setTimeout(() => ctrl.abort(), 8000);
-      const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
-      clearTimeout(timeout);
-      const data = await res.json();
-      const items = data.items || [];
-      if (items.length) {
-        const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
-        const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
-        const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
-        const rowHtml = items.map(it => `
-          <div class="ticker-item">
-            <span class="ticker-sym">${it.symbol}</span>
-            <span class="ticker-price mono">${fmt(it.price)}</span>
-            <span class="ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
-          </div>`).join('');
-        // duplicate the set once for the seamless marquee loop (CSS animates track width/2)
-        track.innerHTML = rowHtml + rowHtml;
-      } else {
-        track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
-      }
-    } catch (e) {
+  if (!track) return;
+  try {
+    // Guard against a hung/slow request leaving "Loading live prices…"
+    // stuck forever — fall back to the unavailable message after 8s.
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
+    clearTimeout(timeout);
+    const data = await res.json();
+    const items = data.items || [];
+    if (items.length) {
+      const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
+      const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
+      const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
+      const rowHtml = items.map(it => `
+        <div class="ticker-item">
+          <span class="ticker-sym">${it.symbol}</span>
+          <span class="ticker-price mono">${fmt(it.price)}</span>
+          <span class="ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
+        </div>`).join('');
+      // duplicate the set once for the seamless marquee loop (CSS animates track width/2)
+      track.innerHTML = rowHtml + rowHtml;
+    } else {
       track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
     }
+  } catch (e) {
+    track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
   }
+}
+loadLandingTicker();
+setInterval(loadLandingTicker, 5000);
 
+(async function () {
   const statsBand = document.getElementById('landingStatsBand');
   if (statsBand) {
     try {

@@ -23,6 +23,14 @@ apscheduler==3.10.4
 # Market Data
 requests==2.32.5
 yfinance==1.6.0
+# Outbound client for the Delta Exchange v2/ticker feed (delta_stream.py) —
+# this is the *client* side connecting out to Delta's WebSocket, distinct
+# from flask-socketio above (which is the *server* side pushing ticks to
+# browsers). Without this, DeltaStreamManager logs "websocket-client not
+# installed — Delta stream disabled" and silently never starts, so crypto
+# prices only ever update via the much slower REST/collector fallback path
+# instead of real tick-by-tick pushes.
+websocket-client==1.8.0
 
 # Technical Analysis
 numpy==1.26.4
