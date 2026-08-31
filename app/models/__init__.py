@@ -17,3 +17,4 @@ from app.models.saved_screen import SavedScreen
 from app.models.mtf_watch_config import MtfWatchConfig
 from app.models.rating_snapshot import RatingSnapshot
 from app.models.telegram_alert_channel import TelegramAlertChannel
+from app.models.user_session import UserSession

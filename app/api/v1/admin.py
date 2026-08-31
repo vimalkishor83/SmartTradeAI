@@ -111,6 +111,15 @@ def update_platform_config_route():
             return jsonify({"error": f"telegram_alert_markets must only contain: {Asset.MARKETS}"}), 400
         row.telegram_alert_markets = markets
 
+    if "session_timeout_minutes" in data:
+        try:
+            minutes = int(data["session_timeout_minutes"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "session_timeout_minutes must be a number"}), 400
+        if not (5 <= minutes <= 43200):  # 5 minutes .. 30 days
+            return jsonify({"error": "session_timeout_minutes must be between 5 and 43200 (30 days)"}), 400
+        row.session_timeout_minutes = minutes
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200
@@ -745,6 +754,67 @@ def get_api_logs(cfg_id):
 @admin_required
 def get_providers():
     return jsonify({"providers": APIConfig.PROVIDERS, "defaults": APIConfig.PROVIDER_DEFAULTS}), 200
+
+
+# ─── Login Sessions ──────────────────────────────────────────────────────────
+# Real login-session tracking for support: who's logged in, from where,
+# since when, still active or revoked. Backs the admin-configurable
+# session-timeout setting above and lets an admin force-logout a specific
+# session (or every session for a user) via the JWT blocklist check in
+# app/__init__.py's token_in_blocklist_loader.
+
+@admin_bp.route("/sessions", methods=["GET"])
+@admin_required
+def list_sessions():
+    from app.models.user_session import UserSession
+    from datetime import datetime as _dt
+
+    page = int(request.args.get("page", 1))
+    query = UserSession.query
+    user_id = request.args.get("user_id")
+    if user_id:
+        query = query.filter_by(user_id=int(user_id))
+    if request.args.get("active_only") == "true":
+        query = query.filter(UserSession.revoked_at.is_(None), UserSession.expires_at > _dt.utcnow())
+
+    sessions = query.order_by(UserSession.created_at.desc()).paginate(page=page, per_page=50, error_out=False)
+    return jsonify({
+        "sessions": [s.to_dict() for s in sessions.items],
+        "total": sessions.total,
+        "pages": sessions.pages,
+    }), 200
+
+
+@admin_bp.route("/sessions/<int:session_id>/revoke", methods=["POST"])
+@super_admin_required
+def revoke_session(session_id):
+    from app.models.user_session import UserSession
+    session_row = UserSession.query.get_or_404(session_id)
+    if session_row.revoked_at is None:
+        session_row.revoked_at = datetime.utcnow()
+        session_row.revoked_reason = "admin_revoked"
+        db.session.commit()
+    return jsonify(session_row.to_dict()), 200
+
+
+@admin_bp.route("/users/<int:user_id>/revoke-sessions", methods=["POST"])
+@super_admin_required
+def revoke_all_user_sessions(user_id):
+    """Force-logout everywhere — every device, immediately (next request
+    that hits the blocklist check, not waiting for any token to expire).
+    Useful for a compromised account or a support request to "log me out
+    of everything"."""
+    from app.models.user_session import UserSession
+    from datetime import datetime as _dt
+
+    now = _dt.utcnow()
+    revoked = UserSession.query.filter(
+        UserSession.user_id == user_id,
+        UserSession.revoked_at.is_(None),
+        UserSession.expires_at > now,
+    ).update({"revoked_at": now, "revoked_reason": "admin_revoked"}, synchronize_session=False)
+    db.session.commit()
+    return jsonify({"message": f"Revoked {revoked} active session(s)"}), 200
 
 
 # ─── Audit / System Logs ────────────────────────────────────────────────────

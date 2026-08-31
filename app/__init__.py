@@ -167,6 +167,39 @@ def _init_extensions(app):
     migrate.init_app(app, db)
     bcrypt.init_app(app)
     jwt.init_app(app)
+
+    @jwt.token_in_blocklist_loader
+    def _check_session_revoked(jwt_header, jwt_payload):
+        """Backs admin-configurable session timeout and immediate logout:
+        flask-jwt-extended tokens are otherwise stateless JWTs that stay
+        valid until their own baked-in expiry no matter what /logout does
+        client-side. Every access/refresh token minted since this feature
+        shipped carries a "sid" claim pointing at its UserSession row
+        (app/models/user_session.py); this runs on every @jwt_required
+        request and treats the token as revoked the moment that row is
+        revoked or past its (admin-configured) expires_at, even if the
+        token itself has not technically expired yet.
+
+        sid is None for tokens minted before this existed, and for the
+        short-lived 2FA "partial_token" (which never gets a sid at all) —
+        both fall through as "not revoked" rather than breaking on
+        upgrade or mid-2FA-flow.
+        """
+        sid = jwt_payload.get("sid")
+        if sid is None:
+            return False
+        try:
+            from datetime import datetime
+            from app.models.user_session import UserSession
+            session_row = UserSession.query.get(sid)
+            if not session_row:
+                return True
+            if session_row.revoked_at is not None:
+                return True
+            return session_row.expires_at <= datetime.utcnow()
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Session blocklist check failed, allowing request: {e}")
+            return False
     cors_origins = app.config.get("CORS_ORIGINS", ["*"])
     # supports_credentials is only safe against an explicit origin allowlist.
     # With origins="*" Flask-CORS reflects the caller's own Origin header back,

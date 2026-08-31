@@ -2,7 +2,7 @@ from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     create_access_token, create_refresh_token,
-    jwt_required, get_jwt_identity, set_access_cookies,
+    jwt_required, get_jwt_identity, get_jwt, set_access_cookies,
     set_refresh_cookies, unset_jwt_cookies
 )
 from app.extensions import db, limiter
@@ -203,10 +203,30 @@ def login():
                 return jsonify({"error": "Invalid 2FA code"}), 401
 
     user.last_login = datetime.utcnow()
-    db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id))
-    refresh_token = create_refresh_token(identity=str(user.id))
+    # One UserSession row per login (not per token) — both the access and
+    # refresh token minted below carry its id as a "sid" claim, so a
+    # /auth/refresh later reuses this same row rather than creating a new
+    # one. That's what makes the admin's session-timeout setting mean
+    # "total time since login" instead of an endlessly-renewable idle
+    # window, and what lets /auth/logout or an admin force-logout actually
+    # invalidate the token immediately (see token_in_blocklist_loader).
+    from app.models.user_session import UserSession
+    from app.services.platform_config import get_platform_config
+    from datetime import timedelta
+    timeout_minutes = get_platform_config().get("session_timeout_minutes", 1440)
+    session_row = UserSession(
+        user_id=user.id,
+        ip_address=request.remote_addr,
+        user_agent=request.headers.get("User-Agent", "")[:500],
+        expires_at=datetime.utcnow() + timedelta(minutes=timeout_minutes),
+    )
+    db.session.add(session_row)
+    db.session.flush()  # assigns session_row.id without a full commit yet
+
+    access_token = create_access_token(identity=str(user.id), additional_claims={"sid": session_row.id})
+    refresh_token = create_refresh_token(identity=str(user.id), additional_claims={"sid": session_row.id})
+    db.session.commit()
 
     _audit(user.id, "login", "user", str(user.id))
 
@@ -227,6 +247,17 @@ def logout():
     user = get_current_user()
     if user:
         _audit(user.id, "logout", "user", str(user.id))
+        try:
+            sid = get_jwt().get("sid")
+            if sid is not None:
+                from app.models.user_session import UserSession
+                session_row = UserSession.query.get(sid)
+                if session_row and session_row.revoked_at is None:
+                    session_row.revoked_at = datetime.utcnow()
+                    session_row.revoked_reason = "logout"
+                    db.session.commit()
+        except Exception:
+            pass
     response = jsonify({"message": "Logged out successfully"})
     unset_jwt_cookies(response)
     return response, 200
@@ -245,7 +276,13 @@ def refresh():
     if not user or not user.is_active:
         return jsonify({"error": "Account is disabled"}), 403
 
-    access_token = create_access_token(identity=user_id)
+    # Carry the same "sid" forward so the renewed access token still maps
+    # back to the original login's UserSession row — a refresh extends
+    # what token is currently valid, not how long the overall session is
+    # allowed to run for (that's fixed at login, see UserSession.expires_at).
+    sid = get_jwt().get("sid")
+    claims = {"sid": sid} if sid is not None else None
+    access_token = create_access_token(identity=user_id, additional_claims=claims)
     return jsonify({"access_token": access_token}), 200
 
 
@@ -350,6 +387,19 @@ def me():
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         set_access_cookies(response, auth_header[7:])
+
+    # Cheap last-seen heartbeat for the admin's Login Sessions view — /me
+    # runs on every page load, so this is the natural place to keep
+    # "still active" meaningfully fresh without a dedicated polling
+    # endpoint just for it.
+    try:
+        sid = get_jwt().get("sid")
+        if sid is not None:
+            from app.models.user_session import UserSession
+            db.session.query(UserSession).filter_by(id=sid).update({"last_seen_at": datetime.utcnow()})
+            db.session.commit()
+    except Exception:
+        pass
 
     return response, 200
 

@@ -35,6 +35,15 @@ class PlatformConfig(db.Model):
     # counts as alert-worthy — see _is_ratingchange_alertworthy in
     # notification_tasks.py for what each value actually does.
     telegram_rating_change_sensitivity = db.Column(db.String(20), default="cross_zone", nullable=False)
+
+    # How long a login stays valid before it's forced to re-authenticate,
+    # in minutes, measured from login — not an idle timer, and not
+    # extended by refreshing the access token (see UserSession.expires_at,
+    # set once at login from this value). 1440 = 24h, matching this app's
+    # previous fixed JWT_ACCESS_EXPIRES_HOURS-only behavior, now
+    # admin-adjustable without an env var change/redeploy.
+    session_timeout_minutes = db.Column(db.Integer, default=1440, nullable=False)
+
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
@@ -58,5 +67,6 @@ class PlatformConfig(db.Model):
             "telegram_alerts_protective_order": self.telegram_alerts_protective_order,
             "telegram_alerts_rating_change": self.telegram_alerts_rating_change,
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
+            "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
