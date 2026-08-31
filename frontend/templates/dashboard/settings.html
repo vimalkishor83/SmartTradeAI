@@ -495,10 +495,19 @@ document.getElementById('profileForm').addEventListener('submit', async (e) => {
 });
 
 document.getElementById('saveNotifs').addEventListener('click', async () => {
+  const telegramEnabled = document.getElementById('telegramNotif').checked;
+  const telegramChatId = document.getElementById('telegramId').value.trim();
+  // Saves fine either way (you may be mid-setup), but this is the exact
+  // state that made alerts silently never arrive with nothing telling you
+  // why — worth flagging the moment it's saved, not just when a real alert
+  // quietly fails hours or days later.
+  if (telegramEnabled && !telegramChatId) {
+    Toast.show('Telegram is enabled but no Chat ID is saved yet — message your bot, then click "Find my Chat ID" above, or alerts won\'t be delivered.', 'warning', 8000);
+  }
   const payload = {
     email_notifications: document.getElementById('emailNotif').checked,
-    telegram_enabled: document.getElementById('telegramNotif').checked,
-    telegram_chat_id: document.getElementById('telegramId').value,
+    telegram_enabled: telegramEnabled,
+    telegram_chat_id: telegramChatId,
   };
   const newToken = document.getElementById('telegramBotToken').value.trim();
   if (newToken) payload.telegram_bot_token = newToken; // blank = leave the saved one alone

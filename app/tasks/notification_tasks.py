@@ -105,12 +105,33 @@ def _send_telegram(user, text: str):
         import requests
         token = _telegram_token_for(user)
         if not token or not user.telegram_chat_id:
+            # telegram_enabled=True with no token/chat_id yet is a normal,
+            # common in-progress setup state (the Settings page's own "Find
+            # my Chat ID" step requires messaging the bot first) — but it
+            # was previously indistinguishable from every alert silently
+            # never arriving. One clear line per user per run is cheap and
+            # shows up in the admin System Logs viewer, unlike the request-
+            # scoped logger this file otherwise uses.
+            logger.warning(
+                f"Telegram alert skipped for user {user.id} ({user.username}): "
+                f"{'no bot token configured' if not token else 'no chat_id saved yet'}"
+            )
             return
-        requests.post(
+        resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": user.telegram_chat_id, "text": text, "parse_mode": "Markdown"},
             timeout=5,
         )
+        # A rejected message (bad token, wrong/blocked chat_id, bot removed
+        # from the chat) comes back as a normal 400/403 JSON body, not a
+        # network exception — requests never raises for that on its own,
+        # so this previously "succeeded" from this function's point of view
+        # no matter what Telegram actually did with it.
+        if not resp.ok:
+            logger.warning(
+                f"Telegram alert rejected for user {user.id} ({user.username}): "
+                f"HTTP {resp.status_code} — {resp.text[:200]}"
+            )
     except Exception as e:
         logger.error(f"Telegram send error: {e}")
 
