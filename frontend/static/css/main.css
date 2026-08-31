@@ -2049,6 +2049,27 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   color: var(--text-primary);
 }
 
+/* Plain Bootstrap tables (anything using .table without this app's own
+   .smart-table) inherit Bootstrap's own --bs-table-bg, which defaults to
+   --bs-body-bg — white — since this app themes its own --bg-* tokens
+   instead of Bootstrap's variables. Left alone, every plain .table on a
+   dark page renders as a white block with dark-on-dark Bootstrap text.
+   Re-pointing Bootstrap's own table variables at this app's tokens fixes
+   every plain .table site-wide, not just the ones someone remembers to
+   add .smart-table to. */
+.table {
+  --bs-table-bg: var(--bg-secondary);
+  --bs-table-color: var(--text-primary);
+  --bs-table-border-color: var(--border);
+  --bs-table-striped-bg: var(--glass);
+  --bs-table-striped-color: var(--text-primary);
+  --bs-table-hover-bg: var(--glass);
+  --bs-table-hover-color: var(--text-primary);
+}
+.table > thead {
+  --bs-table-color: var(--text-muted);
+}
+
 /* Toggle switches — every .form-switch site-wide (Settings notifications,
    admin nav-item toggles, Telegram alert categories, etc.) previously fell
    through to Bootstrap's stock blue for "on" with no distinct "off" state,

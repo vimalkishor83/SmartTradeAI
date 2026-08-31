@@ -192,19 +192,20 @@ def _send_to_chat(chat_id: str, text: str):
         logger.error(f"Telegram group broadcast error (chat {chat_id}): {e}")
 
 
-def _send_to_channels(text: str, market: str, category: str):
+def _send_to_channels(text: str, market: str, category: str, timeframe: str | None = None):
     """Fans one alert out to every active TelegramAlertChannel whose own
-    market list and category toggle both match — e.g. a "Crypto Signals"
-    channel scoped to market="crypto" with alerts_signal=True gets a new
-    crypto BUY/SELL signal, while a "Forex & Stocks" channel with
-    alerts_rating_change=False never sees a rating-change alert at all.
-    Replaces the old single global group destination: different markets
-    legitimately want different audiences and different alert mixes."""
+    market list, timeframe list, and category toggle all match — e.g. a
+    "Crypto Scalpers" channel scoped to market="crypto",
+    timeframes=["1m","5m"] with alerts_signal=True only gets crypto
+    BUY/SELL signals on those two timeframes, while a "Swing" channel on
+    ["4h","1d"] never sees them. Replaces the old single global group
+    destination: different markets/timeframes legitimately want different
+    audiences and different alert mixes."""
     try:
         from app.models.telegram_alert_channel import TelegramAlertChannel
         channels = TelegramAlertChannel.query.filter_by(is_active=True).all()
         for channel in channels:
-            if channel.matches(market, category):
+            if channel.matches(market, category, timeframe):
                 _send_to_chat(channel.group_chat_id, text)
     except Exception as e:
         logger.error(f"Telegram channel fan-out error: {e}")
@@ -323,7 +324,7 @@ def check_rating_changes(app):
                     text = _format_rating_change_telegram(
                         row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
                     )
-                    _send_to_channels(text, row.get("market"), "rating_change")
+                    _send_to_channels(text, row.get("market"), "rating_change", tf)
                     if users is None:
                         users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                     for user in users:
@@ -472,7 +473,7 @@ def fire_signal_alerts(app):
             if tg_allowed and not any(
                 (u.id, "signal_alert", asset.symbol) in already_sent for u in users
             ):
-                _send_to_channels(tg_msg, asset.market, "signal")
+                _send_to_channels(tg_msg, asset.market, "signal", sig.timeframe)
             for user in users:
                 key = (user.id, "signal_alert", asset.symbol)
                 if key in already_sent:
@@ -529,7 +530,7 @@ def fire_signal_alerts(app):
             if tg_close_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
             ):
-                _send_to_channels(tg_close, asset.market, "signal_closed")
+                _send_to_channels(tg_close, asset.market, "signal_closed", h.timeframe)
             for user in users:
                 key = (user.id, "signal_closed", asset.symbol)
                 if key in already_sent:

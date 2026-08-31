@@ -139,6 +139,8 @@ def telegram_status():
 
 def _validate_channel_payload(data: dict, partial: bool = False) -> str | None:
     """Returns an error string, or None if the payload is valid."""
+    import re
+
     if not partial or "name" in data:
         if not (data.get("name") or "").strip():
             return "name is required"
@@ -149,6 +151,10 @@ def _validate_channel_payload(data: dict, partial: bool = False) -> str | None:
         markets = data["markets"]
         if not isinstance(markets, list) or not all(m in Asset.MARKETS for m in markets):
             return f"markets must only contain: {Asset.MARKETS}"
+    if "timeframes" in data:
+        tfs = data["timeframes"]
+        if not isinstance(tfs, list) or not all(isinstance(tf, str) and re.match(r"^\d+[mhdw]$", tf) for tf in tfs):
+            return "invalid timeframe token"
     if "rating_change_sensitivity" in data:
         if data["rating_change_sensitivity"] not in ("cross_zone", "extremes_only", "every_change"):
             return "invalid rating_change_sensitivity"
@@ -162,6 +168,8 @@ def _apply_channel_payload(channel, data: dict):
         channel.group_chat_id = data["group_chat_id"].strip()
     if "markets" in data:
         channel.markets = data["markets"]
+    if "timeframes" in data:
+        channel.timeframes = data["timeframes"]
     if "is_active" in data:
         channel.is_active = bool(data["is_active"])
     for flag in ["alerts_signal", "alerts_signal_closed", "alerts_rating_change"]:

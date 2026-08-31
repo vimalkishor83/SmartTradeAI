@@ -33,6 +33,10 @@ class TelegramAlertChannel(db.Model):
     group_chat_id = db.Column(db.String(64), nullable=False)
     # Empty list = every market (post the global PlatformConfig market gate).
     markets = db.Column(db.JSON, default=list)
+    # Empty list = every timeframe — e.g. a "Scalpers" channel can watch only
+    # 1m/5m signals while a "Swing" channel watches only 4h/1d/1w, out of the
+    # same market and category toggles.
+    timeframes = db.Column(db.JSON, default=list)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
 
     alerts_signal           = db.Column(db.Boolean, default=True, nullable=False)
@@ -43,12 +47,16 @@ class TelegramAlertChannel(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    def matches(self, market: str, category: str) -> bool:
+    def matches(self, market: str, category: str, timeframe: str | None = None) -> bool:
         """Whether this channel should receive an alert of `category`
-        (one of the alerts_* column names, minus the prefix) for `market`."""
+        (one of the alerts_* column names, minus the prefix) for `market`
+        on `timeframe`. `timeframe=None` skips that check (used by callers
+        that have no single timeframe to test, if any are ever added)."""
         if not self.is_active:
             return False
         if self.markets and market not in self.markets:
+            return False
+        if timeframe and self.timeframes and timeframe not in self.timeframes:
             return False
         return bool(getattr(self, f"alerts_{category}", False))
 
@@ -58,6 +66,7 @@ class TelegramAlertChannel(db.Model):
             "name": self.name,
             "group_chat_id": self.group_chat_id,
             "markets": self.markets or [],
+            "timeframes": self.timeframes or [],
             "is_active": self.is_active,
             "alerts_signal": self.alerts_signal,
             "alerts_signal_closed": self.alerts_signal_closed,

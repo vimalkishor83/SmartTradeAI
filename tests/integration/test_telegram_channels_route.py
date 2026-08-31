@@ -32,13 +32,14 @@ class TestTelegramChannelsCrud:
         # Create
         resp = client.post("/api/v1/admin/telegram/channels", headers=headers, json={
             "name": "Crypto Signals", "group_chat_id": "-100111", "markets": ["crypto"],
-            "alerts_signal": True, "alerts_rating_change": True,
+            "timeframes": ["1h", "4h"], "alerts_signal": True, "alerts_rating_change": True,
         })
         assert resp.status_code == 201
         body = resp.get_json()
         channel_id = body["id"]
         assert body["name"] == "Crypto Signals"
         assert body["markets"] == ["crypto"]
+        assert body["timeframes"] == ["1h", "4h"]
         assert body["alerts_signal"] is True
         assert body["alerts_signal_closed"] is True  # model default
         assert "alerts_watchlist" not in body  # removed — group-level never sends these
@@ -74,6 +75,13 @@ class TestTelegramChannelsCrud:
         client, headers = super_admin_client
         resp = client.post("/api/v1/admin/telegram/channels", headers=headers, json={
             "name": "Bad", "group_chat_id": "-100111", "markets": ["not_a_real_market"],
+        })
+        assert resp.status_code == 400
+
+    def test_create_invalid_timeframe_returns_400(self, super_admin_client):
+        client, headers = super_admin_client
+        resp = client.post("/api/v1/admin/telegram/channels", headers=headers, json={
+            "name": "Bad", "group_chat_id": "-100111", "timeframes": ["not_a_tf"],
         })
         assert resp.status_code == 400
 

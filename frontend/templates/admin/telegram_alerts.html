@@ -45,15 +45,18 @@
   <div class="section-card-body p-3">
     <div class="fs-xs text-muted text-uppercase fw-bold mb-2" style="letter-spacing:.05em">Which page maps to which alert category</div>
     <table class="table table-sm mb-0" style="font-size:12.5px">
+      <thead>
+        <tr><th style="width:38%">Page</th><th>Alert category</th><th style="width:16%">Delivery</th></tr>
+      </thead>
       <tbody>
-        <tr><td class="text-muted" style="width:45%">Terminal / Auto-Generate / TA Summary</td><td>→ <strong>New signal alerts</strong></td></tr>
-        <tr><td class="text-muted">Signal reaching target or stop loss</td><td>→ <strong>Signal closed</strong></td></tr>
-        <tr><td class="text-muted">Delta Scanner / MTF Analysis</td><td>→ <strong>MTF rating changes</strong></td></tr>
-        <tr><td class="text-muted">Watchlist</td><td>→ <strong>Watchlist price alerts</strong> <span class="badge bg-secondary ms-1" style="font-size:9.5px">Individual only</span></td></tr>
-        <tr><td class="text-muted">Live positions (broker-connected)</td><td>→ <strong>Live position stop-loss / take-profit hits</strong> <span class="badge bg-secondary ms-1" style="font-size:9.5px">Individual only</span></td></tr>
+        <tr><td class="text-muted">Terminal / Auto-Generate / TA Summary</td><td><strong>New signal alerts</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
+        <tr><td class="text-muted">Signal reaching target or stop loss</td><td><strong>Signal closed</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
+        <tr><td class="text-muted">Delta Scanner / MTF Analysis</td><td><strong>MTF rating changes</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
+        <tr><td class="text-muted">Watchlist</td><td><strong>Watchlist price alerts</strong></td><td><span class="badge bg-secondary" style="font-size:9.5px">Individual only</span></td></tr>
+        <tr><td class="text-muted">Live positions (broker-connected)</td><td><strong>Live position stop-loss / take-profit hits</strong></td><td><span class="badge bg-secondary" style="font-size:9.5px">Individual only</span></td></tr>
       </tbody>
     </table>
-    <div class="fs-xs text-muted mt-2">Watchlist and live-position alerts are about one specific subscriber's own item or open position, so they only ever go out as a personal DM to that subscriber — never to a shared group.</div>
+    <div class="fs-xs text-muted mt-2"><strong>Individual + Group</strong> categories go to every subscriber with the category enabled below <em>and</em> to any Group Channel whose markets/timeframes/toggles match. <strong>Individual only</strong> categories (watchlist, live positions) are about one specific subscriber's own item or open position, so they only ever go out as a personal DM to that subscriber — never to a shared group.</div>
   </div>
 </div>
 
@@ -149,6 +152,10 @@
           <div class="d-flex flex-wrap gap-3" id="chMarketCheckboxes"></div>
         </div>
         <div class="mb-3">
+          <label class="form-label">Timeframes <span class="text-muted fw-normal">— leave all unchecked for every timeframe</span></label>
+          <div class="d-flex flex-wrap gap-3" id="chTimeframeCheckboxes"></div>
+        </div>
+        <div class="mb-3">
           <label class="form-label">Alert categories</label>
           <div class="d-flex flex-column gap-2">
             <div class="form-check form-switch">
@@ -203,6 +210,7 @@ const ALL_MARKETS_LABELS = {
 };
 let isSuperAdmin = false;
 let allChannels = [];
+let PLATFORM_TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w'];
 
 function marketCheckboxesHtml(containerClass, selected, disabled) {
   return Object.keys(ALL_MARKETS_LABELS).map(m => `
@@ -212,12 +220,22 @@ function marketCheckboxesHtml(containerClass, selected, disabled) {
     </label>`).join('');
 }
 
+function timeframeCheckboxesHtml(containerClass, selected, disabled) {
+  return PLATFORM_TIMEFRAMES.map(tf => `
+    <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
+      <input type="checkbox" class="form-check-input ${containerClass}" data-tf="${tf}" ${selected.has(tf) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
+      ${tf}
+    </label>`).join('');
+}
+
 async function loadIndividualSettings() {
   const [cfg, status] = await Promise.all([
     API.get('/admin/platform-config'),
     API.get('/admin/telegram/status'),
   ]);
   if (!cfg) return;
+
+  if (Array.isArray(cfg.timeframes) && cfg.timeframes.length) PLATFORM_TIMEFRAMES = cfg.timeframes;
 
   document.getElementById('botTokenWarning').classList.toggle('d-none', !!status?.platform_bot_configured);
 
@@ -282,6 +300,9 @@ function renderChannelsTable() {
     const markets = (c.markets && c.markets.length)
       ? c.markets.map(m => `<span class="badge bg-secondary me-1" style="font-size:10px">${ALL_MARKETS_LABELS[m] || m}</span>`).join('')
       : '<span class="badge bg-accent" style="font-size:10px;background:var(--accent)!important">All markets</span>';
+    const timeframes = (c.timeframes && c.timeframes.length)
+      ? c.timeframes.map(tf => `<span class="badge bg-secondary me-1" style="font-size:10px">${tf}</span>`).join('')
+      : '<span class="badge bg-accent" style="font-size:10px;background:var(--accent)!important">All timeframes</span>';
     return `<div class="channel-row px-3 py-3 d-flex align-items-center gap-3 flex-wrap">
       <div style="min-width:170px;flex:1">
         <div class="d-flex align-items-center gap-2">
@@ -290,7 +311,8 @@ function renderChannelsTable() {
         </div>
         <div class="text-muted mt-1" style="font-size:11px"><code>${c.group_chat_id}</code></div>
       </div>
-      <div style="min-width:160px">${markets}</div>
+      <div style="min-width:150px">${markets}</div>
+      <div style="min-width:170px">${timeframes}</div>
       <div style="min-width:180px">${categoryBadges(c)}</div>
       <div class="d-flex gap-1 flex-wrap">
         ${isSuperAdmin ? `
@@ -315,6 +337,7 @@ function openChannelModal(id) {
   document.getElementById('chName').value = c ? c.name : '';
   document.getElementById('chGroupChatId').value = c ? c.group_chat_id : '';
   document.getElementById('chMarketCheckboxes').innerHTML = marketCheckboxesHtml('ch-market-toggle', new Set(c ? c.markets : []), false);
+  document.getElementById('chTimeframeCheckboxes').innerHTML = timeframeCheckboxesHtml('ch-tf-toggle', new Set(c ? c.timeframes : []), false);
   document.getElementById('chAlertSignal').checked = c ? !!c.alerts_signal : true;
   document.getElementById('chAlertSignalClosed').checked = c ? !!c.alerts_signal_closed : true;
   document.getElementById('chAlertRatingChange').checked = c ? !!c.alerts_rating_change : false;
@@ -329,6 +352,7 @@ async function saveChannel() {
     name: document.getElementById('chName').value.trim(),
     group_chat_id: document.getElementById('chGroupChatId').value.trim(),
     markets: Array.from(document.querySelectorAll('.ch-market-toggle:checked')).map(el => el.dataset.market),
+    timeframes: Array.from(document.querySelectorAll('.ch-tf-toggle:checked')).map(el => el.dataset.tf),
     is_active: document.getElementById('chIsActive').checked,
     alerts_signal: document.getElementById('chAlertSignal').checked,
     alerts_signal_closed: document.getElementById('chAlertSignalClosed').checked,
