@@ -93,24 +93,21 @@ def update_platform_config_route():
             return jsonify({"error": "invalid timeframe token"}), 400
         row.timeframes = tfs
 
-    for flag in ["telegram_alerts_signal", "telegram_alerts_signal_closed",
-                 "telegram_alerts_watchlist", "telegram_alerts_protective_order",
-                 "telegram_alerts_rating_change", "telegram_alerts_signal_group",
-                 "telegram_alerts_signal_closed_group", "telegram_alerts_rating_change_group"]:
-        if flag in data:
-            setattr(row, flag, bool(data[flag]))
+    for field in ["telegram_signal_individual_markets", "telegram_signal_group_markets",
+                  "telegram_signal_closed_individual_markets", "telegram_signal_closed_group_markets",
+                  "telegram_rating_change_individual_markets", "telegram_rating_change_group_markets",
+                  "telegram_watchlist_individual_markets", "telegram_protective_order_individual_markets"]:
+        if field in data:
+            markets = data[field]
+            if not isinstance(markets, list) or not all(m in Asset.MARKETS for m in markets):
+                return jsonify({"error": f"{field} must only contain: {Asset.MARKETS}"}), 400
+            setattr(row, field, markets)
 
     if "telegram_rating_change_sensitivity" in data:
         sensitivity = data["telegram_rating_change_sensitivity"]
         if sensitivity not in ("cross_zone", "extremes_only", "every_change"):
             return jsonify({"error": "invalid telegram_rating_change_sensitivity"}), 400
         row.telegram_rating_change_sensitivity = sensitivity
-
-    if "telegram_alert_markets" in data:
-        markets = data["telegram_alert_markets"]
-        if not isinstance(markets, list) or not all(m in Asset.MARKETS for m in markets):
-            return jsonify({"error": f"telegram_alert_markets must only contain: {Asset.MARKETS}"}), 400
-        row.telegram_alert_markets = markets
 
     if "session_timeout_minutes" in data:
         try:

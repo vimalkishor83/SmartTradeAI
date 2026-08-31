@@ -47,47 +47,13 @@
     <button class="btn btn-sm btn-primary" id="saveIndividualBtn" onclick="saveIndividualSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
   </div>
   <div class="section-card-body p-3">
-    <p class="text-muted small mb-2">Which markets are allowed to alert on Telegram at all, for both delivery levels below — checked before anything else. Leave everything unchecked to allow every market (the default).</p>
-    <div class="d-flex flex-wrap gap-3 mb-4" id="marketCheckboxes"></div>
-
-    <p class="text-muted small mb-2">Two independent switches per category: <strong>Individual</strong> sends to every subscriber who's connected their own Telegram chat (Settings → Notifications); <strong>Group</strong> allows any matching Group Channel below to receive it. Turn either off without affecting the other.</p>
+    <p class="text-muted small mb-2">Per category, pick which markets go to <strong>Individual</strong> subscribers (each subscriber's own Telegram chat, Settings → Notifications) and which go to <strong>Group</strong> channels (any matching channel below) — independently. E.g. crypto signal alerts can go to both, forex signal alerts to the group only, gold to neither. Leave a market unchecked in a column to turn it off for that column only.</p>
     <div class="table-responsive mb-3">
-      <table class="table table-sm align-middle mb-0" style="font-size:13px">
+      <table class="table table-sm mb-0" style="font-size:13px">
         <thead>
-          <tr><th>Page</th><th>Category</th><th class="text-center" style="width:90px">Individual</th><th class="text-center" style="width:90px">Group</th></tr>
+          <tr><th style="width:20%">Page</th><th style="width:16%">Category</th><th>Individual</th><th>Group</th></tr>
         </thead>
-        <tbody>
-          <tr>
-            <td class="text-muted">Terminal / Auto-Generate / TA Summary</td>
-            <td><strong>New signal alerts</strong></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndSignal" style="margin:0"></div></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpSignal" style="margin:0"></div></td>
-          </tr>
-          <tr>
-            <td class="text-muted">Signal reaching target or stop loss</td>
-            <td><strong>Signal closed</strong></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndSignalClosed" style="margin:0"></div></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpSignalClosed" style="margin:0"></div></td>
-          </tr>
-          <tr>
-            <td class="text-muted">Delta Scanner / MTF Analysis</td>
-            <td><strong>MTF rating changes</strong></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndRatingChange" style="margin:0"></div></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpRatingChange" style="margin:0"></div></td>
-          </tr>
-          <tr>
-            <td class="text-muted">Watchlist</td>
-            <td><strong>Watchlist price alerts</strong></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndWatchlist" style="margin:0"></div></td>
-            <td class="text-center text-muted" title="Personal to one subscriber's own watchlist item — never a shared broadcast">—</td>
-          </tr>
-          <tr>
-            <td class="text-muted">Live positions (broker-connected)</td>
-            <td><strong>Live position stop-loss / take-profit hits</strong></td>
-            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndProtectiveOrder" style="margin:0"></div></td>
-            <td class="text-center text-muted" title="Personal to one subscriber's own open position — never a shared broadcast">—</td>
-          </tr>
-        </tbody>
+        <tbody id="categoryMatrixBody"></tbody>
       </table>
     </div>
     <div class="mb-0" style="max-width:420px" id="ratingSensitivityWrap">
@@ -198,6 +164,34 @@
 .channel-row { border-bottom:1px solid var(--border); }
 .channel-row:last-child { border-bottom:none; }
 .channel-row:hover { background:var(--glass); }
+
+/* Per-market chip toggles in the Alert Categories matrix — compact
+   checkboxes styled as pills so 6 markets fit readably in one table
+   cell per category/level. */
+#categoryMatrixBody td { vertical-align: middle; }
+.mchip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  padding: 3px 0;
+  margin: 2px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.mchip input { position: absolute; opacity: 0; width: 0; height: 0; }
+.mchip:has(input:checked) {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+.mchip:has(input:disabled) { opacity: .5; cursor: not-allowed; }
 </style>
 {% endblock %}
 
@@ -227,6 +221,41 @@ function timeframeCheckboxesHtml(containerClass, selected, disabled) {
     </label>`).join('');
 }
 
+const MARKET_SHORT = { crypto: 'CR', forex: 'FX', gold: 'GD', silver: 'SL', indian_stock: 'IN', index: 'IX' };
+
+// Field name convention matches the backend exactly:
+// telegram_<key>_individual_markets / telegram_<key>_group_markets
+const ALERT_CATEGORIES = [
+  { key: 'signal', page: 'Terminal / Auto-Generate / TA Summary', label: 'New signal alerts', hasGroup: true },
+  { key: 'signal_closed', page: 'Signal reaching target or stop loss', label: 'Signal closed', hasGroup: true },
+  { key: 'rating_change', page: 'Delta Scanner / MTF Analysis', label: 'MTF rating changes', hasGroup: true },
+  { key: 'watchlist', page: 'Watchlist', label: 'Watchlist price alerts', hasGroup: false },
+  { key: 'protective_order', page: 'Live positions (broker-connected)', label: 'Live position stop-loss / take-profit hits', hasGroup: false },
+];
+
+function marketMatrixChipsHtml(cls, catKey, selected, disabled) {
+  return Object.keys(ALL_MARKETS_LABELS).map(m => `
+    <label class="mchip" title="${ALL_MARKETS_LABELS[m]}">
+      <input type="checkbox" class="${cls}" data-cat="${catKey}" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+      <span>${MARKET_SHORT[m]}</span>
+    </label>`).join('');
+}
+
+function renderCategoryMatrix(cfg, disabled) {
+  document.getElementById('categoryMatrixBody').innerHTML = ALERT_CATEGORIES.map(cat => {
+    const indSelected = new Set(cfg[`telegram_${cat.key}_individual_markets`] || []);
+    const grpCell = cat.hasGroup
+      ? marketMatrixChipsHtml('cat-grp-toggle', cat.key, new Set(cfg[`telegram_${cat.key}_group_markets`] || []), disabled)
+      : `<span class="text-muted small" title="Personal to one subscriber's own item/position — never a shared broadcast">Individual only</span>`;
+    return `<tr>
+      <td class="text-muted">${cat.page}</td>
+      <td><strong>${cat.label}</strong></td>
+      <td>${marketMatrixChipsHtml('cat-ind-toggle', cat.key, indSelected, disabled)}</td>
+      <td>${grpCell}</td>
+    </tr>`;
+  }).join('');
+}
+
 async function loadIndividualSettings() {
   const [cfg, status] = await Promise.all([
     API.get('/admin/platform-config'),
@@ -237,35 +266,23 @@ async function loadIndividualSettings() {
   if (Array.isArray(cfg.timeframes) && cfg.timeframes.length) PLATFORM_TIMEFRAMES = cfg.timeframes;
 
   document.getElementById('botTokenWarning').classList.toggle('d-none', !!status?.platform_bot_configured);
-
-  const selected = new Set(cfg.telegram_alert_markets || []);
-  document.getElementById('marketCheckboxes').innerHTML = marketCheckboxesHtml('market-toggle', selected, !isSuperAdmin);
-
-  document.getElementById('tgIndSignal').checked = cfg.telegram_alerts_signal !== false;
-  document.getElementById('tgGrpSignal').checked = cfg.telegram_alerts_signal_group !== false;
-  document.getElementById('tgIndSignalClosed').checked = cfg.telegram_alerts_signal_closed !== false;
-  document.getElementById('tgGrpSignalClosed').checked = cfg.telegram_alerts_signal_closed_group !== false;
-  document.getElementById('tgIndWatchlist').checked = cfg.telegram_alerts_watchlist !== false;
-  document.getElementById('tgIndProtectiveOrder').checked = cfg.telegram_alerts_protective_order !== false;
-  document.getElementById('tgIndRatingChange').checked = !!cfg.telegram_alerts_rating_change;
-  document.getElementById('tgGrpRatingChange').checked = !!cfg.telegram_alerts_rating_change_group;
+  renderCategoryMatrix(cfg, !isSuperAdmin);
   document.getElementById('tgRatingSensitivity').value = cfg.telegram_rating_change_sensitivity || 'cross_zone';
 }
 
 async function saveIndividualSettings() {
-  const selectedMarkets = Array.from(document.querySelectorAll('.market-toggle:checked')).map(el => el.dataset.market);
-  const res = await API.put('/admin/platform-config', {
-    telegram_alert_markets: selectedMarkets,
-    telegram_alerts_signal: document.getElementById('tgIndSignal').checked,
-    telegram_alerts_signal_group: document.getElementById('tgGrpSignal').checked,
-    telegram_alerts_signal_closed: document.getElementById('tgIndSignalClosed').checked,
-    telegram_alerts_signal_closed_group: document.getElementById('tgGrpSignalClosed').checked,
-    telegram_alerts_watchlist: document.getElementById('tgIndWatchlist').checked,
-    telegram_alerts_protective_order: document.getElementById('tgIndProtectiveOrder').checked,
-    telegram_alerts_rating_change: document.getElementById('tgIndRatingChange').checked,
-    telegram_alerts_rating_change_group: document.getElementById('tgGrpRatingChange').checked,
-    telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value,
+  const payload = { telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value };
+  ALERT_CATEGORIES.forEach(cat => {
+    payload[`telegram_${cat.key}_individual_markets`] = Array.from(
+      document.querySelectorAll(`.cat-ind-toggle[data-cat="${cat.key}"]:checked`)
+    ).map(el => el.dataset.market);
+    if (cat.hasGroup) {
+      payload[`telegram_${cat.key}_group_markets`] = Array.from(
+        document.querySelectorAll(`.cat-grp-toggle[data-cat="${cat.key}"]:checked`)
+      ).map(el => el.dataset.market);
+    }
   });
+  const res = await API.put('/admin/platform-config', payload);
   if (res && !res.error) {
     Toast.show('Alert category settings saved', 'success');
   } else {
@@ -415,11 +432,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('addChannelBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
-  ['tgIndSignal', 'tgGrpSignal', 'tgIndSignalClosed', 'tgGrpSignalClosed',
-   'tgIndWatchlist', 'tgIndProtectiveOrder', 'tgIndRatingChange', 'tgGrpRatingChange',
-   'tgRatingSensitivity'].forEach(id => {
-    document.getElementById(id).disabled = !isSuperAdmin;
-  });
+  document.getElementById('tgRatingSensitivity').disabled = !isSuperAdmin;
   loadIndividualSettings();
   loadChannels();
 });

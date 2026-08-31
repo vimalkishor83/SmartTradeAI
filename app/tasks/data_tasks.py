@@ -933,10 +933,9 @@ def check_watchlist_alerts(app):
         from app.services.data.fetcher import market_fetcher
         from app.extensions import db
         from app.services.platform_config import get_platform_config
-        from app.tasks.notification_tasks import _market_alert_allowed
+        from app.tasks.notification_tasks import _market_enabled
 
         _tg_cfg = get_platform_config()
-        telegram_alerts_watchlist = _tg_cfg.get("telegram_alerts_watchlist", True)
 
         # joinedload(asset): the loop below reads item.asset for every item, so
         # without eager loading this fired one extra SELECT per watchlist item
@@ -1054,8 +1053,8 @@ def check_watchlist_alerts(app):
                     # did, so a user relying on Telegram/push for signal
                     # alerts got silently weaker coverage for their own
                     # manually-set watchlist alerts.
-                    if (telegram_alerts_watchlist and user and user.telegram_enabled and user.telegram_chat_id
-                            and _market_alert_allowed(asset.market, _tg_cfg)):
+                    if (user and user.telegram_enabled and user.telegram_chat_id
+                            and _market_enabled(_tg_cfg, "telegram_watchlist_individual_markets", asset.market)):
                         try:
                             from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
                             arrow = "📈" if direction == "above" else "📉"

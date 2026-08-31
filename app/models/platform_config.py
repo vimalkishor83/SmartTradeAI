@@ -12,35 +12,27 @@ class PlatformConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     disabled_nav_items = db.Column(db.JSON, default=list)
     timeframes = db.Column(db.JSON, default=lambda: list(DEFAULT_TIMEFRAMES))
-    # Which Asset.MARKETS values are allowed to alert on Telegram at all —
-    # the first gate, checked before anything else (per-category toggle
-    # below, or any TelegramAlertChannel's own market list). Null/empty
-    # list means "every market", not "no markets", so a fresh install (or
-    # an admin who never touches this field) doesn't silently lose every
-    # alert.
-    telegram_alert_markets = db.Column(db.JSON, default=list)
 
-    # Per-category kill switches for each subscriber's own personal
-    # Telegram alerts (User.telegram_chat_id) — independent of the
-    # matching "_group" column below, so an admin can run signal alerts
-    # to individuals only, groups only, both, or neither, per category.
-    # All default True except rating-change, which is new and opt-in
-    # until an admin deliberately turns it on.
-    telegram_alerts_signal           = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_signal_closed    = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_watchlist        = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_protective_order = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_rating_change    = db.Column(db.Boolean, default=False, nullable=False)
+    # Per-category, per-delivery-level market lists — replaces a single
+    # global market gate + a flat on/off toggle per category. Each field
+    # is the list of Asset.MARKETS this category/level fires for; an empty
+    # list means OFF for every market, NOT "every market" (unlike
+    # TelegramAlertChannel.markets, which keeps the opposite convention —
+    # these exist specifically so an admin can say "crypto signal alerts
+    # go to individuals AND a group, forex signal alerts go to the group
+    # only, gold gets neither" all from one row). No group list for
+    # watchlist/protective_order: those alerts are about one specific
+    # subscriber's own item/position, so they only ever make sense as an
+    # individual DM, never a shared broadcast.
+    telegram_signal_individual_markets           = db.Column(db.JSON, default=list)
+    telegram_signal_group_markets                = db.Column(db.JSON, default=list)
+    telegram_signal_closed_individual_markets    = db.Column(db.JSON, default=list)
+    telegram_signal_closed_group_markets         = db.Column(db.JSON, default=list)
+    telegram_rating_change_individual_markets    = db.Column(db.JSON, default=list)
+    telegram_rating_change_group_markets         = db.Column(db.JSON, default=list)
+    telegram_watchlist_individual_markets        = db.Column(db.JSON, default=list)
+    telegram_protective_order_individual_markets = db.Column(db.JSON, default=list)
 
-    # The matching group-delivery gate — the first check before any
-    # TelegramAlertChannel's own category toggle/market/timeframe match is
-    # even considered. No group column for watchlist/protective_order:
-    # those alerts are about one specific subscriber's own item/position,
-    # so they only ever make sense as an individual DM, never a shared
-    # broadcast (see TelegramAlertChannel's own docstring).
-    telegram_alerts_signal_group           = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_signal_closed_group    = db.Column(db.Boolean, default=True, nullable=False)
-    telegram_alerts_rating_change_group    = db.Column(db.Boolean, default=False, nullable=False)
     # How big a rating swing (EMA 9/21 MTF's Strong Sell..Strong Buy scale)
     # counts as alert-worthy — see _is_ratingchange_alertworthy in
     # notification_tasks.py for what each value actually does.
@@ -70,15 +62,14 @@ class PlatformConfig(db.Model):
         return {
             "disabled_nav_items": self.disabled_nav_items or [],
             "timeframes": self.timeframes or list(DEFAULT_TIMEFRAMES),
-            "telegram_alert_markets": self.telegram_alert_markets or [],
-            "telegram_alerts_signal": self.telegram_alerts_signal,
-            "telegram_alerts_signal_closed": self.telegram_alerts_signal_closed,
-            "telegram_alerts_watchlist": self.telegram_alerts_watchlist,
-            "telegram_alerts_protective_order": self.telegram_alerts_protective_order,
-            "telegram_alerts_rating_change": self.telegram_alerts_rating_change,
-            "telegram_alerts_signal_group": self.telegram_alerts_signal_group,
-            "telegram_alerts_signal_closed_group": self.telegram_alerts_signal_closed_group,
-            "telegram_alerts_rating_change_group": self.telegram_alerts_rating_change_group,
+            "telegram_signal_individual_markets": self.telegram_signal_individual_markets or [],
+            "telegram_signal_group_markets": self.telegram_signal_group_markets or [],
+            "telegram_signal_closed_individual_markets": self.telegram_signal_closed_individual_markets or [],
+            "telegram_signal_closed_group_markets": self.telegram_signal_closed_group_markets or [],
+            "telegram_rating_change_individual_markets": self.telegram_rating_change_individual_markets or [],
+            "telegram_rating_change_group_markets": self.telegram_rating_change_group_markets or [],
+            "telegram_watchlist_individual_markets": self.telegram_watchlist_individual_markets or [],
+            "telegram_protective_order_individual_markets": self.telegram_protective_order_individual_markets or [],
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,

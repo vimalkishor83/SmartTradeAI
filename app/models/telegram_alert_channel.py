@@ -15,17 +15,19 @@ class TelegramAlertChannel(db.Model):
     (signal, signal_closed, rating_change) — watchlist and protective-order
     alerts are about one specific user's own watchlist item or open
     position, so those only ever go out as individual DMs, gated by
-    PlatformConfig.telegram_alerts_watchlist / _protective_order, never a
-    channel. See notification_tasks.fire_signal_alerts /
-    check_rating_changes (channels) vs data_tasks.check_watchlist_alerts /
+    PlatformConfig.telegram_watchlist_individual_markets /
+    telegram_protective_order_individual_markets, never a channel. See
+    notification_tasks.fire_signal_alerts / check_rating_changes
+    (channels) vs data_tasks.check_watchlist_alerts /
     protective_order_tasks._notify_trigger (always individual) for the
     two delivery paths this splits into.
 
-    Distinct from PlatformConfig's own telegram_alert_markets/telegram_alerts_*
-    fields, which remain the first, global gate applied before any channel
-    is even considered (and are what each subscriber's own personal
-    Telegram alerts key off, since those aren't organized into channels at
-    all — one person, one chat)."""
+    Distinct from PlatformConfig's own per-category
+    telegram_<category>_group_markets fields, which are the first gate
+    applied before any channel is even considered here (and
+    telegram_<category>_individual_markets is the separate, independent
+    gate for each subscriber's own personal Telegram alerts, since those
+    aren't organized into channels at all — one person, one chat)."""
     __tablename__ = "telegram_alert_channels"
 
     id = db.Column(db.Integer, primary_key=True)

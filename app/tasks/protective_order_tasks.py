@@ -223,9 +223,9 @@ def _notify_trigger(order, asset, current_price, label, executed):
     if user.telegram_enabled and user.telegram_chat_id:
         try:
             from app.services.platform_config import get_platform_config
-            from app.tasks.notification_tasks import _market_alert_allowed
+            from app.tasks.notification_tasks import _market_enabled
             _tg_cfg = get_platform_config()
-            if _tg_cfg.get("telegram_alerts_protective_order", True) and _market_alert_allowed(asset.market, _tg_cfg):
+            if _market_enabled(_tg_cfg, "telegram_protective_order_individual_markets", asset.market):
                 from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
                 is_sl = "SL" in label or "Stop" in label
                 lines = [f"{'🛑' if is_sl else '🎯'} *{label.upper()} — {asset.symbol}*", ""]

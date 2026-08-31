@@ -3,12 +3,17 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def _market_alert_allowed(market: str, cfg: dict) -> bool:
-    """Platform Config's market checklist — empty/unset means every market
-    is allowed (a fresh install, or an admin who's never touched this,
-    shouldn't silently lose every alert), not that none are."""
-    allowed = cfg.get("telegram_alert_markets") or []
-    return not allowed or market in allowed
+def _market_enabled(cfg: dict, field: str, market: str) -> bool:
+    """Per-category, per-delivery-level market list (e.g.
+    telegram_signal_group_markets) — the opposite convention from
+    TelegramAlertChannel.markets: here an EMPTY list means off for every
+    market, not "every market", since these fields exist specifically to
+    let an admin say "crypto signal alerts go to individuals and a group,
+    forex signal alerts go to the group only, gold gets neither" from one
+    page, and that only works if leaving a market unchecked actually
+    means "not this one" rather than needing every market explicitly
+    disabled elsewhere first."""
+    return market in (cfg.get(field) or [])
 
 
 # Appended to every trade-related Telegram message (new signal, close,
@@ -292,9 +297,9 @@ def check_rating_changes(app):
         from app.services.platform_config import get_platform_config
 
         cfg = get_platform_config()
-        individual_on = cfg.get("telegram_alerts_rating_change", False)
-        group_on = cfg.get("telegram_alerts_rating_change_group", False)
-        if not individual_on and not group_on:
+        # Fast bail-out only when NO market is enabled for EITHER delivery
+        # level — the actual per-market decision happens per-row below.
+        if not cfg.get("telegram_rating_change_individual_markets") and not cfg.get("telegram_rating_change_group_markets"):
             return
         sensitivity = cfg.get("telegram_rating_change_sensitivity", "cross_zone")
 
@@ -307,7 +312,9 @@ def check_rating_changes(app):
         users = None  # lazy — only fetched if something actually needs sending
 
         for row in ema_rows:
-            market_ok = _market_alert_allowed(row.get("market"), cfg)
+            market = row.get("market")
+            individual_on = _market_enabled(cfg, "telegram_rating_change_individual_markets", market)
+            group_on = _market_enabled(cfg, "telegram_rating_change_group_markets", market)
             tf_cells = row.get("tf") or {}
             for tf, cell in tf_cells.items():
                 if not cell or not cell.get("rating"):
@@ -321,13 +328,13 @@ def check_rating_changes(app):
                 # later compares against a stale rating from before it was
                 # disabled and could fire a misleading "change" for a shift
                 # that actually happened gradually while muted.
-                if old_rating and market_ok and _is_ratingchange_alertworthy(old_rating, new_rating, sensitivity):
+                if old_rating and (individual_on or group_on) and _is_ratingchange_alertworthy(old_rating, new_rating, sensitivity):
                     overall = _overall_trend_text(tf_cells)
                     text = _format_rating_change_telegram(
                         row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
                     )
                     if group_on:
-                        _send_to_channels(text, row.get("market"), "rating_change", tf)
+                        _send_to_channels(text, market, "rating_change", tf)
                     if individual_on:
                         if users is None:
                             users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
@@ -466,9 +473,8 @@ def fire_signal_alerts(app):
                 f"SL: {sig.stop_loss:.4f} | T1: {sig.target1:.4f}"
             )
             tg_msg = _format_signal_telegram(sig, asset)
-            market_ok = _market_alert_allowed(asset.market, cfg)
-            tg_individual_allowed = cfg.get("telegram_alerts_signal", True) and market_ok
-            tg_group_allowed = cfg.get("telegram_alerts_signal_group", True) and market_ok
+            tg_individual_allowed = _market_enabled(cfg, "telegram_signal_individual_markets", asset.market)
+            tg_group_allowed = _market_enabled(cfg, "telegram_signal_group_markets", asset.market)
             # Once per signal, not once per user — this is a shared group,
             # not an inbox each user gets their own copy of. Guarded the
             # same way per-user sends are: cutoff is a 6-minute lookback on
@@ -532,9 +538,8 @@ def fire_signal_alerts(app):
                 f"{'🎯' if won else '🛑'} Exit: `{h.exit_price:.4f}`\n"
                 f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
             ) + _TELEGRAM_DISCLAIMER
-            close_market_ok = _market_alert_allowed(asset.market, cfg)
-            tg_close_individual_allowed = cfg.get("telegram_alerts_signal_closed", True) and close_market_ok
-            tg_close_group_allowed = cfg.get("telegram_alerts_signal_closed_group", True) and close_market_ok
+            tg_close_individual_allowed = _market_enabled(cfg, "telegram_signal_closed_individual_markets", asset.market)
+            tg_close_group_allowed = _market_enabled(cfg, "telegram_signal_closed_group_markets", asset.market)
             if tg_close_group_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
             ):
