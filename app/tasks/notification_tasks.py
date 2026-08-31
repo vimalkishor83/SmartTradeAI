@@ -292,7 +292,9 @@ def check_rating_changes(app):
         from app.services.platform_config import get_platform_config
 
         cfg = get_platform_config()
-        if not cfg.get("telegram_alerts_rating_change", False):
+        individual_on = cfg.get("telegram_alerts_rating_change", False)
+        group_on = cfg.get("telegram_alerts_rating_change_group", False)
+        if not individual_on and not group_on:
             return
         sensitivity = cfg.get("telegram_rating_change_sensitivity", "cross_zone")
 
@@ -324,12 +326,14 @@ def check_rating_changes(app):
                     text = _format_rating_change_telegram(
                         row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
                     )
-                    _send_to_channels(text, row.get("market"), "rating_change", tf)
-                    if users is None:
-                        users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
-                    for user in users:
-                        if user.telegram_chat_id:
-                            _send_telegram(user, text)
+                    if group_on:
+                        _send_to_channels(text, row.get("market"), "rating_change", tf)
+                    if individual_on:
+                        if users is None:
+                            users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
+                        for user in users:
+                            if user.telegram_chat_id:
+                                _send_telegram(user, text)
 
                 if snap:
                     snap.rating = new_rating
@@ -462,7 +466,9 @@ def fire_signal_alerts(app):
                 f"SL: {sig.stop_loss:.4f} | T1: {sig.target1:.4f}"
             )
             tg_msg = _format_signal_telegram(sig, asset)
-            tg_allowed = cfg.get("telegram_alerts_signal", True) and _market_alert_allowed(asset.market, cfg)
+            market_ok = _market_alert_allowed(asset.market, cfg)
+            tg_individual_allowed = cfg.get("telegram_alerts_signal", True) and market_ok
+            tg_group_allowed = cfg.get("telegram_alerts_signal_group", True) and market_ok
             # Once per signal, not once per user — this is a shared group,
             # not an inbox each user gets their own copy of. Guarded the
             # same way per-user sends are: cutoff is a 6-minute lookback on
@@ -470,7 +476,7 @@ def fire_signal_alerts(app):
             # on two consecutive runs — checking whether any user already
             # has a logged notification for it is the same signal this
             # already went out for.
-            if tg_allowed and not any(
+            if tg_group_allowed and not any(
                 (u.id, "signal_alert", asset.symbol) in already_sent for u in users
             ):
                 _send_to_channels(tg_msg, asset.market, "signal", sig.timeframe)
@@ -489,7 +495,7 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if tg_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
@@ -526,8 +532,10 @@ def fire_signal_alerts(app):
                 f"{'🎯' if won else '🛑'} Exit: `{h.exit_price:.4f}`\n"
                 f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
             ) + _TELEGRAM_DISCLAIMER
-            tg_close_allowed = cfg.get("telegram_alerts_signal_closed", True) and _market_alert_allowed(asset.market, cfg)
-            if tg_close_allowed and not any(
+            close_market_ok = _market_alert_allowed(asset.market, cfg)
+            tg_close_individual_allowed = cfg.get("telegram_alerts_signal_closed", True) and close_market_ok
+            tg_close_group_allowed = cfg.get("telegram_alerts_signal_closed_group", True) and close_market_ok
+            if tg_close_group_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
             ):
                 _send_to_channels(tg_close, asset.market, "signal_closed", h.timeframe)
@@ -546,7 +554,7 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_close_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if tg_close_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
                     _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
                     try:

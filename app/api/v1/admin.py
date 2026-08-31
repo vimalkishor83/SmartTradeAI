@@ -95,7 +95,8 @@ def update_platform_config_route():
 
     for flag in ["telegram_alerts_signal", "telegram_alerts_signal_closed",
                  "telegram_alerts_watchlist", "telegram_alerts_protective_order",
-                 "telegram_alerts_rating_change"]:
+                 "telegram_alerts_rating_change", "telegram_alerts_signal_group",
+                 "telegram_alerts_signal_closed_group", "telegram_alerts_rating_change_group"]:
         if flag in data:
             setattr(row, flag, bool(data[flag]))
 

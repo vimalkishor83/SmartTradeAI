@@ -40,57 +40,55 @@
   </div>
 </div>
 
-<!-- Category reference -->
-<div class="section-card mb-4">
-  <div class="section-card-body p-3">
-    <div class="fs-xs text-muted text-uppercase fw-bold mb-2" style="letter-spacing:.05em">Which page maps to which alert category</div>
-    <table class="table table-sm mb-0" style="font-size:12.5px">
-      <thead>
-        <tr><th style="width:38%">Page</th><th>Alert category</th><th style="width:16%">Delivery</th></tr>
-      </thead>
-      <tbody>
-        <tr><td class="text-muted">Terminal / Auto-Generate / TA Summary</td><td><strong>New signal alerts</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
-        <tr><td class="text-muted">Signal reaching target or stop loss</td><td><strong>Signal closed</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
-        <tr><td class="text-muted">Delta Scanner / MTF Analysis</td><td><strong>MTF rating changes</strong></td><td><span class="badge bg-success" style="font-size:9.5px">Individual + Group</span></td></tr>
-        <tr><td class="text-muted">Watchlist</td><td><strong>Watchlist price alerts</strong></td><td><span class="badge bg-secondary" style="font-size:9.5px">Individual only</span></td></tr>
-        <tr><td class="text-muted">Live positions (broker-connected)</td><td><strong>Live position stop-loss / take-profit hits</strong></td><td><span class="badge bg-secondary" style="font-size:9.5px">Individual only</span></td></tr>
-      </tbody>
-    </table>
-    <div class="fs-xs text-muted mt-2"><strong>Individual + Group</strong> categories go to every subscriber with the category enabled below <em>and</em> to any Group Channel whose markets/timeframes/toggles match. <strong>Individual only</strong> categories (watchlist, live positions) are about one specific subscriber's own item or open position, so they only ever go out as a personal DM to that subscriber — never to a shared group.</div>
-  </div>
-</div>
-
-<!-- Individual alerts -->
+<!-- Alert categories -->
 <div class="section-card mb-4">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-person-fill text-accent"></i> Individual Alerts <span class="text-muted fw-normal fs-xs ms-1">— each subscriber's own Telegram chat</span></span>
+    <span class="section-card-title"><i class="bi bi-bell text-accent"></i> Alert Categories</span>
     <button class="btn btn-sm btn-primary" id="saveIndividualBtn" onclick="saveIndividualSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
   </div>
   <div class="section-card-body p-3">
-    <p class="text-muted small mb-2">Which markets are allowed to alert individuals on Telegram at all — checked before any category toggle below. Leave everything unchecked to allow every market (the default).</p>
-    <div class="d-flex flex-wrap gap-3 mb-3" id="marketCheckboxes"></div>
+    <p class="text-muted small mb-2">Which markets are allowed to alert on Telegram at all, for both delivery levels below — checked before anything else. Leave everything unchecked to allow every market (the default).</p>
+    <div class="d-flex flex-wrap gap-3 mb-4" id="marketCheckboxes"></div>
 
-    <div class="d-flex flex-column gap-2 mb-3">
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="tgAlertSignal">
-        <label class="form-check-label" for="tgAlertSignal">New signal alerts</label>
-      </div>
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="tgAlertSignalClosed">
-        <label class="form-check-label" for="tgAlertSignalClosed">Signal closed (target hit / stop loss)</label>
-      </div>
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="tgAlertWatchlist">
-        <label class="form-check-label" for="tgAlertWatchlist">Watchlist price alerts</label>
-      </div>
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="tgAlertProtectiveOrder">
-        <label class="form-check-label" for="tgAlertProtectiveOrder">Live position stop-loss / take-profit hits</label>
-      </div>
-      <div class="form-check form-switch">
-        <input class="form-check-input" type="checkbox" id="tgAlertRatingChange">
-        <label class="form-check-label" for="tgAlertRatingChange">MTF rating changes <span class="text-muted small">— e.g. an asset moving from Sell to Buy on a timeframe, with the reasoning and overall trend across timeframes</span></label>
-      </div>
+    <p class="text-muted small mb-2">Two independent switches per category: <strong>Individual</strong> sends to every subscriber who's connected their own Telegram chat (Settings → Notifications); <strong>Group</strong> allows any matching Group Channel below to receive it. Turn either off without affecting the other.</p>
+    <div class="table-responsive mb-3">
+      <table class="table table-sm align-middle mb-0" style="font-size:13px">
+        <thead>
+          <tr><th>Page</th><th>Category</th><th class="text-center" style="width:90px">Individual</th><th class="text-center" style="width:90px">Group</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="text-muted">Terminal / Auto-Generate / TA Summary</td>
+            <td><strong>New signal alerts</strong></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndSignal" style="margin:0"></div></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpSignal" style="margin:0"></div></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Signal reaching target or stop loss</td>
+            <td><strong>Signal closed</strong></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndSignalClosed" style="margin:0"></div></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpSignalClosed" style="margin:0"></div></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Delta Scanner / MTF Analysis</td>
+            <td><strong>MTF rating changes</strong></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndRatingChange" style="margin:0"></div></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgGrpRatingChange" style="margin:0"></div></td>
+          </tr>
+          <tr>
+            <td class="text-muted">Watchlist</td>
+            <td><strong>Watchlist price alerts</strong></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndWatchlist" style="margin:0"></div></td>
+            <td class="text-center text-muted" title="Personal to one subscriber's own watchlist item — never a shared broadcast">—</td>
+          </tr>
+          <tr>
+            <td class="text-muted">Live positions (broker-connected)</td>
+            <td><strong>Live position stop-loss / take-profit hits</strong></td>
+            <td class="text-center"><div class="form-check form-switch d-flex justify-content-center mb-0"><input class="form-check-input" type="checkbox" id="tgIndProtectiveOrder" style="margin:0"></div></td>
+            <td class="text-center text-muted" title="Personal to one subscriber's own open position — never a shared broadcast">—</td>
+          </tr>
+        </tbody>
+      </table>
     </div>
     <div class="mb-0" style="max-width:420px" id="ratingSensitivityWrap">
       <label class="form-label">Rating-change sensitivity</label>
@@ -99,6 +97,7 @@
         <option value="extremes_only">Only when it reaches Strong Buy / Strong Sell</option>
         <option value="every_change">Every single rating change</option>
       </select>
+      <div class="fs-xs text-muted mt-1">Applies to both Individual and Group MTF rating-change alerts.</div>
     </div>
   </div>
 </div>
@@ -242,11 +241,14 @@ async function loadIndividualSettings() {
   const selected = new Set(cfg.telegram_alert_markets || []);
   document.getElementById('marketCheckboxes').innerHTML = marketCheckboxesHtml('market-toggle', selected, !isSuperAdmin);
 
-  document.getElementById('tgAlertSignal').checked = cfg.telegram_alerts_signal !== false;
-  document.getElementById('tgAlertSignalClosed').checked = cfg.telegram_alerts_signal_closed !== false;
-  document.getElementById('tgAlertWatchlist').checked = cfg.telegram_alerts_watchlist !== false;
-  document.getElementById('tgAlertProtectiveOrder').checked = cfg.telegram_alerts_protective_order !== false;
-  document.getElementById('tgAlertRatingChange').checked = !!cfg.telegram_alerts_rating_change;
+  document.getElementById('tgIndSignal').checked = cfg.telegram_alerts_signal !== false;
+  document.getElementById('tgGrpSignal').checked = cfg.telegram_alerts_signal_group !== false;
+  document.getElementById('tgIndSignalClosed').checked = cfg.telegram_alerts_signal_closed !== false;
+  document.getElementById('tgGrpSignalClosed').checked = cfg.telegram_alerts_signal_closed_group !== false;
+  document.getElementById('tgIndWatchlist').checked = cfg.telegram_alerts_watchlist !== false;
+  document.getElementById('tgIndProtectiveOrder').checked = cfg.telegram_alerts_protective_order !== false;
+  document.getElementById('tgIndRatingChange').checked = !!cfg.telegram_alerts_rating_change;
+  document.getElementById('tgGrpRatingChange').checked = !!cfg.telegram_alerts_rating_change_group;
   document.getElementById('tgRatingSensitivity').value = cfg.telegram_rating_change_sensitivity || 'cross_zone';
 }
 
@@ -254,15 +256,18 @@ async function saveIndividualSettings() {
   const selectedMarkets = Array.from(document.querySelectorAll('.market-toggle:checked')).map(el => el.dataset.market);
   const res = await API.put('/admin/platform-config', {
     telegram_alert_markets: selectedMarkets,
-    telegram_alerts_signal: document.getElementById('tgAlertSignal').checked,
-    telegram_alerts_signal_closed: document.getElementById('tgAlertSignalClosed').checked,
-    telegram_alerts_watchlist: document.getElementById('tgAlertWatchlist').checked,
-    telegram_alerts_protective_order: document.getElementById('tgAlertProtectiveOrder').checked,
-    telegram_alerts_rating_change: document.getElementById('tgAlertRatingChange').checked,
+    telegram_alerts_signal: document.getElementById('tgIndSignal').checked,
+    telegram_alerts_signal_group: document.getElementById('tgGrpSignal').checked,
+    telegram_alerts_signal_closed: document.getElementById('tgIndSignalClosed').checked,
+    telegram_alerts_signal_closed_group: document.getElementById('tgGrpSignalClosed').checked,
+    telegram_alerts_watchlist: document.getElementById('tgIndWatchlist').checked,
+    telegram_alerts_protective_order: document.getElementById('tgIndProtectiveOrder').checked,
+    telegram_alerts_rating_change: document.getElementById('tgIndRatingChange').checked,
+    telegram_alerts_rating_change_group: document.getElementById('tgGrpRatingChange').checked,
     telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value,
   });
   if (res && !res.error) {
-    Toast.show('Individual alert settings saved', 'success');
+    Toast.show('Alert category settings saved', 'success');
   } else {
     Toast.show(res?.error || 'Failed to save', 'error');
   }
@@ -410,8 +415,9 @@ document.addEventListener('app:ready', () => {
   document.getElementById('addChannelBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
-  ['tgAlertSignal', 'tgAlertSignalClosed', 'tgAlertWatchlist', 'tgAlertProtectiveOrder',
-   'tgAlertRatingChange', 'tgRatingSensitivity'].forEach(id => {
+  ['tgIndSignal', 'tgGrpSignal', 'tgIndSignalClosed', 'tgGrpSignalClosed',
+   'tgIndWatchlist', 'tgIndProtectiveOrder', 'tgIndRatingChange', 'tgGrpRatingChange',
+   'tgRatingSensitivity'].forEach(id => {
     document.getElementById(id).disabled = !isSuperAdmin;
   });
   loadIndividualSettings();

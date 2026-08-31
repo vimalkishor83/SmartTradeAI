@@ -20,17 +20,27 @@ class PlatformConfig(db.Model):
     # alert.
     telegram_alert_markets = db.Column(db.JSON, default=list)
 
-    # Per-category kill switches — the global gate for each subscriber's
-    # own personal Telegram alerts (User.telegram_chat_id; not organized
-    # into channels, so there's no per-channel equivalent for these), and
-    # also the first gate a TelegramAlertChannel's own matching category
-    # toggle is checked against. All default True except rating-change,
-    # which is new and opt-in until an admin deliberately turns it on.
+    # Per-category kill switches for each subscriber's own personal
+    # Telegram alerts (User.telegram_chat_id) — independent of the
+    # matching "_group" column below, so an admin can run signal alerts
+    # to individuals only, groups only, both, or neither, per category.
+    # All default True except rating-change, which is new and opt-in
+    # until an admin deliberately turns it on.
     telegram_alerts_signal           = db.Column(db.Boolean, default=True, nullable=False)
     telegram_alerts_signal_closed    = db.Column(db.Boolean, default=True, nullable=False)
     telegram_alerts_watchlist        = db.Column(db.Boolean, default=True, nullable=False)
     telegram_alerts_protective_order = db.Column(db.Boolean, default=True, nullable=False)
     telegram_alerts_rating_change    = db.Column(db.Boolean, default=False, nullable=False)
+
+    # The matching group-delivery gate — the first check before any
+    # TelegramAlertChannel's own category toggle/market/timeframe match is
+    # even considered. No group column for watchlist/protective_order:
+    # those alerts are about one specific subscriber's own item/position,
+    # so they only ever make sense as an individual DM, never a shared
+    # broadcast (see TelegramAlertChannel's own docstring).
+    telegram_alerts_signal_group           = db.Column(db.Boolean, default=True, nullable=False)
+    telegram_alerts_signal_closed_group    = db.Column(db.Boolean, default=True, nullable=False)
+    telegram_alerts_rating_change_group    = db.Column(db.Boolean, default=False, nullable=False)
     # How big a rating swing (EMA 9/21 MTF's Strong Sell..Strong Buy scale)
     # counts as alert-worthy — see _is_ratingchange_alertworthy in
     # notification_tasks.py for what each value actually does.
@@ -66,6 +76,9 @@ class PlatformConfig(db.Model):
             "telegram_alerts_watchlist": self.telegram_alerts_watchlist,
             "telegram_alerts_protective_order": self.telegram_alerts_protective_order,
             "telegram_alerts_rating_change": self.telegram_alerts_rating_change,
+            "telegram_alerts_signal_group": self.telegram_alerts_signal_group,
+            "telegram_alerts_signal_closed_group": self.telegram_alerts_signal_closed_group,
+            "telegram_alerts_rating_change_group": self.telegram_alerts_rating_change_group,
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
