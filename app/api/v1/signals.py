@@ -97,7 +97,7 @@ def _ag_telegram_signal(app, asset_symbol, signal_type, entry, sl, t1, tf, conf)
             )
             for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
                 if user.telegram_chat_id:
-                    _send_telegram(user.telegram_chat_id, text)
+                    _send_telegram(user, text)
     except Exception as e:
         logger.warning(f"Telegram signal alert failed: {e}")
 
@@ -307,7 +307,7 @@ def _run_auto_generate(app):
                             )
                             for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
                                 if user.telegram_chat_id:
-                                    _send_telegram(user.telegram_chat_id, text)
+                                    _send_telegram(user, text)
                     except Exception as e:
                         logger.warning(f"Empty-run alert failed: {e}")
                 threading.Thread(target=_send_failure_alert, daemon=True).start()

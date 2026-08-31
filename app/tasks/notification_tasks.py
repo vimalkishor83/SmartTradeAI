@@ -133,7 +133,13 @@ def _send_telegram(user, text: str):
                 f"HTTP {resp.status_code} — {resp.text[:200]}"
             )
     except Exception as e:
-        logger.error(f"Telegram send error: {e}")
+        # user is sometimes not the User object the type hint promises (seen
+        # live: "'str' object has no attribute 'get_telegram_bot_token'") —
+        # every current call site does pass a real User, so logging what
+        # actually arrived here is the fastest way to catch whichever one
+        # doesn't the next time this fires, rather than re-auditing every
+        # call site by eye again.
+        logger.error(f"Telegram send error: {e} (user was {type(user).__name__}: {user!r})")
 
 
 def _send_telegram_group(text: str):

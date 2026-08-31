@@ -1046,7 +1046,7 @@ def check_watchlist_alerts(app):
                     if user and user.telegram_enabled and user.telegram_chat_id:
                         try:
                             from app.tasks.notification_tasks import _send_telegram
-                            _send_telegram(user.telegram_chat_id, f"🔔 *{title}*\n{msg}")
+                            _send_telegram(user, f"🔔 *{title}*\n{msg}")
                         except Exception:
                             pass
                     if user and user.push_enabled and user.push_subscription:
