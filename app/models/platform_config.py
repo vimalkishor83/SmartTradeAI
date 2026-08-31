@@ -12,21 +12,19 @@ class PlatformConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     disabled_nav_items = db.Column(db.JSON, default=list)
     timeframes = db.Column(db.JSON, default=lambda: list(DEFAULT_TIMEFRAMES))
-    # A Telegram *group* chat's ID — distinct from any individual user's own
-    # telegram_chat_id (User model). Alerts sent here use the shared
-    # platform bot (TELEGRAM_BOT_TOKEN), never a user's own bot token, since
-    # a group isn't any one person's account. Blank/null = disabled, no
-    # separate on/off flag needed.
-    telegram_group_chat_id = db.Column(db.String(64))
     # Which Asset.MARKETS values are allowed to alert on Telegram at all —
-    # checked before any per-category toggle below. Null/empty list means
-    # "every market", not "no markets", so a fresh install (or an admin who
-    # never touches this field) doesn't silently lose every alert.
+    # the first gate, checked before anything else (per-category toggle
+    # below, or any TelegramAlertChannel's own market list). Null/empty
+    # list means "every market", not "no markets", so a fresh install (or
+    # an admin who never touches this field) doesn't silently lose every
+    # alert.
     telegram_alert_markets = db.Column(db.JSON, default=list)
 
-    # Per-category kill switches for Telegram delivery — apply to BOTH the
-    # per-user sends and the group broadcast alike, since both draw from the
-    # same underlying alert events. All default True except rating-change,
+    # Per-category kill switches — the global gate for each subscriber's
+    # own personal Telegram alerts (User.telegram_chat_id; not organized
+    # into channels, so there's no per-channel equivalent for these), and
+    # also the first gate a TelegramAlertChannel's own matching category
+    # toggle is checked against. All default True except rating-change,
     # which is new and opt-in until an admin deliberately turns it on.
     telegram_alerts_signal           = db.Column(db.Boolean, default=True, nullable=False)
     telegram_alerts_signal_closed    = db.Column(db.Boolean, default=True, nullable=False)
@@ -53,7 +51,6 @@ class PlatformConfig(db.Model):
         return {
             "disabled_nav_items": self.disabled_nav_items or [],
             "timeframes": self.timeframes or list(DEFAULT_TIMEFRAMES),
-            "telegram_group_chat_id": self.telegram_group_chat_id or "",
             "telegram_alert_markets": self.telegram_alert_markets or [],
             "telegram_alerts_signal": self.telegram_alerts_signal,
             "telegram_alerts_signal_closed": self.telegram_alerts_signal_closed,

@@ -2049,6 +2049,33 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   color: var(--text-primary);
 }
 
+/* Toggle switches — every .form-switch site-wide (Settings notifications,
+   admin nav-item toggles, Telegram alert categories, etc.) previously fell
+   through to Bootstrap's stock blue for "on" with no distinct "off" state,
+   which reads as an unstyled foreign widget against this app's dark/amber
+   terminal theme and gives no at-a-glance read of which switches are live.
+   Green/red match the --green/--red this app already uses everywhere else
+   for status (P&L, verdicts) — checked = on = green, unchecked = off = a
+   muted red tint, not just "not blue". */
+.form-switch .form-check-input:checked {
+  background-color: var(--green) !important;
+  border-color: var(--green) !important;
+}
+
+.form-switch .form-check-input:not(:checked) {
+  background-color: rgba(255, 90, 106, 0.16) !important;
+  border-color: var(--red) !important;
+}
+
+.form-switch .form-check-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.18) !important;
+}
+
+.form-switch .form-check-input:disabled {
+  opacity: 0.45;
+}
+
 select option {
   background: #131920;
   color: #e8edf5;

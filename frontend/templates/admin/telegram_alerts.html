@@ -8,7 +8,7 @@
 <div class="page-header">
   <div><span class="page-eyebrow">Admin</span>
 <h1 class="page-title">Telegram Alerts</h1>
-  <p class="page-subtitle">A shared group that gets the same alerts subscribers already receive on their own Telegram, plus which markets and categories actually go out</p></div>
+  <p class="page-subtitle">Two independent delivery levels — each subscriber's own personal chat, and one or more shared group channels mapped to specific markets</p></div>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
@@ -23,71 +23,54 @@
 <div class="section-card mb-4">
   <div class="section-card-body p-3">
     <details id="setupGuide">
-      <summary style="cursor:pointer"><i class="bi bi-question-circle me-1 text-accent"></i><strong>How to set this up</strong></summary>
-      <ol class="fs-sm mt-3 mb-0 ps-3">
-        <li>This uses one platform-wide bot (not any individual subscriber's own bot) — if <code>TELEGRAM_BOT_TOKEN</code> isn't configured on the server yet, get a token from <a href="https://t.me/BotFather" target="_blank" rel="noopener"><strong>@BotFather</strong></a> first and have it added to the deployment.</li>
-        <li>In Telegram, create a <strong>group</strong> (not a channel) and add your bot to it.</li>
-        <li>Send any message in that group — e.g. "hi". This is required once, so the next step has something to find.</li>
-        <li>Open this URL in a browser, replacing <code>&lt;token&gt;</code> with the bot token: <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code></li>
-        <li>Find <code>"chat":{"id":</code> in the response — that number (it will be negative, e.g. <code>-1001234567890</code>) is the group's Chat ID. Paste it below and save.</li>
-        <li>Pick which markets and which alert categories should go to this group, then use "Send a message now" to confirm it actually works.</li>
-      </ol>
+      <summary style="cursor:pointer"><i class="bi bi-question-circle me-1 text-accent"></i><strong>How this works</strong></summary>
+      <div class="fs-sm mt-3">
+        <p class="mb-2"><strong>Individual alerts</strong> go to each subscriber's own Telegram chat (they connect it themselves in Settings → Notifications). The toggles below are the master on/off switch per category — turning one off stops it for every subscriber, even those who've connected their own chat.</p>
+        <p class="mb-2"><strong>Group channels</strong> are separate shared destinations you create below — e.g. a "Crypto Signals" group and a "Forex & Gold" group can exist side by side, each getting a different mix of alerts for different markets. To add one:</p>
+        <ol class="mb-0 ps-3">
+          <li>One platform-wide bot handles every channel (not any individual subscriber's own bot) — if <code>TELEGRAM_BOT_TOKEN</code> isn't set on the server yet, get a token from <a href="https://t.me/BotFather" target="_blank" rel="noopener"><strong>@BotFather</strong></a> and add it to the deployment first.</li>
+          <li>In Telegram, create a <strong>group</strong> (not a channel) and add your bot to it.</li>
+          <li>Send any message in that group — e.g. "hi". This is required once, so the next step has something to find.</li>
+          <li>Open this URL in a browser, replacing <code>&lt;token&gt;</code> with the bot token: <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code></li>
+          <li>Find <code>"chat":{"id":</code> in the response — that number (it will be negative, e.g. <code>-1001234567890</code>) is the group's Chat ID.</li>
+          <li>Click "Add Channel" below, paste the Chat ID, pick which markets and categories it should receive, then use its "Test" button to confirm it actually works.</li>
+        </ol>
+      </div>
     </details>
   </div>
 </div>
 
-<!-- Group setup -->
+<!-- Category reference -->
 <div class="section-card mb-4">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-telegram text-accent"></i> Group</span>
-    <button class="btn btn-sm btn-primary" id="saveTelegramGroupBtn" onclick="saveTelegramSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
-  </div>
   <div class="section-card-body p-3">
-    <div class="mb-0" style="max-width:340px">
-      <label class="form-label">Group Chat ID</label>
-      <input type="text" class="form-control" id="tgGroupChatId" placeholder="e.g. -1001234567890">
-    </div>
+    <div class="fs-xs text-muted text-uppercase fw-bold mb-2" style="letter-spacing:.05em">Which page maps to which alert category</div>
+    <table class="table table-sm mb-0" style="font-size:12.5px">
+      <tbody>
+        <tr><td class="text-muted" style="width:45%">Terminal / Auto-Generate / TA Summary</td><td>→ <strong>New signal alerts</strong></td></tr>
+        <tr><td class="text-muted">Signal reaching target or stop loss</td><td>→ <strong>Signal closed</strong></td></tr>
+        <tr><td class="text-muted">Delta Scanner / MTF Analysis</td><td>→ <strong>MTF rating changes</strong></td></tr>
+        <tr><td class="text-muted">Watchlist</td><td>→ <strong>Watchlist price alerts</strong> <span class="badge bg-secondary ms-1" style="font-size:9.5px">Individual only</span></td></tr>
+        <tr><td class="text-muted">Live positions (broker-connected)</td><td>→ <strong>Live position stop-loss / take-profit hits</strong> <span class="badge bg-secondary ms-1" style="font-size:9.5px">Individual only</span></td></tr>
+      </tbody>
+    </table>
+    <div class="fs-xs text-muted mt-2">Watchlist and live-position alerts are about one specific subscriber's own item or open position, so they only ever go out as a personal DM to that subscriber — never to a shared group.</div>
   </div>
 </div>
 
-<!-- Markets -->
+<!-- Individual alerts -->
 <div class="section-card mb-4">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-globe text-accent"></i> Markets</span>
+    <span class="section-card-title"><i class="bi bi-person-fill text-accent"></i> Individual Alerts <span class="text-muted fw-normal fs-xs ms-1">— each subscriber's own Telegram chat</span></span>
+    <button class="btn btn-sm btn-primary" id="saveIndividualBtn" onclick="saveIndividualSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
   </div>
   <div class="section-card-body p-3">
-    <p class="text-muted small mb-2">Which markets are allowed to alert on Telegram at all — checked before any category toggle below. Leave everything unchecked to allow every market (the default).</p>
-    <div class="d-flex flex-wrap gap-3" id="marketCheckboxes"></div>
-  </div>
-</div>
-
-<!-- Categories -->
-<div class="section-card mb-4">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-bell text-accent"></i> Alert Categories</span>
-  </div>
-  <div class="section-card-body p-3">
-    <p class="text-muted small mb-2">Applies to both the group above and each subscriber's own personal Telegram alerts (Settings → Notifications) — this is the on/off switch per category, not a separate delivery list.</p>
-
-    <div class="p-2 mb-3 rounded" style="background:var(--bg-secondary);border:1px solid var(--border)">
-      <div class="fs-xs text-muted text-uppercase fw-bold mb-2" style="letter-spacing:.05em">Which page maps to which switch</div>
-      <table class="table table-sm mb-0" style="font-size:12.5px">
-        <tbody>
-          <tr><td class="text-muted" style="width:45%">Terminal</td><td>→ <strong>New signal alerts</strong></td></tr>
-          <tr><td class="text-muted">Auto-Generate</td><td>→ <strong>New signal alerts</strong></td></tr>
-          <tr><td class="text-muted">TA Summary</td><td>→ <strong>New signal alerts</strong></td></tr>
-          <tr><td class="text-muted">Delta Scanner / MTF Analysis</td><td>→ <strong>MTF rating changes</strong></td></tr>
-          <tr><td class="text-muted">Watchlist</td><td>→ <strong>Watchlist price alerts</strong></td></tr>
-          <tr><td class="text-muted">Live positions (broker-connected)</td><td>→ <strong>Live position stop-loss / take-profit hits</strong></td></tr>
-        </tbody>
-      </table>
-      <div class="fs-xs text-muted mt-2">Terminal, Auto-Generate, and TA Summary all read from the same underlying signals — a signal generated on any of these three shows up wherever it's viewed, so one switch covers whichever page it came from.</div>
-    </div>
+    <p class="text-muted small mb-2">Which markets are allowed to alert individuals on Telegram at all — checked before any category toggle below. Leave everything unchecked to allow every market (the default).</p>
+    <div class="d-flex flex-wrap gap-3 mb-3" id="marketCheckboxes"></div>
 
     <div class="d-flex flex-column gap-2 mb-3">
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="tgAlertSignal">
-        <label class="form-check-label" for="tgAlertSignal">New signal alerts <span class="text-muted small">— Terminal, Auto-Generate, TA Summary</span></label>
+        <label class="form-check-label" for="tgAlertSignal">New signal alerts</label>
       </div>
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="tgAlertSignalClosed">
@@ -103,7 +86,7 @@
       </div>
       <div class="form-check form-switch">
         <input class="form-check-input" type="checkbox" id="tgAlertRatingChange">
-        <label class="form-check-label" for="tgAlertRatingChange">MTF rating changes (Delta Scanner / MTF Analysis) <span class="badge bg-warning text-dark ms-1">New</span> <span class="text-muted small">— e.g. an asset moving from Sell to Buy on a timeframe, with the reasoning and overall trend across timeframes</span></label>
+        <label class="form-check-label" for="tgAlertRatingChange">MTF rating changes <span class="text-muted small">— e.g. an asset moving from Sell to Buy on a timeframe, with the reasoning and overall trend across timeframes</span></label>
       </div>
     </div>
     <div class="mb-0" style="max-width:420px" id="ratingSensitivityWrap">
@@ -117,19 +100,99 @@
   </div>
 </div>
 
-<!-- Test -->
-<div class="section-card">
+<!-- Group channels -->
+<div class="section-card mb-4">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-send text-accent"></i> Send a Message Now</span>
+    <span class="section-card-title"><i class="bi bi-people-fill text-accent"></i> Group Channels <span class="text-muted fw-normal fs-xs ms-1">— shared destinations mapped to specific markets</span></span>
+    <button class="btn btn-sm btn-primary" id="addChannelBtn" onclick="openChannelModal()"><i class="bi bi-plus-lg me-1"></i>Add Channel</button>
   </div>
-  <div class="section-card-body p-3">
-    <div class="d-flex gap-2">
-      <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send to the group right away…">
-      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn" onclick="sendTelegramBroadcast()"><i class="bi bi-send me-1"></i>Send</button>
-    </div>
-    <div class="fs-xs text-muted mt-2">Confirms the setup actually works, or for one-off announcements — doesn't affect the automatic alerts above.</div>
+  <div class="section-card-body p-0" id="channelsTableWrap">
+    <div class="p-4 text-center text-muted">Loading channels…</div>
   </div>
 </div>
+
+<!-- Test (arbitrary, ad-hoc) -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-send text-accent"></i> Quick Test</span>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="d-flex gap-2 flex-wrap">
+      <select class="form-select" id="tgTestChannelSelect" style="max-width:260px"></select>
+      <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send right away…" style="min-width:220px;flex:1">
+      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn" onclick="sendTelegramBroadcast()"><i class="bi bi-send me-1"></i>Send</button>
+    </div>
+    <div class="fs-xs text-muted mt-2">Confirms one channel's setup actually works, or for one-off announcements — doesn't affect the automatic alerts above.</div>
+  </div>
+</div>
+
+<!-- Channel Add/Edit modal -->
+<div class="modal fade" id="channelModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title" id="channelModalTitle">Add Channel</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="chId">
+        <div class="mb-3">
+          <label class="form-label">Name</label>
+          <input type="text" class="form-control" id="chName" placeholder="e.g. Crypto Signals">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Group Chat ID</label>
+          <input type="text" class="form-control" id="chGroupChatId" placeholder="e.g. -1001234567890">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Markets <span class="text-muted fw-normal">— leave all unchecked for every market</span></label>
+          <div class="d-flex flex-wrap gap-3" id="chMarketCheckboxes"></div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">Alert categories</label>
+          <div class="d-flex flex-column gap-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="chAlertSignal" checked>
+              <label class="form-check-label" for="chAlertSignal">New signal alerts</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="chAlertSignalClosed" checked>
+              <label class="form-check-label" for="chAlertSignalClosed">Signal closed (target hit / stop loss)</label>
+            </div>
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" id="chAlertRatingChange">
+              <label class="form-check-label" for="chAlertRatingChange">MTF rating changes</label>
+            </div>
+          </div>
+        </div>
+        <div class="mb-3" id="chSensitivityWrap">
+          <label class="form-label">Rating-change sensitivity</label>
+          <select class="form-select" id="chRatingSensitivity">
+            <option value="cross_zone">Only when it crosses into/out of Buy or Sell (recommended)</option>
+            <option value="extremes_only">Only when it reaches Strong Buy / Strong Sell</option>
+            <option value="every_change">Every single rating change</option>
+          </select>
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="chIsActive" checked>
+          <label class="form-check-label" for="chIsActive">Active</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveChannel()"><i class="bi bi-check2 me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+#channelModal .modal-content { background:var(--card-bg)!important;border:1px solid var(--border)!important;color:var(--text-primary)!important; }
+#channelModal .modal-header, #channelModal .modal-footer { background:var(--bg-secondary)!important;border-color:var(--border)!important; }
+.channel-row { border-bottom:1px solid var(--border); }
+.channel-row:last-child { border-bottom:none; }
+.channel-row:hover { background:var(--glass); }
+</style>
 {% endblock %}
 
 {% block extra_js %}
@@ -139,27 +202,28 @@ const ALL_MARKETS_LABELS = {
   indian_stock: 'Indian Stocks', index: 'Indices',
 };
 let isSuperAdmin = false;
-let _cfg = {};
+let allChannels = [];
 
-async function loadTelegramConfig() {
+function marketCheckboxesHtml(containerClass, selected, disabled) {
+  return Object.keys(ALL_MARKETS_LABELS).map(m => `
+    <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
+      <input type="checkbox" class="form-check-input ${containerClass}" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
+      ${ALL_MARKETS_LABELS[m]}
+    </label>`).join('');
+}
+
+async function loadIndividualSettings() {
   const [cfg, status] = await Promise.all([
     API.get('/admin/platform-config'),
     API.get('/admin/telegram/status'),
   ]);
   if (!cfg) return;
-  _cfg = cfg;
 
   document.getElementById('botTokenWarning').classList.toggle('d-none', !!status?.platform_bot_configured);
 
-  const markets = status?.markets || Object.keys(ALL_MARKETS_LABELS);
   const selected = new Set(cfg.telegram_alert_markets || []);
-  document.getElementById('marketCheckboxes').innerHTML = markets.map(m => `
-    <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
-      <input type="checkbox" class="form-check-input market-toggle" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${isSuperAdmin ? '' : 'disabled'} style="margin:0">
-      ${ALL_MARKETS_LABELS[m] || m}
-    </label>`).join('');
+  document.getElementById('marketCheckboxes').innerHTML = marketCheckboxesHtml('market-toggle', selected, !isSuperAdmin);
 
-  document.getElementById('tgGroupChatId').value = cfg.telegram_group_chat_id || '';
   document.getElementById('tgAlertSignal').checked = cfg.telegram_alerts_signal !== false;
   document.getElementById('tgAlertSignalClosed').checked = cfg.telegram_alerts_signal_closed !== false;
   document.getElementById('tgAlertWatchlist').checked = cfg.telegram_alerts_watchlist !== false;
@@ -168,10 +232,9 @@ async function loadTelegramConfig() {
   document.getElementById('tgRatingSensitivity').value = cfg.telegram_rating_change_sensitivity || 'cross_zone';
 }
 
-async function saveTelegramSettings() {
+async function saveIndividualSettings() {
   const selectedMarkets = Array.from(document.querySelectorAll('.market-toggle:checked')).map(el => el.dataset.market);
   const res = await API.put('/admin/platform-config', {
-    telegram_group_chat_id: document.getElementById('tgGroupChatId').value.trim(),
     telegram_alert_markets: selectedMarkets,
     telegram_alerts_signal: document.getElementById('tgAlertSignal').checked,
     telegram_alerts_signal_closed: document.getElementById('tgAlertSignalClosed').checked,
@@ -181,20 +244,135 @@ async function saveTelegramSettings() {
     telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value,
   });
   if (res && !res.error) {
-    Toast.show('Telegram alert settings saved', 'success');
-    _cfg = res;
+    Toast.show('Individual alert settings saved', 'success');
   } else {
     Toast.show(res?.error || 'Failed to save', 'error');
   }
 }
 
+// ── Group channels ──────────────────────────────────────────────
+async function loadChannels() {
+  const data = await API.get('/admin/telegram/channels');
+  allChannels = data?.channels || [];
+  renderChannelsTable();
+  renderTestChannelSelect();
+}
+
+function categoryBadges(c) {
+  const cats = [
+    c.alerts_signal && 'Signal',
+    c.alerts_signal_closed && 'Closed',
+    c.alerts_rating_change && 'Rating',
+  ].filter(Boolean);
+  return cats.length
+    ? cats.map(c => `<span class="badge bg-secondary me-1" style="font-size:10px">${c}</span>`).join('')
+    : '<span class="text-muted small">None</span>';
+}
+
+function renderChannelsTable() {
+  const wrap = document.getElementById('channelsTableWrap');
+  if (!allChannels.length) {
+    wrap.innerHTML = `<div class="p-4 text-center text-muted">
+      <i class="bi bi-people" style="font-size:1.8rem;opacity:.3"></i>
+      <p class="mt-2 mb-0">No group channels yet — every market's alerts currently only go to individual subscribers.</p>
+    </div>`;
+    return;
+  }
+  wrap.innerHTML = allChannels.map(c => {
+    const markets = (c.markets && c.markets.length)
+      ? c.markets.map(m => `<span class="badge bg-secondary me-1" style="font-size:10px">${ALL_MARKETS_LABELS[m] || m}</span>`).join('')
+      : '<span class="badge bg-accent" style="font-size:10px;background:var(--accent)!important">All markets</span>';
+    return `<div class="channel-row px-3 py-3 d-flex align-items-center gap-3 flex-wrap">
+      <div style="min-width:170px;flex:1">
+        <div class="d-flex align-items-center gap-2">
+          <strong>${c.name}</strong>
+          ${c.is_active ? '' : '<span class="badge bg-secondary" style="font-size:10px">Paused</span>'}
+        </div>
+        <div class="text-muted mt-1" style="font-size:11px"><code>${c.group_chat_id}</code></div>
+      </div>
+      <div style="min-width:160px">${markets}</div>
+      <div style="min-width:180px">${categoryBadges(c)}</div>
+      <div class="d-flex gap-1 flex-wrap">
+        ${isSuperAdmin ? `
+        <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openChannelModal(${c.id})"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-info" title="Send test message" onclick="testChannel(${c.id})"><i class="bi bi-send"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteChannel(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTestChannelSelect() {
+  const sel = document.getElementById('tgTestChannelSelect');
+  sel.innerHTML = allChannels.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
+    || '<option value="">No channels yet</option>';
+}
+
+function openChannelModal(id) {
+  const c = id ? allChannels.find(x => x.id === id) : null;
+  document.getElementById('channelModalTitle').textContent = c ? 'Edit Channel' : 'Add Channel';
+  document.getElementById('chId').value = c ? c.id : '';
+  document.getElementById('chName').value = c ? c.name : '';
+  document.getElementById('chGroupChatId').value = c ? c.group_chat_id : '';
+  document.getElementById('chMarketCheckboxes').innerHTML = marketCheckboxesHtml('ch-market-toggle', new Set(c ? c.markets : []), false);
+  document.getElementById('chAlertSignal').checked = c ? !!c.alerts_signal : true;
+  document.getElementById('chAlertSignalClosed').checked = c ? !!c.alerts_signal_closed : true;
+  document.getElementById('chAlertRatingChange').checked = c ? !!c.alerts_rating_change : false;
+  document.getElementById('chRatingSensitivity').value = c ? (c.rating_change_sensitivity || 'cross_zone') : 'cross_zone';
+  document.getElementById('chIsActive').checked = c ? !!c.is_active : true;
+  new bootstrap.Modal(document.getElementById('channelModal')).show();
+}
+
+async function saveChannel() {
+  const id = document.getElementById('chId').value;
+  const payload = {
+    name: document.getElementById('chName').value.trim(),
+    group_chat_id: document.getElementById('chGroupChatId').value.trim(),
+    markets: Array.from(document.querySelectorAll('.ch-market-toggle:checked')).map(el => el.dataset.market),
+    is_active: document.getElementById('chIsActive').checked,
+    alerts_signal: document.getElementById('chAlertSignal').checked,
+    alerts_signal_closed: document.getElementById('chAlertSignalClosed').checked,
+    alerts_rating_change: document.getElementById('chAlertRatingChange').checked,
+    rating_change_sensitivity: document.getElementById('chRatingSensitivity').value,
+  };
+  if (!payload.name || !payload.group_chat_id) {
+    Toast.show('Name and Group Chat ID are required', 'error'); return;
+  }
+  const res = id ? await API.put(`/admin/telegram/channels/${id}`, payload)
+                 : await API.post('/admin/telegram/channels', payload);
+  if (res && !res.error) {
+    bootstrap.Modal.getInstance(document.getElementById('channelModal'))?.hide();
+    Toast.show(id ? 'Channel updated' : 'Channel added', 'success');
+    loadChannels();
+  } else {
+    Toast.show(res?.error || 'Save failed', 'error');
+  }
+}
+
+async function deleteChannel(id, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  const ok = await API.delete(`/admin/telegram/channels/${id}`);
+  if (ok) { Toast.show(`"${name}" deleted`, 'success'); loadChannels(); }
+  else { Toast.show('Delete failed', 'error'); }
+}
+
+async function testChannel(id) {
+  const message = prompt('Message to send to this channel right now:', 'Test message from SmartTrade AI admin');
+  if (!message) return;
+  const res = await API.post(`/admin/telegram/channels/${id}/broadcast`, { message });
+  if (res && !res.error) Toast.show('Sent', 'success');
+  else Toast.show(res?.error || 'Failed to send', 'error');
+}
+
 async function sendTelegramBroadcast() {
+  const id = document.getElementById('tgTestChannelSelect').value;
   const input = document.getElementById('tgBroadcastMsg');
   const message = input.value.trim();
+  if (!id) { Toast.show('Add a group channel first', 'error'); return; }
   if (!message) return;
-  const res = await API.post('/admin/telegram/broadcast', { message });
+  const res = await API.post(`/admin/telegram/channels/${id}/broadcast`, { message });
   if (res && !res.error) {
-    Toast.show('Sent to the group', 'success');
+    Toast.show('Sent to the channel', 'success');
     input.value = '';
   } else {
     Toast.show(res?.error || 'Failed to send', 'error');
@@ -204,15 +382,16 @@ async function sendTelegramBroadcast() {
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
-  document.getElementById('saveTelegramGroupBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('saveIndividualBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('addChannelBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
-  document.getElementById('tgGroupChatId').disabled = !isSuperAdmin;
   document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
   ['tgAlertSignal', 'tgAlertSignalClosed', 'tgAlertWatchlist', 'tgAlertProtectiveOrder',
    'tgAlertRatingChange', 'tgRatingSensitivity'].forEach(id => {
     document.getElementById(id).disabled = !isSuperAdmin;
   });
-  loadTelegramConfig();
+  loadIndividualSettings();
+  loadChannels();
 });
 </script>
 {% endblock %}

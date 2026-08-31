@@ -16,3 +16,4 @@ from app.models.auto_generate_config import AutoGenerateConfig
 from app.models.saved_screen import SavedScreen
 from app.models.mtf_watch_config import MtfWatchConfig
 from app.models.rating_snapshot import RatingSnapshot
+from app.models.telegram_alert_channel import TelegramAlertChannel

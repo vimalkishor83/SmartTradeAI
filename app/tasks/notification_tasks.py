@@ -57,7 +57,17 @@ def send_pending_notifications(app):
             try:
                 if user.email_notifications and notif.channel in ("email", None):
                     _send_email(user.email, notif.title, notif.message)
-                if user.telegram_enabled and user.telegram_chat_id:
+                # channel="web" notifications (signal/watchlist/protective-order/
+                # trial/upgrade alerts) are created purely for the in-app bell —
+                # every one of those already sends its own richly-formatted
+                # Telegram message (with disclaimer + reasoning) directly from
+                # its own task the moment it fires. Without this channel check,
+                # this 30s sweep picked up the exact same row again the moment
+                # it saw is_sent=False and re-sent it as a second, bare
+                # "*title*\nmessage" Telegram message with no disclaimer and no
+                # reasoning bullets — the duplicate/disclaimer-missing alerts
+                # reported in production were this second, unwanted send.
+                if user.telegram_enabled and user.telegram_chat_id and notif.channel in ("telegram", None):
                     _send_telegram(user, f"*{notif.title}*\n{notif.message}")
             except Exception as e:
                 # Release the claim so a later run retries rather than silently
@@ -158,17 +168,14 @@ def _send_telegram(user, text: str):
         logger.error(f"Telegram send error: {e} (user was {type(user).__name__}: {user!r})")
 
 
-def _send_telegram_group(text: str):
-    """Broadcasts one message to the admin-configured Telegram group
-    (PlatformConfig.telegram_group_chat_id) using the shared platform bot
-    (TELEGRAM_BOT_TOKEN) — a group chat isn't any individual user's own
-    account, so this never falls back to a per-user bot token the way
-    _send_telegram does. No-ops silently if either isn't configured yet."""
+def _send_to_chat(chat_id: str, text: str):
+    """Broadcasts one message to an arbitrary Telegram chat/group id using
+    the shared platform bot (TELEGRAM_BOT_TOKEN) — a group chat isn't any
+    individual user's own account, so this never falls back to a per-user
+    bot token the way _send_telegram does. No-ops silently if the bot
+    token isn't configured yet."""
     try:
         from flask import current_app
-        from app.services.platform_config import get_platform_config
-
-        chat_id = get_platform_config().get("telegram_group_chat_id")
         token = current_app.config.get("TELEGRAM_BOT_TOKEN")
         if not token or not chat_id:
             return
@@ -180,9 +187,27 @@ def _send_telegram_group(text: str):
             timeout=5,
         )
         if not resp.ok:
-            logger.warning(f"Telegram group broadcast rejected: HTTP {resp.status_code} — {resp.text[:200]}")
+            logger.warning(f"Telegram group broadcast rejected (chat {chat_id}): HTTP {resp.status_code} — {resp.text[:200]}")
     except Exception as e:
-        logger.error(f"Telegram group broadcast error: {e}")
+        logger.error(f"Telegram group broadcast error (chat {chat_id}): {e}")
+
+
+def _send_to_channels(text: str, market: str, category: str):
+    """Fans one alert out to every active TelegramAlertChannel whose own
+    market list and category toggle both match — e.g. a "Crypto Signals"
+    channel scoped to market="crypto" with alerts_signal=True gets a new
+    crypto BUY/SELL signal, while a "Forex & Stocks" channel with
+    alerts_rating_change=False never sees a rating-change alert at all.
+    Replaces the old single global group destination: different markets
+    legitimately want different audiences and different alert mixes."""
+    try:
+        from app.models.telegram_alert_channel import TelegramAlertChannel
+        channels = TelegramAlertChannel.query.filter_by(is_active=True).all()
+        for channel in channels:
+            if channel.matches(market, category):
+                _send_to_chat(channel.group_chat_id, text)
+    except Exception as e:
+        logger.error(f"Telegram channel fan-out error: {e}")
 
 
 # ── MTF rating-change alerts (Delta Scanner / MTF Analysis) ─────────────────
@@ -298,7 +323,7 @@ def check_rating_changes(app):
                     text = _format_rating_change_telegram(
                         row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
                     )
-                    _send_telegram_group(text)
+                    _send_to_channels(text, row.get("market"), "rating_change")
                     if users is None:
                         users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                     for user in users:
@@ -342,12 +367,23 @@ def _format_signal_telegram(sig, asset) -> str:
 
     # reasoning_detail is the structured, per-factor breakdown (see
     # SignalEngine._labeled_reasons) — falls back to the older plain-text
-    # "reasoning" field for any signal saved before that existed.
+    # "reasoning" field for any signal saved before that existed. Each
+    # entry carries `aligned`: whether that factor actually supports the
+    # final BUY/SELL call, or was outweighed by a stronger opposing signal
+    # (e.g. a reversal pattern beating several trend/momentum tags the
+    # other way — same thing the terminal's "Why this signal?" panel
+    # strikes through). Sorting aligned-first before truncating to 6
+    # matters: raw reasoning_detail order is factor-category order, not
+    # relevance order, so a straight reasons[:6] could — and in production
+    # did — cut off the actual deciding reasons and send only the
+    # contradicted ones instead, e.g. a SELL alert whose "Why" bullets
+    # were all bullish trend factors that lost the vote.
     reasons = sig.reasoning_detail or []
     if reasons:
+        ordered = sorted(reasons, key=lambda r: not (r.get("aligned", True) if isinstance(r, dict) else True))
         lines.append("")
         lines.append("*Why:*")
-        for r in reasons[:6]:
+        for r in ordered[:6]:
             text = r.get("text") if isinstance(r, dict) else str(r)
             if text:
                 lines.append(f"• {text}")
@@ -436,7 +472,7 @@ def fire_signal_alerts(app):
             if tg_allowed and not any(
                 (u.id, "signal_alert", asset.symbol) in already_sent for u in users
             ):
-                _send_telegram_group(tg_msg)
+                _send_to_channels(tg_msg, asset.market, "signal")
             for user in users:
                 key = (user.id, "signal_alert", asset.symbol)
                 if key in already_sent:
@@ -493,7 +529,7 @@ def fire_signal_alerts(app):
             if tg_close_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
             ):
-                _send_telegram_group(tg_close)
+                _send_to_channels(tg_close, asset.market, "signal_closed")
             for user in users:
                 key = (user.id, "signal_closed", asset.symbol)
                 if key in already_sent:

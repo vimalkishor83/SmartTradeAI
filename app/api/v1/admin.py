@@ -93,9 +93,6 @@ def update_platform_config_route():
             return jsonify({"error": "invalid timeframe token"}), 400
         row.timeframes = tfs
 
-    if "telegram_group_chat_id" in data:
-        row.telegram_group_chat_id = (data["telegram_group_chat_id"] or "").strip() or None
-
     for flag in ["telegram_alerts_signal", "telegram_alerts_signal_closed",
                  "telegram_alerts_watchlist", "telegram_alerts_protective_order",
                  "telegram_alerts_rating_change"]:
@@ -134,25 +131,115 @@ def telegram_status():
     }), 200
 
 
-@admin_bp.route("/telegram/broadcast", methods=["POST"])
-@super_admin_required
-def telegram_broadcast():
-    """Manually send an arbitrary message to the configured Telegram group
-    right now — for verifying the setup actually works, and for one-off
-    announcements, separate from the automatic per-signal alerts."""
-    from app.services.platform_config import get_platform_config
-    from app.tasks.notification_tasks import _send_telegram_group
+# ─── Telegram Alert Channels ─────────────────────────────────────────────────
+# Multiple named group destinations, each scoped to its own markets and its
+# own category mix — a "Crypto Signals" group and a "Forex & Stocks" group
+# can exist side by side wanting completely different alerts. See
+# TelegramAlertChannel.matches() for how a given alert picks its channels.
 
+def _validate_channel_payload(data: dict, partial: bool = False) -> str | None:
+    """Returns an error string, or None if the payload is valid."""
+    if not partial or "name" in data:
+        if not (data.get("name") or "").strip():
+            return "name is required"
+    if not partial or "group_chat_id" in data:
+        if not (data.get("group_chat_id") or "").strip():
+            return "group_chat_id is required"
+    if "markets" in data:
+        markets = data["markets"]
+        if not isinstance(markets, list) or not all(m in Asset.MARKETS for m in markets):
+            return f"markets must only contain: {Asset.MARKETS}"
+    if "rating_change_sensitivity" in data:
+        if data["rating_change_sensitivity"] not in ("cross_zone", "extremes_only", "every_change"):
+            return "invalid rating_change_sensitivity"
+    return None
+
+
+def _apply_channel_payload(channel, data: dict):
+    if "name" in data:
+        channel.name = data["name"].strip()
+    if "group_chat_id" in data:
+        channel.group_chat_id = data["group_chat_id"].strip()
+    if "markets" in data:
+        channel.markets = data["markets"]
+    if "is_active" in data:
+        channel.is_active = bool(data["is_active"])
+    for flag in ["alerts_signal", "alerts_signal_closed", "alerts_rating_change"]:
+        if flag in data:
+            setattr(channel, flag, bool(data[flag]))
+    if "rating_change_sensitivity" in data:
+        channel.rating_change_sensitivity = data["rating_change_sensitivity"]
+
+
+@admin_bp.route("/telegram/channels", methods=["GET"])
+@admin_required
+def list_telegram_channels():
+    from app.models.telegram_alert_channel import TelegramAlertChannel
+    channels = TelegramAlertChannel.query.order_by(TelegramAlertChannel.name).all()
+    return jsonify({"channels": [c.to_dict() for c in channels]}), 200
+
+
+@admin_bp.route("/telegram/channels", methods=["POST"])
+@super_admin_required
+def create_telegram_channel():
+    from app.models.telegram_alert_channel import TelegramAlertChannel
+
+    data = request.get_json() or {}
+    error = _validate_channel_payload(data)
+    if error:
+        return jsonify({"error": error}), 400
+
+    channel = TelegramAlertChannel(name=data["name"].strip(), group_chat_id=data["group_chat_id"].strip())
+    _apply_channel_payload(channel, data)
+    db.session.add(channel)
+    db.session.commit()
+    return jsonify(channel.to_dict()), 201
+
+
+@admin_bp.route("/telegram/channels/<int:channel_id>", methods=["PUT"])
+@super_admin_required
+def update_telegram_channel(channel_id):
+    from app.models.telegram_alert_channel import TelegramAlertChannel
+
+    channel = TelegramAlertChannel.query.get_or_404(channel_id)
+    data = request.get_json() or {}
+    error = _validate_channel_payload(data, partial=True)
+    if error:
+        return jsonify({"error": error}), 400
+
+    _apply_channel_payload(channel, data)
+    db.session.commit()
+    return jsonify(channel.to_dict()), 200
+
+
+@admin_bp.route("/telegram/channels/<int:channel_id>", methods=["DELETE"])
+@super_admin_required
+def delete_telegram_channel(channel_id):
+    from app.models.telegram_alert_channel import TelegramAlertChannel
+
+    channel = TelegramAlertChannel.query.get_or_404(channel_id)
+    db.session.delete(channel)
+    db.session.commit()
+    return jsonify({"message": f"'{channel.name}' deleted"}), 200
+
+
+@admin_bp.route("/telegram/channels/<int:channel_id>/broadcast", methods=["POST"])
+@super_admin_required
+def telegram_channel_broadcast(channel_id):
+    """Manually send an arbitrary message to one specific channel's group
+    right now — for verifying the setup actually works, and for one-off
+    announcements, separate from the automatic alerts."""
+    from app.models.telegram_alert_channel import TelegramAlertChannel
+    from app.tasks.notification_tasks import _send_to_chat
+
+    channel = TelegramAlertChannel.query.get_or_404(channel_id)
     text = (request.get_json(silent=True) or {}).get("message", "").strip()
     if not text:
         return jsonify({"error": "message is required"}), 400
-
     if not current_app.config.get("TELEGRAM_BOT_TOKEN"):
         return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
-    if not get_platform_config().get("telegram_group_chat_id"):
-        return jsonify({"error": "No Telegram group Chat ID is saved yet"}), 400
 
-    _send_telegram_group(text)
+    _send_to_chat(channel.group_chat_id, text)
     return jsonify({"message": "Sent"}), 200
 
 
