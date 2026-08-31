@@ -85,13 +85,35 @@
 </div>
 
 <!-- Assets -->
-<div class="section-card">
+<div class="section-card mb-4">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-layers-fill text-accent"></i> Assets</span>
     <a href="/admin/assets" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>Manage Assets</a>
   </div>
   <div class="section-card-body p-3">
     <p class="text-muted small mb-0" id="assetsSummary">Loading asset summary…</p>
+  </div>
+</div>
+
+<!-- Telegram Group Alerts -->
+<div class="section-card" id="telegramGroupCard">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-telegram text-accent"></i> Telegram Group Alerts</span>
+    <button class="btn btn-sm btn-primary" id="saveTelegramGroupBtn" onclick="saveTelegramGroup()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-3">A shared Telegram group that gets every new high-confidence signal and TP/SL close — separate from each user's own personal Telegram alerts (Settings → Notifications), and sent through the platform's own bot rather than any individual user's. Add the bot to your group, send it a message there, then use <a href="https://api.telegram.org/bot&lt;token&gt;/getUpdates" target="_blank" rel="noopener" style="color:var(--accent)">getUpdates</a> (replace &lt;token&gt; with the bot token) to find the group's negative chat ID.</p>
+    <div class="mb-3" style="max-width:340px">
+      <label class="form-label">Group Chat ID</label>
+      <input type="text" class="form-control" id="tgGroupChatId" placeholder="e.g. -1001234567890">
+    </div>
+    <hr style="border-color:var(--border)">
+    <label class="form-label">Send a message now</label>
+    <div class="d-flex gap-2">
+      <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send to the group right away…">
+      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn" onclick="sendTelegramBroadcast()"><i class="bi bi-send me-1"></i>Send</button>
+    </div>
+    <div class="fs-xs text-muted mt-2">Useful for confirming the setup works, or for one-off announcements — this doesn't affect the automatic per-signal alerts above.</div>
   </div>
 </div>
 {% endblock %}
@@ -180,6 +202,7 @@ async function loadPlatformConfig() {
   renderTimeframes();
   updateKpis();
   loadAssetsSummary();
+  document.getElementById('tgGroupChatId').value = data.telegram_group_chat_id || '';
 }
 
 function updateKpis() {
@@ -278,6 +301,31 @@ async function loadAssetsSummary() {
   el.textContent = `${count} active asset${count === 1 ? '' : 's'} platform-wide. Use Manage Assets to add, disable, or re-enable individual assets.`;
 }
 
+async function saveTelegramGroup() {
+  const res = await API.put('/admin/platform-config', {
+    telegram_group_chat_id: document.getElementById('tgGroupChatId').value.trim(),
+  });
+  if (res) {
+    Toast.show('Telegram group Chat ID saved', 'success');
+    _cfg = res;
+  } else {
+    Toast.show('Failed to save', 'error');
+  }
+}
+
+async function sendTelegramBroadcast() {
+  const input = document.getElementById('tgBroadcastMsg');
+  const message = input.value.trim();
+  if (!message) return;
+  const res = await API.post('/admin/telegram/broadcast', { message });
+  if (res && !res.error) {
+    Toast.show('Sent to the group', 'success');
+    input.value = '';
+  } else {
+    Toast.show(res?.error || 'Failed to send', 'error');
+  }
+}
+
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
@@ -285,6 +333,10 @@ document.addEventListener('app:ready', () => {
   document.getElementById('savePagesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('saveTimeframesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('saveTelegramGroupBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('tgGroupChatId').disabled = !isSuperAdmin;
+  document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
+  document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {

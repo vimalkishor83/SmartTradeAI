@@ -136,6 +136,33 @@ def _send_telegram(user, text: str):
         logger.error(f"Telegram send error: {e}")
 
 
+def _send_telegram_group(text: str):
+    """Broadcasts one message to the admin-configured Telegram group
+    (PlatformConfig.telegram_group_chat_id) using the shared platform bot
+    (TELEGRAM_BOT_TOKEN) — a group chat isn't any individual user's own
+    account, so this never falls back to a per-user bot token the way
+    _send_telegram does. No-ops silently if either isn't configured yet."""
+    try:
+        from flask import current_app
+        from app.services.platform_config import get_platform_config
+
+        chat_id = get_platform_config().get("telegram_group_chat_id")
+        token = current_app.config.get("TELEGRAM_BOT_TOKEN")
+        if not token or not chat_id:
+            return
+
+        import requests
+        resp = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=5,
+        )
+        if not resp.ok:
+            logger.warning(f"Telegram group broadcast rejected: HTTP {resp.status_code} — {resp.text[:200]}")
+    except Exception as e:
+        logger.error(f"Telegram group broadcast error: {e}")
+
+
 def fire_signal_alerts(app):
     """
     Alert engine — runs every 5 minutes.
@@ -199,6 +226,20 @@ def fire_signal_alerts(app):
                 f"TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}% | "
                 f"SL: {sig.stop_loss:.4f} | T1: {sig.target1:.4f}"
             )
+            tg_msg = (
+                f"{'🟢' if sig.signal_type == 'BUY' else '🔴'} *{sig.signal_type} Signal: {asset.symbol}*\n"
+                f"Entry: `{sig.entry_price:.4f}` | TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}%\n"
+                f"SL: `{sig.stop_loss:.4f}` | T1: `{sig.target1:.4f}`"
+            )
+            # Once per signal, not once per user — this is a shared group,
+            # not an inbox each user gets their own copy of. Guarded the
+            # same way per-user sends are: cutoff is a 6-minute lookback on
+            # a 5-minute poll, so a signal can legitimately still be "new"
+            # on two consecutive runs — checking whether any user already
+            # has a logged notification for it is the same signal this
+            # already went out for.
+            if not any((u.id, "signal_alert", asset.symbol) in already_sent for u in users):
+                _send_telegram_group(tg_msg)
             for user in users:
                 key = (user.id, "signal_alert", asset.symbol)
                 if key in already_sent:
@@ -215,11 +256,6 @@ def fire_signal_alerts(app):
                 except Exception:
                     pass
                 if user.telegram_enabled and user.telegram_chat_id:
-                    tg_msg = (
-                        f"{'🟢' if sig.signal_type == 'BUY' else '🔴'} *{sig.signal_type} Signal: {asset.symbol}*\n"
-                        f"Entry: `{sig.entry_price:.4f}` | TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}%\n"
-                        f"SL: `{sig.stop_loss:.4f}` | T1: `{sig.target1:.4f}`"
-                    )
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
@@ -251,6 +287,8 @@ def fire_signal_alerts(app):
                 f"{'🏆' if won else '🛑'} *{'Target Hit' if won else 'Stop Loss'}: {asset.symbol}*\n"
                 f"{h.signal_type} closed @ `{h.exit_price:.4f}` | P&L: `{h.pnl_pct:+.2f}%` | {h.duration_minutes or 0}m"
             )
+            if not any((u.id, "signal_closed", asset.symbol) in already_sent for u in users):
+                _send_telegram_group(tg_close)
             for user in users:
                 key = (user.id, "signal_closed", asset.symbol)
                 if key in already_sent:

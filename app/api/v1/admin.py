@@ -1,7 +1,7 @@
 import time
 import psutil
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from app.extensions import db
 from app.models.user import User, Role, Subscription, Broker, ReferralCode
 from app.models.asset import Asset
@@ -93,9 +93,34 @@ def update_platform_config_route():
             return jsonify({"error": "invalid timeframe token"}), 400
         row.timeframes = tfs
 
+    if "telegram_group_chat_id" in data:
+        row.telegram_group_chat_id = (data["telegram_group_chat_id"] or "").strip() or None
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200
+
+
+@admin_bp.route("/telegram/broadcast", methods=["POST"])
+@super_admin_required
+def telegram_broadcast():
+    """Manually send an arbitrary message to the configured Telegram group
+    right now — for verifying the setup actually works, and for one-off
+    announcements, separate from the automatic per-signal alerts."""
+    from app.services.platform_config import get_platform_config
+    from app.tasks.notification_tasks import _send_telegram_group
+
+    text = (request.get_json(silent=True) or {}).get("message", "").strip()
+    if not text:
+        return jsonify({"error": "message is required"}), 400
+
+    if not current_app.config.get("TELEGRAM_BOT_TOKEN"):
+        return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
+    if not get_platform_config().get("telegram_group_chat_id"):
+        return jsonify({"error": "No Telegram group Chat ID is saved yet"}), 400
+
+    _send_telegram_group(text)
+    return jsonify({"message": "Sent"}), 200
 
 
 # ─── Users ──────────────────────────────────────────────────────────────────
