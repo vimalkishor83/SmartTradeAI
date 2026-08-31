@@ -69,7 +69,7 @@
     {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
-    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config'] %}
+    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts'] %}
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
@@ -303,6 +303,9 @@
           </a>
           <a href="/admin/platform-config" data-tooltip="Platform Configuration" class="nav-item {% if active == 'admin_platform_config' %}active{% endif %}">
             <i class="bi bi-sliders nav-icon-red"></i><span class="nav-text">Platform Config</span>
+          </a>
+          <a href="/admin/telegram-alerts" data-tooltip="Telegram Alerts" class="nav-item {% if active == 'admin_telegram_alerts' %}active{% endif %}">
+            <i class="bi bi-telegram nav-icon-red"></i><span class="nav-text">Telegram Alerts</span>
           </a>
         </div>
       </div>

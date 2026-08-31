@@ -222,8 +222,21 @@ def _notify_trigger(order, asset, current_price, label, executed):
         pass
     if user.telegram_enabled and user.telegram_chat_id:
         try:
-            from app.tasks.notification_tasks import _send_telegram
-            _send_telegram(user, f"*{title}*\n{msg}")
+            from app.services.platform_config import get_platform_config
+            from app.tasks.notification_tasks import _market_alert_allowed
+            _tg_cfg = get_platform_config()
+            if _tg_cfg.get("telegram_alerts_protective_order", True) and _market_alert_allowed(asset.market, _tg_cfg):
+                from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
+                is_sl = "SL" in label or "Stop" in label
+                lines = [f"{'🛑' if is_sl else '🎯'} *{label.upper()} — {asset.symbol}*", ""]
+                lines.append(f"Position: `{order.side.upper()}`")
+                if order.stop_loss:
+                    lines.append(f"🛑 Stop Loss: `{order.stop_loss:.4f}`")
+                if order.take_profit:
+                    lines.append(f"🎯 Take Profit: `{order.take_profit:.4f}`")
+                lines.append(f"Trigger price: `{current_price:.4f}`")
+                lines.append(f"Status: `{mode}`")
+                _send_telegram(user, "\n".join(lines) + _TELEGRAM_DISCLAIMER)
         except Exception:
             pass
     if user.push_enabled and user.push_subscription:

@@ -236,6 +236,12 @@ def admin_platform_config():
     return render_template("admin/platform_config.html")
 
 
+@views_bp.route("/admin/telegram-alerts")
+@page_admin_required
+def admin_telegram_alerts():
+    return render_template("admin/telegram_alerts.html")
+
+
 @views_bp.route("/asset/<int:asset_id>")
 def asset_detail(asset_id):
     asset = Asset.query.get_or_404(asset_id)

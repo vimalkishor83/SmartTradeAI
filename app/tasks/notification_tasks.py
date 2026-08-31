@@ -3,6 +3,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def _market_alert_allowed(market: str, cfg: dict) -> bool:
+    """Platform Config's market checklist — empty/unset means every market
+    is allowed (a fresh install, or an admin who's never touched this,
+    shouldn't silently lose every alert), not that none are."""
+    allowed = cfg.get("telegram_alert_markets") or []
+    return not allowed or market in allowed
+
+
+# Appended to every trade-related Telegram message (new signal, close,
+# watchlist, protective order) — Telegram's legacy Markdown parse_mode
+# supports [text](url) links same as MarkdownV2 does.
+_TELEGRAM_DISCLAIMER = (
+    "\n\n⚠️ _Disclaimer: For informational purposes only — not financial "
+    "advice. [Read full disclaimer](https://smarttradeai.online/disclaimer)_"
+)
+
 
 def send_pending_notifications(app):
     with app.app_context():
@@ -169,6 +185,179 @@ def _send_telegram_group(text: str):
         logger.error(f"Telegram group broadcast error: {e}")
 
 
+# ── MTF rating-change alerts (Delta Scanner / MTF Analysis) ─────────────────
+# EMA 9/21 MTF's own 5-point scale (app/services/indicators/ema_mtf.py) —
+# ordered weakest-to-strongest so "upgraded/downgraded" and "which zone" are
+# both just index/lookup comparisons, not a pile of if/elif.
+_RATING_ORDER = ["Strong Sell", "Sell", "Neutral", "Buy", "Strong Buy"]
+_RATING_ZONE = {
+    "Strong Sell": "sell", "Sell": "sell",
+    "Neutral": "neutral",
+    "Buy": "buy", "Strong Buy": "buy",
+}
+
+
+def _is_ratingchange_alertworthy(old_rating: str, new_rating: str, sensitivity: str) -> bool:
+    """Admin-configured (Platform Config -> Telegram Group Alerts) so a
+    quiet market's constant Buy<->Strong Buy flicker doesn't have to mean
+    either "alert on everything" or "alert on nothing" for the whole
+    feature — the admin picks where that line sits."""
+    if old_rating == new_rating:
+        return False
+    if sensitivity == "every_change":
+        return True
+    if sensitivity == "extremes_only":
+        return new_rating in ("Strong Buy", "Strong Sell")
+    # "cross_zone" (default): only alert when the zone itself changes
+    # (sell/neutral/buy) — Sell -> Strong Sell is the same call getting more
+    # confident, not a new call; Neutral -> Buy or Sell -> Neutral are.
+    return _RATING_ZONE.get(old_rating) != _RATING_ZONE.get(new_rating)
+
+
+def _overall_trend_text(tf_cells: dict) -> str:
+    """Majority-vote summary across this asset's other computed timeframes
+    — "is the bigger picture actually bullish, or is this one timeframe
+    flipping against the grain" is exactly what turns a raw rating change
+    into something a subscriber can act on."""
+    ratings = [c["rating"] for c in tf_cells.values() if c and c.get("rating")]
+    if not ratings:
+        return "Not enough data"
+    zones = [_RATING_ZONE.get(r, "neutral") for r in ratings]
+    buy_n, sell_n, total = zones.count("buy"), zones.count("sell"), len(zones)
+    if buy_n > total / 2:
+        return f"Bullish ({buy_n}/{total} timeframes)"
+    if sell_n > total / 2:
+        return f"Bearish ({sell_n}/{total} timeframes)"
+    return f"Mixed ({buy_n} buy · {sell_n} sell · {total - buy_n - sell_n} neutral)"
+
+
+def _format_rating_change_telegram(symbol: str, tf: str, old_rating: str, new_rating: str,
+                                    reason: str, overall_trend: str) -> str:
+    upgraded = _RATING_ORDER.index(new_rating) > _RATING_ORDER.index(old_rating)
+    icon = "🟢" if _RATING_ZONE[new_rating] == "buy" else "🔴" if _RATING_ZONE[new_rating] == "sell" else "⚪"
+    lines = [
+        f"{icon} *MTF RATING CHANGE — {symbol}* (`{tf}`)",
+        "",
+        f"{'⬆️' if upgraded else '⬇️'} `{old_rating}` → *{new_rating}*",
+    ]
+    if reason:
+        lines.append("")
+        lines.append(f"_{reason}_")
+    lines.append("")
+    lines.append(f"📊 Overall trend: *{overall_trend}*")
+    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+
+
+def check_rating_changes(app):
+    """Compares each asset+timeframe's just-computed EMA 9/21 MTF rating
+    (app/services/indicators/ema_mtf.py) against its last-known value and
+    alerts on a meaningful shift, per the admin's configured sensitivity —
+    e.g. an asset moving from Sell to Buy on the 1h, with the reasoning
+    behind it and how the other timeframes for that asset currently read.
+
+    Called from prewarm_ta_cache right after it computes ema_rows for its
+    own cache — reuses that computation instead of running it a second
+    time, since this only needs to run on the same 5-minute cadence
+    anyway."""
+    with app.app_context():
+        from app.extensions import cache, db
+        from app.models.rating_snapshot import RatingSnapshot
+        from app.models.user import User
+        from app.services.platform_config import get_platform_config
+
+        cfg = get_platform_config()
+        if not cfg.get("telegram_alerts_rating_change", False):
+            return
+        sensitivity = cfg.get("telegram_rating_change_sensitivity", "cross_zone")
+
+        cached = cache.get("ema_summary_all")
+        ema_rows = (cached or {}).get("assets") or []
+        if not ema_rows:
+            return
+
+        existing = {(s.asset_id, s.timeframe): s for s in RatingSnapshot.query.all()}
+        users = None  # lazy — only fetched if something actually needs sending
+
+        for row in ema_rows:
+            market_ok = _market_alert_allowed(row.get("market"), cfg)
+            tf_cells = row.get("tf") or {}
+            for tf, cell in tf_cells.items():
+                if not cell or not cell.get("rating"):
+                    continue
+                new_rating = cell["rating"]
+                snap = existing.get((row["id"], tf))
+                old_rating = snap.rating if snap else None
+
+                # Snapshot tracking always runs, even for a market currently
+                # filtered out of alerts — otherwise re-enabling a market
+                # later compares against a stale rating from before it was
+                # disabled and could fire a misleading "change" for a shift
+                # that actually happened gradually while muted.
+                if old_rating and market_ok and _is_ratingchange_alertworthy(old_rating, new_rating, sensitivity):
+                    overall = _overall_trend_text(tf_cells)
+                    text = _format_rating_change_telegram(
+                        row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
+                    )
+                    _send_telegram_group(text)
+                    if users is None:
+                        users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
+                    for user in users:
+                        if user.telegram_chat_id:
+                            _send_telegram(user, text)
+
+                if snap:
+                    snap.rating = new_rating
+                else:
+                    db.session.add(RatingSnapshot(asset_id=row["id"], timeframe=tf, rating=new_rating))
+
+        try:
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Rating snapshot commit failed: {e}")
+
+
+def _format_signal_telegram(sig, asset) -> str:
+    """Full-detail Telegram message for a new signal — entry, stop loss,
+    all three targets (not just T1), risk:reward, confidence, and the
+    actual "why" behind the call as bullet points, pulled from the
+    signal's own stored reasoning_detail rather than just a bare number.
+    Telegram's Markdown mode has no real text color, so "colorful" here
+    means emoji + bold + a consistent structure, not literal font color."""
+    is_buy = sig.signal_type == "BUY"
+    icon = "🟢" if is_buy else "🔴"
+
+    lines = [f"{icon} *{sig.signal_type} SIGNAL — {asset.symbol}*", ""]
+    lines.append(f"📍 Entry: `{sig.entry_price:.4f}`")
+    lines.append(f"🛑 Stop Loss: `{sig.stop_loss:.4f}`")
+    for n, t in ((1, sig.target1), (2, sig.target2), (3, sig.target3)):
+        if t:
+            lines.append(f"🎯 Target {n}: `{t:.4f}`")
+    meta = [f"TF: `{sig.timeframe}`", f"Confidence: `{sig.confidence_score:.0f}%`"]
+    if sig.confidence_label:
+        meta[-1] += f" ({sig.confidence_label})"
+    if sig.risk_reward:
+        meta.insert(0, f"R:R `1:{sig.risk_reward:.1f}`")
+    lines.append(" | ".join(meta))
+
+    # reasoning_detail is the structured, per-factor breakdown (see
+    # SignalEngine._labeled_reasons) — falls back to the older plain-text
+    # "reasoning" field for any signal saved before that existed.
+    reasons = sig.reasoning_detail or []
+    if reasons:
+        lines.append("")
+        lines.append("*Why:*")
+        for r in reasons[:6]:
+            text = r.get("text") if isinstance(r, dict) else str(r)
+            if text:
+                lines.append(f"• {text}")
+    elif sig.reasoning:
+        lines.append("")
+        lines.append("*Why:* " + sig.reasoning.replace(" | ", ", "))
+
+    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+
+
 def fire_signal_alerts(app):
     """
     Alert engine — runs every 5 minutes.
@@ -186,6 +375,9 @@ def fire_signal_alerts(app):
         from app.models.asset import Asset
         from app.extensions import db
         from datetime import datetime, timedelta
+
+        from app.services.platform_config import get_platform_config
+        cfg = get_platform_config()
 
         cutoff = datetime.utcnow() - timedelta(minutes=6)
 
@@ -232,11 +424,8 @@ def fire_signal_alerts(app):
                 f"TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}% | "
                 f"SL: {sig.stop_loss:.4f} | T1: {sig.target1:.4f}"
             )
-            tg_msg = (
-                f"{'🟢' if sig.signal_type == 'BUY' else '🔴'} *{sig.signal_type} Signal: {asset.symbol}*\n"
-                f"Entry: `{sig.entry_price:.4f}` | TF: {sig.timeframe} | Conf: {sig.confidence_score:.0f}%\n"
-                f"SL: `{sig.stop_loss:.4f}` | T1: `{sig.target1:.4f}`"
-            )
+            tg_msg = _format_signal_telegram(sig, asset)
+            tg_allowed = cfg.get("telegram_alerts_signal", True) and _market_alert_allowed(asset.market, cfg)
             # Once per signal, not once per user — this is a shared group,
             # not an inbox each user gets their own copy of. Guarded the
             # same way per-user sends are: cutoff is a 6-minute lookback on
@@ -244,7 +433,9 @@ def fire_signal_alerts(app):
             # on two consecutive runs — checking whether any user already
             # has a logged notification for it is the same signal this
             # already went out for.
-            if not any((u.id, "signal_alert", asset.symbol) in already_sent for u in users):
+            if tg_allowed and not any(
+                (u.id, "signal_alert", asset.symbol) in already_sent for u in users
+            ):
                 _send_telegram_group(tg_msg)
             for user in users:
                 key = (user.id, "signal_alert", asset.symbol)
@@ -261,7 +452,7 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if user.telegram_enabled and user.telegram_chat_id:
+                if tg_allowed and user.telegram_enabled and user.telegram_chat_id:
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
@@ -289,11 +480,19 @@ def fire_signal_alerts(app):
                 f"{asset.symbol} {h.signal_type} closed at {h.exit_price:.4f} | "
                 f"P&L: {h.pnl_pct:+.2f}% | Duration: {h.duration_minutes or 0}m"
             )
+            duration = h.duration_minutes or 0
+            duration_label = f"{duration // 60}h {duration % 60}m" if duration >= 60 else f"{duration}m"
             tg_close = (
-                f"{'🏆' if won else '🛑'} *{'Target Hit' if won else 'Stop Loss'}: {asset.symbol}*\n"
-                f"{h.signal_type} closed @ `{h.exit_price:.4f}` | P&L: `{h.pnl_pct:+.2f}%` | {h.duration_minutes or 0}m"
-            )
-            if not any((u.id, "signal_closed", asset.symbol) in already_sent for u in users):
+                f"{'🏆' if won else '🛑'} *{'TARGET HIT' if won else 'STOP LOSS'} — {asset.symbol}*\n\n"
+                f"{h.signal_type} · TF: `{h.timeframe or '—'}`\n"
+                f"📍 Entry: `{h.entry_price:.4f}`\n"
+                f"{'🎯' if won else '🛑'} Exit: `{h.exit_price:.4f}`\n"
+                f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
+            ) + _TELEGRAM_DISCLAIMER
+            tg_close_allowed = cfg.get("telegram_alerts_signal_closed", True) and _market_alert_allowed(asset.market, cfg)
+            if tg_close_allowed and not any(
+                (u.id, "signal_closed", asset.symbol) in already_sent for u in users
+            ):
                 _send_telegram_group(tg_close)
             for user in users:
                 key = (user.id, "signal_closed", asset.symbol)
@@ -310,7 +509,7 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if user.telegram_enabled and user.telegram_chat_id:
+                if tg_close_allowed and user.telegram_enabled and user.telegram_chat_id:
                     _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
                     try:

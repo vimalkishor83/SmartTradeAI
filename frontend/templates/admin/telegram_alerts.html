@@ -1,0 +1,202 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Telegram Alerts — SmartTrade AI{% endblock %}
+{% set active = 'admin_telegram_alerts' %}
+{% block breadcrumb %}<i class="bi bi-telegram me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Telegram Alerts{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><span class="page-eyebrow">Admin</span>
+<h1 class="page-title">Telegram Alerts</h1>
+  <p class="page-subtitle">A shared group that gets the same alerts subscribers already receive on their own Telegram, plus which markets and categories actually go out</p></div>
+</div>
+
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to Telegram Alerts. Only a super admin can change these settings.
+</div>
+
+<div class="alert py-2 small mb-3 d-none" id="botTokenWarning" style="background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)">
+  <i class="bi bi-exclamation-triangle-fill me-1"></i> <strong>TELEGRAM_BOT_TOKEN</strong> isn't set on the server yet — nothing below can send anything until it is. This is a server secret (not editable from here); it needs adding to the deployment's environment config.
+</div>
+
+<!-- Setup guide -->
+<div class="section-card mb-4">
+  <div class="section-card-body p-3">
+    <details id="setupGuide">
+      <summary style="cursor:pointer"><i class="bi bi-question-circle me-1 text-accent"></i><strong>How to set this up</strong></summary>
+      <ol class="fs-sm mt-3 mb-0 ps-3">
+        <li>This uses one platform-wide bot (not any individual subscriber's own bot) — if <code>TELEGRAM_BOT_TOKEN</code> isn't configured on the server yet, get a token from <a href="https://t.me/BotFather" target="_blank" rel="noopener"><strong>@BotFather</strong></a> first and have it added to the deployment.</li>
+        <li>In Telegram, create a <strong>group</strong> (not a channel) and add your bot to it.</li>
+        <li>Send any message in that group — e.g. "hi". This is required once, so the next step has something to find.</li>
+        <li>Open this URL in a browser, replacing <code>&lt;token&gt;</code> with the bot token: <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code></li>
+        <li>Find <code>"chat":{"id":</code> in the response — that number (it will be negative, e.g. <code>-1001234567890</code>) is the group's Chat ID. Paste it below and save.</li>
+        <li>Pick which markets and which alert categories should go to this group, then use "Send a message now" to confirm it actually works.</li>
+      </ol>
+    </details>
+  </div>
+</div>
+
+<!-- Group setup -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-telegram text-accent"></i> Group</span>
+    <button class="btn btn-sm btn-primary" id="saveTelegramGroupBtn" onclick="saveTelegramSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="mb-0" style="max-width:340px">
+      <label class="form-label">Group Chat ID</label>
+      <input type="text" class="form-control" id="tgGroupChatId" placeholder="e.g. -1001234567890">
+    </div>
+  </div>
+</div>
+
+<!-- Markets -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-globe text-accent"></i> Markets</span>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-2">Which markets are allowed to alert on Telegram at all — checked before any category toggle below. Leave everything unchecked to allow every market (the default).</p>
+    <div class="d-flex flex-wrap gap-3" id="marketCheckboxes"></div>
+  </div>
+</div>
+
+<!-- Categories -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-bell text-accent"></i> Alert Categories</span>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-2">Applies to both the group above and each subscriber's own personal Telegram alerts (Settings → Notifications) — this is the on/off switch per category, not a separate delivery list.</p>
+    <div class="d-flex flex-column gap-2 mb-3">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="tgAlertSignal">
+        <label class="form-check-label" for="tgAlertSignal">New signal alerts <span class="text-muted small">— Terminal, Auto-Generate, and TA Summary all read from the same underlying signals, so one switch covers whichever surface a signal came from</span></label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="tgAlertSignalClosed">
+        <label class="form-check-label" for="tgAlertSignalClosed">Signal closed (target hit / stop loss)</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="tgAlertWatchlist">
+        <label class="form-check-label" for="tgAlertWatchlist">Watchlist price alerts</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="tgAlertProtectiveOrder">
+        <label class="form-check-label" for="tgAlertProtectiveOrder">Live position stop-loss / take-profit hits</label>
+      </div>
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" id="tgAlertRatingChange">
+        <label class="form-check-label" for="tgAlertRatingChange">MTF rating changes (Delta Scanner / MTF Analysis) <span class="badge bg-warning text-dark ms-1">New</span> <span class="text-muted small">— e.g. an asset moving from Sell to Buy on a timeframe, with the reasoning and overall trend across timeframes</span></label>
+      </div>
+    </div>
+    <div class="mb-0" style="max-width:420px" id="ratingSensitivityWrap">
+      <label class="form-label">Rating-change sensitivity</label>
+      <select class="form-select" id="tgRatingSensitivity">
+        <option value="cross_zone">Only when it crosses into/out of Buy or Sell (recommended)</option>
+        <option value="extremes_only">Only when it reaches Strong Buy / Strong Sell</option>
+        <option value="every_change">Every single rating change</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- Test -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-send text-accent"></i> Send a Message Now</span>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="d-flex gap-2">
+      <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send to the group right away…">
+      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn" onclick="sendTelegramBroadcast()"><i class="bi bi-send me-1"></i>Send</button>
+    </div>
+    <div class="fs-xs text-muted mt-2">Confirms the setup actually works, or for one-off announcements — doesn't affect the automatic alerts above.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const ALL_MARKETS_LABELS = {
+  crypto: 'Crypto', forex: 'Forex', gold: 'Gold', silver: 'Silver',
+  indian_stock: 'Indian Stocks', index: 'Indices',
+};
+let isSuperAdmin = false;
+let _cfg = {};
+
+async function loadTelegramConfig() {
+  const [cfg, status] = await Promise.all([
+    API.get('/admin/platform-config'),
+    API.get('/admin/telegram/status'),
+  ]);
+  if (!cfg) return;
+  _cfg = cfg;
+
+  document.getElementById('botTokenWarning').classList.toggle('d-none', !!status?.platform_bot_configured);
+
+  const markets = status?.markets || Object.keys(ALL_MARKETS_LABELS);
+  const selected = new Set(cfg.telegram_alert_markets || []);
+  document.getElementById('marketCheckboxes').innerHTML = markets.map(m => `
+    <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
+      <input type="checkbox" class="form-check-input market-toggle" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${isSuperAdmin ? '' : 'disabled'} style="margin:0">
+      ${ALL_MARKETS_LABELS[m] || m}
+    </label>`).join('');
+
+  document.getElementById('tgGroupChatId').value = cfg.telegram_group_chat_id || '';
+  document.getElementById('tgAlertSignal').checked = cfg.telegram_alerts_signal !== false;
+  document.getElementById('tgAlertSignalClosed').checked = cfg.telegram_alerts_signal_closed !== false;
+  document.getElementById('tgAlertWatchlist').checked = cfg.telegram_alerts_watchlist !== false;
+  document.getElementById('tgAlertProtectiveOrder').checked = cfg.telegram_alerts_protective_order !== false;
+  document.getElementById('tgAlertRatingChange').checked = !!cfg.telegram_alerts_rating_change;
+  document.getElementById('tgRatingSensitivity').value = cfg.telegram_rating_change_sensitivity || 'cross_zone';
+}
+
+async function saveTelegramSettings() {
+  const selectedMarkets = Array.from(document.querySelectorAll('.market-toggle:checked')).map(el => el.dataset.market);
+  const res = await API.put('/admin/platform-config', {
+    telegram_group_chat_id: document.getElementById('tgGroupChatId').value.trim(),
+    telegram_alert_markets: selectedMarkets,
+    telegram_alerts_signal: document.getElementById('tgAlertSignal').checked,
+    telegram_alerts_signal_closed: document.getElementById('tgAlertSignalClosed').checked,
+    telegram_alerts_watchlist: document.getElementById('tgAlertWatchlist').checked,
+    telegram_alerts_protective_order: document.getElementById('tgAlertProtectiveOrder').checked,
+    telegram_alerts_rating_change: document.getElementById('tgAlertRatingChange').checked,
+    telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value,
+  });
+  if (res && !res.error) {
+    Toast.show('Telegram alert settings saved', 'success');
+    _cfg = res;
+  } else {
+    Toast.show(res?.error || 'Failed to save', 'error');
+  }
+}
+
+async function sendTelegramBroadcast() {
+  const input = document.getElementById('tgBroadcastMsg');
+  const message = input.value.trim();
+  if (!message) return;
+  const res = await API.post('/admin/telegram/broadcast', { message });
+  if (res && !res.error) {
+    Toast.show('Sent to the group', 'success');
+    input.value = '';
+  } else {
+    Toast.show(res?.error || 'Failed to send', 'error');
+  }
+}
+
+document.addEventListener('app:ready', () => {
+  isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('saveTelegramGroupBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('tgGroupChatId').disabled = !isSuperAdmin;
+  document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
+  ['tgAlertSignal', 'tgAlertSignalClosed', 'tgAlertWatchlist', 'tgAlertProtectiveOrder',
+   'tgAlertRatingChange', 'tgRatingSensitivity'].forEach(id => {
+    document.getElementById(id).disabled = !isSuperAdmin;
+  });
+  loadTelegramConfig();
+});
+</script>
+{% endblock %}

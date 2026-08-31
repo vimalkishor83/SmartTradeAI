@@ -428,6 +428,12 @@ def prewarm_ta_cache(app):
         cache.set("ema_summary_all", {"assets": ema_rows, "timeframes": ta_tfs}, timeout=330)
         logger.info("TA/MTF/EMA cache pre-warmed")
 
+        try:
+            from app.tasks.notification_tasks import check_rating_changes
+            check_rating_changes(app)
+        except Exception as e:
+            logger.warning(f"Rating-change check failed: {e}")
+
 
 def prewarm_heatmap(app):
     """Pre-build the Market Heatmap payload so /market-data/heatmap is always a
@@ -926,6 +932,11 @@ def check_watchlist_alerts(app):
         from app.models.user import User
         from app.services.data.fetcher import market_fetcher
         from app.extensions import db
+        from app.services.platform_config import get_platform_config
+        from app.tasks.notification_tasks import _market_alert_allowed
+
+        _tg_cfg = get_platform_config()
+        telegram_alerts_watchlist = _tg_cfg.get("telegram_alerts_watchlist", True)
 
         # joinedload(asset): the loop below reads item.asset for every item, so
         # without eager loading this fired one extra SELECT per watchlist item
@@ -1043,10 +1054,17 @@ def check_watchlist_alerts(app):
                     # did, so a user relying on Telegram/push for signal
                     # alerts got silently weaker coverage for their own
                     # manually-set watchlist alerts.
-                    if user and user.telegram_enabled and user.telegram_chat_id:
+                    if (telegram_alerts_watchlist and user and user.telegram_enabled and user.telegram_chat_id
+                            and _market_alert_allowed(asset.market, _tg_cfg)):
                         try:
-                            from app.tasks.notification_tasks import _send_telegram
-                            _send_telegram(user, f"🔔 *{title}*\n{msg}")
+                            from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
+                            arrow = "📈" if direction == "above" else "📉"
+                            tg_text = (
+                                f"🔔 *WATCHLIST ALERT — {symbol}*\n\n"
+                                f"{arrow} Crossed `₹{alert_price:.2f}` ({direction})\n"
+                                f"Current price: `₹{current_price:.2f}`"
+                            ) + _TELEGRAM_DISCLAIMER
+                            _send_telegram(user, tg_text)
                         except Exception:
                             pass
                     if user and user.push_enabled and user.push_subscription:

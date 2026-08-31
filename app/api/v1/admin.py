@@ -96,9 +96,42 @@ def update_platform_config_route():
     if "telegram_group_chat_id" in data:
         row.telegram_group_chat_id = (data["telegram_group_chat_id"] or "").strip() or None
 
+    for flag in ["telegram_alerts_signal", "telegram_alerts_signal_closed",
+                 "telegram_alerts_watchlist", "telegram_alerts_protective_order",
+                 "telegram_alerts_rating_change"]:
+        if flag in data:
+            setattr(row, flag, bool(data[flag]))
+
+    if "telegram_rating_change_sensitivity" in data:
+        sensitivity = data["telegram_rating_change_sensitivity"]
+        if sensitivity not in ("cross_zone", "extremes_only", "every_change"):
+            return jsonify({"error": "invalid telegram_rating_change_sensitivity"}), 400
+        row.telegram_rating_change_sensitivity = sensitivity
+
+    if "telegram_alert_markets" in data:
+        markets = data["telegram_alert_markets"]
+        if not isinstance(markets, list) or not all(m in Asset.MARKETS for m in markets):
+            return jsonify({"error": f"telegram_alert_markets must only contain: {Asset.MARKETS}"}), 400
+        row.telegram_alert_markets = markets
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200
+
+
+@admin_bp.route("/telegram/status", methods=["GET"])
+@admin_required
+def telegram_status():
+    """Whether the platform-wide bot (TELEGRAM_BOT_TOKEN, a server-side env
+    var — not editable from here, it's a secret) is actually configured.
+    The group chat ID and every other Telegram setting can be perfectly
+    correct and still send nothing at all if this one thing was never set,
+    with no other visible symptom — surfacing it directly beats a support
+    conversation that starts with "nothing arrives, I don't know why"."""
+    return jsonify({
+        "platform_bot_configured": bool(current_app.config.get("TELEGRAM_BOT_TOKEN")),
+        "markets": Asset.MARKETS,
+    }), 200
 
 
 @admin_bp.route("/telegram/broadcast", methods=["POST"])
