@@ -71,6 +71,7 @@ _AG_STATE = {
     "next_run_at":             None,
     "log":                     [],
     "consecutive_empty_runs":  0,   # silence-failure detection
+    "empty_streak_started_at": None,
     "empty_run_alert_sent_at": None,
 }
 _AG_JOB_ID = "user_auto_generate"
@@ -254,24 +255,44 @@ def _run_auto_generate(app):
             _ag_log(f"✘ Commit error: {e}")
 
         # ── Silent failure detection ──────────────────────────────────────────
-        _EMPTY_RUN_THRESHOLD = 5   # alert after this many consecutive zero-signal runs
+        # Gated on continuous wall-clock silence, not a fixed run count. A
+        # fixed count (the old behavior — 5 consecutive empty runs) fires
+        # after the same short window regardless of watchlist size or
+        # polling interval, so a small watchlist (e.g. a handful of assets
+        # on one timeframe) on a short interval trips it constantly during
+        # perfectly normal quiet periods — real signals for a thin
+        # watchlist can legitimately be hours apart. _MIN_EMPTY_RUNS still
+        # guards the other direction: a long configured interval (e.g.
+        # hourly) shouldn't alert off a single empty run just because that
+        # one run already exceeds the silence window.
+        _EMPTY_SILENCE_HOURS = 3
+        _MIN_EMPTY_RUNS      = 3
         _ALERT_COOLDOWN_HOURS = 2  # don't re-alert within this window
+        now = datetime.utcnow()
         if count == 0:
             _AG_STATE["consecutive_empty_runs"] = _AG_STATE.get("consecutive_empty_runs", 0) + 1
+            if not _AG_STATE.get("empty_streak_started_at"):
+                _AG_STATE["empty_streak_started_at"] = now.isoformat()
         else:
             _AG_STATE["consecutive_empty_runs"] = 0
+            _AG_STATE["empty_streak_started_at"] = None
             _AG_STATE["empty_run_alert_sent_at"] = None
 
-        if _AG_STATE["consecutive_empty_runs"] >= _EMPTY_RUN_THRESHOLD:
+        streak_started = _AG_STATE.get("empty_streak_started_at")
+        silent_hours = (
+            (now - datetime.fromisoformat(streak_started)).total_seconds() / 3600
+            if streak_started else 0
+        )
+
+        if _AG_STATE["consecutive_empty_runs"] >= _MIN_EMPTY_RUNS and silent_hours >= _EMPTY_SILENCE_HOURS:
             last_alert = _AG_STATE.get("empty_run_alert_sent_at")
-            now = datetime.utcnow()
             cooldown_ok = (
                 last_alert is None or
                 (now - datetime.fromisoformat(last_alert)).total_seconds() > _ALERT_COOLDOWN_HOURS * 3600
             )
             if cooldown_ok:
                 _AG_STATE["empty_run_alert_sent_at"] = now.isoformat()
-                _ag_log(f"⚠️ Alert: {_AG_STATE['consecutive_empty_runs']} consecutive runs with 0 signals")
+                _ag_log(f"⚠️ Alert: {silent_hours:.1f}h silent ({_AG_STATE['consecutive_empty_runs']} consecutive runs)")
                 import threading
                 def _send_failure_alert():
                     try:
@@ -279,10 +300,12 @@ def _run_auto_generate(app):
                             from app.models.user import User
                             from app.tasks.notification_tasks import _send_telegram
                             n = _AG_STATE["consecutive_empty_runs"]
+                            hrs = silent_hours
                             text = (
                                 f"⚠️ *Auto-Generate Alert*\n"
-                                f"No signals generated in the last *{n} consecutive runs*.\n"
-                                f"This may indicate an API issue, engine error, or over-filtering.\n"
+                                f"No signals generated in *{hrs:.1f} hours* ({n} consecutive runs).\n"
+                                f"This may indicate an API issue, engine error, or over-filtering — "
+                                f"or simply a quiet market for your current watchlist.\n"
                                 f"Check the Auto-Generate log for details."
                             )
                             for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
