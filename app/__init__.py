@@ -827,7 +827,7 @@ def _sync_auto_generate_from_db(app):
     try:
         from datetime import datetime
         with app.app_context():
-            from app.api.v1.signals import _ag_load, _AG_STATE, _AG_JOB_ID, _run_auto_generate
+            from app.api.v1.signals import _ag_load, _AG_STATE, _AG_JOB_ID, _run_auto_generate, _ag_publish_partial
             saved = _ag_load()
 
             if not saved or not saved.get("running"):
@@ -838,6 +838,7 @@ def _sync_auto_generate_from_db(app):
                         pass
                     _AG_STATE["running"] = False
                     _AG_LAST_APPLIED = None
+                    _ag_publish_partial(running=False, next_run_at=None)
                     logging.getLogger(__name__).info("Auto Generate stopped (picked up from saved config).")
                 return
 

@@ -48,6 +48,52 @@ def _ag_load():
     except Exception:
         return None
 
+# ── Cross-process status snapshot (Redis-backed via the shared Flask-Caching
+# instance) ────────────────────────────────────────────────────────────────
+# Auto-Generate only ever actually *runs* in the dedicated worker process
+# (RUN_SCHEDULER=1) — the web tier's own _AG_STATE never executes a cycle,
+# so after any web-tier restart it permanently shows the hardcoded initial
+# values (running=False, all counters 0) no matter what the worker is
+# really doing. ag_status() is answered by whichever tier happens to serve
+# that HTTP request, so it publishes/reads through the cache (real Redis in
+# production, shared by both containers) instead of trusting local memory.
+_AG_STATUS_CACHE_KEY = "auto_generate:status_snapshot"
+_AG_STATUS_KEYS = (
+    "running", "asset_ids", "markets", "timeframes", "signal_filter",
+    "min_confidence", "interval_minutes", "telegram_on_signal",
+    "runs", "generated", "buy", "sell", "hold", "errors",
+    "last_run_at", "next_run_at", "consecutive_empty_runs", "log",
+)
+
+def _ag_publish_status():
+    try:
+        cache.set(_AG_STATUS_CACHE_KEY, {k: _AG_STATE[k] for k in _AG_STATUS_KEYS}, timeout=3600)
+    except Exception:
+        pass
+
+def _ag_status_snapshot():
+    try:
+        cached = cache.get(_AG_STATUS_CACHE_KEY)
+        if cached:
+            return cached
+    except Exception:
+        pass
+    return {k: _AG_STATE[k] for k in _AG_STATUS_KEYS}
+
+def _ag_publish_partial(**updates):
+    """Like _ag_publish_status(), but merges into the existing snapshot
+    instead of overwriting it wholesale. Needed for ag_stop(): it runs in
+    whichever tier answers that HTTP request, which is usually the web
+    tier — its own local _AG_STATE counters (runs/generated/log/...) are
+    permanently stale zeros there, so a blind overwrite would blank out
+    real run history the worker had published just to flip one flag."""
+    try:
+        snap = _ag_status_snapshot()
+        snap.update(updates)
+        cache.set(_AG_STATUS_CACHE_KEY, snap, timeout=3600)
+    except Exception:
+        pass
+
 # ── Server-side Auto Generate state ──────────────────────────────────────────
 _AG_STATE = {
     # Watchlist config
@@ -315,6 +361,8 @@ def _run_auto_generate(app):
                         logger.warning(f"Empty-run alert failed: {e}")
                 threading.Thread(target=_send_failure_alert, daemon=True).start()
 
+        _ag_publish_status()
+
 
 def _parse_ag_config(data):
     """Shared parsing for auto-generate config payloads (start/save/run-once)."""
@@ -394,6 +442,10 @@ def ag_start():
     n_assets = len(asset_ids) if asset_ids else "all"
     mkt_label = "/".join(markets) if markets else "all markets"
     _ag_log(f"Auto Generate started — {n_assets} assets ({mkt_label}) × {timeframes} every {interval}min")
+    # Publish immediately so ag_status() reflects "running" right away —
+    # the actual scheduler that executes cycles lives in a different
+    # container (the worker) and only picks this up on its next ~20s poll.
+    _ag_publish_status()
     return jsonify({
         "status": "started", "asset_ids": _AG_STATE["asset_ids"],
         "markets": markets, "timeframes": timeframes,
@@ -412,31 +464,37 @@ def ag_stop():
         pass
     _ag_save()
     _ag_log("⏹ Auto Generate stopped")
+    _ag_publish_partial(running=False, next_run_at=None)
     return jsonify({"status": "stopped"}), 200
 
 
 @signals_bp.route("/auto-generate/status", methods=["GET"])
 @login_required
 def ag_status():
+    # Read through the shared cross-process snapshot (see _ag_publish_status)
+    # instead of local _AG_STATE — this endpoint is answered by whichever
+    # container took the HTTP request, which is usually the web tier, not
+    # the worker process that's actually running the schedule.
+    snap = _ag_status_snapshot()
     return jsonify({
-        "running":            _AG_STATE["running"],
-        "asset_ids":          _AG_STATE["asset_ids"],
-        "markets":            _AG_STATE.get("markets") or [],
-        "timeframes":         _AG_STATE["timeframes"],
-        "signal_filter":      _AG_STATE["signal_filter"],
-        "min_confidence":     _AG_STATE["min_confidence"],
-        "interval_minutes":   _AG_STATE["interval_minutes"],
-        "telegram_on_signal": _AG_STATE["telegram_on_signal"],
-        "runs":               _AG_STATE["runs"],
-        "generated":          _AG_STATE["generated"],
-        "buy":                _AG_STATE["buy"],
-        "sell":               _AG_STATE["sell"],
-        "hold":               _AG_STATE["hold"],
-        "errors":                  _AG_STATE["errors"],
-        "last_run_at":             _AG_STATE["last_run_at"],
-        "next_run_at":             _AG_STATE["next_run_at"],
-        "consecutive_empty_runs":  _AG_STATE.get("consecutive_empty_runs", 0),
-        "log":                     _AG_STATE["log"][-30:],
+        "running":            snap["running"],
+        "asset_ids":          snap["asset_ids"],
+        "markets":            snap.get("markets") or [],
+        "timeframes":         snap["timeframes"],
+        "signal_filter":      snap["signal_filter"],
+        "min_confidence":     snap["min_confidence"],
+        "interval_minutes":   snap["interval_minutes"],
+        "telegram_on_signal": snap["telegram_on_signal"],
+        "runs":               snap["runs"],
+        "generated":          snap["generated"],
+        "buy":                snap["buy"],
+        "sell":               snap["sell"],
+        "hold":               snap["hold"],
+        "errors":                  snap["errors"],
+        "last_run_at":             snap["last_run_at"],
+        "next_run_at":             snap["next_run_at"],
+        "consecutive_empty_runs":  snap.get("consecutive_empty_runs", 0),
+        "log":                     snap["log"][-30:],
     }), 200
 
 
