@@ -239,11 +239,11 @@ const MARKET_SHORT = { crypto: 'CR', forex: 'FX', gold: 'GD', silver: 'SL', indi
 // Field name convention matches the backend exactly:
 // telegram_<key>_individual_markets / telegram_<key>_group_markets
 const ALERT_CATEGORIES = [
-  { key: 'signal', page: 'Terminal / Auto-Generate / TA Summary', label: 'New signal alerts', hasGroup: true },
-  { key: 'signal_closed', page: 'Signal reaching target or stop loss', label: 'Signal closed', hasGroup: true },
-  { key: 'rating_change', page: 'Delta Scanner / MTF Analysis', label: 'MTF rating changes', hasGroup: true },
-  { key: 'watchlist', page: 'Watchlist', label: 'Watchlist price alerts', hasGroup: false },
-  { key: 'protective_order', page: 'Live positions (broker-connected)', label: 'Live position stop-loss / take-profit hits', hasGroup: false },
+  { key: 'signal', pages: ['Terminal', 'Auto-Generate', 'TA Summary'], label: 'New signal alerts', hasGroup: true },
+  { key: 'signal_closed', pages: ['Signal reaching target or stop loss'], label: 'Signal closed', hasGroup: true },
+  { key: 'rating_change', pages: ['Delta Scanner', 'MTF Analysis'], label: 'MTF rating changes', hasGroup: true },
+  { key: 'watchlist', pages: ['Watchlist'], label: 'Watchlist price alerts', hasGroup: false },
+  { key: 'protective_order', pages: ['Live positions (broker-connected)'], label: 'Live position stop-loss / take-profit hits', hasGroup: false },
 ];
 
 function marketMatrixChipsHtml(cls, catKey, selected, disabled) {
@@ -261,7 +261,7 @@ function renderCategoryMatrix(cfg, disabled) {
       ? marketMatrixChipsHtml('cat-grp-toggle', cat.key, new Set(cfg[`telegram_${cat.key}_group_markets`] || []), disabled)
       : `<span class="text-muted small" title="Personal to one subscriber's own item/position — never a shared broadcast">Individual only</span>`;
     return `<tr>
-      <td class="text-muted">${cat.page}</td>
+      <td class="text-muted">${cat.pages.map(p => `<div>${p}</div>`).join('')}</td>
       <td><strong>${cat.label}</strong></td>
       <td>${marketMatrixChipsHtml('cat-ind-toggle', cat.key, indSelected, disabled)}</td>
       <td>${grpCell}</td>
