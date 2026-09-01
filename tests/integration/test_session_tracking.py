@@ -141,3 +141,52 @@ class TestSessionTracking:
         resp = client.put("/api/v1/admin/platform-config", headers=headers,
                            json={"session_timeout_minutes": 1})
         assert resp.status_code == 400
+
+    def test_lowering_timeout_retroactively_expires_existing_sessions(self, app, client, registered_user):
+        """A shorter session_timeout_minutes must take effect on sessions
+        already in progress, not just future logins — the whole point of
+        keeping expires_at in our own table instead of only the JWT's own
+        baked-in exp claim."""
+        resp = client.post("/api/v1/auth/login", json={
+            "email": "sessiontest", "password": "TestPass123!",
+        })
+        access_token = resp.get_json()["access_token"]
+        headers = {"Authorization": f"Bearer {access_token}"}
+
+        with app.app_context():
+            from app.extensions import db
+            from app.models.user_session import UserSession
+            from app.models.user import User, Role
+            from flask_jwt_extended import create_access_token
+            from datetime import datetime, timedelta
+
+            # Backdate the session as if it logged in 2 hours ago, well
+            # inside its current 1440-minute (24h) default window.
+            session_row = UserSession.query.filter_by(user_id=registered_user).first()
+            session_row.created_at = datetime.utcnow() - timedelta(hours=2)
+            session_row.expires_at = session_row.created_at + timedelta(minutes=1440)
+            db.session.commit()
+
+            role = Role.query.filter_by(name="admin").first()
+            admin = User(username="timeoutadmin", email="timeoutadmin@example.com", role_id=role.id,
+                         approval_status="approved", is_super_admin=True)
+            admin.set_password("TestPass123!")
+            db.session.add(admin)
+            db.session.commit()
+            admin_token = create_access_token(identity=str(admin.id))
+
+        # Still valid before the policy change.
+        resp = client.get("/api/v1/auth/me", headers=headers)
+        assert resp.status_code == 200
+
+        # Admin sets the timeout to 60 minutes — the backdated (2h-old)
+        # session's new expires_at (created_at + 60min) is now in the past.
+        resp = client.put("/api/v1/admin/platform-config",
+                           headers={"Authorization": f"Bearer {admin_token}"},
+                           json={"session_timeout_minutes": 60})
+        assert resp.status_code == 200
+
+        # No re-login happened — same still-unexpired-by-its-own-exp-claim
+        # access token — but it must now be rejected immediately.
+        resp = client.get("/api/v1/auth/me", headers=headers)
+        assert resp.status_code == 401

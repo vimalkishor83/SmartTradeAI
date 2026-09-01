@@ -118,6 +118,21 @@ def update_platform_config_route():
             return jsonify({"error": "session_timeout_minutes must be between 5 and 43200 (30 days)"}), 400
         row.session_timeout_minutes = minutes
 
+        # Re-applies the new policy to every session already in progress,
+        # not just logins from this point forward — expires_at lives in
+        # our own UserSession table (not baked into the JWT itself), so
+        # this takes effect on each session's very next request via
+        # token_in_blocklist_loader, no re-login needed. A shorter value
+        # can immediately expire sessions that were still well within
+        # their old window; a longer value extends them the same way.
+        from app.models.user_session import UserSession
+        active_sessions = UserSession.query.filter(
+            UserSession.revoked_at.is_(None),
+            UserSession.expires_at > datetime.utcnow(),
+        ).all()
+        for session_row in active_sessions:
+            session_row.expires_at = session_row.created_at + timedelta(minutes=minutes)
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200
