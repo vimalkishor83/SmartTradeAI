@@ -168,7 +168,20 @@
 /* Per-market chip toggles in the Alert Categories matrix — compact
    checkboxes styled as pills so 6 markets fit readably in one table
    cell per category/level. */
-#categoryMatrixBody td { vertical-align: middle; }
+/* The theme's default --border is too low-contrast against this table's
+   background to actually read as a divider between rows (it all blends
+   into one block) — a stronger, dedicated line (applied per-td, not
+   per-tr, since border-bottom on <tr> itself is unreliable across
+   browsers) plus light zebra striping keeps the 5 category rows
+   visually distinct at a glance. */
+#categoryMatrixBody td {
+  vertical-align: middle;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--text-muted) !important;
+}
+#categoryMatrixBody tr:last-child td { border-bottom: none !important; }
+#categoryMatrixBody tr:nth-child(even) td { background: var(--glass); }
 .mchip {
   display: inline-flex;
   align-items: center;
