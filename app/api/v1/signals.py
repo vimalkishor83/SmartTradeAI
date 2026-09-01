@@ -344,19 +344,48 @@ def _run_auto_generate(app):
                     try:
                         with app.app_context():
                             from app.models.user import User
+                            from app.models.notification import Notification
                             from app.tasks.notification_tasks import _send_telegram
                             n = _AG_STATE["consecutive_empty_runs"]
                             hrs = silent_hours
-                            text = (
+                            title = "⚠️ Auto-Generate Alert"
+                            body = (
+                                f"No signals generated in {hrs:.1f} hours ({n} consecutive runs). "
+                                f"This may indicate an API issue, engine error, or over-filtering — "
+                                f"or simply a quiet market for the current watchlist."
+                            )
+                            tg_text = (
                                 f"⚠️ *Auto-Generate Alert*\n"
                                 f"No signals generated in *{hrs:.1f} hours* ({n} consecutive runs).\n"
                                 f"This may indicate an API issue, engine error, or over-filtering — "
                                 f"or simply a quiet market for your current watchlist.\n"
                                 f"Check the Auto-Generate log for details."
                             )
-                            for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
-                                if user.telegram_chat_id:
-                                    _send_telegram(user, text)
+                            # This alert is about the admin-only Auto-Generate
+                            # engine's own health — a regular subscriber has no
+                            # access to that page or its log, so (like the
+                            # new-IP-login alert) it only ever goes to super
+                            # admins, not every telegram-enabled active user.
+                            admins = User.query.filter_by(is_active=True, is_super_admin=True).all()
+                            for admin in admins:
+                                db.session.add(Notification(
+                                    user_id=admin.id, title=title, message=body,
+                                    notification_type="auto_generate_alert", channel="web",
+                                ))
+                                try:
+                                    from app.websocket.events import broadcast_notification
+                                    broadcast_notification(admin.id, title, body)
+                                except Exception:
+                                    pass
+                                if admin.telegram_enabled and admin.telegram_chat_id:
+                                    _send_telegram(admin, tg_text)
+                                if admin.push_enabled and admin.push_subscription:
+                                    try:
+                                        from app.services.push import send_push_to_user
+                                        send_push_to_user(admin, title, body, url="/auto-generate")
+                                    except Exception:
+                                        pass
+                            db.session.commit()
                     except Exception as e:
                         logger.warning(f"Empty-run alert failed: {e}")
                 threading.Thread(target=_send_failure_alert, daemon=True).start()

@@ -180,35 +180,64 @@ def send_new_ip_login_alert(logged_in_user, ip: str, user_agent: str):
     market-scoped alert, so neither concept applies). Called from
     /auth/login the moment a login is confirmed to be this account's
     first time seeing this IP (not its first login ever — see the caller
-    for that distinction). Delivered to each super admin's OWN personal
-    Telegram chat (User.telegram_chat_id), same as any other individual
-    alert, using the PLATFORM bot token — a super admin who hasn't linked
-    their own bot still gets these via the shared TELEGRAM_BOT_TOKEN
-    fallback in _telegram_token_for.
+    for that distinction). Delivered on every channel a given admin has:
+    always as a bell-icon Notification + live WebSocket push, plus their
+    personal Telegram chat when linked (using the PLATFORM bot token — a
+    super admin who hasn't linked their own bot still gets these via the
+    shared TELEGRAM_BOT_TOKEN fallback in _telegram_token_for) and browser
+    push when subscribed — so an admin without Telegram configured still
+    sees this in-app instead of missing a security alert entirely.
     """
     try:
         from datetime import datetime
+        from app.extensions import db
         from app.models.user import User
+        from app.models.notification import Notification
         from app.models.user_session import parse_device_label
 
-        admins = User.query.filter_by(is_super_admin=True, is_active=True,
-                                       telegram_enabled=True).filter(
-            User.telegram_chat_id.isnot(None)
-        ).all()
+        # Every active super admin gets the bell/push notification regardless
+        # of their Telegram setup — Telegram is one more channel on top, not
+        # the only one, so an admin who hasn't linked Telegram still sees
+        # this in-app instead of missing it entirely.
+        admins = User.query.filter_by(is_super_admin=True, is_active=True).all()
         if not admins:
             return
 
+        device = parse_device_label(user_agent)
+        when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        title = "🔐 New IP Login"
+        body = (
+            f"{logged_in_user.username} ({logged_in_user.full_name}) logged in from a "
+            f"new IP {ip} on {device} at {when}. This IP hasn't been seen for this account before."
+        )
         text = (
             f"🔐 *NEW IP LOGIN*\n\n"
             f"👤 User: `{logged_in_user.username}` ({logged_in_user.full_name})\n"
             f"📧 Email: `{logged_in_user.email}`\n"
             f"🌐 IP: `{ip}`\n"
-            f"💻 Device: {parse_device_label(user_agent)}\n"
-            f"🕐 Time: `{datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}`\n\n"
+            f"💻 Device: {device}\n"
+            f"🕐 Time: `{when}`\n\n"
             f"_This IP hasn't been seen for this account before._"
         )
         for admin in admins:
-            _send_telegram(admin, text)
+            db.session.add(Notification(
+                user_id=admin.id, title=title, message=body,
+                notification_type="security_alert", channel="web",
+            ))
+            try:
+                from app.websocket.events import broadcast_notification
+                broadcast_notification(admin.id, title, body)
+            except Exception:
+                pass
+            if admin.telegram_enabled and admin.telegram_chat_id:
+                _send_telegram(admin, text)
+            if admin.push_enabled and admin.push_subscription:
+                try:
+                    from app.services.push import send_push_to_user
+                    send_push_to_user(admin, title, body, url="/admin/security")
+                except Exception:
+                    pass
+        db.session.commit()
     except Exception as e:
         logger.error(f"New-IP-login alert failed: {e}")
 
