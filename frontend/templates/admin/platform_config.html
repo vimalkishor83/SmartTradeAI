@@ -124,6 +124,14 @@
       </select>
     </div>
     <a href="/admin/sessions" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>View Login Sessions</a>
+
+    <hr class="my-3" style="border-color:var(--border)">
+
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="newIpLoginAlertToggle">
+      <label class="form-check-label" for="newIpLoginAlertToggle">New-IP login alerts</label>
+    </div>
+    <p class="text-muted small mb-0">Notifies every super admin's own Telegram the moment any account logs in from an IP not seen for that account before — a security alert, not a trading one, so it's never sent to the logged-in user themselves and doesn't go through Group Channels.</p>
   </div>
 </div>
 
@@ -226,16 +234,21 @@ function renderSecurity() {
   else if (minutes % 60 === 0) { value = minutes / 60; unit = 60; }
   document.getElementById('sessionTimeoutValue').value = value;
   document.getElementById('sessionTimeoutUnit').value = String(unit);
+  document.getElementById('newIpLoginAlertToggle').checked = _cfg.telegram_alerts_new_ip_login !== false;
 }
 
 async function saveSecurity() {
   const value = parseInt(document.getElementById('sessionTimeoutValue').value, 10);
   const unit  = parseInt(document.getElementById('sessionTimeoutUnit').value, 10);
   if (!value || value <= 0) { Toast.show('Enter a session timeout greater than 0', 'error'); return; }
-  const res = await API.put('/admin/platform-config', { session_timeout_minutes: value * unit });
+  const res = await API.put('/admin/platform-config', {
+    session_timeout_minutes: value * unit,
+    telegram_alerts_new_ip_login: document.getElementById('newIpLoginAlertToggle').checked,
+  });
   if (res && !res.error) {
     Toast.show('Session timeout updated', 'success');
     _cfg.session_timeout_minutes = res.session_timeout_minutes;
+    _cfg.telegram_alerts_new_ip_login = res.telegram_alerts_new_ip_login;
   } else {
     Toast.show(res?.error || 'Failed to save', 'error');
   }
@@ -347,6 +360,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('saveSecurityBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('sessionTimeoutValue').disabled = !isSuperAdmin;
   document.getElementById('sessionTimeoutUnit').disabled = !isSuperAdmin;
+  document.getElementById('newIpLoginAlertToggle').disabled = !isSuperAdmin;
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {

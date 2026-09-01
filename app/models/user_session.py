@@ -2,6 +2,18 @@ from datetime import datetime
 from app.extensions import db
 
 
+def parse_device_label(user_agent: str) -> str:
+    """Short, human-readable summary of a user_agent string — full
+    user-agent strings are long and mostly noise. Shared by UserSession's
+    own support view and the new-IP-login security alert, which both
+    want the same "Chrome · Windows"-style summary."""
+    ua = user_agent or ""
+    browser = next((b for b in ("Edg", "Chrome", "Firefox", "Safari", "OPR") if b in ua), None)
+    os_name = next((o for o in ("Windows", "Mac OS X", "Android", "iPhone", "iPad", "Linux") if o in ua), None)
+    label = " · ".join(x for x in (browser, os_name) if x)
+    return label or (ua[:40] if ua else "Unknown device")
+
+
 class UserSession(db.Model):
     """One row per login — not per access token. A refresh token rotation
     reuses the same row (see the "sid" custom JWT claim embedded in both
@@ -37,13 +49,7 @@ class UserSession(db.Model):
         return self.revoked_at is None and self.expires_at > datetime.utcnow()
 
     def device_label(self) -> str:
-        """Short, human-readable summary of the user_agent for a support
-        view — full user-agent strings are long and mostly noise."""
-        ua = self.user_agent or ""
-        browser = next((b for b in ("Edg", "Chrome", "Firefox", "Safari", "OPR") if b in ua), None)
-        os_name = next((o for o in ("Windows", "Mac OS X", "Android", "iPhone", "iPad", "Linux") if o in ua), None)
-        label = " · ".join(x for x in (browser, os_name) if x)
-        return label or (ua[:40] if ua else "Unknown device")
+        return parse_device_label(self.user_agent)
 
     def to_dict(self):
         return {

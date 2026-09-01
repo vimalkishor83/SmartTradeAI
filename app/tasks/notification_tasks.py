@@ -173,6 +173,46 @@ def _send_telegram(user, text: str):
         logger.error(f"Telegram send error: {e} (user was {type(user).__name__}: {user!r})")
 
 
+def send_new_ip_login_alert(logged_in_user, ip: str, user_agent: str):
+    """Security notification for super admins only — never sent to the
+    logged-in user's own personal Telegram alerts, and not organized into
+    the trading Individual/Group channel system at all (this isn't a
+    market-scoped alert, so neither concept applies). Called from
+    /auth/login the moment a login is confirmed to be this account's
+    first time seeing this IP (not its first login ever — see the caller
+    for that distinction). Delivered to each super admin's OWN personal
+    Telegram chat (User.telegram_chat_id), same as any other individual
+    alert, using the PLATFORM bot token — a super admin who hasn't linked
+    their own bot still gets these via the shared TELEGRAM_BOT_TOKEN
+    fallback in _telegram_token_for.
+    """
+    try:
+        from datetime import datetime
+        from app.models.user import User
+        from app.models.user_session import parse_device_label
+
+        admins = User.query.filter_by(is_super_admin=True, is_active=True,
+                                       telegram_enabled=True).filter(
+            User.telegram_chat_id.isnot(None)
+        ).all()
+        if not admins:
+            return
+
+        text = (
+            f"🔐 *NEW IP LOGIN*\n\n"
+            f"👤 User: `{logged_in_user.username}` ({logged_in_user.full_name})\n"
+            f"📧 Email: `{logged_in_user.email}`\n"
+            f"🌐 IP: `{ip}`\n"
+            f"💻 Device: {parse_device_label(user_agent)}\n"
+            f"🕐 Time: `{datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}`\n\n"
+            f"_This IP hasn't been seen for this account before._"
+        )
+        for admin in admins:
+            _send_telegram(admin, text)
+    except Exception as e:
+        logger.error(f"New-IP-login alert failed: {e}")
+
+
 def _send_to_chat(chat_id: str, text: str):
     """Broadcasts one message to an arbitrary Telegram chat/group id using
     the shared platform bot (TELEGRAM_BOT_TOKEN) — a group chat isn't any

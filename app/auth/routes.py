@@ -228,6 +228,26 @@ def login():
     refresh_token = create_refresh_token(identity=str(user.id), additional_claims={"sid": session_row.id})
     db.session.commit()
 
+    # New-IP security alert to super admins — must run BEFORE _audit() logs
+    # THIS login, or its own just-written row would always match itself and
+    # nothing would ever look "new". A user's very first login ever isn't
+    # meaningfully "new" (every IP would trivially qualify), so this only
+    # fires once there's at least one prior successful login on record.
+    try:
+        current_ip = request.remote_addr
+        prior_logins = AuditLog.query.filter_by(user_id=user.id, action="login").count()
+        if prior_logins > 0:
+            seen_before = AuditLog.query.filter_by(
+                user_id=user.id, action="login", ip_address=current_ip
+            ).first()
+            if not seen_before:
+                from app.services.platform_config import get_platform_config
+                if get_platform_config().get("telegram_alerts_new_ip_login", True):
+                    from app.tasks.notification_tasks import send_new_ip_login_alert
+                    send_new_ip_login_alert(user, current_ip, request.headers.get("User-Agent", ""))
+    except Exception:
+        pass
+
     _audit(user.id, "login", "user", str(user.id))
 
     response = jsonify({
@@ -651,12 +671,10 @@ def request_upgrade():
     if user.subscription_id == target.id:
         return jsonify({"error": f"You're already on the '{requested_plan}' plan"}), 400
 
-    log = AuditLog(
-        user_id=user.id, action="upgrade_request", resource="subscription",
-        resource_id=requested_plan,
+    AuditLog.record(
+        user.id, "upgrade_request", resource="subscription", resource_id=requested_plan,
         ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
     )
-    db.session.add(log)
 
     # Notify every admin so the request doesn't require the user to email
     # anyone directly — mirrors the existing Notification-row delivery
@@ -758,17 +776,10 @@ def save_asset_preferences():
 
 def _audit(user_id, action, resource, resource_id, status="success"):
     try:
-        log = AuditLog(
-            user_id=user_id,
-            action=action,
-            resource=resource,
-            resource_id=resource_id,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get("User-Agent", ""),
-            status=status,
+        AuditLog.record(
+            user_id, action, resource=resource, resource_id=resource_id, status=status,
+            ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
         )
-        db.session.add(log)
-        db.session.commit()
     except Exception:
         pass
 

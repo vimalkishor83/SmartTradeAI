@@ -133,6 +133,12 @@ def update_platform_config_route():
         for session_row in active_sessions:
             session_row.expires_at = session_row.created_at + timedelta(minutes=minutes)
 
+    if "telegram_alerts_new_ip_login" in data:
+        row.telegram_alerts_new_ip_login = bool(data["telegram_alerts_new_ip_login"])
+
+    if "audit_log_super_admins" in data:
+        row.audit_log_super_admins = bool(data["audit_log_super_admins"])
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200
@@ -442,11 +448,9 @@ def create_user():
 def _audit_admin_action(target_user_id, action):
     try:
         from flask_jwt_extended import get_jwt_identity
-        db.session.add(AuditLog(
-            user_id=int(get_jwt_identity()), action=action,
-            resource="user", resource_id=str(target_user_id), status="success",
-        ))
-        db.session.commit()
+        AuditLog.record(
+            int(get_jwt_identity()), action, resource="user", resource_id=str(target_user_id), status="success",
+        )
     except Exception:
         db.session.rollback()  # audit logging must never break the actual request
 
@@ -836,14 +840,28 @@ def revoke_all_user_sessions(user_id):
 @admin_required
 def audit_logs():
     page = int(request.args.get("page", 1))
+    per_page = min(int(request.args.get("per_page", 50)), 200)
     logs = AuditLog.query.order_by(AuditLog.created_at.desc()) \
-        .paginate(page=page, per_page=50, error_out=False)
+        .paginate(page=page, per_page=per_page, error_out=False)
     return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total, "pages": logs.pages}), 200
 
 
 @admin_bp.route("/audit-logs", methods=["DELETE"])
 @super_admin_required
 def clear_audit_logs():
+    """Plain DELETE (no body, or a body without "ids") clears everything —
+    unchanged for the dashboard widget's "Clear Log" button. Passing
+    {"ids": [...]} instead deletes just those rows, for the full Audit
+    Log page's per-row selection."""
+    data = request.get_json(silent=True) or {}
+    ids = data.get("ids")
+    if ids:
+        if not isinstance(ids, list) or not all(isinstance(i, int) for i in ids):
+            return jsonify({"error": "ids must be a list of integers"}), 400
+        deleted = AuditLog.query.filter(AuditLog.id.in_(ids)).delete(synchronize_session=False)
+        db.session.commit()
+        return jsonify({"message": f"Deleted {deleted} selected entr{'y' if deleted == 1 else 'ies'}"}), 200
+
     deleted = AuditLog.query.delete()
     db.session.commit()
     return jsonify({"message": f"Cleared {deleted} audit log entries"}), 200

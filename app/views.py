@@ -248,6 +248,12 @@ def admin_sessions():
     return render_template("admin/sessions.html")
 
 
+@views_bp.route("/admin/audit-log")
+@page_admin_required
+def admin_audit_log():
+    return render_template("admin/audit_log.html")
+
+
 @views_bp.route("/asset/<int:asset_id>")
 def asset_detail(asset_id):
     asset = Asset.query.get_or_404(asset_id)

@@ -46,6 +46,18 @@ class PlatformConfig(db.Model):
     # admin-adjustable without an env var change/redeploy.
     session_timeout_minutes = db.Column(db.Integer, default=1440, nullable=False)
 
+    # Security notification, not a trading alert — no market/individual-
+    # group split applies. Sent to every super admin's own personal
+    # Telegram chat (never a Group Channel, never the logged-in user's
+    # own alerts) the moment a login uses an IP not seen for that account
+    # before. See send_new_ip_login_alert() in notification_tasks.py.
+    telegram_alerts_new_ip_login = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Off by default — a super admin's own logins/actions don't clutter
+    # the audit trail unless deliberately turned on. See
+    # AuditLog.record(), the single place this is actually enforced.
+    audit_log_super_admins = db.Column(db.Boolean, default=False, nullable=False)
+
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
@@ -72,5 +84,7 @@ class PlatformConfig(db.Model):
             "telegram_protective_order_individual_markets": self.telegram_protective_order_individual_markets or [],
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
+            "telegram_alerts_new_ip_login": self.telegram_alerts_new_ip_login,
+            "audit_log_super_admins": self.audit_log_super_admins,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -1,0 +1,212 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Audit Log — SmartTrade AI{% endblock %}
+{% set active = 'admin_audit_log' %}
+{% block breadcrumb %}<i class="bi bi-journal-check me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Audit Log{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><span class="page-eyebrow">Admin</span>
+  <h1 class="page-title">Audit Log</h1>
+  <p class="page-subtitle">Who did what, from where, and when — logins, logouts, admin actions, broker credential changes</p></div>
+  <button class="btn btn-outline-light btn-sm" onclick="loadAuditLog()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+</div>
+
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to the Audit Log. Only a super admin can delete entries or change settings below.
+</div>
+
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-gear text-accent"></i> Settings</span>
+    <button class="btn btn-sm btn-primary" id="saveAuditSettingsBtn" onclick="saveAuditSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="logSuperAdminsToggle">
+      <label class="form-check-label" for="logSuperAdminsToggle">Log super admin actions too</label>
+    </div>
+    <p class="text-muted small mb-0">Off by default — a super admin's own logins, logouts, and admin actions aren't written here at all, only other users' are. Turn this on to include super admins in the trail too.</p>
+  </div>
+</div>
+
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Entries</span>
+    <div class="d-flex gap-2">
+      <button class="btn btn-sm btn-outline-danger" id="deleteSelectedBtn" onclick="deleteSelected()" disabled><i class="bi bi-trash3 me-1"></i>Delete Selected</button>
+      <button class="btn btn-sm btn-outline-danger" id="clearAllBtn" onclick="clearAll()"><i class="bi bi-trash3-fill me-1"></i>Clear All</button>
+    </div>
+  </div>
+  <div class="section-card-body p-3">
+    <input type="text" class="form-control mb-3" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px" oninput="renderTable()">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle mb-0" id="auditTable" style="font-size:13px">
+        <thead>
+          <tr>
+            <th style="width:30px"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()"></th>
+            <th>User</th><th>Action</th><th>Resource</th><th>IP</th><th>Status</th><th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="auditTbody">
+          <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2" id="pager" style="display:none!important">
+      <button class="btn btn-sm btn-outline-light" id="prevPageBtn" onclick="changePage(-1)"><i class="bi bi-chevron-left"></i></button>
+      <span class="text-muted small" id="pageLabel"></span>
+      <button class="btn btn-sm btn-outline-light" id="nextPageBtn" onclick="changePage(1)"><i class="bi bi-chevron-right"></i></button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let isSuperAdmin = false;
+let allLogs = [];
+let selectedIds = new Set();
+let currentPage = 1;
+let totalPages = 1;
+let _cfg = {};
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const str  = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  return new Date(str).toLocaleString();
+}
+
+async function loadAuditLog() {
+  const [cfg, data] = await Promise.all([
+    API.get('/admin/platform-config'),
+    API.get('/admin/audit-logs', { page: currentPage, per_page: 50 }),
+  ]);
+  if (cfg) {
+    _cfg = cfg;
+    document.getElementById('logSuperAdminsToggle').checked = !!cfg.audit_log_super_admins;
+  }
+  if (!data) return;
+  allLogs = data.logs || [];
+  totalPages = data.pages || 1;
+  selectedIds.clear();
+  document.getElementById('selectAllCheckbox').checked = false;
+  renderTable();
+  renderPager();
+  updateDeleteSelectedBtn();
+}
+
+async function saveAuditSettings() {
+  const res = await API.put('/admin/platform-config', {
+    audit_log_super_admins: document.getElementById('logSuperAdminsToggle').checked,
+  });
+  if (res && !res.error) {
+    Toast.show('Audit log settings saved', 'success');
+    _cfg.audit_log_super_admins = res.audit_log_super_admins;
+  } else {
+    Toast.show(res?.error || 'Failed to save', 'error');
+  }
+}
+
+const STATUS_BADGE = { success: 'bg-success', failed: 'bg-danger' };
+
+function renderTable() {
+  const filter = document.getElementById('usernameFilter').value.trim().toLowerCase();
+  const rows = allLogs.filter(l => !filter || l.user.toLowerCase().includes(filter));
+  const tbody = document.getElementById('auditTbody');
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No entries found.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(l => `
+    <tr>
+      <td><input type="checkbox" class="row-checkbox" data-id="${l.id}" ${selectedIds.has(l.id) ? 'checked' : ''} ${isSuperAdmin ? '' : 'disabled'} onchange="toggleRow(${l.id}, this.checked)"></td>
+      <td><strong>${l.user}</strong></td>
+      <td class="text-accent">${l.action}</td>
+      <td class="text-muted">${l.resource}${l.resource_id ? ' · ' + l.resource_id : ''}</td>
+      <td class="text-muted"><code>${l.ip_address}</code></td>
+      <td><span class="badge ${STATUS_BADGE[l.status] || 'bg-secondary'}" style="font-size:10px">${l.status}</span></td>
+      <td class="text-muted" style="white-space:nowrap">${timeAgo(l.created_at)}</td>
+    </tr>`).join('');
+}
+
+function toggleRow(id, checked) {
+  if (checked) selectedIds.add(id); else selectedIds.delete(id);
+  updateDeleteSelectedBtn();
+}
+
+function toggleSelectAll() {
+  const checked = document.getElementById('selectAllCheckbox').checked;
+  document.querySelectorAll('.row-checkbox').forEach(cb => {
+    cb.checked = checked;
+    const id = parseInt(cb.dataset.id, 10);
+    if (checked) selectedIds.add(id); else selectedIds.delete(id);
+  });
+  updateDeleteSelectedBtn();
+}
+
+function updateDeleteSelectedBtn() {
+  document.getElementById('deleteSelectedBtn').disabled = selectedIds.size === 0 || !isSuperAdmin;
+}
+
+async function _deleteAuditLogs(body) {
+  const token = localStorage.getItem('access_token');
+  const res = await fetch('/api/v1/admin/audit-logs', {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body || {}),
+  });
+  return res.ok ? res.json() : null;
+}
+
+async function deleteSelected() {
+  const ids = Array.from(selectedIds);
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} selected entr${ids.length === 1 ? 'y' : 'ies'}? This cannot be undone.`)) return;
+  const res = await _deleteAuditLogs({ ids });
+  if (res) {
+    Toast.show(res.message || 'Deleted', 'success');
+    loadAuditLog();
+  } else {
+    Toast.show('Failed to delete', 'error');
+  }
+}
+
+async function clearAll() {
+  if (!confirm('Clear ALL audit log entries? This cannot be undone.')) return;
+  const res = await _deleteAuditLogs({});
+  if (res) {
+    Toast.show(res.message || 'Cleared', 'success');
+    loadAuditLog();
+  } else {
+    Toast.show('Failed to clear', 'error');
+  }
+}
+
+function renderPager() {
+  document.getElementById('pager').style.display = totalPages > 1 ? '' : 'none';
+  document.getElementById('pageLabel').textContent = `Page ${currentPage} of ${totalPages}`;
+  document.getElementById('prevPageBtn').disabled = currentPage <= 1;
+  document.getElementById('nextPageBtn').disabled = currentPage >= totalPages;
+}
+
+function changePage(delta) {
+  const next = currentPage + delta;
+  if (next < 1 || next > totalPages) return;
+  currentPage = next;
+  loadAuditLog();
+}
+
+document.addEventListener('app:ready', () => {
+  isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('saveAuditSettingsBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('clearAllBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('logSuperAdminsToggle').disabled = !isSuperAdmin;
+  document.getElementById('selectAllCheckbox').disabled = !isSuperAdmin;
+  loadAuditLog();
+});
+</script>
+{% endblock %}

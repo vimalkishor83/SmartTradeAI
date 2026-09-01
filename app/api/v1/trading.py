@@ -41,16 +41,10 @@ def _audit(user_id, action, provider):
     exposed in the log."""
     from app.models.audit import AuditLog
     try:
-        log = AuditLog(
-            user_id=user_id,
-            action=action,
-            resource="broker_credential",
-            resource_id=provider,
-            ip_address=request.remote_addr,
-            user_agent=request.headers.get("User-Agent", ""),
+        AuditLog.record(
+            user_id, action, resource="broker_credential", resource_id=provider,
+            ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
         )
-        db.session.add(log)
-        db.session.commit()
     except Exception:
         pass
 

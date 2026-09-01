@@ -18,6 +18,41 @@ class AuditLog(db.Model):
 
     user = db.relationship("User")
 
+    @classmethod
+    def record(cls, user_id, action, resource=None, resource_id=None, status="success",
+               ip_address=None, user_agent=None, details=None):
+        """Single entry point for writing an audit row — every call site
+        should go through this rather than `AuditLog(...)` directly, so
+        the admin's "log super admin actions too" setting (off by
+        default — super admins don't audit-log their own activity unless
+        deliberately turned on) is enforced in exactly one place instead
+        of duplicated at every call site (auth login/logout, admin user
+        actions, broker credential connects, ...). A None user_id (e.g. a
+        failed login against an identifier that isn't a real account)
+        has no super admin to suppress, so it's always logged — those are
+        exactly the events most worth keeping.
+
+        Returns the created row, or None if it was suppressed.
+        """
+        if user_id is not None:
+            try:
+                from app.services.platform_config import get_platform_config
+                if not get_platform_config().get("audit_log_super_admins", False):
+                    from app.models.user import User
+                    actor = User.query.get(user_id)
+                    if actor and actor.is_super_admin:
+                        return None
+            except Exception:
+                pass  # never let the suppression check itself block real logging
+
+        log = cls(
+            user_id=user_id, action=action, resource=resource, resource_id=resource_id,
+            status=status, ip_address=ip_address, user_agent=user_agent, details=details or {},
+        )
+        db.session.add(log)
+        db.session.commit()
+        return log
+
     def to_dict(self):
         return {
             "id": self.id,
