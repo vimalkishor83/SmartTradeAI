@@ -1086,6 +1086,11 @@ def market_board():
                 if result.get("available"):
                     result["persisted"] = False
                     result["current_price"] = result.get("entry_price") or float(df["close"].iloc[-1])
+                    # Not a stored Signal row, so there's no historical
+                    # generation time — this read IS the generation, right
+                    # now, which is exactly what the Terminal card's
+                    # "Generated" timestamp should show for a live read.
+                    result["generated_at"] = datetime.utcnow().isoformat()
                 else:
                     reason = result.get("reason", "")
                     reason_messages = {
