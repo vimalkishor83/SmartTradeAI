@@ -358,20 +358,20 @@ class SignalEngine:
             return None
         try:
             ind = calculate_all_indicators(higher_df)
-            ema20 = ind.get("ema20") or 0
-            ema50 = ind.get("ema50") or 0
+            ema9 = ind.get("ema9") or 0
+            ema21 = ind.get("ema21") or 0
             supertrend = ind.get("supertrend_direction", "up")
             close = float(higher_df["close"].iloc[-1])
 
             bull_votes = 0
             bear_votes = 0
-            if ema20 and ema50:
-                if ema20 > ema50: bull_votes += 1
-                else:             bear_votes += 1
+            if ema9 and ema21:
+                if ema9 > ema21: bull_votes += 1
+                else:            bear_votes += 1
             if supertrend == "up":   bull_votes += 1
             else:                    bear_votes += 1
-            if ema20 and close > ema20: bull_votes += 1
-            else:                       bear_votes += 1
+            if ema9 and close > ema9: bull_votes += 1
+            else:                     bear_votes += 1
 
             if bull_votes >= 2: return "bullish"
             if bear_votes >= 2: return "bearish"
@@ -437,7 +437,8 @@ class SignalEngine:
         scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 10}
 
         close    = float(df["close"].iloc[-1])
-        ema20    = ind.get("ema20") or 0
+        ema9     = ind.get("ema9") or 0
+        ema21    = ind.get("ema21") or 0
         ema50    = ind.get("ema50") or 0
         ema100   = ind.get("ema100") or 0
         ema200   = ind.get("ema200") or 0
@@ -454,11 +455,11 @@ class SignalEngine:
         trend_bull = 0
         trend_bear = 0
 
-        if ema20 and ema50:
-            if ema20 > ema50:
-                trend_bull += 8; reasons.append(("trend", "EMA20>EMA50 (uptrend)", "bull"))
+        if ema9 and ema21:
+            if ema9 > ema21:
+                trend_bull += 8; reasons.append(("trend", "EMA9>EMA21 (uptrend)", "bull"))
             else:
-                trend_bear += 8; reasons.append(("trend", "EMA20<EMA50 (downtrend)", "bear"))
+                trend_bear += 8; reasons.append(("trend", "EMA9<EMA21 (downtrend)", "bear"))
 
         if ema50 and ema200:
             if ema50 > ema200:
