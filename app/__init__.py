@@ -947,8 +947,15 @@ def _configure_logging(app):
 
     log_file = os.path.join(log_dir, "app.log")
 
-    # File handler — INFO+ goes to file only
-    file_handler = logging.FileHandler(log_file)
+    # File handler — INFO+ goes to file only. Rotates at midnight UTC and
+    # keeps only 1 rotated backup (today's active file + yesterday's),
+    # deleting anything older automatically — this file previously grew
+    # forever (a plain FileHandler with no cap; caught at ~10MB and
+    # climbing on the production VM with no traffic spike to explain it,
+    # just normal accumulation) and was the only unbounded-disk-growth
+    # source outside the database/Docker's own container logs.
+    from logging.handlers import TimedRotatingFileHandler
+    file_handler = TimedRotatingFileHandler(log_file, when="midnight", backupCount=1, utc=True)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter(
         "%(asctime)s [%(levelname)s] %(name)s: %(message)s"

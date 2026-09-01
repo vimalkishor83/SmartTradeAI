@@ -1,8 +1,20 @@
 version: '3.8'
 
+# Docker's default json-file log driver has no size cap at all — container
+# stdout/stderr (gunicorn access logs, worker output, every print/log line)
+# accumulates on the host disk forever otherwise. 10MB x 3 files = 30MB max
+# per container, auto-rotated by Docker itself; applied to every service
+# below via the *default-logging anchor.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   app:
     build: .
+    logging: *default-logging
     ports:
       - "8000:8000"
     env_file:
@@ -37,6 +49,7 @@ services:
   # exists to solve.
   worker:
     build: .
+    logging: *default-logging
     command: ["python", "worker.py"]
     env_file:
       - .env
@@ -55,6 +68,7 @@ services:
 
   db:
     image: postgres:16
+    logging: *default-logging
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-smarttrade}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
@@ -73,6 +87,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    logging: *default-logging
     # Password-protected and NOT published to the host. Previously this mapped
     # 6379:6379 with no auth, which on any host without a firewall exposed the
     # cache AND the rate-limiter store to the internet — an attacker could read
