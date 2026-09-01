@@ -93,6 +93,7 @@ class SignalEngine:
             # ── Stage 3: MTF alignment gate ────────────────────────
             higher_bias = self._mtf_gate(higher_tf_df)
             # higher_bias: "bullish" | "bearish" | "neutral" | None (unknown = skip only if conflict is clear)
+            mtf_confirmations = self._mtf_supertrend_confirmation(asset, timeframe)
 
             # ── Stage 4 & 5: Momentum + Volume pre-scoring ─────────
             # Computed once here and reused at Stage 7 below instead of
@@ -100,7 +101,8 @@ class SignalEngine:
             patterns = detect_patterns(df)
             thresh = 0.55 if force else 0.65
             raw_direction, raw_scores, reasons = self._score_signal(
-                indicators, df, market, threshold=thresh, patterns=patterns
+                indicators, df, market, threshold=thresh, patterns=patterns,
+                timeframe=timeframe, mtf_confirmations=mtf_confirmations,
             )
 
             if raw_direction == "HOLD":
@@ -232,9 +234,11 @@ class SignalEngine:
                 return {"available": False, "reason": f"volatility_{vol_regime}"}
 
             higher_bias = self._mtf_gate(higher_tf_df)
+            mtf_confirmations = self._mtf_supertrend_confirmation(asset, timeframe)
             patterns = detect_patterns(df)
             raw_direction, raw_scores, reasons = self._score_signal(
-                indicators, df, market, threshold=0.55, patterns=patterns
+                indicators, df, market, threshold=0.55, patterns=patterns,
+                timeframe=timeframe, mtf_confirmations=mtf_confirmations,
             )
 
             confidence = (
@@ -380,6 +384,45 @@ class SignalEngine:
             return None
 
     # ──────────────────────────────────────────────────────
+    # Stage 3b — 15m/1h Supertrend confirmation (1m/5m/15m signals only)
+    # ──────────────────────────────────────────────────────
+    _MTF_CONFIRM_TFS = ("15m", "1h")
+
+    def _mtf_supertrend_confirmation(self, asset, timeframe: str) -> list[tuple[str, str]]:
+        """For a signal on 1m, 5m, or 15m, pulls Supertrend direction on
+        15m and 1h too (whichever isn't `timeframe` itself, to avoid
+        re-reading the signal's own timeframe as if it were a second,
+        independent confirmation) — a genuine "does the bigger picture
+        agree" check for the timeframes fast enough to whipsaw on their
+        own. Returns a list of (tf_label, "up"/"down"); _score_signal
+        turns each into both a trend_bull/trend_bear contribution
+        (moving confidence) and a labeled "Why" reason. Best-effort: a
+        fetch failure for one or both confirmation timeframes just means
+        fewer confirmations, never blocks the signal itself.
+        """
+        if timeframe not in ("1m", "5m", "15m"):
+            return []
+        confirmations = []
+        try:
+            from app.services.data.fetcher import market_fetcher
+            for tf in self._MTF_CONFIRM_TFS:
+                if tf == timeframe:
+                    continue
+                try:
+                    confirm_df = market_fetcher.fetch(asset, tf, 220)
+                    if confirm_df is None or len(confirm_df) < 30:
+                        continue
+                    ind = calculate_all_indicators(confirm_df, light=True)
+                    direction = ind.get("supertrend_direction")
+                    if direction:
+                        confirmations.append((tf, direction))
+                except Exception:
+                    continue
+        except Exception:
+            pass
+        return confirmations
+
+    # ──────────────────────────────────────────────────────
     # Stage 4 — Momentum gate
     # ──────────────────────────────────────────────────────
     def _momentum_gate(self, ind: dict, direction: str) -> bool:
@@ -417,7 +460,8 @@ class SignalEngine:
     # ──────────────────────────────────────────────────────
     # Stage 6 — Confidence scoring (multiplicative)
     # ──────────────────────────────────────────────────────
-    def _score_signal(self, ind: dict, df: pd.DataFrame, market: str, threshold: float = 0.65, patterns=None):
+    def _score_signal(self, ind: dict, df: pd.DataFrame, market: str, threshold: float = 0.65, patterns=None,
+                       timeframe: str = "", mtf_confirmations: list[tuple[str, str]] | None = None):
         """
         Compute raw direction, per-component scores, and reasons.
         Returns (direction, scores_dict, reasons_list).
@@ -428,6 +472,13 @@ class SignalEngine:
         twice per generate_signal() call — this runs for every asset x
         timeframe combination in every scan/prewarm cycle, so the duplicate
         scan was pure wasted work at scale.
+
+        `timeframe` gates two 1m/5m/15m-only additions: an EMA50 read
+        (`timeframe` in ("1m","5m")) and `mtf_confirmations` — a list of
+        (tf_label, "up"/"down") Supertrend readings from 15m/1h, pre-fetched
+        by the caller via _mtf_supertrend_confirmation() for `timeframe` in
+        ("1m","5m","15m"). See their use below for what each does to
+        scoring vs. just display.
         """
         bull = 0
         bear = 0
@@ -485,6 +536,28 @@ class SignalEngine:
                 trend_bull += 4; reasons.append(("trend", "Price above Ichimoku cloud", "bull"))
             elif close < cloud_bot:
                 trend_bear += 4
+
+        # EMA50 read for the fast timeframes — shown in "Why" for extra
+        # context on 1m/5m (where EMA9/21 alone whips around a lot), but
+        # deliberately doesn't add to trend_bull/trend_bear: analysis only,
+        # not a confidence input, unlike the MTF Supertrend check below.
+        if timeframe in ("1m", "5m") and ema50 and close:
+            if close > ema50:
+                reasons.append(("trend", "Price above EMA50 (1m/5m)", "bull"))
+            else:
+                reasons.append(("trend", "Price below EMA50 (1m/5m)", "bear"))
+
+        # Multi-timeframe Supertrend confirmation — for 1m/5m/15m signals,
+        # 15m and 1h Supertrend direction (whichever isn't this signal's
+        # own timeframe, to avoid double-counting the "SuperTrend
+        # bullish/bearish" reason above) genuinely moves trend_bull/
+        # trend_bear, so a higher timeframe agreeing lifts confidence and
+        # one disagreeing pulls it down — not just informational.
+        for tf_label, direction in (mtf_confirmations or []):
+            if direction == "up":
+                trend_bull += 5; reasons.append(("trend", f"{tf_label} SuperTrend bullish (MTF)", "bull"))
+            else:
+                trend_bear += 5; reasons.append(("trend", f"{tf_label} SuperTrend bearish (MTF)", "bear"))
 
         trend_total = trend_bull + trend_bear
         if trend_total > 0:
