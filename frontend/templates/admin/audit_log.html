@@ -13,22 +13,10 @@
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
-  <i class="bi bi-eye me-1"></i> You have view-only access to the Audit Log. Only a super admin can delete entries or change settings below.
+  <i class="bi bi-eye me-1"></i> You have view-only access to the Audit Log. Only a super admin can delete entries.
 </div>
 
-<div class="section-card mb-4">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-gear text-accent"></i> Settings</span>
-    <button class="btn btn-sm btn-primary" id="saveAuditSettingsBtn" onclick="saveAuditSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
-  </div>
-  <div class="section-card-body p-3">
-    <div class="form-check form-switch">
-      <input class="form-check-input" type="checkbox" id="logSuperAdminsToggle">
-      <label class="form-check-label" for="logSuperAdminsToggle">Log super admin actions too</label>
-    </div>
-    <p class="text-muted small mb-0">Off by default — a super admin's own logins, logouts, and admin actions aren't written here at all, only other users' are. Turn this on to include super admins in the trail too.</p>
-  </div>
-</div>
+<p class="text-muted small mb-3">Whether super admins' own activity appears here is controlled from <a href="/admin/security">Security</a>, alongside the rest of the security settings.</p>
 
 <div class="section-card">
   <div class="section-card-header">
@@ -69,7 +57,6 @@ let allLogs = [];
 let selectedIds = new Set();
 let currentPage = 1;
 let totalPages = 1;
-let _cfg = {};
 
 function timeAgo(iso) {
   if (!iso) return '—';
@@ -78,14 +65,7 @@ function timeAgo(iso) {
 }
 
 async function loadAuditLog() {
-  const [cfg, data] = await Promise.all([
-    API.get('/admin/platform-config'),
-    API.get('/admin/audit-logs', { page: currentPage, per_page: 50 }),
-  ]);
-  if (cfg) {
-    _cfg = cfg;
-    document.getElementById('logSuperAdminsToggle').checked = !!cfg.audit_log_super_admins;
-  }
+  const data = await API.get('/admin/audit-logs', { page: currentPage, per_page: 50 });
   if (!data) return;
   allLogs = data.logs || [];
   totalPages = data.pages || 1;
@@ -94,18 +74,6 @@ async function loadAuditLog() {
   renderTable();
   renderPager();
   updateDeleteSelectedBtn();
-}
-
-async function saveAuditSettings() {
-  const res = await API.put('/admin/platform-config', {
-    audit_log_super_admins: document.getElementById('logSuperAdminsToggle').checked,
-  });
-  if (res && !res.error) {
-    Toast.show('Audit log settings saved', 'success');
-    _cfg.audit_log_super_admins = res.audit_log_super_admins;
-  } else {
-    Toast.show(res?.error || 'Failed to save', 'error');
-  }
 }
 
 const STATUS_BADGE = { success: 'bg-success', failed: 'bg-danger' };
@@ -202,9 +170,7 @@ function changePage(delta) {
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
-  document.getElementById('saveAuditSettingsBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('clearAllBtn').style.display = isSuperAdmin ? '' : 'none';
-  document.getElementById('logSuperAdminsToggle').disabled = !isSuperAdmin;
   document.getElementById('selectAllCheckbox').disabled = !isSuperAdmin;
   loadAuditLog();
 });

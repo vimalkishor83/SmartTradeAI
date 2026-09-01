@@ -1,0 +1,106 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Security — SmartTrade AI{% endblock %}
+{% set active = 'admin_security' %}
+{% block breadcrumb %}<i class="bi bi-shield-lock me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Security{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div><span class="page-eyebrow">Admin</span>
+  <h1 class="page-title">Security</h1>
+  <p class="page-subtitle">Session policy, login alerts, and audit trail visibility — everything security-related in one place</p></div>
+</div>
+
+<div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+  <i class="bi bi-eye me-1"></i> You have view-only access to Security settings. Only a super admin can change these.
+</div>
+
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-shield-lock text-accent"></i> Settings</span>
+    <button class="btn btn-sm btn-primary" id="saveSecurityBtn" onclick="saveSecurity()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <label class="form-label">Session timeout</label>
+    <p class="text-muted small mb-2">How long a login stays valid before it's forced to log in again, measured from login — not extended just by staying active. Saving applies the new value immediately to every session already in progress too (a shorter value can expire sessions right away, no re-login needed to take effect) — not just logins from this point forward.</p>
+    <div class="d-flex align-items-center gap-2 mb-3" style="max-width:260px">
+      <input type="number" class="form-control" id="sessionTimeoutValue" min="1" style="max-width:110px">
+      <select class="form-select" id="sessionTimeoutUnit">
+        <option value="1">Minutes</option>
+        <option value="60" selected>Hours</option>
+        <option value="1440">Days</option>
+      </select>
+    </div>
+    <a href="/admin/sessions" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>View Login Sessions</a>
+
+    <hr class="my-3" style="border-color:var(--border)">
+
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="newIpLoginAlertToggle">
+      <label class="form-check-label" for="newIpLoginAlertToggle">New-IP login alerts</label>
+    </div>
+    <p class="text-muted small mb-0">Notifies every super admin's own Telegram the moment any account logs in from an IP not seen for that account before — a security alert, not a trading one, so it's never sent to the logged-in user themselves and doesn't go through Group Channels.</p>
+
+    <hr class="my-3" style="border-color:var(--border)">
+
+    <div class="form-check form-switch">
+      <input class="form-check-input" type="checkbox" id="logSuperAdminsToggle">
+      <label class="form-check-label" for="logSuperAdminsToggle">Log super admin actions too</label>
+    </div>
+    <p class="text-muted small mb-2">Off by default — a super admin's own logins, logouts, and admin actions aren't written to the audit trail at all, only other users' are. Turn this on to include super admins too.</p>
+    <a href="/admin/audit-log" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>View Audit Log</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _cfg = {};
+
+async function loadSecurity() {
+  const data = await API.get('/admin/platform-config');
+  if (!data) return;
+  _cfg = data;
+
+  const minutes = _cfg.session_timeout_minutes || 1440;
+  // Show it in the largest whole unit that divides evenly, so 1440
+  // renders as "1 Day" rather than "1440 Minutes" — falls back to
+  // minutes for anything that doesn't land on a whole hour/day.
+  let value = minutes, unit = 1;
+  if (minutes % 1440 === 0) { value = minutes / 1440; unit = 1440; }
+  else if (minutes % 60 === 0) { value = minutes / 60; unit = 60; }
+  document.getElementById('sessionTimeoutValue').value = value;
+  document.getElementById('sessionTimeoutUnit').value = String(unit);
+  document.getElementById('newIpLoginAlertToggle').checked = _cfg.telegram_alerts_new_ip_login !== false;
+  document.getElementById('logSuperAdminsToggle').checked = !!_cfg.audit_log_super_admins;
+}
+
+async function saveSecurity() {
+  const value = parseInt(document.getElementById('sessionTimeoutValue').value, 10);
+  const unit  = parseInt(document.getElementById('sessionTimeoutUnit').value, 10);
+  if (!value || value <= 0) { Toast.show('Enter a session timeout greater than 0', 'error'); return; }
+  const res = await API.put('/admin/platform-config', {
+    session_timeout_minutes: value * unit,
+    telegram_alerts_new_ip_login: document.getElementById('newIpLoginAlertToggle').checked,
+    audit_log_super_admins: document.getElementById('logSuperAdminsToggle').checked,
+  });
+  if (res && !res.error) {
+    Toast.show('Security settings saved', 'success');
+    _cfg = res;
+  } else {
+    Toast.show(res?.error || 'Failed to save', 'error');
+  }
+}
+
+document.addEventListener('app:ready', () => {
+  const isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('saveSecurityBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('sessionTimeoutValue').disabled = !isSuperAdmin;
+  document.getElementById('sessionTimeoutUnit').disabled = !isSuperAdmin;
+  document.getElementById('newIpLoginAlertToggle').disabled = !isSuperAdmin;
+  document.getElementById('logSuperAdminsToggle').disabled = !isSuperAdmin;
+  loadSecurity();
+});
+</script>
+{% endblock %}

@@ -228,8 +228,16 @@ async function loadRolesAndSubscriptions() {
 
   const fill = (sel, items) => sel.innerHTML = items.map(i => `<option value="${i.id}">${i.name}</option>`).join('');
   fill(document.getElementById('cuRole'), allRoles);
-  fill(document.getElementById('cuSubscription'), allSubscriptions);
-  fill(document.getElementById('trPlan'), allSubscriptions.filter(s => s.name !== 'free'));
+  // Plan is a commercial/billing tier — "admin" existing as a selectable
+  // Plan (alongside "admin" also being a selectable Role right next to
+  // it) let a user end up with a nonsensical Role=free/Plan=admin or
+  // vice versa. Role alone controls admin access; Plan stays commercial.
+  fill(document.getElementById('cuSubscription'), assignableSubscriptions());
+  fill(document.getElementById('trPlan'), assignableSubscriptions().filter(s => s.name !== 'free'));
+}
+
+function assignableSubscriptions() {
+  return allSubscriptions.filter(s => s.name !== 'admin');
 }
 
 // Changing role/plan straight from the table — same PUT /admin/users/<id>
@@ -250,7 +258,16 @@ function subscriptionSelectHtml(u) {
     ? `<span class="badge bg-warning text-dark ms-1" title="Reverts to Free automatically">Trial · ${u.trial_days_remaining}d left</span>`
     : '';
   if (!isSuperAdmin) return `<span class="text-capitalize">${u.subscription || '—'}</span>${trialBadge}`;
-  const opts = allSubscriptions.map(s => `<option value="${s.id}" ${s.id === u.subscription_id ? 'selected' : ''}>${s.name}</option>`).join('');
+  // A user already on the (no-longer-assignable) "admin" plan from before
+  // this changed still needs to see their real current value here rather
+  // than the dropdown silently defaulting to the first option in the
+  // list — assignableSubscriptions() only keeps it out of NEW selections.
+  let list = assignableSubscriptions();
+  if (!list.some(s => s.id === u.subscription_id)) {
+    const current = allSubscriptions.find(s => s.id === u.subscription_id);
+    if (current) list = [current, ...list];
+  }
+  const opts = list.map(s => `<option value="${s.id}" ${s.id === u.subscription_id ? 'selected' : ''}>${s.name}</option>`).join('');
   return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" onchange="changeUserSubscription(${u.id}, this.value)">${opts}</select>${trialBadge}</div>`;
 }
 async function changeUserRole(id, roleId) {

@@ -204,6 +204,24 @@ def login():
 
     user.last_login = datetime.utcnow()
 
+    # New-IP check must run BEFORE the UserSession row below is created —
+    # querying prior UserSession rows AFTER creating/committing this
+    # login's own row would always find the current IP already present
+    # (it's the same row), so nothing would ever look "new". Deliberately
+    # reads UserSession, not AuditLog: AuditLog stops recording a super
+    # admin's own logins at all once "log super admin actions" is off
+    # (the default) — using it here would silently break new-IP detection
+    # for exactly the accounts this alert exists to protect. A user's
+    # very first login ever isn't meaningfully "new" (every IP would
+    # trivially qualify), so this only fires once there's at least one
+    # prior session on record.
+    from app.models.user_session import UserSession
+    current_ip = request.remote_addr
+    is_new_ip = (
+        UserSession.query.filter_by(user_id=user.id).count() > 0
+        and not UserSession.query.filter_by(user_id=user.id, ip_address=current_ip).first()
+    )
+
     # One UserSession row per login (not per token) — both the access and
     # refresh token minted below carry its id as a "sid" claim, so a
     # /auth/refresh later reuses this same row rather than creating a new
@@ -211,7 +229,6 @@ def login():
     # "total time since login" instead of an endlessly-renewable idle
     # window, and what lets /auth/logout or an admin force-logout actually
     # invalidate the token immediately (see token_in_blocklist_loader).
-    from app.models.user_session import UserSession
     from app.services.platform_config import get_platform_config
     from datetime import timedelta
     timeout_minutes = get_platform_config().get("session_timeout_minutes", 1440)
@@ -228,25 +245,15 @@ def login():
     refresh_token = create_refresh_token(identity=str(user.id), additional_claims={"sid": session_row.id})
     db.session.commit()
 
-    # New-IP security alert to super admins — must run BEFORE _audit() logs
-    # THIS login, or its own just-written row would always match itself and
-    # nothing would ever look "new". A user's very first login ever isn't
-    # meaningfully "new" (every IP would trivially qualify), so this only
-    # fires once there's at least one prior successful login on record.
-    try:
-        current_ip = request.remote_addr
-        prior_logins = AuditLog.query.filter_by(user_id=user.id, action="login").count()
-        if prior_logins > 0:
-            seen_before = AuditLog.query.filter_by(
-                user_id=user.id, action="login", ip_address=current_ip
-            ).first()
-            if not seen_before:
-                from app.services.platform_config import get_platform_config
-                if get_platform_config().get("telegram_alerts_new_ip_login", True):
-                    from app.tasks.notification_tasks import send_new_ip_login_alert
-                    send_new_ip_login_alert(user, current_ip, request.headers.get("User-Agent", ""))
-    except Exception:
-        pass
+    # New-IP security alert to super admins — is_new_ip was computed above,
+    # before this login's own UserSession row existed.
+    if is_new_ip:
+        try:
+            if get_platform_config().get("telegram_alerts_new_ip_login", True):
+                from app.tasks.notification_tasks import send_new_ip_login_alert
+                send_new_ip_login_alert(user, current_ip, request.headers.get("User-Agent", ""))
+        except Exception:
+            pass
 
     _audit(user.id, "login", "user", str(user.id))
 

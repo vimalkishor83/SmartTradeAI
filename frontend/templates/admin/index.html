@@ -20,38 +20,10 @@
   <i class="bi bi-eye me-1"></i> You have view-only access to the Admin panel. Only a super admin can create, edit, or remove anything here.
 </div>
 
-<!-- ═══ Asset Search & Add ════════════════════════════════════ -->
-<div class="section-card mb-4" id="assetSearchCard">
-  <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-search me-2 text-accent"></i>Search &amp; Add Asset / Index</span>
-    <a href="/admin/assets" class="btn btn-sm btn-outline-secondary"><i class="bi bi-list-ul me-1"></i>Manage Assets</a>
-  </div>
-  <div class="section-card-body">
-    <div class="d-flex gap-2">
-      <input type="text" id="assetSearchInput" class="form-control"
-        placeholder="e.g. nifty bank, midcap, nasdaq, gold, reliance…" autocomplete="off">
-      <button class="btn btn-primary" onclick="searchAssets()" style="white-space:nowrap"><i class="bi bi-search me-1"></i>Search</button>
-    </div>
-    <div id="assetSearchMsg" class="text-muted mt-2" style="font-size:13px"></div>
-  </div>
-  <div id="assetSearchResults" style="display:none">
-    <div class="table-responsive">
-      <table class="smart-table">
-        <thead>
-          <tr>
-            <th>Symbol</th><th>Name</th><th>Exchange</th><th>Type</th><th>Add as Market</th><th></th>
-          </tr>
-        </thead>
-        <tbody id="assetSearchBody"></tbody>
-      </table>
-    </div>
-  </div>
-</div>
-
-
-<!-- System Health KPIs -->
+<!-- Business KPIs — system/infra health lives in its own card below,
+     not mixed in here (was previously duplicated in both places). -->
 <div class="row g-3 mb-4">
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-6">
     <div class="kpi-card blue">
       <div class="kpi-top">
         <div><div class="kpi-label">Total Users</div><div class="kpi-value" id="adminTotalUsers">—</div></div>
@@ -60,31 +32,13 @@
       <div class="kpi-change up" id="adminActiveUsers">— active</div>
     </div>
   </div>
-  <div class="col-6 col-md-3">
+  <div class="col-6 col-md-6">
     <div class="kpi-card green">
       <div class="kpi-top">
         <div><div class="kpi-label">Signals Today</div><div class="kpi-value" id="adminSignalsToday">—</div></div>
         <div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div>
       </div>
       <div class="kpi-change up" id="adminWinRate">— win rate</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="kpi-card">
-      <div class="kpi-top">
-        <div><div class="kpi-label">CPU Usage</div><div class="kpi-value" id="adminCpu">—</div></div>
-        <div class="kpi-icon"><i class="bi bi-cpu-fill"></i></div>
-      </div>
-      <div class="kpi-change" id="adminCpuSub"><i class="bi bi-activity me-1"></i>System load</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="kpi-card">
-      <div class="kpi-top">
-        <div><div class="kpi-label">Memory</div><div class="kpi-value" id="adminMem">—</div></div>
-        <div class="kpi-icon"><i class="bi bi-memory"></i></div>
-      </div>
-      <div class="kpi-change" id="adminMemSub"><i class="bi bi-hdd me-1"></i>RAM usage</div>
     </div>
   </div>
 </div>
@@ -181,30 +135,12 @@ async function loadAdminDashboard() {
   document.getElementById('adminActiveUsers').textContent = `${data.users.active} active`;
   document.getElementById('adminSignalsToday').textContent = data.signals.today;
   document.getElementById('adminWinRate').textContent = `${data.signals.win_rate}% win rate`;
-  document.getElementById('adminCpu').textContent = `${data.system.cpu_pct}%`;
-  document.getElementById('adminMem').textContent = `${data.system.memory_pct}%`;
 
   // >=90% is a real problem (starving the app), 70-89% is worth watching,
-  // below that is normal — CPU/RAM previously never changed color or showed
-  // any alarm no matter how high they read (e.g. 95.8% CPU with no visual cue).
+  // below that is normal — these bars previously never changed color or
+  // showed any alarm no matter how high they read (e.g. 95.8% CPU with no
+  // visual cue).
   const _sysSeverity = pct => pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'green';
-  const _sysNote = (type, pct, sev) =>
-    sev === 'red' ? `<i class="bi bi-exclamation-triangle-fill me-1"></i>Critical ${type} load` :
-    sev === 'yellow' ? `<i class="bi bi-activity me-1"></i>Elevated ${type} load` :
-    `<i class="bi bi-activity me-1"></i>${type === 'CPU' ? 'System load' : 'RAM usage'}`;
-
-  [['adminCpu', 'adminCpuSub', 'CPU', data.system.cpu_pct],
-   ['adminMem', 'adminMemSub', 'RAM', data.system.memory_pct]].forEach(([valId, subId, label, pct]) => {
-    const sev = _sysSeverity(pct);
-    const el = document.getElementById(valId);
-    const card = el?.closest('.kpi-card');
-    const icon = card?.querySelector('.kpi-icon');
-    ['red', 'yellow', 'green'].forEach(c => { el?.classList.remove('text-' + c); icon?.classList.remove('text-' + c); card?.classList.remove(c, 'alert'); });
-    el?.classList.add('text-' + sev); icon?.classList.add('text-' + sev); card?.classList.add(sev);
-    if (sev === 'red') card?.classList.add('alert');
-    const sub = document.getElementById(subId);
-    if (sub) sub.innerHTML = _sysNote(label, pct, sev);
-  });
 
   // Bars
   ['cpu', 'mem', 'disk'].forEach(type => {
@@ -334,93 +270,10 @@ let isSuperAdmin = false;
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
-  document.getElementById('assetSearchCard').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('clearAuditBtn').style.display = isSuperAdmin ? '' : 'none';
 
   loadAdminDashboard();
   setInterval(loadAdminDashboard, 30000);
 });
-
-// ── Asset search ────────────────────────────────────────────────
-document.getElementById('assetSearchInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') searchAssets();
-});
-
-async function searchAssets() {
-  const q = document.getElementById('assetSearchInput').value.trim();
-  if (q.length < 2) return;
-  const msg  = document.getElementById('assetSearchMsg');
-  const wrap = document.getElementById('assetSearchResults');
-  const body = document.getElementById('assetSearchBody');
-  msg.textContent  = 'Searching…';
-  wrap.style.display = 'none';
-  body.innerHTML   = '';
-  try {
-    const token = localStorage.getItem('access_token');
-    const res   = await fetch(`/api/v1/assets/search?q=${encodeURIComponent(q)}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const data = await res.json();
-    const results = data.results || [];
-    if (!results.length) { msg.textContent = 'No results found. Try a different keyword.'; return; }
-    msg.textContent = '';
-    const markets = ['crypto','forex','commodity','indian_stock','index'];
-    results.forEach(r => {
-      // guess default market from exchange/type
-      let defaultMkt = 'index';
-      const t = (r.type || '').toLowerCase();
-      const ex = (r.exchange || '').toLowerCase();
-      if (t === 'cryptocurrency') defaultMkt = 'crypto';
-      else if (t === 'currency') defaultMkt = 'forex';
-      else if (ex === 'nse' || ex === 'bse') defaultMkt = 'indian_stock';
-      else if (t === 'future' || r.symbol.includes('GC') || r.symbol.includes('CL')) defaultMkt = 'commodity';
-
-      const opts = markets.map(m =>
-        `<option value="${m}" ${m === defaultMkt ? 'selected' : ''}>${m}</option>`
-      ).join('');
-
-      body.insertAdjacentHTML('beforeend', `
-        <tr id="row_${r.symbol.replace(/[^a-z0-9]/gi,'_')}" style="border-color:var(--border)">
-          <td class="px-3"><code style="color:var(--accent)">${r.symbol}</code></td>
-          <td style="max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${r.name}</td>
-          <td><span class="text-muted">${r.exchange}</span></td>
-          <td><span class="badge bg-secondary">${r.type}</span></td>
-          <td><select class="form-select form-select-sm" id="mkt_${r.symbol.replace(/[^a-z0-9]/gi,'_')}"
-            style="width:130px;background:var(--bg-secondary);border-color:var(--border);color:var(--text-primary)">${opts}</select></td>
-          <td>
-            <button class="btn btn-sm btn-success" onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange}')">
-              <i class="bi bi-plus-lg"></i> Add
-            </button>
-          </td>
-        </tr>`);
-    });
-    wrap.style.display = 'block';
-  } catch(e) {
-    msg.textContent = 'Search failed: ' + e.message;
-  }
-}
-
-async function addAsset(symbol, name, exchange) {
-  const safeId = symbol.replace(/[^a-z0-9]/gi,'_');
-  const market = document.getElementById('mkt_' + safeId)?.value || 'index';
-  const token  = localStorage.getItem('access_token');
-  try {
-    const res  = await fetch('/api/v1/assets/add-from-search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ symbol, name, exchange, market })
-    });
-    const data = await res.json();
-    if (res.ok) {
-      const row = document.getElementById('row_' + safeId);
-      if (row) row.innerHTML = `<td colspan="6" class="text-success px-3"><i class="bi bi-check-circle-fill me-1"></i><strong>${symbol}</strong> added as <em>${market}</em></td>`;
-    } else {
-      alert(data.error || 'Failed to add asset');
-    }
-  } catch(e) {
-    alert('Error: ' + e.message);
-  }
-}
-
 </script>
 {% endblock %}

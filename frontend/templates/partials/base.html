@@ -69,7 +69,7 @@
     {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
-    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_sessions','admin_audit_log'] %}
+    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log'] %}
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
@@ -307,8 +307,11 @@
           <a href="/admin/telegram-alerts" data-tooltip="Telegram Alerts" class="nav-item {% if active == 'admin_telegram_alerts' %}active{% endif %}">
             <i class="bi bi-telegram nav-icon-red"></i><span class="nav-text">Telegram Alerts</span>
           </a>
+          <a href="/admin/security" data-tooltip="Security" class="nav-item {% if active == 'admin_security' %}active{% endif %}">
+            <i class="bi bi-shield-lock nav-icon-red"></i><span class="nav-text">Security</span>
+          </a>
           <a href="/admin/sessions" data-tooltip="Login Sessions" class="nav-item {% if active == 'admin_sessions' %}active{% endif %}">
-            <i class="bi bi-shield-lock nav-icon-red"></i><span class="nav-text">Login Sessions</span>
+            <i class="bi bi-clock-history nav-icon-red"></i><span class="nav-text">Login Sessions</span>
           </a>
           <a href="/admin/audit-log" data-tooltip="Audit Log" class="nav-item {% if active == 'admin_audit_log' %}active{% endif %}">
             <i class="bi bi-journal-check nav-icon-red"></i><span class="nav-text">Audit Log</span>
