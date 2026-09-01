@@ -290,7 +290,6 @@ async function loadUpcoming() {
 
 /* ── Generate All ── */
 async function generateAll() {
-  const btn = document.getElementById('generateAll') || document.getElementById('qaGenerate');
   const symbols = [...new Set(_liveSignals.map(s => s.asset))].slice(0, 6);
   if (typeof toast === 'function') toast('Generating signals…', 'info');
   const tf = document.getElementById('tfFilter')?.value || '1h';
@@ -316,6 +315,5 @@ document.addEventListener('app:ready', () => {
   document.getElementById('typeFilter')?.addEventListener('change', loadLiveSignals);
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
   document.getElementById('generateAll')?.addEventListener('click', generateAll);
-  document.getElementById('qaGenerate')?.addEventListener('click', generateAll);
   setInterval(loadAll, 90000);
 });
