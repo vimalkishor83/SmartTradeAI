@@ -1796,19 +1796,26 @@ def get_analytics():
 def get_performance():
     """Personal performance dashboard — aggregated stats from SignalHistory."""
 
+    # Same "None, not 0, when there's no data yet" rule applied consistently
+    # below — already the intent for profit_factor's own comment further
+    # down, just not carried through to the fields next to it. A literal 0
+    # reads as "0% win rate" / "0 R:R" (a real, bad number) instead of "no
+    # closed trades yet"; the frontend already treats null as "—" for every
+    # one of these (win_rate/avg_rr/avg_pnl_pct confirmed against their
+    # actual consumers — see get_summary()'s identical fix for the reasoning).
     hist_q = SignalHistory.query
     total_closed = hist_q.count()
     wins   = hist_q.filter(SignalHistory.outcome == "win").count()
-    win_rate = round(wins / total_closed * 100, 1) if total_closed else 0.0
+    win_rate = round(wins / total_closed * 100, 1) if total_closed else None
 
     avg_rr_row = db.session.query(
         func.avg(Signal.risk_reward)
     ).join(SignalHistory, SignalHistory.signal_id == Signal.id).scalar()
-    avg_rr = round(float(avg_rr_row), 2) if avg_rr_row else 0.0
+    avg_rr = round(float(avg_rr_row), 2) if avg_rr_row else None
 
     total_pnl_row = db.session.query(func.sum(SignalHistory.pnl_pct)).scalar()
     total_pnl = round(float(total_pnl_row), 2) if total_pnl_row else 0.0
-    avg_pnl_pct = round(total_pnl / total_closed, 3) if total_closed else 0.0
+    avg_pnl_pct = round(total_pnl / total_closed, 3) if total_closed else None
 
     gross_win_row  = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(SignalHistory.outcome == "win").scalar()
     gross_loss_row = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(SignalHistory.outcome == "loss").scalar()
@@ -1819,12 +1826,12 @@ def get_performance():
     profit_factor = round(gross_win / gross_loss, 2) if gross_loss > 0 else (None if gross_win > 0 else 0.0)
 
     avg_dur_row = db.session.query(func.avg(SignalHistory.duration_minutes)).scalar()
-    avg_duration = int(avg_dur_row) if avg_dur_row else 0
+    avg_duration = int(avg_dur_row) if avg_dur_row else None
 
     best_row  = db.session.query(func.max(SignalHistory.pnl_pct)).scalar()
     worst_row = db.session.query(func.min(SignalHistory.pnl_pct)).scalar()
-    best_win   = round(float(best_row),  2) if best_row  is not None else 0.0
-    worst_loss = round(float(worst_row), 2) if worst_row is not None else 0.0
+    best_win   = round(float(best_row),  2) if best_row  is not None else None
+    worst_loss = round(float(worst_row), 2) if worst_row is not None else None
 
     # Every section below used to run one GROUP BY for trade counts, then loop
     # over each group issuing 1-2 MORE queries for its win count and/or avg
