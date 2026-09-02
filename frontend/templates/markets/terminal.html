@@ -159,8 +159,20 @@ function _renderReasoning(s) {
 }
 function _escHtmlLocal(s) { return String(s).replace(/</g, '&lt;'); }
 
-function _timeAgo(iso) {
+function _timeAgo(iso, persisted) {
   if (!iso) return '';
+  // A non-persisted card is a live indicator read, recalculated fresh on
+  // every visit — there's no discrete "generated at" moment to report, so
+  // "Generated just now" (always, on every single load) reads exactly
+  // like a brand-new signal being created every time you open the page,
+  // when nothing was actually (re)generated. Label it for what it is
+  // instead: a live snapshot, not a tracked signal with its own
+  // lifecycle — a persisted BUY/SELL signal (the "Generated X ago" case
+  // below) keeps its entry/stop/targets fixed and only closes on a real
+  // TP/SL hit; this card's numbers are simply "right now."
+  if (persisted === false) {
+    return `<span class="sc-generated"><i class="bi bi-broadcast"></i> Live read — not a tracked signal, recalculated on every visit</span>`;
+  }
   const str  = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
   const date = new Date(str);
   const diff = Math.floor((Date.now() - date) / 1000);
@@ -216,7 +228,7 @@ function renderTerminalCard(s) {
               Current: <span class="tabular fw-700" style="color:var(--text-primary)">${s.current_price ? formatPrice(s.current_price, mkt) : '—'}</span>
             </div>
             <div class="text-muted fs-xs">No qualifying setup on this timeframe right now — sitting out.</div>
-            ${_timeAgo(s.generated_at)}
+            ${_timeAgo(s.generated_at, s.persisted)}
             ${whyHtml}
           </div>
         </div>
@@ -254,7 +266,10 @@ function renderTerminalCard(s) {
               <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
               <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
             </div>
-            ${signalBadge(s.signal_type)}
+            <div class="d-flex align-items-center gap-1">
+              ${signalBadge(s.signal_type)}
+              ${s.persisted === false ? '<span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border);font-size:9px" title="A live indicator read, not a tracked signal — it recalculates every visit and won\'t wait for TP/SL the way a generated signal does">LIVE</span>' : ''}
+            </div>
           </div>
 
           <div class="signal-card-price">
@@ -285,7 +300,7 @@ function renderTerminalCard(s) {
 
           ${s.risk_reward ? `<div class="fs-xs text-muted">R:R <span class="tabular fw-700" style="color:var(--text-secondary)">1:${parseFloat(s.risk_reward).toFixed(1)}</span></div>` : ''}
 
-          ${_timeAgo(s.generated_at)}
+          ${_timeAgo(s.generated_at, s.persisted)}
           ${whyHtml}
         </div>
       </div>
