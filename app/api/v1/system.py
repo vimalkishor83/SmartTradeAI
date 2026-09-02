@@ -15,11 +15,22 @@ from datetime import datetime, timezone
 from flask import Blueprint, jsonify, current_app
 from sqlalchemy import text
 
-from app.extensions import db, scheduler, cache
+from app.extensions import db, scheduler, cache, limiter
 
 logger = logging.getLogger(__name__)
 
 system_bp = Blueprint("system", __name__)
+# Liveness/readiness probes are hit constantly by infrastructure (Docker's
+# own healthcheck polls /ready every 30s from the container's fixed
+# 127.0.0.1 identity, forever, for the container's entire lifetime) and the
+# rate limiter's counters are Redis-backed so they persist across container
+# restarts — meaning repeated restarts within the same rolling window keep
+# adding to the same 127.0.0.1 bucket rather than resetting. Left unexempted,
+# that bucket eventually exceeds the per-hour/per-day default limits purely
+# from the healthcheck's own routine traffic, Docker starts seeing 429s
+# instead of 200s, and marks an otherwise perfectly healthy container
+# "unhealthy" — a purely self-inflicted false alarm.
+limiter.exempt(system_bp)
 
 # Process start time (module import ~ app boot) for a simple uptime figure.
 _START_TS = time.time()
