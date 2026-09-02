@@ -24,8 +24,8 @@ self.addEventListener('push', e => {
   const title   = payload.title || 'SmartTradeAI';
   const options = {
     body:    payload.body  || '',
-    icon:    payload.icon  || '/static/icons/icon-192.png',
-    badge:   '/static/icons/badge-72.png',
+    icon:    payload.icon  || '/static/img/icon-192.png',
+    badge:   '/static/img/badge-72.png',
     data:    { url: payload.url || '/dashboard' },
     vibrate: [200, 100, 200],
   };

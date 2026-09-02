@@ -92,7 +92,7 @@ def run_scan():
         except Exception:
             continue
 
-    return jsonify({"results": results, "count": len(results)}), 200
+    return jsonify({"results": results, "count": len(results), "scanned": len(assets)}), 200
 
 
 @scanner_bp.route("/delta-mtf", methods=["GET"])

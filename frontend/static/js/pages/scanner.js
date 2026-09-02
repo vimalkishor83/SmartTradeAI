@@ -3,6 +3,7 @@
    ═══════════════════════════════════════════════ */
 let _active = new Set();
 let _results = [];
+let _scannedCount = 0;
 let _symbolIds = {};
 const sset = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const sfmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
@@ -86,6 +87,7 @@ async function runScan() {
   const data = await API.post('/scanner/run', { filters, market, timeframe }).catch(() => null);
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Scan'; }
   _results = (data?.results || []).map(r => ({ ...r, signal: _deriveSignal(r.matched_filters || []), confidence: _deriveConfidence(r) }));
+  _scannedCount = data?.scanned ?? _results.length;
   renderResults();
   loadScanKPIs();
 }
@@ -94,7 +96,7 @@ function renderResults() {
   const minConf = parseInt(document.getElementById('scanConf').value, 10) || 0;
   const rows = _results.filter(r => r.confidence >= minConf).sort((a, b) => b.confidence - a.confidence);
   sset('kpiResults', rows.length);
-  sset('kpiResultsSub', 'of ' + _results.length + ' scanned');
+  sset('kpiResultsSub', 'of ' + _scannedCount + ' scanned');
   sset('kpiStrong', rows.filter(r => (r.matched_filters || []).some(f => f.startsWith('strong'))).length);
   sset('resultCount', rows.length + ' results');
   const tb = document.getElementById('scanBody');

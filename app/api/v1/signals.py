@@ -1432,7 +1432,10 @@ def get_summary():
     history = SignalHistory.query
     total_h = history.count()
     wins    = history.filter(SignalHistory.outcome == "win").count()
-    win_rate = round((wins / total_h * 100), 1) if total_h else 0
+    # None (not 0) when there's no history yet — the frontend already
+    # renders null as "—"; a literal 0 reads as "0% win rate" instead of
+    # "no data yet", which is what avg_confidence below had been doing.
+    win_rate = round((wins / total_h * 100), 1) if total_h else None
 
     # Closed-today breakdown — the dashboard's "Today's Summary" strip reads
     # these exact keys (closed_today/wins_today/losses_today/total_pnl_today)
@@ -1447,10 +1450,14 @@ def get_summary():
         SignalHistory.closed_at >= today).scalar()
     total_pnl_today = round(float(total_pnl_today_row), 2) if total_pnl_today_row else 0.0
 
-    # Average confidence today
+    # Average confidence today — None when no signal has fired yet today,
+    # not 0 (a thin watchlist can easily go hours into a new UTC day with
+    # zero signals; "0.0%" reads as a real, alarmingly bad number instead
+    # of "no data yet", which is what the frontend's null-check already
+    # expects and Top Signal below already gets right).
     avg_conf_row = db.session.query(func.avg(Signal.confidence_score)).filter(
         Signal.generated_at >= today).scalar()
-    avg_confidence = round(float(avg_conf_row), 1) if avg_conf_row else 0
+    avg_confidence = round(float(avg_conf_row), 1) if avg_conf_row else None
 
     # Top signal today (highest confidence, BUY or SELL only)
     top_signal_obj = Signal.query.join(Asset, Signal.asset_id == Asset.id).filter(
@@ -1521,6 +1528,7 @@ def signal_history():
             "pnl_pct":     h.pnl_pct,
             "outcome":     h.outcome,
             "confidence":  h.confidence_score,
+            "duration_minutes": h.duration_minutes,
             "closed_at":   h.closed_at.isoformat() if h.closed_at else None,
         })
 
@@ -1551,10 +1559,13 @@ def get_analytics():
     total_h   = hist_q.count()
     wins      = hist_q.filter(SignalHistory.outcome == "win").count()
     losses    = hist_q.filter(SignalHistory.outcome == "loss").count()
-    win_rate  = round(wins / total_h * 100, 1) if total_h else 0.0
+    # None (not 0.0) with no history at all — this is the headline win_rate
+    # every dashboard/markets/scanner KPI card reads and already treats
+    # null as "—" vs. a real 0.0; see the identical fix in get_summary().
+    win_rate  = round(wins / total_h * 100, 1) if total_h else None
 
     avg_rr_row = db.session.query(func.avg(Signal.risk_reward)).scalar()
-    avg_rr     = round(float(avg_rr_row), 2) if avg_rr_row else 0.0
+    avg_rr     = round(float(avg_rr_row), 2) if avg_rr_row else None
 
     # Every section below used to run one GROUP BY for totals, then loop over
     # each group issuing 1-2 MORE queries for its win/loss count — 30-50 DB
