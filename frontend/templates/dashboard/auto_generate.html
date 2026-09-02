@@ -640,13 +640,17 @@ async function pollStatus() {
   // Sync form fields to the saved server config — but only once, on the first
   // poll after page load. Re-syncing on every poll (every 3s) was overwriting
   // in-progress checkbox edits before the user could click Save/Start.
+  // Deliberately NOT gated on data.running: the saved config is exactly as
+  // real when the schedule is stopped as when it's running, and gating it
+  // meant a stopped schedule left the form showing stale data from
+  // localStorage's loadConfig() instead of what the server actually has
+  // saved — the one moment an admin most needs to see the real settings
+  // (e.g. to figure out why/what to restart).
   if (!_formSyncedFromServer) {
     _formSyncedFromServer = true;
-    if (data.running) {
-      setSelectedMarkets(data.markets || []);
-      setSelectedTimeframes(data.timeframes && data.timeframes.length ? data.timeframes : ['1h']);
-      document.getElementById('cfgInterval').value = data.interval_minutes ?? 5;
-    }
+    setSelectedMarkets(data.markets || []);
+    setSelectedTimeframes(data.timeframes && data.timeframes.length ? data.timeframes : ['1h']);
+    document.getElementById('cfgInterval').value = data.interval_minutes ?? 5;
   }
 
   // Reload signals table if new ones were generated this run
@@ -768,8 +772,9 @@ async function runOnce() {
     max_per_run:     parseInt(document.getElementById('cfgMax').value),
   };
   await API.post('/signals/auto-generate/run-once', payload);
-  _lastLogLen   = 0;
-  _lastGenCount = 0;
+  // /run-once doesn't reset the server-side log (unlike /start) — leave
+  // _lastLogLen alone so the next poll only appends this run's new
+  // lines instead of re-rendering the whole accumulated history again.
   Toast.show('Single run triggered', 'info');
   setTimeout(pollStatus, 1000);
   btn.disabled = false;
@@ -876,7 +881,12 @@ document.addEventListener('app:ready', () => {
 
   document.getElementById('clearLogBtn')?.addEventListener('click', () => {
     document.getElementById('runLog').innerHTML = '';
-    _lastLogLen = 0;
+    // Deliberately NOT resetting _lastLogLen: it already holds the
+    // server's current log length as of the last poll (renderLog updates
+    // it every time), and the server-side log itself isn't cleared by
+    // this button — only the on-screen display is. Resetting it to 0
+    // made the very next 3s poll re-slice from the start and re-append
+    // every historical line right back, undoing the clear within seconds.
   });
 
   document.getElementById('clearTableBtn')?.addEventListener('click', () => {

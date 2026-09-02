@@ -78,7 +78,22 @@ def _ag_status_snapshot():
             return cached
     except Exception:
         pass
-    return {k: _AG_STATE[k] for k in _AG_STATUS_KEYS}
+    # Cold cache (nothing published since the last cache flush/restart, or
+    # the schedule is currently stopped so no cycle is publishing a fresh
+    # one) — the DB row is just as authoritative as a live snapshot for
+    # the CONFIG fields, so read those from there instead of falling all
+    # the way back to _AG_STATE's hardcoded defaults (interval=5,
+    # timeframes=["1h"], ...), which would show the admin settings that
+    # were never actually saved. Only the runtime counters
+    # (runs/generated/.../log) have no other durable source and stay
+    # zeroed — that's an accurate "nothing reported yet", not stale data.
+    snap = {k: _AG_STATE[k] for k in _AG_STATUS_KEYS}
+    saved = _ag_load()
+    if saved:
+        for k in _AG_PERSIST_KEYS:
+            if k in saved:
+                snap[k] = saved[k]
+    return snap
 
 def _ag_publish_partial(**updates):
     """Like _ag_publish_status(), but merges into the existing snapshot
@@ -419,9 +434,24 @@ def _parse_ag_config(data):
 @signals_bp.route("/auto-generate/save", methods=["POST"])
 @super_admin_required
 def ag_save_config():
-    """Persist Auto Generate settings to the DB without starting the scheduler."""
+    """Persist Auto Generate settings to the DB without touching whether
+    the schedule is running. _parse_ag_config() never includes "running",
+    but _ag_save() persists every _AG_PERSIST_KEYS field — including it —
+    from THIS process's local _AG_STATE. On the web tier that field is
+    never the real running state (only the dedicated worker process
+    actually executes a cycle and keeps it in sync — see
+    _sync_auto_generate_from_db in app/__init__.py); it sits at its
+    False default there. Without pulling the current value back from the
+    DB first, a plain settings-only Save made from the web tier would
+    silently persist running=False and kill an actually-running
+    schedule the next time the worker polls this config — exactly the
+    kind of "Auto-Generate randomly stopped" report this was causing.
+    """
     data = request.get_json() or {}
     _AG_STATE.update(_parse_ag_config(data))
+    saved = _ag_load()
+    if saved is not None:
+        _AG_STATE["running"] = bool(saved.get("running"))
     _ag_save()
     _ag_log("Configuration saved")
     return jsonify({"status": "saved", **_parse_ag_config(data)}), 200
@@ -485,6 +515,16 @@ def ag_start():
 @super_admin_required
 def ag_stop():
     from app.extensions import scheduler
+    # Pull the other config fields back from the DB before saving — same
+    # reasoning as ag_save_config(): _ag_save() persists every
+    # _AG_PERSIST_KEYS field from this process's local _AG_STATE, which on
+    # the web tier can be stale for anything this action didn't just set
+    # itself (e.g. timeframes changed by another replica/the worker's own
+    # sync). Stop should only ever flip "running" off, never silently
+    # revert unrelated settings to whatever this process last saw.
+    saved = _ag_load()
+    if saved is not None:
+        _AG_STATE.update({k: saved[k] for k in _AG_PERSIST_KEYS if k in saved})
     _AG_STATE["running"] = False
     _AG_STATE["next_run_at"] = None
     try:

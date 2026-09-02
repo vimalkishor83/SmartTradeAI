@@ -74,6 +74,40 @@ function _signalBadge(sig) {
   return `<span class="scan-sig" style="color:${clr};background:${bg};border-color:${clr}55">${sig}</span>`;
 }
 
+/* ── Save/load a scan preset (per-browser, like Auto-Generate's AG_KEY) ── */
+const SCAN_PRESET_KEY = 'scanner_preset_v1';
+
+function saveScanPreset() {
+  try {
+    localStorage.setItem(SCAN_PRESET_KEY, JSON.stringify({
+      market: document.getElementById('scanMarket').value,
+      timeframe: document.getElementById('scanTf').value,
+      minConf: document.getElementById('scanConf').value,
+      filters: [..._active],
+    }));
+    if (typeof toast === 'function') toast('Scan preset saved', 'success');
+  } catch (e) {
+    if (typeof toast === 'function') toast('Could not save preset', 'error');
+  }
+}
+
+function loadScanPreset() {
+  try {
+    const p = JSON.parse(localStorage.getItem(SCAN_PRESET_KEY) || 'null');
+    if (!p) return;
+    if (p.market) document.getElementById('scanMarket').value = p.market;
+    if (p.timeframe) document.getElementById('scanTf').value = p.timeframe;
+    if (p.minConf !== undefined) {
+      document.getElementById('scanConf').value = p.minConf;
+      document.getElementById('scanConfVal').textContent = p.minConf + '%';
+    }
+    (p.filters || []).forEach(f => {
+      _active.add(f);
+      document.querySelector(`.scan-chip[data-f="${f}"]`)?.classList.add('active');
+    });
+  } catch (e) {}
+}
+
 /* ── Run scan ── */
 async function runScan() {
   const btn = document.getElementById('runScan');
@@ -140,13 +174,14 @@ document.addEventListener('app:ready', async () => {
   document.getElementById('clearFilters').addEventListener('click', () => { _active.clear(); document.querySelectorAll('.scan-chip').forEach(c => c.classList.remove('active')); });
   document.getElementById('scanConf').addEventListener('input', function () { document.getElementById('scanConfVal').textContent = this.value + '%'; if (_results.length) renderResults(); });
   document.getElementById('advToggle').addEventListener('click', function () { const i = this.querySelector('i'); i.classList.toggle('bi-chevron-right'); i.classList.toggle('bi-chevron-down'); if (typeof toast === 'function') toast('Advanced filters coming soon', 'info'); });
-  document.getElementById('savePreset').addEventListener('click', () => { if (typeof toast === 'function') toast('Scan preset saved', 'success'); });
+  document.getElementById('savePreset').addEventListener('click', saveScanPreset);
   document.getElementById('dlResults').addEventListener('click', () => {
     if (!_results.length) return;
     const hdr = 'Symbol,Market,Price,Change%,RSI,Volume,Signal,Confidence,Matched\n';
     const csv = hdr + _results.map(r => [r.symbol, r.market, r.price, r.change_pct, r.rsi, r.volume, r.signal, r.confidence, (r.matched_filters || []).join('|')].join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' }); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'scan_results.csv'; a.click();
   });
-  // auto-run once with defaults
+  loadScanPreset();
+  // auto-run once with the loaded preset, or defaults if none was saved
   runScan();
 });
