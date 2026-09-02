@@ -230,6 +230,57 @@ def _search_delta_products(q: str) -> list[dict]:
     return matches
 
 
+@assets_bp.route("/delta-catalog", methods=["GET"])
+@admin_required
+def delta_catalog():
+    """Every live, USD-quoted Delta Exchange perpetual — the same universe
+    _search_delta_products() matches against, but without a query filter,
+    so the admin Assets page can render the whole catalog as toggle cards
+    instead of the admin having to search and add symbols one at a time.
+    Annotated with whether each symbol is already tracked (and active), so
+    the frontend can render a single enable/disable toggle per card that
+    reuses the existing add-from-search / PUT is_active endpoints.
+    """
+    import requests as _req
+
+    products = cache.get("delta_products_all")
+    if products is None:
+        resp = _req.get(
+            "https://api.india.delta.exchange/v2/products",
+            params={"contract_types": "perpetual_futures"},
+            timeout=8,
+        )
+        resp.raise_for_status()
+        products = resp.json().get("result", [])
+        cache.set("delta_products_all", products, timeout=300)
+
+    existing = {a.symbol: a for a in Asset.query.filter_by(exchange="delta_exchange").all()}
+
+    catalog = []
+    seen = set()
+    for p in products:
+        symbol = p.get("symbol", "")
+        underlying = p.get("underlying_asset", {}) or {}
+        base_sym = underlying.get("symbol", "")
+        base_name = underlying.get("name", "")
+        if not symbol.endswith("USD") or p.get("state") != "live":
+            continue
+        our_symbol = base_sym.upper() + "USDT" if base_sym else symbol
+        if our_symbol in seen:
+            continue
+        seen.add(our_symbol)
+        a = existing.get(our_symbol)
+        catalog.append({
+            "symbol": our_symbol,
+            "name": base_name or symbol,
+            "tracked": a is not None,
+            "asset_id": a.id if a else None,
+            "is_active": bool(a.is_active) if a else False,
+        })
+    catalog.sort(key=lambda c: c["symbol"])
+    return jsonify({"catalog": catalog, "total": len(catalog)}), 200
+
+
 @assets_bp.route("/add-from-search", methods=["POST"])
 @super_admin_required
 def add_from_search():
