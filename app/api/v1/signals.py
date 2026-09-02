@@ -5,7 +5,7 @@ from app.models.asset import Asset
 from app.models.user import User
 from app.extensions import db, cache
 from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
-from app.services.signals.engine import signal_engine
+from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime, timedelta
@@ -1162,6 +1162,54 @@ def position_analysis(asset_id):
     return jsonify(result), 200
 
 
+def _frozen_live_read(asset, timeframe, df):
+    """A live-preview card (market_board() falls back to this when there's
+    no persisted Signal for this asset+timeframe) still needs entry/stop/
+    target numbers a user can actually read as a plan — but analyze()
+    derives them from the CURRENT close price every time it's called, so
+    calling it fresh on every request silently reshaped the "trade" (new
+    entry, new stop, new targets) on every single page load. To a user
+    watching the page, that's indistinguishable from a brand new signal
+    replacing the old one every few seconds, even though nothing is
+    actually being (re)generated or persisted — reported directly as
+    "entry/stop/targets shouldn't change until TP or SL hits."
+
+    Freezes analyze()'s BUY/SELL output the first time it's computed for
+    this asset+timeframe and keeps serving that exact snapshot — only
+    current_price stays live — until either the hypothetical trade would
+    have actually resolved (price reaches the frozen stop-loss or final
+    target, the same condition that would close a real persisted signal)
+    or the timeframe's normal signal-validity window elapses. HOLD reads
+    have no entry/stop/target numbers to freeze, so they're always
+    computed fresh.
+    """
+    close = float(df["close"].iloc[-1])
+    cache_key = f"terminal_live_read:{asset.id}:{timeframe}"
+    cached = cache.get(cache_key)
+    if cached:
+        sl, t3, direction = cached.get("stop_loss"), cached.get("target3"), cached.get("signal_type")
+        resolved = (
+            (direction == "BUY"  and sl is not None and t3 is not None and (close <= sl or close >= t3)) or
+            (direction == "SELL" and sl is not None and t3 is not None and (close >= sl or close <= t3))
+        )
+        if not resolved:
+            cached["current_price"] = close
+            return cached
+
+    result = signal_engine.analyze(df, asset, timeframe)
+    if result.get("available") and result.get("signal_type") in ("BUY", "SELL"):
+        result["current_price"] = close
+        result["generated_at"] = datetime.utcnow().isoformat()
+        try:
+            cache.set(cache_key, dict(result), timeout=_SIGNAL_EXPIRY.get(timeframe, 240) * 60)
+        except Exception:
+            pass
+    elif result.get("available"):
+        result["current_price"] = close
+        result["generated_at"] = datetime.utcnow().isoformat()
+    return result
+
+
 @signals_bp.route("/market-board", methods=["GET"])
 @login_required
 def market_board():
@@ -1232,15 +1280,9 @@ def market_board():
                 # sklearn model cache used elsewhere in this codebase
                 # (_model_mem_cache in predictor.py), which is not
                 # thread-safe for concurrent .predict_proba() calls.
-                result = signal_engine.analyze(df, a, timeframe)
+                result = _frozen_live_read(a, timeframe, df)
                 if result.get("available"):
                     result["persisted"] = False
-                    result["current_price"] = result.get("entry_price") or float(df["close"].iloc[-1])
-                    # Not a stored Signal row, so there's no historical
-                    # generation time — this read IS the generation, right
-                    # now, which is exactly what the Terminal card's
-                    # "Generated" timestamp should show for a live read.
-                    result["generated_at"] = datetime.utcnow().isoformat()
                 else:
                     reason = result.get("reason", "")
                     reason_messages = {
