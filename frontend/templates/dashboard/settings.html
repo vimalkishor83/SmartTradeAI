@@ -277,16 +277,25 @@
 {% block extra_js %}
 <script>
 let _assetPrefs = {};  // { asset_id: true/false }
+let _assetsByMarket = {}; // { market: [asset, ...] } — for per-market select/deselect all
 
 function renderAssetGrid(assets) {
   const grid = document.getElementById('assetGrid');
   const MKT  = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
   const byMkt = {};
   assets.forEach(a => { (byMkt[a.market] = byMkt[a.market]||[]).push(a); });
+  _assetsByMarket = byMkt;
 
   let html = '';
   for (const [mkt, list] of Object.entries(byMkt)) {
-    html += `<div class="col-12"><div class="mkt-header">${MKT[mkt]||mkt}</div></div>`;
+    html += `<div class="col-12"><div class="mkt-header d-flex align-items-center justify-content-between">
+      <span>${MKT[mkt]||mkt}</span>
+      <span class="fs-xs">
+        <a href="#" onclick="selectMarket('${mkt}',true);return false" class="text-accent" style="text-decoration:none">Select all</a>
+        <span class="text-muted mx-1">·</span>
+        <a href="#" onclick="selectMarket('${mkt}',false);return false" class="text-accent" style="text-decoration:none">Deselect all</a>
+      </span>
+    </div></div>`;
     list.forEach(a => {
       const on = _assetPrefs[a.id] !== false;
       html += `<div class="col-6 col-md-4 col-lg-3 col-xl-2">
@@ -315,6 +324,14 @@ function updateCounter() {
   const enabled = Object.values(_assetPrefs).filter(Boolean).length;
   const btn = document.getElementById('saveAssets');
   btn.innerHTML = `<i class="bi bi-check2 me-1"></i>Save (${enabled}/${total} selected)`;
+}
+
+function selectMarket(mkt, on) {
+  (_assetsByMarket[mkt] || []).forEach(a => {
+    _assetPrefs[a.id] = on;
+    document.querySelector(`.asset-toggle[data-id="${a.id}"]`)?.classList.toggle('active', on);
+  });
+  updateCounter();
 }
 
 document.getElementById('selAll').addEventListener('click', () => {

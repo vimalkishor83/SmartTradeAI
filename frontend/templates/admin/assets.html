@@ -83,6 +83,11 @@
         <input class="form-check-input" type="checkbox" id="showDisabled" onchange="applyFilter()">
         <label class="form-check-label small text-muted" for="showDisabled">Show disabled</label>
       </div>
+      <div class="vr mx-1" style="opacity:.3"></div>
+      <button class="btn btn-sm btn-outline-success" id="enableFilteredBtn" onclick="bulkSetFiltered(true)"
+        title="Enable every asset matching the current market filter/search">Enable All</button>
+      <button class="btn btn-sm btn-outline-danger" id="disableFilteredBtn" onclick="bulkSetFiltered(false)"
+        title="Disable every asset matching the current market filter/search">Disable All</button>
       <span class="text-muted small" id="assetCount"></span>
     </div>
   </div>
@@ -138,6 +143,10 @@
     <div class="d-flex gap-2 align-items-center">
       <input type="text" id="deltaCatalogSearch" placeholder="Filter…"
         class="form-control form-control-sm" style="width:160px" oninput="renderDeltaCatalog()">
+      <button class="btn btn-sm btn-outline-success" onclick="bulkSetDeltaCatalog(true)"
+        title="Enable every symbol matching the filter above">Enable All</button>
+      <button class="btn btn-sm btn-outline-danger" onclick="bulkSetDeltaCatalog(false)"
+        title="Disable every symbol matching the filter above">Disable All</button>
       <span class="text-muted small" id="deltaCatalogCount"></span>
     </div>
   </div>
@@ -187,6 +196,35 @@ function applyFilter() {
     (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q))
   );
   renderTable(filtered);
+}
+
+// Enable/Disable All — targets everything matching the current market
+// filter + search box, regardless of "Show disabled" (that checkbox only
+// controls visibility, not what a bulk action should target).
+async function bulkSetFiltered(turnOn) {
+  if (!isSuperAdmin) return;
+  const q  = (document.getElementById('assetSearch').value || '').toLowerCase();
+  const mk = document.getElementById('assetMarketFilter').value;
+  const targets = _allAssets.filter(a =>
+    (!mk || a.market === mk) &&
+    (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q)) &&
+    a.is_active !== turnOn
+  );
+  if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
+  const label = mk ? mk.replace(/_/g,' ') : 'all markets';
+  if (!confirm(`${turnOn ? 'Enable' : 'Disable'} ${targets.length} asset(s) (${label})?`)) return;
+
+  const btn = document.getElementById(turnOn ? 'enableFilteredBtn' : 'disableFilteredBtn');
+  btn.disabled = true;
+  const results = await Promise.all(targets.map(a => API.put(`/assets/${a.id}`, { is_active: turnOn })));
+  btn.disabled = false;
+
+  const okCount = results.filter(Boolean).length;
+  targets.forEach((a, i) => { if (results[i]) a.is_active = turnOn; });
+  Toast.show(`${okCount}/${targets.length} asset(s) ${turnOn ? 'enabled' : 'disabled'}`,
+             okCount === targets.length ? 'success' : 'error');
+  updateKpis();
+  applyFilter();
 }
 
 function renderTable(assets) {
@@ -287,13 +325,10 @@ function renderDeltaCatalog() {
     </div>`).join('');
 }
 
-async function toggleDeltaCatalogEntry(el, symbol) {
-  if (!isSuperAdmin) return;
-  const entry = _deltaCatalog.find(c => c.symbol === symbol);
-  if (!entry) return;
-  const turnOn = !entry.is_active;
-  el.style.pointerEvents = 'none';
-
+// Adds (if untracked) or toggles (if tracked) one catalog entry. Mutates
+// `entry` in place on success and returns whether it succeeded — shared by
+// the single-card click handler and the bulk Enable/Disable All action.
+async function setDeltaEntry(entry, turnOn) {
   let ok = false;
   if (entry.tracked) {
     ok = !!(await API.put(`/assets/${entry.asset_id}`, { is_active: turnOn }));
@@ -302,22 +337,51 @@ async function toggleDeltaCatalogEntry(el, symbol) {
     const res = await fetch('/api/v1/assets/add-from-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ symbol, name: entry.name, source: 'delta_exchange', market: 'crypto' }),
+      body: JSON.stringify({ symbol: entry.symbol, name: entry.name, source: 'delta_exchange', market: 'crypto' }),
     });
     const data = await res.json().catch(() => ({}));
     ok = res.ok;
     if (ok && data.asset) { entry.tracked = true; entry.asset_id = data.asset.id; }
+  } else {
+    ok = true; // untracked + turning off — already effectively off, nothing to do
   }
+  if (ok) entry.is_active = turnOn;
+  return ok;
+}
 
+async function toggleDeltaCatalogEntry(el, symbol) {
+  if (!isSuperAdmin) return;
+  const entry = _deltaCatalog.find(c => c.symbol === symbol);
+  if (!entry) return;
+  const turnOn = !entry.is_active;
+  el.style.pointerEvents = 'none';
+  const ok = await setDeltaEntry(entry, turnOn);
   el.style.pointerEvents = '';
   if (ok) {
-    entry.is_active = turnOn;
     Toast.show(`${symbol} ${turnOn ? 'enabled' : 'disabled'}`, 'success');
     renderDeltaCatalog();
     loadAssets();
   } else {
     Toast.show(`Failed to ${turnOn ? 'enable' : 'disable'} ${symbol}`, 'error');
   }
+}
+
+async function bulkSetDeltaCatalog(turnOn) {
+  if (!isSuperAdmin) return;
+  const q = (document.getElementById('deltaCatalogSearch').value || '').toLowerCase();
+  const targets = _deltaCatalog.filter(c =>
+    (!q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) &&
+    c.is_active !== turnOn
+  );
+  if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
+  if (!confirm(`${turnOn ? 'Enable' : 'Disable'} ${targets.length} symbol(s)${q ? ` matching "${q}"` : ''}?`)) return;
+
+  const results = await Promise.all(targets.map(entry => setDeltaEntry(entry, turnOn)));
+  const okCount = results.filter(Boolean).length;
+  Toast.show(`${okCount}/${targets.length} symbol(s) ${turnOn ? 'enabled' : 'disabled'}`,
+             okCount === targets.length ? 'success' : 'error');
+  renderDeltaCatalog();
+  loadAssets();
 }
 
 // ── Search & Add ─────────────────────────────────────────────────
