@@ -1184,28 +1184,44 @@ def _frozen_live_read(asset, timeframe, df):
     computed fresh.
     """
     close = float(df["close"].iloc[-1])
+    # The OHLCV candle's own close only moves when a candle actually
+    # closes (once an hour for "1h", etc.) — using it as "current price"
+    # made the price look frozen too between candle closes, which wasn't
+    # noticeable before (entry/stop/targets moved in lockstep with it,
+    # so *something* visibly changed) but became obvious once those were
+    # frozen on their own schedule. fetch_ticker() is the same continuously-
+    # updated live quote (WS stream for crypto, short-TTL cache otherwise)
+    # the price ticker strip and open-P&L elsewhere in the app already use.
+    live_price = close
+    try:
+        ticker = market_fetcher.fetch_ticker(asset)
+        if ticker and ticker.get("price"):
+            live_price = float(ticker["price"])
+    except Exception:
+        pass
+
     cache_key = f"terminal_live_read:{asset.id}:{timeframe}"
     cached = cache.get(cache_key)
     if cached:
         sl, t3, direction = cached.get("stop_loss"), cached.get("target3"), cached.get("signal_type")
         resolved = (
-            (direction == "BUY"  and sl is not None and t3 is not None and (close <= sl or close >= t3)) or
-            (direction == "SELL" and sl is not None and t3 is not None and (close >= sl or close <= t3))
+            (direction == "BUY"  and sl is not None and t3 is not None and (live_price <= sl or live_price >= t3)) or
+            (direction == "SELL" and sl is not None and t3 is not None and (live_price >= sl or live_price <= t3))
         )
         if not resolved:
-            cached["current_price"] = close
+            cached["current_price"] = live_price
             return cached
 
     result = signal_engine.analyze(df, asset, timeframe)
     if result.get("available") and result.get("signal_type") in ("BUY", "SELL"):
-        result["current_price"] = close
+        result["current_price"] = live_price
         result["generated_at"] = datetime.utcnow().isoformat()
         try:
             cache.set(cache_key, dict(result), timeout=_SIGNAL_EXPIRY.get(timeframe, 240) * 60)
         except Exception:
             pass
     elif result.get("available"):
-        result["current_price"] = close
+        result["current_price"] = live_price
         result["generated_at"] = datetime.utcnow().isoformat()
     return result
 
