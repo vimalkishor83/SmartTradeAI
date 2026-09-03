@@ -62,6 +62,32 @@
 
 .terminal-empty { text-align:center; padding:64px 16px; color:var(--text-muted); }
 .terminal-empty .bi { font-size:32px; display:block; margin-bottom:10px; }
+
+.terminal-search { position:relative; width:220px; max-width:100%; }
+.terminal-search .bi-search {
+  position:absolute; left:11px; top:50%; transform:translateY(-50%);
+  color:var(--text-muted); font-size:13px; pointer-events:none;
+}
+.terminal-search input {
+  width:100%; padding:7px 10px 7px 32px; border-radius:var(--radius-sm,8px);
+  border:1px solid var(--border); background:var(--glass); color:var(--text-primary);
+  font-size:13px; outline:none; transition:border-color .15s;
+}
+.terminal-search input:focus { border-color:var(--accent); }
+.terminal-search .term-search-clear {
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  color:var(--text-muted); cursor:pointer; font-size:13px; display:none;
+}
+.terminal-search.has-value .term-search-clear { display:block; }
+
+.term-pin-btn {
+  background:none; border:none; padding:2px 3px; line-height:1;
+  color:var(--text-muted); font-size:14.5px; cursor:pointer; border-radius:4px;
+  transition:color .15s;
+}
+.term-pin-btn:hover { color:var(--text-secondary); }
+.term-pin-btn.pinned { color:var(--accent); }
+.section-card.term-card-pinned { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
 </style>
 {% endblock %}
 
@@ -95,12 +121,18 @@
           {% endfor %}
         </div>
       </div>
+      <div class="terminal-search" id="terminalSearchWrap">
+        <i class="bi bi-search"></i>
+        <input type="text" id="terminalSearch" placeholder="Search asset…" autocomplete="off">
+        <i class="bi bi-x-circle-fill term-search-clear" id="terminalSearchClear"></i>
+      </div>
     </div>
   </div>
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-2">
   <span class="text-muted fs-xs" id="terminalCount"></span>
+  <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to 4 assets to keep them pinned to the top</span>
 </div>
 
 <div class="row g-3" id="terminalGrid">
@@ -128,6 +160,25 @@ const MARKET_LABEL = {
   crypto: 'Crypto', forex: 'Forex', commodity: 'Commodity',
   indian_stock: 'Indian Stock', index: 'Index',
 };
+
+// ─── Pinned assets (per-browser, up to 4) ──────────────────────────
+// Pins are a personal "keep this on top" convenience, not account data,
+// so they live in localStorage rather than round-tripping to the server.
+const TERM_PIN_KEY = 'terminal_pinned_assets';
+const TERM_PIN_MAX = 4;
+
+function _loadPinnedAssets() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TERM_PIN_KEY) || '[]');
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch { return new Set(); }
+}
+function _savePinnedAssets() {
+  try { localStorage.setItem(TERM_PIN_KEY, JSON.stringify([..._pinnedAssets])); } catch {}
+}
+let _pinnedAssets = _loadPinnedAssets();
+let _lastCards = [];       // cache of the last /market-board response, for client-side search/pin re-sort without refetching
+let _termSearch = '';
 
 function _termConfColor(conf) {
   return conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
@@ -187,17 +238,23 @@ function _timeAgo(iso, persisted) {
 function renderTerminalCard(s) {
   const mkt = s.market;
 
+  const pinned = _pinnedAssets.has(s.asset_id);
+  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" title="${pinned ? 'Unpin' : 'Pin to top (max 4)'}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
+
   if (s.available === false) {
     return `
-      <div class="col-md-6 col-lg-4">
-        <div class="section-card h-100">
+      <div class="col-md-6 col-lg-3">
+        <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
                 <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
                 <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
               </div>
-              <span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border)">N/A</span>
+              <div class="d-flex align-items-center gap-1">
+                ${pinBtn}
+                <span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border)">N/A</span>
+              </div>
             </div>
             <div class="text-muted fs-xs">${s.message || 'No analysis available right now.'}</div>
           </div>
@@ -214,15 +271,18 @@ function renderTerminalCard(s) {
          </details>`
       : '';
     return `
-      <div class="col-md-6 col-lg-4">
-        <div class="section-card h-100">
+      <div class="col-md-6 col-lg-3">
+        <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
                 <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
                 <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
               </div>
-              ${signalBadge('HOLD')}
+              <div class="d-flex align-items-center gap-1">
+                ${pinBtn}
+                ${signalBadge('HOLD')}
+              </div>
             </div>
             <div class="signal-card-price">
               Current: <span class="tabular fw-700" style="color:var(--text-primary)">${s.current_price ? formatPrice(s.current_price, mkt) : '—'}</span>
@@ -258,8 +318,8 @@ function renderTerminalCard(s) {
     : '';
 
   return `
-    <div class="col-md-6 col-lg-4">
-      <div class="section-card h-100">
+    <div class="col-md-6 col-lg-3">
+      <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
             <div>
@@ -267,6 +327,7 @@ function renderTerminalCard(s) {
               <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
             </div>
             <div class="d-flex align-items-center gap-1">
+              ${pinBtn}
               ${signalBadge(s.signal_type)}
               ${s.persisted === false ? '<span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border);font-size:9px" title="A live indicator read, not a tracked signal — it recalculates every visit and won\'t wait for TP/SL the way a generated signal does">LIVE</span>' : ''}
             </div>
@@ -313,6 +374,13 @@ function renderTerminalCard(s) {
 // (no data) cards have no meaningful confidence to rank by, so they always
 // sink below every actionable BUY/SELL card regardless of score.
 function _terminalCardSort(a, b) {
+  // Pinned assets always float to the top, regardless of signal quality —
+  // that's the whole point of pinning. Within each group (pinned / not),
+  // fall back to the original actionable-then-confidence ranking.
+  const aPinned = _pinnedAssets.has(a.asset_id);
+  const bPinned = _pinnedAssets.has(b.asset_id);
+  if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
   if (a.available === false || b.available === false) {
     return (a.available === false ? 1 : 0) - (b.available === false ? 1 : 0);
   }
@@ -321,6 +389,53 @@ function _terminalCardSort(a, b) {
   if (aActionable !== bActionable) return aActionable ? -1 : 1;
   if (!aActionable) return 0;   // both HOLD — no ranking basis, keep original order
   return (b.confidence_score || 0) - (a.confidence_score || 0);
+}
+
+// Re-renders the grid from the already-fetched _lastCards, applying the
+// current search text and pinned-first sort — no network call, so typing
+// in the search box and pinning/unpinning both feel instant.
+function applyTerminalFilters() {
+  const grid = document.getElementById('terminalGrid');
+  const countEl = document.getElementById('terminalCount');
+  const q = _termSearch.trim().toLowerCase();
+
+  const filtered = q
+    ? _lastCards.filter(s => (s.asset || '').toLowerCase().includes(q))
+    : _lastCards;
+  const cards = filtered.slice().sort(_terminalCardSort);
+
+  countEl.textContent = _lastCards.length
+    ? `${cards.length}${q ? ` of ${_lastCards.length}` : ''} asset${_lastCards.length === 1 ? '' : 's'} · ${MARKET_LABEL[_termMarket] || _termMarket} · ${_termTf}`
+    : '';
+
+  if (!cards.length) {
+    grid.innerHTML = `<div class="col-12">
+      <div class="terminal-empty">
+        <i class="bi ${q ? 'bi-search' : 'bi-inbox'}"></i>
+        ${q ? `No asset matching "${_escHtmlLocal(_termSearch)}"` : `No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.`}
+      </div>
+    </div>`;
+    return;
+  }
+
+  grid.innerHTML = cards.map(renderTerminalCard).join('');
+}
+
+function toggleTerminalPin(assetId) {
+  assetId = Number(assetId);
+  if (_pinnedAssets.has(assetId)) {
+    _pinnedAssets.delete(assetId);
+  } else {
+    if (_pinnedAssets.size >= TERM_PIN_MAX) {
+      if (typeof Toast !== 'undefined') {
+        Toast.show(`You can pin up to ${TERM_PIN_MAX} assets — unpin one first.`, 'warning', 4000);
+      }
+      return;
+    }
+    _pinnedAssets.add(assetId);
+  }
+  _savePinnedAssets();
+  applyTerminalFilters();
 }
 
 async function loadTerminal() {
@@ -338,20 +453,8 @@ async function loadTerminal() {
     return;
   }
 
-  const cards = (data.cards || []).slice().sort(_terminalCardSort);
-  countEl.textContent = cards.length ? `${data.total} asset${data.total === 1 ? '' : 's'} · ${MARKET_LABEL[_termMarket] || _termMarket} · ${tf}` : '';
-
-  if (!cards.length) {
-    grid.innerHTML = `<div class="col-12">
-      <div class="terminal-empty">
-        <i class="bi bi-inbox"></i>
-        No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.
-      </div>
-    </div>`;
-    return;
-  }
-
-  grid.innerHTML = cards.map(renderTerminalCard).join('');
+  _lastCards = data.cards || [];
+  applyTerminalFilters();
 }
 
 document.addEventListener('app:ready', () => {
@@ -376,6 +479,28 @@ document.addEventListener('app:ready', () => {
   });
 
   document.getElementById('terminalRefresh').addEventListener('click', loadTerminal);
+
+  const searchInput = document.getElementById('terminalSearch');
+  const searchWrap  = document.getElementById('terminalSearchWrap');
+  const searchClear = document.getElementById('terminalSearchClear');
+  searchInput.addEventListener('input', () => {
+    _termSearch = searchInput.value;
+    searchWrap.classList.toggle('has-value', !!_termSearch);
+    applyTerminalFilters();
+  });
+  searchClear.addEventListener('click', () => {
+    searchInput.value = '';
+    _termSearch = '';
+    searchWrap.classList.remove('has-value');
+    applyTerminalFilters();
+    searchInput.focus();
+  });
+
+  document.getElementById('terminalGrid').addEventListener('click', (e) => {
+    const pinBtn = e.target.closest('.term-pin-btn');
+    if (!pinBtn) return;
+    toggleTerminalPin(pinBtn.dataset.pinAsset);
+  });
 });
 </script>
 {% endblock %}
