@@ -799,6 +799,24 @@ def _init_scheduler(app):
         replace_existing=True,
     )
 
+    # Auto pause/resume the Yahoo Finance indian_stock/index API configs
+    # around NSE hours (09:00-15:30 IST, Mon-Fri). generate_signals_for_
+    # timeframe() already skips indian_stock assets outside these hours on
+    # its own, but that's invisible here — this config's `status` field is
+    # what the admin API Configs page actually displays, and it was still
+    # showing "active" all evening/night/weekend since nothing ever
+    # touched it automatically. Runs every 5 minutes so the toggle is
+    # never far off the actual open/close time.
+    _auto_pause_indian_yahoo_feeds(app)
+    scheduler.add_job(
+        _auto_pause_indian_yahoo_feeds,
+        "interval",
+        args=[app],
+        id="indian_yahoo_market_hours",
+        minutes=5,
+        replace_existing=True,
+    )
+
 
 def _expire_trials(app):
     try:
@@ -876,6 +894,41 @@ def _cleanup_sessions(app):
     except Exception as e:
         db.session.rollback()
         logging.getLogger(__name__).warning(f"Session cleanup failed: {e}")
+
+
+def _auto_pause_indian_yahoo_feeds(app):
+    try:
+        from datetime import datetime as _dt, timedelta as _td
+        with app.app_context():
+            from app.models.api_config import APIConfig
+            from app.services.data.fetcher import invalidate_blocked_markets_cache
+
+            ist_now = _dt.utcnow() + _td(hours=5, minutes=30)
+            is_open = (
+                ist_now.weekday() < 5
+                and ist_now.replace(hour=9, minute=0, second=0, microsecond=0) <= ist_now
+                <= ist_now.replace(hour=15, minute=30, second=0, microsecond=0)
+            )
+            desired = "active" if is_open else "paused"
+
+            rows = APIConfig.query.filter(
+                APIConfig.provider == "yahoo",
+                APIConfig.market.in_(["indian_stock", "index"]),
+                APIConfig.status.in_(["active", "paused"]),  # leave an "error" row alone
+            ).all()
+            changed = [r for r in rows if r.status != desired]
+            if not changed:
+                return
+            for r in changed:
+                r.status = desired
+            db.session.commit()
+            invalidate_blocked_markets_cache()
+            logging.getLogger(__name__).info(
+                f"Indian Yahoo feeds -> {desired} ({len(changed)} config row(s), IST {ist_now.strftime('%H:%M')})"
+            )
+    except Exception as e:
+        db.session.rollback()
+        logging.getLogger(__name__).warning(f"Indian Yahoo market-hours toggle failed: {e}")
 
 
 _AG_LAST_APPLIED = None  # fingerprint of the config currently armed on the scheduler, or None if stopped

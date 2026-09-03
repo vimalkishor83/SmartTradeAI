@@ -1239,6 +1239,8 @@ def _open_live_read_log(asset, timeframe, result):
             confidence_score=result.get("confidence_score"), entry_price=result.get("entry_price"),
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
+            reasoning=result.get("reasoning"), reasoning_detail=result.get("reasoning_detail"),
+            regime=result.get("regime"),
         )
         db.session.add(row)
         db.session.commit()

@@ -35,6 +35,16 @@ class LiveReadLog(db.Model):
     generated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     resolved_at = db.Column(db.DateTime)
 
+    # Same "why" data a real Signal row carries (see Signal.reasoning /
+    # reasoning_detail / regime) — added after the fact because a live
+    # read's rationale was otherwise only ever shown live in the Terminal
+    # UI at generation time and never actually persisted anywhere, so a
+    # closed one couldn't be reviewed afterward to see whether the thesis
+    # held up.
+    reasoning = db.Column(db.Text)
+    reasoning_detail = db.Column(db.JSON, default=list)
+    regime = db.Column(db.String(30))
+
     asset = db.relationship("Asset")
 
     def to_dict(self):
@@ -50,4 +60,7 @@ class LiveReadLog(db.Model):
             "exit_price": self.exit_price,
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
+            "reasoning": self.reasoning,
+            "reasoning_detail": self.reasoning_detail,
+            "regime": self.regime,
         }
