@@ -315,6 +315,7 @@ def _init_db(app):
         from app.models.journal import JournalEntry       # ensure journal table is created
         from app.models.api_config import UserBrokerCredential  # ensure table is created
         from app.models.platform_config import PlatformConfig  # ensure table is created
+        from app.models.live_read_log import LiveReadLog        # ensure table is created
 
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):

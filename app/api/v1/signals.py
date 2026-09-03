@@ -1211,11 +1211,13 @@ def _frozen_live_read(asset, timeframe, df):
         if not resolved:
             cached["current_price"] = live_price
             return cached
+        _close_live_read_log(cached.get("live_read_log_id"), live_price, direction, sl)
 
     result = signal_engine.analyze(df, asset, timeframe)
     if result.get("available") and result.get("signal_type") in ("BUY", "SELL"):
         result["current_price"] = live_price
         result["generated_at"] = datetime.utcnow().isoformat()
+        result["live_read_log_id"] = _open_live_read_log(asset, timeframe, result)
         try:
             cache.set(cache_key, dict(result), timeout=_SIGNAL_EXPIRY.get(timeframe, 240) * 60)
         except Exception:
@@ -1224,6 +1226,48 @@ def _frozen_live_read(asset, timeframe, df):
         result["current_price"] = live_price
         result["generated_at"] = datetime.utcnow().isoformat()
     return result
+
+
+def _open_live_read_log(asset, timeframe, result):
+    """Records a fresh (not cache-hit) BUY/SELL live-preview read so its
+    hypothetical performance can be measured — see LiveReadLog's own
+    docstring for why this is tracked separately from real signals."""
+    try:
+        from app.models.live_read_log import LiveReadLog
+        row = LiveReadLog(
+            asset_id=asset.id, timeframe=timeframe, signal_type=result["signal_type"],
+            confidence_score=result.get("confidence_score"), entry_price=result.get("entry_price"),
+            stop_loss=result.get("stop_loss"), target1=result.get("target1"),
+            target2=result.get("target2"), target3=result.get("target3"),
+        )
+        db.session.add(row)
+        db.session.commit()
+        return row.id
+    except Exception:
+        db.session.rollback()
+        return None
+
+
+def _close_live_read_log(log_id, exit_price, direction, stop_loss):
+    """Marks a still-open LiveReadLog resolved once price actually reaches
+    its frozen stop-loss or final target — same win/loss condition that
+    would close a real persisted signal."""
+    if not log_id:
+        return
+    try:
+        from app.models.live_read_log import LiveReadLog
+        row = LiveReadLog.query.get(log_id)
+        if row and row.outcome is None:
+            hit_stop = (
+                (direction == "BUY"  and stop_loss is not None and exit_price <= stop_loss) or
+                (direction == "SELL" and stop_loss is not None and exit_price >= stop_loss)
+            )
+            row.outcome = "loss" if hit_stop else "win"
+            row.exit_price = exit_price
+            row.resolved_at = datetime.utcnow()
+            db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 @signals_bp.route("/market-board", methods=["GET"])
@@ -1999,6 +2043,44 @@ def _confidence_calibration_bands():
             "expected_win_rate": (lo + hi) // 2,
         })
     return calibration
+
+
+@signals_bp.route("/live-read-performance", methods=["GET"])
+@login_required
+@cache.cached(timeout=60, key_prefix="signals_live_read_performance")
+def live_read_performance():
+    """How well Terminal's live-preview cards (the non-persisted analyze()
+    fallback, tracked in LiveReadLog — see _frozen_live_read) actually call
+    it, separate from real generated-signal performance above. Useful for
+    judging whether the board's "at a glance" reads are trustworthy on
+    their own, not just as a stand-in for a real signal."""
+    from app.models.live_read_log import LiveReadLog
+
+    total = LiveReadLog.query.count()
+    resolved_q = LiveReadLog.query.filter(LiveReadLog.outcome.isnot(None))
+    resolved = resolved_q.count()
+    wins = resolved_q.filter(LiveReadLog.outcome == "win").count()
+    win_rate = round(wins / resolved * 100, 1) if resolved else None
+
+    tf_rows = (
+        db.session.query(
+            LiveReadLog.timeframe, func.count(LiveReadLog.id),
+            func.sum(case((LiveReadLog.outcome == "win", 1), else_=0)),
+            func.sum(case((LiveReadLog.outcome.isnot(None), 1), else_=0)),
+        ).group_by(LiveReadLog.timeframe).all()
+    )
+    by_timeframe = [{
+        "timeframe": tf, "total": total_n, "resolved": res_n,
+        "win_rate": round(w / res_n * 100, 1) if res_n else None,
+    } for tf, total_n, w, res_n in tf_rows]
+
+    return jsonify({
+        "total_logged": total,
+        "resolved": resolved,
+        "open": total - resolved,
+        "win_rate": win_rate,
+        "by_timeframe": by_timeframe,
+    }), 200
 
 
 # ─── Backtest & Proof-of-Performance ──────────────────────────────────────────
