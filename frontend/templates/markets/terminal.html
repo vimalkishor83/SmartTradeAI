@@ -132,7 +132,7 @@
 
 <div class="d-flex justify-content-between align-items-center mb-2">
   <span class="text-muted fs-xs" id="terminalCount"></span>
-  <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to 4 assets to keep them pinned to the top</span>
+  <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to <span id="terminalPinMaxLabel">5</span> assets to keep them pinned to the top</span>
 </div>
 
 <div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5" id="terminalGrid">
@@ -161,11 +161,21 @@ const MARKET_LABEL = {
   indian_stock: 'Indian Stock', index: 'Index',
 };
 
-// ─── Pinned assets (per-browser, up to 4) ──────────────────────────
+// ─── Pinned assets (per-browser, capped at one row's worth) ────────
 // Pins are a personal "keep this on top" convenience, not account data,
 // so they live in localStorage rather than round-tripping to the server.
 const TERM_PIN_KEY = 'terminal_pinned_assets';
-const TERM_PIN_MAX = 4;
+
+// The pin cap always matches the grid's own column count (read straight off
+// its row-cols-lg-N class) rather than a separate hardcoded number, so a
+// future change to the grid's per-row count (see #terminalGrid's class)
+// automatically keeps "how many can be pinned" in sync with "how many fit
+// in one row" without a second edit here.
+function _termPinMax() {
+  const cls = [...(document.getElementById('terminalGrid')?.classList || [])]
+    .find(c => /^row-cols-lg-\d+$/.test(c));
+  return cls ? parseInt(cls.split('-').pop(), 10) : 5;
+}
 
 function _loadPinnedAssets() {
   try {
@@ -239,7 +249,7 @@ function renderTerminalCard(s) {
   const mkt = s.market;
 
   const pinned = _pinnedAssets.has(s.asset_id);
-  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" title="${pinned ? 'Unpin' : 'Pin to top (max 4)'}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
+  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" title="${pinned ? 'Unpin' : `Pin to top (max ${_termPinMax()})`}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
 
   if (s.available === false) {
     return `
@@ -426,9 +436,10 @@ function toggleTerminalPin(assetId) {
   if (_pinnedAssets.has(assetId)) {
     _pinnedAssets.delete(assetId);
   } else {
-    if (_pinnedAssets.size >= TERM_PIN_MAX) {
+    const max = _termPinMax();
+    if (_pinnedAssets.size >= max) {
       if (typeof Toast !== 'undefined') {
-        Toast.show(`You can pin up to ${TERM_PIN_MAX} assets — unpin one first.`, 'warning', 4000);
+        Toast.show(`You can pin up to ${max} assets — unpin one first.`, 'warning', 4000);
       }
       return;
     }
@@ -458,6 +469,7 @@ async function loadTerminal() {
 }
 
 document.addEventListener('app:ready', () => {
+  document.getElementById('terminalPinMaxLabel').textContent = _termPinMax();
   loadTerminal();
 
   document.getElementById('terminalMarketTabs').addEventListener('click', (e) => {
