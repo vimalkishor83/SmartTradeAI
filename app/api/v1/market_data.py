@@ -64,6 +64,26 @@ def get_indicators(asset_id):
     return jsonify({"symbol": asset.symbol, "timeframe": timeframe, "indicators": indicators}), 200
 
 
+def _recent_news_sentiment(symbol: str) -> float:
+    """Average sentiment_score (-1..1) across this asset's recent fetched
+    news (see app/services/news/fetcher.py's real, keyword-based scorer).
+    calculate_sentiment() accepted a news_sentiment argument from the
+    start but nothing ever actually passed one — it silently defaulted to
+    0.0 on every call, so the "Sentiment" widget was technical-only despite
+    the scoring model having a real news component built in. Filtered in
+    Python rather than a JSON-containment query since News.related_assets
+    is a plain JSON column and the candidate set (most recent rows) is
+    small — simpler and dialect-independent."""
+    from app.models.news import News
+    try:
+        recent = (News.query.filter(News.sentiment_score.isnot(None))
+                  .order_by(News.published_at.desc()).limit(300).all())
+        scores = [n.sentiment_score for n in recent if n.related_assets and symbol in n.related_assets]
+        return sum(scores) / len(scores) if scores else 0.0
+    except Exception:
+        return 0.0
+
+
 @market_data_bp.route("/<int:asset_id>/sentiment", methods=["GET"])
 @login_required
 def get_sentiment(asset_id):
@@ -75,7 +95,9 @@ def get_sentiment(asset_id):
         return jsonify({"error": "Data unavailable"}), 503
 
     indicators = calculate_all_indicators(df)
-    sentiment = calculate_sentiment(indicators)
+    news_sentiment = _recent_news_sentiment(asset.symbol)
+    sentiment = calculate_sentiment(indicators, news_sentiment=news_sentiment)
+    sentiment["news_sentiment_included"] = news_sentiment != 0.0
     return jsonify({"symbol": asset.symbol, "sentiment": sentiment}), 200
 
 
