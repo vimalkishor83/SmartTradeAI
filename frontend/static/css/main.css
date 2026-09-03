@@ -2186,6 +2186,19 @@ select option {
   color: var(--text-muted);
 }
 
+/* Optional clear (x) button — add <i class="bi bi-x-circle-fill search-bar-clear">
+   as the last child of a .search-bar and call wireSearchClear() (app.js) on the
+   input. Hidden until the bar has a value, so existing .search-bar usages that
+   don't include this element are completely unaffected. */
+.search-bar-clear {
+  cursor: pointer;
+  flex-shrink: 0;
+  display: none;
+  font-size: 13px;
+}
+.search-bar-clear:hover { color: var(--text-secondary) !important; }
+.search-bar.has-value .search-bar-clear { display: block; }
+
 /* ════════════════════════════════════════════════════════════
    BADGES / TAGS
    ════════════════════════════════════════════════════════════ */

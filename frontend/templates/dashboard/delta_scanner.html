@@ -275,7 +275,11 @@
         </div>
         <div class="d-flex flex-wrap gap-1 mb-3" id="ccSelectedChips" style="min-height:32px"></div>
 
-        <input type="text" class="form-control mb-2" id="ccSearchInput" placeholder="Search symbol or name (e.g. BTC, Solana, Gold)…" autocomplete="off">
+        <div class="search-bar mb-2">
+          <i class="bi bi-search"></i>
+          <input type="text" id="ccSearchInput" placeholder="Search symbol or name (e.g. BTC, Solana, Gold)…" autocomplete="off">
+          <i class="bi bi-x-circle-fill search-bar-clear"></i>
+        </div>
         <div id="ccSearchResults" style="max-height:320px;overflow-y:auto"></div>
       </div>
       <div class="modal-footer" style="border-color:var(--border)">

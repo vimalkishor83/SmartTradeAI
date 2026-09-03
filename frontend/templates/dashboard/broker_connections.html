@@ -43,7 +43,7 @@
   <div class="section-card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-4">
-        <input type="text" class="form-control form-control-sm" id="brokerSearch" placeholder="Search brokers…" />
+        <div class="search-bar" style="padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="brokerSearch" placeholder="Search brokers…" style="font-size:12.5px"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
       </div>
       <div class="col-md-4">
         <select class="form-select form-select-sm" id="categoryFilter">
@@ -249,6 +249,7 @@ document.getElementById('brokerSearch').addEventListener('input', renderBrokerGr
 document.getElementById('categoryFilter').addEventListener('change', renderBrokerGrid);
 
 document.addEventListener('app:ready', async () => {
+  wireSearchClear('brokerSearch');
   await loadBrokers();
   await loadConnections();
 });

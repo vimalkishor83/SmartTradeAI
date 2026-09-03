@@ -314,6 +314,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('tfFilter')?.addEventListener('change', loadLiveSignals);
   document.getElementById('typeFilter')?.addEventListener('change', loadLiveSignals);
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
+  wireSearchClear('assetSearch');
   document.getElementById('generateAll')?.addEventListener('click', generateAll);
   setInterval(loadAll, 90000);
 });

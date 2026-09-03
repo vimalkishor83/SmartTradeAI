@@ -9,7 +9,7 @@
   <div><span class="page-eyebrow">Admin</span>
 <h1 class="page-title">User Management</h1></div>
   <div class="d-flex gap-2">
-    <input type="text" class="form-control" id="userSearch" placeholder="Search users..." style="width:240px" />
+    <div class="search-bar" style="width:240px"><i class="bi bi-search"></i><input type="text" id="userSearch" placeholder="Search users…"><i class="bi bi-x-circle-fill search-bar-clear"></i></div>
     <button class="btn btn-primary text-nowrap" id="createUserBtn" data-bs-toggle="modal" data-bs-target="#createUserModal"><i class="bi bi-person-plus me-1"></i>Create Test User</button>
   </div>
 </div>
@@ -394,6 +394,7 @@ document.getElementById('userSearch').addEventListener('input', () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(() => loadUsers(1), 400);
 });
+wireSearchClear('userSearch');
 
 document.addEventListener('app:ready', async () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;

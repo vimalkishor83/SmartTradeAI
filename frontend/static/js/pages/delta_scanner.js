@@ -996,6 +996,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const ccSearch = document.getElementById('ccSearchInput');
   if (ccSearch) ccSearch.addEventListener('input', () => ccRenderResults(ccSearch.value));
+  wireSearchClear('ccSearchInput');
 
   const ccClear = document.getElementById('ccClearBtn');
   if (ccClear) ccClear.addEventListener('click', () => {

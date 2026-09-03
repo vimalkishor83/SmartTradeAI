@@ -146,7 +146,7 @@
                 <span id="assetPickCount">All active assets (no selection)</span>
               </button>
               <div class="dropdown-menu ag-dropdown-menu p-2" id="cfgAssetMenu" style="min-width:320px;max-height:320px">
-                <input type="text" class="form-control form-control-sm mb-2" id="assetPickSearch" placeholder="Search symbol...">
+                <div class="search-bar mb-2" style="padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="assetPickSearch" placeholder="Search symbol..." style="font-size:12.5px"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
                 <div id="assetPickerGrid" style="max-height:230px;overflow-y:auto">
                   <div class="text-muted fs-xs px-2">Loading assets…</div>
                 </div>
@@ -825,6 +825,7 @@ document.addEventListener('app:ready', () => {
   });
 
   document.getElementById('assetPickSearch')?.addEventListener('click', e => e.stopPropagation());
+  wireSearchClear('assetPickSearch');
 
   document.getElementById('cfgConf').addEventListener('input', function() {
     document.getElementById('cfgConfVal').textContent = this.value + '%';

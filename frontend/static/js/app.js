@@ -334,6 +334,27 @@ const Toast = {
   },
 };
 
+// ─── Smart search (icon + live filter + clear button) ─────────
+// Wires the little "x" clear affordance shared by every search/filter box
+// in the app (see .search-bar-clear in main.css). Assumes the input already
+// has its own 'input' listener doing the actual filtering — this only
+// toggles the clear button's visibility and, on click, empties the input
+// and re-dispatches a real 'input' event so the existing filter logic runs
+// again with no changes needed on the page's side.
+function wireSearchClear(inputId, wrapSelector = '.search-bar') {
+  const input = document.getElementById(inputId);
+  const wrap  = input?.closest(wrapSelector);
+  if (!input || !wrap) return;
+  const sync = () => wrap.classList.toggle('has-value', !!input.value);
+  input.addEventListener('input', sync);
+  wrap.querySelector('.search-bar-clear')?.addEventListener('click', () => {
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.focus();
+  });
+  sync();
+}
+
 // ─── Notifications ────────────────────────────
 const Notifications = {
   async load() {

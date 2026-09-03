@@ -69,8 +69,11 @@
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-list-ul text-accent"></i> All Assets</span>
     <div class="d-flex gap-2 align-items-center">
-      <input type="text" id="assetSearch" placeholder="Search symbol or name…"
-        class="form-control form-control-sm" style="width:220px" oninput="applyFilter()">
+      <div class="search-bar" style="width:220px;padding:4px 10px">
+        <i class="bi bi-search" style="font-size:12px"></i>
+        <input type="text" id="assetSearch" placeholder="Search symbol or name…" style="font-size:12.5px" oninput="applyFilter()">
+        <i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i>
+      </div>
       <select id="assetMarketFilter" class="form-select form-select-sm" style="width:160px" onchange="applyFilter()">
         <option value="">All Markets</option>
         <option value="crypto">Crypto</option>
@@ -88,6 +91,9 @@
         title="Enable every asset matching the current market filter/search">Enable All</button>
       <button class="btn btn-sm btn-outline-danger" id="disableFilteredBtn" onclick="bulkSetFiltered(false)"
         title="Disable every asset matching the current market filter/search">Disable All</button>
+      <button class="btn btn-sm btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedAssets()" style="display:none">
+        <i class="bi bi-trash3 me-1"></i>Delete Selected (<span id="deleteSelectedCount">0</span>)
+      </button>
       <span class="text-muted small" id="assetCount"></span>
     </div>
   </div>
@@ -95,6 +101,7 @@
     <table class="smart-table">
       <thead>
         <tr>
+          <th style="width:34px"><input class="form-check-input" type="checkbox" id="assetSelectAll" onchange="toggleSelectAllAssets(this.checked)" title="Select all visible assets"></th>
           <th>Symbol</th>
           <th>Name</th>
           <th>Market</th>
@@ -106,7 +113,7 @@
         </tr>
       </thead>
       <tbody id="assetBody">
-        <tr><td colspan="8" class="text-center py-4 text-muted">Loading…</td></tr>
+        <tr><td colspan="9" class="text-center py-4 text-muted">Loading…</td></tr>
       </tbody>
     </table>
   </div>
@@ -119,10 +126,10 @@
     <span class="text-muted small">Powered by Yahoo Finance</span>
   </div>
   <div class="section-card-body p-3">
-    <div class="d-flex gap-2 mb-3">
-      <input type="text" id="assetSearchInput" placeholder="e.g. nifty bank, nasdaq, gold, reliance…"
-        class="form-control" style="max-width:420px">
-      <button class="btn btn-primary" onclick="searchAssets()"><i class="bi bi-search me-1"></i>Search</button>
+    <div class="search-bar mb-3" style="max-width:420px">
+      <i class="bi bi-search"></i>
+      <input type="text" id="assetSearchInput" placeholder="e.g. nifty bank, nasdaq, gold, reliance…">
+      <i class="bi bi-x-circle-fill search-bar-clear"></i>
     </div>
     <div id="assetSearchMsg" class="text-muted small mb-2"></div>
     <div id="assetSearchResults" style="display:none" class="table-responsive">
@@ -141,19 +148,23 @@
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-currency-bitcoin text-accent"></i> Delta Exchange Catalog</span>
     <div class="d-flex gap-2 align-items-center">
-      <input type="text" id="deltaCatalogSearch" placeholder="Filter…"
-        class="form-control form-control-sm" style="width:160px" oninput="renderDeltaCatalog()">
+      <div class="search-bar" style="width:220px;padding:4px 10px">
+        <i class="bi bi-search" style="font-size:12px"></i>
+        <input type="text" id="deltaCatalogSearch" placeholder="Search catalog to add assets…" style="font-size:12.5px" oninput="renderDeltaCatalog()">
+        <i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i>
+      </div>
       <button class="btn btn-sm btn-outline-success" onclick="bulkSetDeltaCatalog(true)"
-        title="Enable every symbol matching the filter above">Enable All</button>
+        title="Enable every symbol matching your search — type something first">Enable All</button>
       <button class="btn btn-sm btn-outline-danger" onclick="bulkSetDeltaCatalog(false)"
-        title="Disable every symbol matching the filter above">Disable All</button>
+        title="Disable every tracked symbol matching your search (or all tracked symbols if the search is empty)">Disable All</button>
       <span class="text-muted small" id="deltaCatalogCount"></span>
     </div>
   </div>
   <div class="section-card-body p-3">
     <p style="font-size:13px;color:var(--text-muted)" class="mb-3">
-      Every live USD-quoted perpetual on Delta Exchange — toggle any of them on to start tracking it
-      (added as crypto) or off to disable it, without searching one at a time.
+      Every live USD-quoted perpetual on Delta Exchange (~220 symbols) is searchable here — search to
+      find and add one, or toggle a tracked asset off to disable it. Only your tracked assets are shown
+      by default so this page stays light.
     </p>
     <div id="deltaCatalogGrid" class="row g-2">
       <div class="text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading catalog…</div>
@@ -167,6 +178,10 @@
 const MK_COLORS = { crypto:'#f59e0b', forex:'#3b82f6', commodity:'#10b981', indian_stock:'#8b5cf6', index:'#06b6d4', gold:'#fbbf24', silver:'#94a3b8' };
 let _allAssets = [];
 let isSuperAdmin = false;
+// Selection persists across filter/search changes (by asset id), so
+// switching markets to add more to the same batch doesn't lose what's
+// already checked. renderTable() re-syncs each checkbox from this Set.
+let _selectedAssetIds = new Set();
 
 async function loadAssets() {
   // include_inactive=1 so disabled assets (previously invisible everywhere
@@ -234,8 +249,15 @@ async function bulkSetFiltered(turnOn) {
 function renderTable(assets) {
   document.getElementById('assetCount').textContent = `${assets.length} asset${assets.length !== 1 ? 's' : ''}`;
   const body = document.getElementById('assetBody');
+  // Drop any selected ids that scrolled out of existence entirely (deleted
+  // elsewhere) — not ones merely hidden by the current filter, which stay
+  // selected on purpose. Then refresh the toolbar to match.
+  const liveIds = new Set(_allAssets.map(a => a.id));
+  [..._selectedAssetIds].forEach(id => { if (!liveIds.has(id)) _selectedAssetIds.delete(id); });
+
   if (!assets.length) {
-    body.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">No assets found</td></tr>';
+    body.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">No assets found</td></tr>';
+    updateSelectedToolbar();
     return;
   }
   body.innerHTML = assets.map(a => {
@@ -253,7 +275,11 @@ function renderTable(assets) {
           <i class="bi bi-trash3"></i>
         </button>`
       : '<span class="text-muted small">View only</span>';
+    const checkCell = isSuperAdmin
+      ? `<input class="form-check-input" type="checkbox" ${_selectedAssetIds.has(a.id) ? 'checked' : ''} onchange="toggleAssetSelect(${a.id},this.checked)">`
+      : '';
     return `<tr id="arow_${a.id}" ${a.is_active ? '' : 'style="opacity:.55"'}>
+      <td>${checkCell}</td>
       <td><code style="color:var(--accent)">${a.symbol}</code></td>
       <td>${a.name || '—'}</td>
       <td><span style="font-size:11px;font-weight:600;color:${col}">${mkt}</span></td>
@@ -264,6 +290,65 @@ function renderTable(assets) {
       <td>${actionCell}</td>
     </tr>`;
   }).join('');
+  updateSelectedToolbar();
+}
+
+function _visibleAssetRowIds() {
+  return [...document.querySelectorAll('#assetBody tr[id^="arow_"]')].map(row => Number(row.id.replace('arow_', '')));
+}
+
+function toggleAssetSelect(id, checked) {
+  if (checked) _selectedAssetIds.add(id); else _selectedAssetIds.delete(id);
+  updateSelectedToolbar();
+}
+
+// Selects/deselects every currently VISIBLE (filtered) row — not the
+// entire table — so "select all" respects whatever search/market filter
+// is active, same convention as Enable All/Disable All above.
+function toggleSelectAllAssets(checked) {
+  document.querySelectorAll('#assetBody tr[id^="arow_"]').forEach(row => {
+    const id = Number(row.id.replace('arow_', ''));
+    const cb = row.querySelector('td:first-child input[type="checkbox"]');
+    if (cb) cb.checked = checked;
+    if (checked) _selectedAssetIds.add(id); else _selectedAssetIds.delete(id);
+  });
+  updateSelectedToolbar();
+}
+
+function updateSelectedToolbar() {
+  const btn = document.getElementById('deleteSelectedBtn');
+  const count = _selectedAssetIds.size;
+  btn.style.display = count ? '' : 'none';
+  document.getElementById('deleteSelectedCount').textContent = count;
+
+  const selectAll = document.getElementById('assetSelectAll');
+  const visibleIds = _visibleAssetRowIds();
+  selectAll.checked = visibleIds.length > 0 && visibleIds.every(id => _selectedAssetIds.has(id));
+  selectAll.indeterminate = !selectAll.checked && visibleIds.some(id => _selectedAssetIds.has(id));
+}
+
+async function deleteSelectedAssets() {
+  if (!isSuperAdmin || !_selectedAssetIds.size) return;
+  const ids = [..._selectedAssetIds];
+  const symbols = ids.map(id => _allAssets.find(a => a.id === id)?.symbol).filter(Boolean);
+  if (!confirm(`Remove ${ids.length} selected asset${ids.length === 1 ? '' : 's'}?\n\n${symbols.join(', ')}\n\nHistorical signals are preserved — each can be re-enabled later via "Show disabled".`)) return;
+
+  const btn = document.getElementById('deleteSelectedBtn');
+  btn.disabled = true;
+  const results = await Promise.all(ids.map(id => API.delete(`/assets/${id}`)));
+  btn.disabled = false;
+
+  const okCount = results.filter(Boolean).length;
+  ids.forEach((id, i) => {
+    if (results[i]) {
+      const a = _allAssets.find(x => x.id === id);
+      if (a) a.is_active = false;
+      _selectedAssetIds.delete(id);
+    }
+  });
+  Toast.show(`${okCount}/${ids.length} asset(s) removed`, okCount === ids.length ? 'success' : 'error');
+  updateKpis();
+  applyFilter();
 }
 
 async function removeAsset(id, symbol) {
@@ -307,16 +392,42 @@ async function loadDeltaCatalog() {
   renderDeltaCatalog();
 }
 
+// The full catalog is ~220 symbols — rendering all of them as cards on
+// every load was the actual page weight problem (not just the search box
+// styling). Two things fix it: (1) with no search text, only the already-
+// tracked assets are matched at all, so a normal visit renders a handful
+// of cards, not 220; (2) even a broad search is capped at DELTA_CATALOG_
+// MAX_RESULTS rendered cards, with a hint to narrow the search further.
+const DELTA_CATALOG_MAX_RESULTS = 60;
+
+function _deltaCatalogMatches(q) {
+  q = (q || '').toLowerCase().trim();
+  if (!q) return _deltaCatalog.filter(c => c.is_active);
+  return _deltaCatalog.filter(c => c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q));
+}
+
 function renderDeltaCatalog() {
   const grid = document.getElementById('deltaCatalogGrid');
-  const q = (document.getElementById('deltaCatalogSearch').value || '').toLowerCase();
-  const list = _deltaCatalog.filter(c => !q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q));
+  const q = document.getElementById('deltaCatalogSearch').value || '';
+  const matches = _deltaCatalogMatches(q);
+  const list = matches.slice(0, DELTA_CATALOG_MAX_RESULTS);
   document.getElementById('deltaCatalogCount').textContent = `${_deltaCatalog.filter(c => c.is_active).length} of ${_deltaCatalog.length} active`;
+
   if (!list.length) {
-    grid.innerHTML = '<div class="col-12 text-muted text-center py-3">No matching symbols.</div>';
+    grid.innerHTML = `<div class="col-12 text-muted text-center py-3">${q.trim()
+      ? 'No matching symbols.'
+      : 'No assets tracked yet — search above to find and add some.'}</div>`;
     return;
   }
-  grid.innerHTML = list.map(c => `
+
+  let hint = '';
+  if (!q.trim()) {
+    hint = `<div class="col-12 fs-xs text-muted mb-1"><i class="bi bi-info-circle me-1"></i>Showing your ${list.length} tracked asset${list.length === 1 ? '' : 's'}. Search above to browse the rest of the catalog (${_deltaCatalog.length} symbols) and add more.</div>`;
+  } else if (matches.length > DELTA_CATALOG_MAX_RESULTS) {
+    hint = `<div class="col-12 fs-xs text-muted mb-1"><i class="bi bi-info-circle me-1"></i>Showing first ${DELTA_CATALOG_MAX_RESULTS} of ${matches.length} matches — refine your search to narrow it down.</div>`;
+  }
+
+  grid.innerHTML = hint + list.map(c => `
     <div class="col-6 col-md-4 col-lg-3 col-xl-2">
       <div class="asset-toggle ${c.is_active ? 'active' : ''}" data-symbol="${c.symbol}"
            ${isSuperAdmin ? `onclick="toggleDeltaCatalogEntry(this,'${c.symbol}')"` : 'style="cursor:default;opacity:.7"'}>
@@ -372,12 +483,16 @@ async function toggleDeltaCatalogEntry(el, symbol) {
 
 async function bulkSetDeltaCatalog(turnOn) {
   if (!isSuperAdmin) return;
-  const q = (document.getElementById('deltaCatalogSearch').value || '').toLowerCase();
-  const targets = _deltaCatalog.filter(c =>
-    (!q || c.symbol.toLowerCase().includes(q) || c.name.toLowerCase().includes(q)) &&
-    c.is_active !== turnOn
-  );
-  if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
+  const q = document.getElementById('deltaCatalogSearch').value || '';
+  // Uses the same matching as the render — with an empty search that's
+  // "tracked assets only", so "Enable All" naturally has nothing to do
+  // until you search for something to add (no more accidentally enabling
+  // the entire ~220-symbol catalog with one click on an empty search box).
+  const targets = _deltaCatalogMatches(q).filter(c => c.is_active !== turnOn);
+  if (!targets.length) {
+    Toast.show(turnOn && !q.trim() ? 'Search for symbols to add first' : 'Nothing to change for the current search', 'info');
+    return;
+  }
   // See bulkSetFiltered's comment above for why this skips confirm().
 
   const results = await Promise.all(targets.map(entry => setDeltaEntry(entry, turnOn)));
@@ -393,19 +508,38 @@ document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
   document.getElementById('assetSearchCard').style.display = isSuperAdmin ? '' : 'none';
+  // No per-row checkboxes render for a view-only (non-super-admin) user, so
+  // the select-all header checkbox has nothing to drive — hide it too.
+  document.getElementById('assetSelectAll').style.display = isSuperAdmin ? '' : 'none';
   loadDeltaCatalog();
 
   loadAssets();
-  document.getElementById('assetSearchInput').addEventListener('keydown', e => {
-    if (e.key === 'Enter') searchAssets();
+
+  // Auto-search as you type (debounced — this hits an external API, unlike
+  // the client-side filters above) instead of requiring a Search button click.
+  let _assetSearchTimeout;
+  document.getElementById('assetSearchInput').addEventListener('input', () => {
+    clearTimeout(_assetSearchTimeout);
+    _assetSearchTimeout = setTimeout(searchAssets, 450);
   });
+  document.getElementById('assetSearchInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { clearTimeout(_assetSearchTimeout); searchAssets(); }
+  });
+
+  wireSearchClear('assetSearch');
+  wireSearchClear('deltaCatalogSearch');
+  wireSearchClear('assetSearchInput');
 });
 
 async function searchAssets() {
   const q = document.getElementById('assetSearchInput').value.trim();
-  if (q.length < 2) return;
   const msg  = document.getElementById('assetSearchMsg');
   const wrap = document.getElementById('assetSearchResults');
+  if (q.length < 2) {
+    msg.textContent = '';
+    wrap.style.display = 'none';
+    return;
+  }
   msg.textContent = 'Searching…';
   wrap.style.display = 'none';
   const data = await API.get('/assets/search', { q });
