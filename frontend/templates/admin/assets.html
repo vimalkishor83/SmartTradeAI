@@ -211,8 +211,12 @@ async function bulkSetFiltered(turnOn) {
     a.is_active !== turnOn
   );
   if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
-  const label = mk ? mk.replace(/_/g,' ') : 'all markets';
-  if (!confirm(`${turnOn ? 'Enable' : 'Disable'} ${targets.length} asset(s) (${label})?`)) return;
+  // No confirm() dialog: unlike removing an asset, enabling/disabling is
+  // trivially reversible (click the other button, or the same one again),
+  // and the native browser confirm() prompt reportedly wasn't reliably
+  // appearing/registering for at least one admin — a blocking native
+  // dialog is a fragile, inconsistent-across-browsers pattern anyway, and
+  // this action doesn't carry enough risk to be worth that fragility.
 
   const btn = document.getElementById(turnOn ? 'enableFilteredBtn' : 'disableFilteredBtn');
   btn.disabled = true;
@@ -374,7 +378,7 @@ async function bulkSetDeltaCatalog(turnOn) {
     c.is_active !== turnOn
   );
   if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
-  if (!confirm(`${turnOn ? 'Enable' : 'Disable'} ${targets.length} symbol(s)${q ? ` matching "${q}"` : ''}?`)) return;
+  // See bulkSetFiltered's comment above for why this skips confirm().
 
   const results = await Promise.all(targets.map(entry => setDeltaEntry(entry, turnOn)));
   const okCount = results.filter(Boolean).length;
