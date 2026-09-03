@@ -93,6 +93,9 @@ class SignalEngine:
             if not force and not self._trend_strength_gate(indicators.get("adx") or 0):
                 return None
 
+            if not force and not self._ema_extension_gate(close, indicators.get("ema9") or 0, atr, timeframe):
+                return None
+
             # ── Stage 3: MTF alignment gate ────────────────────────
             higher_bias = self._mtf_gate(higher_tf_df)
             # higher_bias: "bullish" | "bearish" | "neutral" | None (unknown = skip only if conflict is clear)
@@ -378,6 +381,35 @@ class SignalEngine:
         if not adx:
             return True  # no ADX data — allow through (data issue, not a bad market)
         return adx >= self.ADX_TREND_MIN
+
+    # Rejects a signal when price has already run too far from its own
+    # EMA9 (in ATR terms) before every trend/momentum box happens to tick —
+    # e.g. one big impulsive candle satisfies EMA9>EMA21 + Supertrend +
+    # MACD all at once, and this engine had nothing checking whether price
+    # itself was still near a sane entry, only whether the trend looked
+    # right. Two problems compound at that moment: the entry is chasing a
+    # move that already happened, and _structure_stop's ATR-based stop is
+    # simultaneously WIDER than usual, because the same candle that
+    # extended price also just inflated ATR.
+    #
+    # Live backtest sweep (7-asset active crypto set, 15m/1h/4h, gate off
+    # vs. thresholds 1.0/1.5/2.0/2.5x ATR) validated 1.0x specifically on
+    # 15m and 1h — 15m avg net -6.43% -> -4.05%, 1h -2.02% -> -0.69% (both
+    # also 1.0x's best result; looser thresholds converged back to the
+    # gate-off baseline). 4h was WORSE at every threshold tested (net loss
+    # increased, profitable-asset count dropped from 2/7 to 0-1/7) — on
+    # that timeframe an "extended" candle is more often a genuine,
+    # persistent trend worth catching, not a chase, so the gate only
+    # applies to 15m/1h (see EMA_EXTENSION_TIMEFRAMES below).
+    EMA_EXTENSION_MAX_ATR = 1.0
+    EMA_EXTENSION_TIMEFRAMES = ("15m", "1h")
+
+    def _ema_extension_gate(self, close: float, ema9: float, atr: float, timeframe: str) -> bool:
+        if timeframe not in self.EMA_EXTENSION_TIMEFRAMES:
+            return True
+        if not ema9 or not atr:
+            return True  # no EMA/ATR data — allow through (data issue, not a bad setup)
+        return abs(close - ema9) <= self.EMA_EXTENSION_MAX_ATR * atr
 
     # ──────────────────────────────────────────────────────
     # Stage 3 — Higher timeframe alignment gate

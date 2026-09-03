@@ -29,6 +29,24 @@ TIMEFRAME_INTERVALS = {
     "1d":  {"hours": 24},
 }
 
+# NSE cash-market hours, IST, Mon-Fri. The engine's own _session_gate
+# already blocks generate_signal() outside these hours, but that only
+# stops a SIGNAL from being produced -- it doesn't stop this scheduled job
+# from still fetching Yahoo Finance data and running the full pipeline for
+# indian_stock assets every single cycle while the market is closed
+# (evenings, nights, weekends), which was the source of unnecessary
+# activity/alerts the user wanted gone. This filters those assets out of
+# the run entirely outside market hours, rather than relying on the
+# per-call gate alone. A few minutes looser than the exact 09:15 open so a
+# 9:00 AM Auto-Generate cycle isn't rejected a quarter-hour early.
+def _indian_market_open() -> bool:
+    ist_now = datetime.utcnow() + timedelta(hours=5, minutes=30)
+    if ist_now.weekday() >= 5:  # Saturday/Sunday
+        return False
+    open_time  = ist_now.replace(hour=9, minute=0, second=0, microsecond=0)
+    close_time = ist_now.replace(hour=15, minute=30, second=0, microsecond=0)
+    return open_time <= ist_now <= close_time
+
 
 def generate_signals_for_timeframe(app, timeframe: str):
     with app.app_context():
@@ -47,6 +65,10 @@ def generate_signals_for_timeframe(app, timeframe: str):
         blocked = blocked_data_markets()
         if blocked:
             assets = [a for a in assets if a.market not in blocked]
+
+        if not _indian_market_open():
+            assets = [a for a in assets if a.market != "indian_stock"]
+
         if not assets:
             return
 
