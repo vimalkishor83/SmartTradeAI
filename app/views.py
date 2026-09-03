@@ -79,6 +79,11 @@ def markets_terminal():
     return render_template("markets/terminal.html", requires_tier=1)
 
 
+@views_bp.route("/dhan-indices")
+def dhan_indices():
+    return render_template("dashboard/dhan_indices.html", requires_tier=1)
+
+
 @views_bp.route("/scanner")
 def scanner():
     return render_template("dashboard/scanner.html", requires_tier=2)

@@ -1,0 +1,162 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = false %}
+{% block title %}Indices & Options — SmartTrade AI{% endblock %}
+{% set active = 'dhan_indices' %}
+{% block breadcrumb %}<i class="bi bi-bar-chart-fill me-2"></i> Indices & Options{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-bar-chart-fill text-accent me-2"></i>Indices &amp; Options</h1>
+    <p class="page-subtitle mb-0">Live index quotes and option chains via Dhan — indices &amp; options only for now, stocks/futures coming next</p>
+  </div>
+  <div class="dash-header-actions">
+    <button class="btn btn-sm btn-outline-light" id="dhanRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+  </div>
+</div>
+
+<div class="alert alert-warning py-2 small mb-3" id="dhanNotConfigured" style="display:none">
+  <i class="bi bi-exclamation-triangle me-1"></i>
+  Dhan isn't configured yet — an admin needs to add API credentials in
+  <a href="/admin/api-configs" class="alert-link">Admin &gt; API Configurations</a>
+  (Market: Indices, Provider: Dhan). Everything below stays blank until then.
+</div>
+
+<div class="row g-3 mb-3" id="dhanIndexCards">
+  <div class="col-12 text-muted text-center py-4"><div class="spinner-border spinner-border-sm me-2"></div>Loading indices…</div>
+</div>
+
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent"></i> Option Chain</span>
+    <div class="d-flex gap-2 align-items-center">
+      <select id="dhanUnderlying" class="form-select form-select-sm" style="width:150px"></select>
+      <select id="dhanExpiry" class="form-select form-select-sm" style="width:150px"></select>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="smart-table">
+      <thead>
+        <tr>
+          <th colspan="4" class="text-center" style="background:rgba(16,185,129,.08)">CALLS</th>
+          <th>Strike</th>
+          <th colspan="4" class="text-center" style="background:rgba(239,68,68,.08)">PUTS</th>
+        </tr>
+        <tr>
+          <th>OI</th><th>Volume</th><th>IV</th><th>LTP</th>
+          <th></th>
+          <th>LTP</th><th>IV</th><th>Volume</th><th>OI</th>
+        </tr>
+      </thead>
+      <tbody id="dhanChainBody">
+        <tr><td colspan="9" class="text-center text-muted py-5">Select an underlying and expiry to load the chain.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _dhanConfigured = false;
+let _dhanUnderlyings = [];
+
+async function loadDhanStatus() {
+  const data = await API.get('/dhan/status');
+  if (!data) return;
+  _dhanConfigured = !!data.configured;
+  _dhanUnderlyings = data.available_underlyings || [];
+  document.getElementById('dhanNotConfigured').style.display = _dhanConfigured ? 'none' : '';
+
+  const sel = document.getElementById('dhanUnderlying');
+  sel.innerHTML = _dhanUnderlyings.map(u => `<option value="${u}">${u}</option>`).join('');
+}
+
+async function loadDhanIndices() {
+  const wrap = document.getElementById('dhanIndexCards');
+  if (!_dhanConfigured) {
+    wrap.innerHTML = _dhanUnderlyings.map(name => `
+      <div class="col-6 col-md-4 col-lg-3">
+        <div class="kpi-card"><div class="kpi-top">
+          <div><div class="kpi-label">${name}</div><div class="kpi-value">—</div></div>
+        </div><div class="kpi-change text-muted">not connected</div></div>
+      </div>`).join('');
+    return;
+  }
+  const data = await API.get('/dhan/indices');
+  const quotes = data?.quotes || {};
+  const names = Object.keys(quotes).length ? Object.keys(quotes) : _dhanUnderlyings;
+  wrap.innerHTML = names.map(name => {
+    const q = quotes[name] || {};
+    // Field names below follow Dhan's typical quote shape (last_price /
+    // net_change) — adjust here if real responses use different keys.
+    const price = q.last_price ?? q.ltp ?? null;
+    const change = q.net_change ?? q.change_pct ?? null;
+    const up = (change ?? 0) >= 0;
+    return `<div class="col-6 col-md-4 col-lg-3">
+      <div class="kpi-card ${up ? 'green' : 'red'}"><div class="kpi-top">
+        <div><div class="kpi-label">${name}</div>
+          <div class="kpi-value">${price != null ? price : '—'}</div></div>
+      </div><div class="kpi-change ${up ? 'text-green' : 'text-red'}">${change != null ? (up ? '+' : '') + change : '—'}</div></div>
+    </div>`;
+  }).join('');
+}
+
+async function loadDhanExpiries() {
+  const underlying = document.getElementById('dhanUnderlying').value;
+  const expirySel = document.getElementById('dhanExpiry');
+  if (!_dhanConfigured || !underlying) { expirySel.innerHTML = ''; return; }
+  const data = await API.get('/dhan/options/expiries', { underlying });
+  const expiries = data?.expiries || [];
+  expirySel.innerHTML = expiries.length
+    ? expiries.map(e => `<option value="${e}">${e}</option>`).join('')
+    : '<option value="">No expiries</option>';
+  loadDhanChain();
+}
+
+async function loadDhanChain() {
+  const body = document.getElementById('dhanChainBody');
+  const underlying = document.getElementById('dhanUnderlying').value;
+  const expiry = document.getElementById('dhanExpiry').value;
+  if (!_dhanConfigured) {
+    body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">Dhan isn\'t connected yet.</td></tr>';
+    return;
+  }
+  if (!underlying || !expiry) {
+    body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">Select an underlying and expiry to load the chain.</td></tr>';
+    return;
+  }
+  const data = await API.get('/dhan/options/chain', { underlying, expiry });
+  // Dhan's option chain shape is typically {last_price, oc: {"<strike>": {ce:{...}, pe:{...}}}}
+  const oc = data?.chain?.oc || {};
+  const strikes = Object.keys(oc).sort((a, b) => parseFloat(a) - parseFloat(b));
+  if (!strikes.length) {
+    body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">No chain data — check the underlying/expiry, or that Dhan credentials are valid.</td></tr>';
+    return;
+  }
+  body.innerHTML = strikes.map(strike => {
+    const ce = oc[strike]?.ce || {};
+    const pe = oc[strike]?.pe || {};
+    const f = (v) => v ?? '—';
+    return `<tr>
+      <td>${f(ce.oi)}</td><td>${f(ce.volume)}</td><td>${f(ce.implied_volatility)}</td><td class="fw-700">${f(ce.last_price)}</td>
+      <td class="fw-800 text-center">${strike}</td>
+      <td class="fw-700">${f(pe.last_price)}</td><td>${f(pe.implied_volatility)}</td><td>${f(pe.volume)}</td><td>${f(pe.oi)}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function loadAll() {
+  await loadDhanStatus();
+  await loadDhanIndices();
+  await loadDhanExpiries();
+}
+
+document.addEventListener('app:ready', () => {
+  loadAll();
+  document.getElementById('dhanRefresh').addEventListener('click', loadAll);
+  document.getElementById('dhanUnderlying').addEventListener('change', loadDhanExpiries);
+  document.getElementById('dhanExpiry').addEventListener('change', loadDhanChain);
+});
+</script>
+{% endblock %}

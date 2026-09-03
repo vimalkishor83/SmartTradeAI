@@ -42,7 +42,7 @@ class APIConfig(db.Model):
         "us_stock":     ["alpaca", "interactive_brokers", "tradier", "td_ameritrade", "custom"],
         "forex":        ["oanda", "interactive_brokers", "custom"],
         "commodity":    ["yahoo", "twelve_data", "alpha_vantage", "custom"],
-        "index":        ["yahoo", "alpha_vantage", "twelve_data", "finnhub", "polygon", "custom"],
+        "index":        ["yahoo", "alpha_vantage", "twelve_data", "finnhub", "polygon", "dhan", "custom"],
         "data":         ["yahoo", "alpha_vantage", "twelve_data", "finnhub", "polygon", "tiingo", "iex_cloud", "custom"],
     }
 
@@ -56,6 +56,7 @@ class APIConfig(db.Model):
         "zerodha":              {"base_url": "https://api.kite.trade"},
         "upstox":               {"base_url": "https://api.upstox.com/v2"},
         "fyers":                {"base_url": "https://api.fyers.in/api/v2"},
+        "dhan":                 {"base_url": "https://api.dhan.co/v2"},
         "alpaca":               {"base_url": "https://paper-api.alpaca.markets", "websocket_url": "wss://stream.data.alpaca.markets/v2/iex"},
         "interactive_brokers":  {"base_url": "https://localhost:5000/v1/api"},
         "yahoo":                {"base_url": "https://query1.finance.yahoo.com"},

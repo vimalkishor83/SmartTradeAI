@@ -159,6 +159,11 @@
           <i class="bi bi-grid-3x3-gap-fill nav-icon-green"></i><span class="nav-text">Market Heatmap</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
+        {% if '/dhan-indices' not in disabled_nav_items %}
+        <a href="/dhan-indices" data-tooltip="Indices & Options" class="nav-item {% if active == 'dhan_indices' %}active{% endif %}">
+          <i class="bi bi-bar-chart-fill nav-icon-green"></i><span class="nav-text">Indices &amp; Options</span>
+        </a>
+        {% endif %}
         {% if '/delta-scanner' not in disabled_nav_items %}
         <a href="/delta-scanner" data-tooltip="Delta Scanner — requires Premium or higher" class="nav-item {% if active == 'delta_scanner' %}active{% endif %}">
           <i class="bi bi-graph-up-arrow nav-icon-green"></i><span class="nav-text">Delta Scanner</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
