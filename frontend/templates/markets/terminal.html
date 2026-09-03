@@ -177,16 +177,60 @@ function _termPinMax() {
   return cls ? parseInt(cls.split('-').pop(), 10) : 5;
 }
 
-function _loadPinnedAssets() {
+// Stored as {id, market} entries (not a bare id array) so a pin can be
+// pruned safely when its OWN market's asset list no longer contains it,
+// without having to guess-and-check it against whatever market happens to
+// be on screen right now — a pin made on Forex must never be silently
+// dropped just because the Crypto tab loaded first. Older data saved
+// before this existed is a flat array of numbers with no market attached;
+// that's carried over as market:null and reconciled against whichever
+// market it's first seen on (harmless in practice — it's exactly the
+// stale-crypto-pin cleanup this fix exists for).
+function _loadPinnedEntries() {
   try {
     const raw = JSON.parse(localStorage.getItem(TERM_PIN_KEY) || '[]');
-    return new Set(Array.isArray(raw) ? raw : []);
-  } catch { return new Set(); }
+    if (!Array.isArray(raw)) return [];
+    return raw.map(e => typeof e === 'object' && e !== null
+      ? { id: Number(e.id), market: e.market || null }
+      : { id: Number(e), market: null });
+  } catch { return []; }
 }
-function _savePinnedAssets() {
-  try { localStorage.setItem(TERM_PIN_KEY, JSON.stringify([..._pinnedAssets])); } catch {}
+function _savePinnedEntries() {
+  try { localStorage.setItem(TERM_PIN_KEY, JSON.stringify(_pinnedEntries)); } catch {}
 }
-let _pinnedAssets = _loadPinnedAssets();
+let _pinnedEntries = _loadPinnedEntries();
+// Derived Set for the fast .has() lookups used throughout rendering/sorting —
+// _pinnedEntries (with market info) stays the source of truth for storage
+// and pruning; call _syncPinnedSet() after any change to _pinnedEntries.
+let _pinnedAssets = new Set();
+function _syncPinnedSet() { _pinnedAssets = new Set(_pinnedEntries.map(e => e.id)); }
+_syncPinnedSet();
+
+// Drops any pinned entry that belongs to THIS market (or has no known
+// market yet) but is no longer in this market's own asset list — e.g. an
+// asset that was pinned and later disabled/removed. Never touches a pin
+// recorded against a different market, so switching tabs can't lose pins
+// that just haven't loaded yet.
+function _prunePinnedForMarket(market, cards) {
+  const liveIds = new Set(cards.map(c => c.asset_id));
+  const before = _pinnedEntries.length;
+  _pinnedEntries = _pinnedEntries.filter(e => {
+    if (e.market !== market && e.market !== null) return true;
+    return liveIds.has(e.id);
+  });
+  // A legacy (market:null) entry that survived just got confirmed as
+  // belonging to this market — record that so it isn't re-checked
+  // against every other market's list the next time it's pruned.
+  let upgraded = false;
+  _pinnedEntries.forEach(e => {
+    if (e.market === null && liveIds.has(e.id)) { e.market = market; upgraded = true; }
+  });
+  if (_pinnedEntries.length !== before || upgraded) {
+    _savePinnedEntries();
+    _syncPinnedSet();
+  }
+}
+
 let _lastCards = [];       // cache of the last /market-board response, for client-side search/pin re-sort without refetching
 let _termSearch = '';
 
@@ -249,7 +293,7 @@ function renderTerminalCard(s) {
   const mkt = s.market;
 
   const pinned = _pinnedAssets.has(s.asset_id);
-  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" title="${pinned ? 'Unpin' : `Pin to top (max ${_termPinMax()})`}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
+  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" data-pin-market="${mkt}" title="${pinned ? 'Unpin' : `Pin to top (max ${_termPinMax()})`}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
 
   if (s.available === false) {
     return `
@@ -431,10 +475,10 @@ function applyTerminalFilters() {
   grid.innerHTML = cards.map(renderTerminalCard).join('');
 }
 
-function toggleTerminalPin(assetId) {
+function toggleTerminalPin(assetId, market) {
   assetId = Number(assetId);
   if (_pinnedAssets.has(assetId)) {
-    _pinnedAssets.delete(assetId);
+    _pinnedEntries = _pinnedEntries.filter(e => e.id !== assetId);
   } else {
     const max = _termPinMax();
     if (_pinnedAssets.size >= max) {
@@ -443,9 +487,10 @@ function toggleTerminalPin(assetId) {
       }
       return;
     }
-    _pinnedAssets.add(assetId);
+    _pinnedEntries.push({ id: assetId, market: market || null });
   }
-  _savePinnedAssets();
+  _savePinnedEntries();
+  _syncPinnedSet();
   applyTerminalFilters();
 }
 
@@ -465,6 +510,7 @@ async function loadTerminal() {
   }
 
   _lastCards = data.cards || [];
+  _prunePinnedForMarket(_termMarket, _lastCards);
   applyTerminalFilters();
 }
 
@@ -511,7 +557,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('terminalGrid').addEventListener('click', (e) => {
     const pinBtn = e.target.closest('.term-pin-btn');
     if (!pinBtn) return;
-    toggleTerminalPin(pinBtn.dataset.pinAsset);
+    toggleTerminalPin(pinBtn.dataset.pinAsset, pinBtn.dataset.pinMarket);
   });
 });
 </script>
