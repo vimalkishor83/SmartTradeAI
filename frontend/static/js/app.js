@@ -446,7 +446,15 @@ const Ticker = {
   _setSpeed(track) {
     const halfWidth = track.scrollWidth / 2;
     if (!halfWidth) return;
-    const seconds = Math.min(180, Math.max(20, halfWidth / this._PX_PER_SEC));
+    // Floor only, to keep a very short list (a handful of assets) from
+    // completing a loop so fast it looks broken. No real ceiling: with
+    // 140+ tracked assets a comfortable reading speed genuinely takes
+    // several minutes per loop, same as any real ticker — capping the
+    // duration low would just silently speed the scroll back up again for
+    // exactly the crowd of items that made this need fixing in the first
+    // place. 600s is a sanity backstop against a bad width reading, not a
+    // normal operating limit.
+    const seconds = Math.min(600, Math.max(20, halfWidth / this._PX_PER_SEC));
     track.style.animationDuration = seconds.toFixed(1) + 's';
   },
 
