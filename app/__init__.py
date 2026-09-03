@@ -784,6 +784,21 @@ def _init_scheduler(app):
         replace_existing=True,
     )
 
+    # Housekeeping for user_sessions: nothing ever pruned this table, so a
+    # script re-authenticating on every run (a monitor, a bot, a scheduled
+    # health-check) leaves one fresh row per login forever — the admin
+    # Sessions page was showing dozens of rows for the same user+IP, most
+    # already expired. Runs once at boot, then periodically.
+    _cleanup_sessions(app)
+    scheduler.add_job(
+        _cleanup_sessions,
+        "interval",
+        args=[app],
+        id="session_cleanup",
+        minutes=30,
+        replace_existing=True,
+    )
+
 
 def _expire_trials(app):
     try:
@@ -815,6 +830,52 @@ def _expire_trials(app):
             logging.getLogger(__name__).info(f"Expired {len(expired)} plan trial(s), reverted to Free.")
     except Exception as e:
         logging.getLogger(__name__).warning(f"Trial expiry check failed: {e}")
+
+
+def _cleanup_sessions(app):
+    """Two housekeeping passes over user_sessions, run periodically:
+
+    1. Hard-delete rows that are fully expired — past expires_at, so
+       revoked or not, they can never authenticate anything again.
+    2. Among whatever's left (still within its expiry window), collapse
+       duplicates down to one row per (user_id, ip_address) pair, keeping
+       only the most recently active one. A script/monitor that
+       re-authenticates on every run otherwise leaves a fresh row each
+       time without the previous one having expired yet, which is exactly
+       what was cluttering the admin Sessions page.
+    """
+    try:
+        from datetime import datetime
+        with app.app_context():
+            from app.models.user_session import UserSession
+            now = datetime.utcnow()
+
+            expired_count = UserSession.query.filter(UserSession.expires_at <= now).delete(synchronize_session=False)
+
+            remaining = (
+                UserSession.query.filter(UserSession.expires_at > now)
+                .order_by(UserSession.user_id, UserSession.ip_address, UserSession.last_seen_at.desc())
+                .all()
+            )
+            seen = set()
+            stale_ids = []
+            for s in remaining:
+                key = (s.user_id, s.ip_address)
+                if key in seen:
+                    stale_ids.append(s.id)
+                else:
+                    seen.add(key)
+            if stale_ids:
+                UserSession.query.filter(UserSession.id.in_(stale_ids)).delete(synchronize_session=False)
+
+            db.session.commit()
+            if expired_count or stale_ids:
+                logging.getLogger(__name__).info(
+                    f"Session cleanup: removed {expired_count} expired, {len(stale_ids)} duplicate-IP row(s)."
+                )
+    except Exception as e:
+        db.session.rollback()
+        logging.getLogger(__name__).warning(f"Session cleanup failed: {e}")
 
 
 _AG_LAST_APPLIED = None  # fingerprint of the config currently armed on the scheduler, or None if stopped

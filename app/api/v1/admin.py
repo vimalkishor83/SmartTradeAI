@@ -814,6 +814,22 @@ def revoke_session(session_id):
     return jsonify(session_row.to_dict()), 200
 
 
+@admin_bp.route("/sessions/<int:session_id>", methods=["DELETE"])
+@super_admin_required
+def delete_session(session_id):
+    """Hard-delete a session row — distinct from revoke above, which only
+    invalidates it (kept for the JWT blocklist check) without removing the
+    row. This is pure list hygiene: for clearing out old/duplicate rows
+    (e.g. a script re-authenticating on every run leaves a fresh row each
+    time) that don't need to linger until the periodic cleanup job
+    (_cleanup_sessions in app/__init__.py) gets to them."""
+    from app.models.user_session import UserSession
+    session_row = UserSession.query.get_or_404(session_id)
+    db.session.delete(session_row)
+    db.session.commit()
+    return jsonify({"deleted": session_id}), 200
+
+
 @admin_bp.route("/users/<int:user_id>/revoke-sessions", methods=["POST"])
 @super_admin_required
 def revoke_all_user_sessions(user_id):

@@ -21,22 +21,26 @@
     <span class="section-card-title"><i class="bi bi-people-fill text-accent"></i> Sessions</span>
   </div>
   <div class="section-card-body p-3">
-    <div class="d-flex gap-2 flex-wrap mb-3">
+    <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
       <input type="text" class="form-control" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px" oninput="renderSessionsTable()">
       <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
         <input class="form-check-input" type="checkbox" id="activeOnlyToggle" onchange="loadSessions()" style="margin:0">
         <label class="form-check-label" for="activeOnlyToggle">Active only</label>
       </div>
+      <button class="btn btn-sm btn-danger ms-auto" id="deleteSelectedSessionsBtn" onclick="deleteSelectedSessions()" style="display:none">
+        <i class="bi bi-trash3 me-1"></i>Delete Selected (<span id="deleteSelectedSessionsCount">0</span>)
+      </button>
     </div>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" id="sessionsTable" style="font-size:13px">
         <thead>
           <tr>
+            <th style="width:30px"><input class="form-check-input" type="checkbox" id="sessionSelectAll" onchange="toggleSelectAllSessions(this.checked)" title="Select all visible sessions"></th>
             <th>User</th><th>IP address</th><th>Device</th><th>Logged in</th><th>Last active</th><th>Status</th><th></th>
           </tr>
         </thead>
         <tbody id="sessionsTbody">
-          <tr><td colspan="7" class="text-center text-muted py-4">Loading…</td></tr>
+          <tr><td colspan="8" class="text-center text-muted py-4">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -55,6 +59,11 @@ let isSuperAdmin = false;
 let allSessions = [];
 let currentPage = 1;
 let totalPages = 1;
+// Scoped to whatever's currently loaded (cleared on every loadSessions()
+// re-fetch, e.g. a page change) rather than persisted across the whole
+// dataset like Admin Assets' selection — sessions are paginated server-side
+// so "select all" only ever means "everything on this page" anyway.
+let _selectedSessionIds = new Set();
 
 function timeAgo(iso) {
   if (!iso) return '—';
@@ -72,6 +81,7 @@ async function loadSessions() {
   if (!data) return;
   allSessions = data.sessions || [];
   totalPages = data.pages || 1;
+  _selectedSessionIds.clear();
   renderSessionsTable();
   renderPager();
 }
@@ -89,12 +99,14 @@ function renderSessionsTable() {
   const tbody = document.getElementById('sessionsTbody');
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No sessions found.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">No sessions found.</td></tr>`;
+    updateSessionSelectedToolbar([]);
     return;
   }
 
   tbody.innerHTML = rows.map(s => `
     <tr>
+      <td>${isSuperAdmin ? `<input class="form-check-input" type="checkbox" ${_selectedSessionIds.has(s.id) ? 'checked' : ''} onchange="toggleSessionSelect(${s.id},this.checked)">` : ''}</td>
       <td><strong>${s.username}</strong></td>
       <td class="text-muted"><code>${s.ip_address}</code></td>
       <td class="text-muted">${s.device}</td>
@@ -107,6 +119,48 @@ function renderSessionsTable() {
           : ''}
       </td>
     </tr>`).join('');
+  updateSessionSelectedToolbar(rows);
+}
+
+function toggleSessionSelect(id, checked) {
+  if (checked) _selectedSessionIds.add(id); else _selectedSessionIds.delete(id);
+  updateSessionSelectedToolbar(allSessions.filter(s => !document.getElementById('usernameFilter').value.trim()
+    || s.username.toLowerCase().includes(document.getElementById('usernameFilter').value.trim().toLowerCase())));
+}
+
+function toggleSelectAllSessions(checked) {
+  document.querySelectorAll('#sessionsTbody input[type="checkbox"]').forEach(cb => { cb.checked = checked; });
+  const filter = document.getElementById('usernameFilter').value.trim().toLowerCase();
+  const visible = allSessions.filter(s => !filter || s.username.toLowerCase().includes(filter));
+  visible.forEach(s => { if (checked) _selectedSessionIds.add(s.id); else _selectedSessionIds.delete(s.id); });
+  updateSessionSelectedToolbar(visible);
+}
+
+function updateSessionSelectedToolbar(visibleRows) {
+  const btn = document.getElementById('deleteSelectedSessionsBtn');
+  const count = _selectedSessionIds.size;
+  btn.style.display = count ? '' : 'none';
+  document.getElementById('deleteSelectedSessionsCount').textContent = count;
+
+  const selectAll = document.getElementById('sessionSelectAll');
+  const visibleIds = (visibleRows || []).map(s => s.id);
+  selectAll.checked = visibleIds.length > 0 && visibleIds.every(id => _selectedSessionIds.has(id));
+  selectAll.indeterminate = !selectAll.checked && visibleIds.some(id => _selectedSessionIds.has(id));
+}
+
+async function deleteSelectedSessions() {
+  if (!isSuperAdmin || !_selectedSessionIds.size) return;
+  const ids = [..._selectedSessionIds];
+  if (!confirm(`Delete ${ids.length} selected session${ids.length === 1 ? '' : 's'}? This just removes the record — an active session among them will still work until it naturally expires (use Revoke first for those).`)) return;
+
+  const btn = document.getElementById('deleteSelectedSessionsBtn');
+  btn.disabled = true;
+  const results = await Promise.all(ids.map(id => API.delete(`/admin/sessions/${id}`)));
+  btn.disabled = false;
+
+  const okCount = results.filter(Boolean).length;
+  Toast.show(`${okCount}/${ids.length} session(s) deleted`, okCount === ids.length ? 'success' : 'error');
+  loadSessions();
 }
 
 function renderPager() {
