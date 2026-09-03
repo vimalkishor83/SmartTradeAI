@@ -90,6 +90,9 @@ class SignalEngine:
             if not vol_ok:
                 return None
 
+            if not force and not self._trend_strength_gate(indicators.get("adx") or 0):
+                return None
+
             # ── Stage 3: MTF alignment gate ────────────────────────
             higher_bias = self._mtf_gate(higher_tf_df)
             # higher_bias: "bullish" | "bearish" | "neutral" | None (unknown = skip only if conflict is clear)
@@ -352,6 +355,24 @@ class SignalEngine:
         if atr_pct > 3.0:
             return True, "elevated"
         return True, "normal"
+
+    # ADX below this means no clear trend either way — a trend-following
+    # signal (this engine's EMA9/21 cross + Supertrend core) has no real
+    # edge there, and a live backtest sweep across every currently-active
+    # crypto asset showed exactly the signature of trading through that
+    # condition anyway: decent-looking win rates (often 45-60%) that still
+    # net negative overall, worst on the fastest timeframes (15m/1h) where
+    # range-bound chop is most common. 20 is the standard ADX
+    # trending/non-trending cutoff (Wilder's own convention), not a value
+    # tuned specifically for this data — deliberately rejecting outright
+    # rather than just discounting confidence, since a choppy market isn't
+    # a weaker version of what this strategy trades, it's the absence of it.
+    ADX_TREND_MIN = 20.0
+
+    def _trend_strength_gate(self, adx: float) -> bool:
+        if not adx:
+            return True  # no ADX data — allow through (data issue, not a bad market)
+        return adx >= self.ADX_TREND_MIN
 
     # ──────────────────────────────────────────────────────
     # Stage 3 — Higher timeframe alignment gate

@@ -323,6 +323,13 @@ def calculate_all_indicators(df: pd.DataFrame, light: bool = False) -> dict:
         "keltner_upper": _safe(kc_upper, idx),
         "keltner_lower": _safe(kc_lower, idx),
         "obv": _safe(calculate_obv(close, volume), idx),
+        # Trend-strength (direction-agnostic) — was computed elsewhere for the
+        # Delta scanner's condition builder but never wired into the main
+        # signal-generation indicator set. Used by SignalEngine to gate
+        # trend-following (EMA-cross-based) signals out of genuinely choppy,
+        # non-trending conditions instead of scoring them the same as a real
+        # trend. See its use in _score_signal for why.
+        "adx": _safe(calculate_adx(high, low, close), idx),
     })
     return result
 
