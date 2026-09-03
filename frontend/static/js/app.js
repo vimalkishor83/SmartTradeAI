@@ -426,7 +426,28 @@ const Ticker = {
     }
     data.heatmap.forEach(item => { this._items[item.symbol] = item; });
     const html = this._renderHtml();
-    if (html) track.innerHTML = html + html;
+    if (html) {
+      track.innerHTML = html + html;
+      this._setSpeed(track);
+    }
+  },
+
+  // The CSS animation always slides the track by exactly 50% of its total
+  // (duplicated) width, over a fixed duration — that duration used to be a
+  // static 32s in the stylesheet, calibrated for however many assets
+  // happened to be tracked at the time. Adding a lot more tracked assets
+  // (more ticker items = a much wider track) with that duration held fixed
+  // meant the same 32s now had to cover far more distance, so the ribbon
+  // visibly sped up purely as a side effect of the asset count growing —
+  // nothing about the animation itself changed. Deriving the duration from
+  // the actual rendered width keeps the scroll speed (px/s) roughly
+  // constant regardless of how many assets are being tracked.
+  _PX_PER_SEC: 55,
+  _setSpeed(track) {
+    const halfWidth = track.scrollWidth / 2;
+    if (!halfWidth) return;
+    const seconds = Math.min(180, Math.max(20, halfWidth / this._PX_PER_SEC));
+    track.style.animationDuration = seconds.toFixed(1) + 's';
   },
 
   // Called by WebSocket on each live price update
