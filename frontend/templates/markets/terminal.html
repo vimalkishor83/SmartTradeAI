@@ -135,8 +135,8 @@
   <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to 4 assets to keep them pinned to the top</span>
 </div>
 
-<div class="row g-3" id="terminalGrid">
-  <div class="col-12">
+<div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5" id="terminalGrid">
+  <div class="col-12" style="flex:0 0 100%;max-width:100%">
     <div class="terminal-empty">
       <i class="bi bi-hourglass-split"></i>
       Loading signals…
@@ -243,7 +243,7 @@ function renderTerminalCard(s) {
 
   if (s.available === false) {
     return `
-      <div class="col-md-6 col-lg-3">
+      <div class="col">
         <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
@@ -271,7 +271,7 @@ function renderTerminalCard(s) {
          </details>`
       : '';
     return `
-      <div class="col-md-6 col-lg-3">
+      <div class="col">
         <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
@@ -318,7 +318,7 @@ function renderTerminalCard(s) {
     : '';
 
   return `
-    <div class="col-md-6 col-lg-3">
+    <div class="col">
       <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
@@ -409,7 +409,7 @@ function applyTerminalFilters() {
     : '';
 
   if (!cards.length) {
-    grid.innerHTML = `<div class="col-12">
+    grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%">
       <div class="terminal-empty">
         <i class="bi ${q ? 'bi-search' : 'bi-inbox'}"></i>
         ${q ? `No asset matching "${_escHtmlLocal(_termSearch)}"` : `No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.`}
@@ -443,12 +443,12 @@ async function loadTerminal() {
   const countEl = document.getElementById('terminalCount');
   const tf = _termTf;
 
-  grid.innerHTML = `<div class="col-12"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
+  grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
 
   const data = await API.get('/signals/market-board', { market: _termMarket, timeframe: tf });
 
   if (!data) {
-    grid.innerHTML = `<div class="col-12"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
+    grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
     countEl.textContent = '';
     return;
   }
