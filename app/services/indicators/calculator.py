@@ -68,6 +68,22 @@ def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int
     return dx.ewm(com=period - 1, min_periods=period).mean().fillna(0)
 
 
+def calculate_di(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> tuple[pd.Series, pd.Series]:
+    """Wilder's +DI/-DI (directional movement lines) — same inputs as
+    calculate_adx above, duplicated rather than refactored together since
+    calculate_adx's return type is already relied on elsewhere (the Delta
+    scanner). +DI/-DI tell direction; ADX alone only tells strength."""
+    up_move = high.diff()
+    down_move = -low.diff()
+    plus_dm = up_move.where((up_move > down_move) & (up_move > 0), 0.0)
+    minus_dm = down_move.where((down_move > up_move) & (down_move > 0), 0.0)
+
+    atr = calculate_atr(high, low, close, period)
+    plus_di = 100 * plus_dm.ewm(com=period - 1, min_periods=period).mean() / atr.replace(0, np.nan)
+    minus_di = 100 * minus_dm.ewm(com=period - 1, min_periods=period).mean() / atr.replace(0, np.nan)
+    return plus_di.fillna(0), minus_di.fillna(0)
+
+
 def calculate_supertrend(high, low, close, period=10, multiplier=3.0, atr=None):
     # `atr` may be a pre-computed Series (same period) passed in by the
     # caller to avoid recomputing it — calculate_all_indicators() calls both
@@ -331,6 +347,9 @@ def calculate_all_indicators(df: pd.DataFrame, light: bool = False) -> dict:
         # trend. See its use in _score_signal for why.
         "adx": _safe(calculate_adx(high, low, close), idx),
     })
+    plus_di, minus_di = calculate_di(high, low, close)
+    result["plus_di"] = _safe(plus_di, idx)
+    result["minus_di"] = _safe(minus_di, idx)
     return result
 
 

@@ -122,6 +122,11 @@ class SignalEngine:
             if not force and not self._momentum_gate(indicators, raw_direction):
                 return None
 
+            if not force and not self._di_direction_gate(
+                indicators.get("plus_di") or 0, indicators.get("minus_di") or 0, raw_direction,
+            ):
+                return None
+
             # Stage 5: Volume gate (skipped on force)
             if not force and market in ("crypto", "indian_stock"):
                 if not self._volume_gate(df):
@@ -464,6 +469,20 @@ class SignalEngine:
             macd_ok = macd_hist <= 0
 
         return rsi_ok and macd_ok
+
+    def _di_direction_gate(self, plus_di: float, minus_di: float, direction: str) -> bool:
+        """+DI/-DI (Wilder's directional movement lines) must agree with the
+        signal's direction. ADX (the trend-strength gate above) only says a
+        trend exists, not which way — this is the direction check that
+        pairs with it, and it's a genuinely different read than the EMA9/21
+        cross that mostly drives `trend_bull`/`trend_bear`: DI is derived
+        from expanding highs/lows, not moving-average position, so it can
+        disagree with the EMA cross right at a stalling/reversing move."""
+        if not plus_di or not minus_di:
+            return True  # no DI data — allow through (data issue, not a bad market)
+        if direction == "BUY":
+            return plus_di > minus_di
+        return minus_di > plus_di
 
     # ──────────────────────────────────────────────────────
     # Stage 5 — Volume gate
