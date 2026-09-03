@@ -1,0 +1,246 @@
+{% extends "partials/base.html" %}
+{% block title %}Signal Journal — SmartTrade AI{% endblock %}
+{% set active = 'signal_journal' %}
+{% block breadcrumb %}<i class="bi bi-journal-text me-2"></i> Signal Journal{% endblock %}
+
+{% block extra_css %}
+<style>
+.sj-entry { display:flex; flex-direction:column; gap:8px; }
+.sj-top { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.sj-asset { font-weight:800; font-size:15px; color:var(--text-primary); text-decoration:none; }
+.sj-meta { font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
+.sj-badges { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.sj-source-badge {
+  font-size:9.5px; font-weight:700; padding:2px 8px; border-radius:20px;
+  border:1px solid var(--border); color:var(--text-secondary); background:var(--glass);
+  text-transform:uppercase; letter-spacing:.3px;
+}
+.sj-outcome-badge { font-size:10px; font-weight:700; padding:3px 10px; border-radius:20px; }
+.sj-outcome-win     { background:rgba(16,185,129,.12); color:var(--green); border:1px solid rgba(16,185,129,.3); }
+.sj-outcome-loss    { background:rgba(239,68,68,.12);  color:var(--red);   border:1px solid rgba(239,68,68,.3); }
+.sj-outcome-open    { background:rgba(245,166,35,.12); color:var(--accent); border:1px solid rgba(245,166,35,.3); }
+.sj-outcome-neutral { background:var(--glass); color:var(--text-muted); border:1px solid var(--border); }
+
+.sj-note {
+  font-size:12.5px; line-height:1.5; padding:10px 12px; border-radius:var(--radius-sm,8px);
+  background:var(--glass); border:1px solid var(--border); border-left:3px solid var(--accent);
+}
+.sj-note.win  { border-left-color:var(--green); }
+.sj-note.loss { border-left-color:var(--red); }
+
+.sj-levels { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; }
+.sj-levels span.lbl { color:var(--text-muted); margin-right:4px; }
+.sj-levels span.val { font-weight:700; }
+
+.sj-why summary { cursor:pointer; font-size:11.5px; font-weight:700; color:var(--accent-light); list-style:none; display:flex; align-items:center; gap:6px; }
+.sj-why summary::-webkit-details-marker { display:none; }
+.sj-why summary .bi { transition:transform .15s; }
+.sj-why[open] summary .bi { transform:rotate(90deg); }
+.sj-why-text { font-size:11.5px; color:var(--text-secondary); line-height:1.5; margin-top:6px; }
+.sj-why-text > div { padding:1.5px 0; }
+
+.sj-empty { text-align:center; padding:64px 16px; color:var(--text-muted); }
+.sj-empty .bi { font-size:32px; display:block; margin-bottom:10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <span class="page-eyebrow">Signals</span>
+    <h1 class="page-title mb-1"><i class="bi bi-journal-text text-accent me-2"></i>Signal Journal</h1>
+    <p class="page-subtitle mb-0">Every signal this platform has generated — the reasoning behind it, and for anything resolved, whether the thesis actually held up</p>
+  </div>
+  <div class="dash-header-actions">
+    <button class="btn btn-sm btn-primary" id="sjRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+  </div>
+</div>
+
+<div class="section-card mb-3">
+  <div class="section-card-body py-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <select class="form-select form-select-sm" id="sjMarket" style="width:auto">
+        <option value="">All Markets</option>
+        <option value="crypto">Crypto</option>
+        <option value="forex">Forex</option>
+        <option value="commodity">Commodities</option>
+        <option value="indian_stock">Indian Stocks</option>
+        <option value="index">Indices</option>
+      </select>
+      <select class="form-select form-select-sm" id="sjTimeframe" style="width:auto">
+        <option value="">All Timeframes</option>
+        <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
+        <option value="30m">30m</option><option value="1h">1h</option><option value="2h">2h</option>
+        <option value="4h">4h</option><option value="1d">1d</option>
+      </select>
+      <select class="form-select form-select-sm" id="sjSource" style="width:auto">
+        <option value="">Terminal + Auto-Generate</option>
+        <option value="auto_generate">Auto-Generate only</option>
+        <option value="terminal">Terminal only</option>
+      </select>
+      <select class="form-select form-select-sm" id="sjOutcome" style="width:auto">
+        <option value="">Any Outcome</option>
+        <option value="open">Open</option>
+        <option value="win">Win</option>
+        <option value="loss">Loss</option>
+        <option value="neutral">Expired / Neutral</option>
+      </select>
+      <div class="search-bar ms-auto" style="width:200px"><i class="bi bi-search"></i><input type="text" id="sjSearch" placeholder="Search asset…"><i class="bi bi-x-circle-fill search-bar-clear"></i></div>
+    </div>
+  </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-2">
+  <span class="text-muted fs-xs" id="sjCount"></span>
+</div>
+
+<div class="d-flex flex-column gap-3" id="sjList">
+  <div class="sj-empty"><i class="bi bi-hourglass-split"></i>Loading journal…</div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mt-3" id="sjPager" style="display:none!important">
+  <button class="btn btn-sm btn-outline-light" id="sjPrevBtn"><i class="bi bi-chevron-left"></i></button>
+  <span class="text-muted small" id="sjPageLabel"></span>
+  <button class="btn btn-sm btn-outline-light" id="sjNextBtn"><i class="bi bi-chevron-right"></i></button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let _sjPage = 1;
+let _sjPages = 1;
+let _sjEntries = [];
+
+const SJ_MARKET_LABEL = { crypto:'Crypto', forex:'Forex', commodity:'Commodity', indian_stock:'Indian Stock', index:'Index' };
+const SJ_SOURCE_LABEL = { auto_generate: 'Auto-Generate', terminal: 'Terminal Live Read' };
+
+function _sjEsc(s) { return String(s ?? '').replace(/</g, '&lt;'); }
+
+function _sjOutcomeBadge(outcome, status) {
+  if (outcome === 'win')  return '<span class="sj-outcome-badge sj-outcome-win"><i class="bi bi-check-circle-fill me-1"></i>Win</span>';
+  if (outcome === 'loss') return '<span class="sj-outcome-badge sj-outcome-loss"><i class="bi bi-x-circle-fill me-1"></i>Loss</span>';
+  if (outcome === 'neutral') return '<span class="sj-outcome-badge sj-outcome-neutral">Expired</span>';
+  return '<span class="sj-outcome-badge sj-outcome-open"><i class="bi bi-broadcast me-1"></i>Open</span>';
+}
+
+function _sjReasoningHtml(detail) {
+  if (!Array.isArray(detail) || !detail.length) return '';
+  return detail.map(r => {
+    const icon = r.aligned ? '<i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i>'
+                            : '<i class="bi bi-x-circle" style="color:var(--text-muted);font-size:10px"></i>';
+    const style = r.aligned ? '' : 'opacity:.55;text-decoration:line-through';
+    return `<div style="display:flex;align-items:center;gap:5px;${style}">${icon}<span>${_sjEsc(r.text)}</span></div>`;
+  }).join('');
+}
+
+function _sjTimeAgo(iso) {
+  if (!iso) return '—';
+  const str = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
+  const date = new Date(str);
+  const diff = Math.floor((Date.now() - date) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+function renderJournalEntry(e) {
+  const dirColor = e.signal_type === 'SELL' ? 'var(--red)' : 'var(--green)';
+  const levels = [
+    ['Entry', e.entry_price], ['Stop', e.stop_loss],
+    ['T1', e.target1], ['T2', e.target2], ['T3', e.target3],
+  ].filter(([, v]) => v !== null && v !== undefined);
+
+  const reasoningHtml = _sjReasoningHtml(e.reasoning_detail);
+  const whyHtml = reasoningHtml
+    ? `<details class="sj-why"><summary><i class="bi bi-chevron-right"></i>Full reasoning</summary><div class="sj-why-text">${reasoningHtml}</div></details>`
+    : (e.reasoning ? `<div class="sj-why-text">${_sjEsc(e.reasoning)}</div>` : '');
+
+  const noteClass = e.outcome === 'win' ? 'win' : e.outcome === 'loss' ? 'loss' : '';
+
+  return `
+    <div class="section-card">
+      <div class="section-card-body sj-entry">
+        <div class="sj-top">
+          <div>
+            <a href="/asset/${e.asset_id}" class="sj-asset">${e.asset}</a>
+            <span style="color:${dirColor};font-weight:700;font-size:13px;margin-left:8px">${e.signal_type}</span>
+            <div class="sj-meta">${SJ_MARKET_LABEL[e.market] || e.market || '—'} · ${e.timeframe} · ${_sjTimeAgo(e.generated_at)}</div>
+          </div>
+          <div class="sj-badges">
+            <span class="sj-source-badge">${SJ_SOURCE_LABEL[e.source] || e.source}</span>
+            ${e.confidence_score != null ? `<span class="sj-source-badge">${Math.round(e.confidence_score)}% conf</span>` : ''}
+            ${_sjOutcomeBadge(e.outcome, e.status)}
+          </div>
+        </div>
+
+        ${levels.length ? `<div class="sj-levels">${levels.map(([l, v]) => `<span><span class="lbl">${l}:</span><span class="val tabular">${v}</span></span>`).join('')}</div>` : ''}
+
+        <div class="sj-note ${noteClass}"><i class="bi bi-quote me-1"></i>${_sjEsc(e.retrospective_note)}</div>
+
+        ${whyHtml}
+      </div>
+    </div>`;
+}
+
+async function loadJournal() {
+  const list = document.getElementById('sjList');
+  list.innerHTML = `<div class="sj-empty"><i class="bi bi-hourglass-split"></i>Loading journal…</div>`;
+
+  const params = {
+    page: _sjPage, per_page: 20,
+    market: document.getElementById('sjMarket').value,
+    timeframe: document.getElementById('sjTimeframe').value,
+    source: document.getElementById('sjSource').value,
+    outcome: document.getElementById('sjOutcome').value,
+  };
+  const data = await API.get('/signals/journal', params);
+  if (!data) {
+    list.innerHTML = `<div class="sj-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load. Try refreshing.</div>`;
+    return;
+  }
+
+  _sjEntries = data.entries || [];
+  _sjPages = data.pages || 1;
+  applyJournalSearch();
+  renderPager(data.total || 0);
+}
+
+function applyJournalSearch() {
+  const q = document.getElementById('sjSearch').value.trim().toLowerCase();
+  const list = document.getElementById('sjList');
+  const filtered = q ? _sjEntries.filter(e => (e.asset || '').toLowerCase().includes(q)) : _sjEntries;
+
+  document.getElementById('sjCount').textContent = filtered.length
+    ? `${filtered.length}${q ? ` of ${_sjEntries.length}` : ''} entr${filtered.length === 1 ? 'y' : 'ies'} on this page`
+    : '';
+
+  if (!filtered.length) {
+    list.innerHTML = `<div class="sj-empty"><i class="bi ${q ? 'bi-search' : 'bi-inbox'}"></i>${q ? `No asset matching "${_sjEsc(q)}" on this page` : 'No signals match these filters.'}</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(renderJournalEntry).join('');
+}
+
+function renderPager(total) {
+  const pager = document.getElementById('sjPager');
+  pager.style.display = _sjPages > 1 ? '' : 'none';
+  document.getElementById('sjPageLabel').textContent = `Page ${_sjPage} of ${_sjPages} · ${total} total`;
+  document.getElementById('sjPrevBtn').disabled = _sjPage <= 1;
+  document.getElementById('sjNextBtn').disabled = _sjPage >= _sjPages;
+}
+
+document.addEventListener('app:ready', () => {
+  loadJournal();
+  wireSearchClear('sjSearch');
+
+  document.getElementById('sjRefresh').addEventListener('click', () => { _sjPage = 1; loadJournal(); });
+  ['sjMarket', 'sjTimeframe', 'sjSource', 'sjOutcome'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => { _sjPage = 1; loadJournal(); });
+  });
+  document.getElementById('sjSearch').addEventListener('input', applyJournalSearch);
+  document.getElementById('sjPrevBtn').addEventListener('click', () => { if (_sjPage > 1) { _sjPage--; loadJournal(); } });
+  document.getElementById('sjNextBtn').addEventListener('click', () => { if (_sjPage < _sjPages) { _sjPage++; loadJournal(); } });
+});
+</script>
+{% endblock %}

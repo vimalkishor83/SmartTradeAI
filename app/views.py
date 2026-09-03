@@ -205,6 +205,11 @@ def journal():
     return render_template("dashboard/journal.html", requires_tier=1)
 
 
+@views_bp.route("/signal-journal")
+def signal_journal():
+    return render_template("dashboard/signal_journal.html", requires_tier=1)
+
+
 @views_bp.route("/admin")
 @page_admin_required
 def admin():

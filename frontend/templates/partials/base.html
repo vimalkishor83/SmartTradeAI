@@ -66,7 +66,7 @@
     {# Determine which group is active so it auto-expands #}
     {% set grp_overview  = active in ['dashboard','briefing'] %}
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index','terminal'] %}
-    {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history'] %}
+    {% set grp_signals   = active in ['signals','auto_generate','scanner','heatmap','backtesting','ai','signal_history','signal_journal'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','analytics','news','advanced_analysis'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log'] %}
@@ -187,6 +187,11 @@
         {% if '/signals?tab=history' not in disabled_nav_items %}
         <a href="/signals?tab=history" data-tooltip="Signal History — requires Basic or higher" class="nav-item {% if active == 'signal_history' %}active{% endif %}">
           <i class="bi bi-journal-text nav-icon-green"></i><span class="nav-text">Signal History</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+        </a>
+        {% endif %}
+        {% if '/signal-journal' not in disabled_nav_items %}
+        <a href="/signal-journal" data-tooltip="Signal Journal — the reasoning behind every signal, and whether it held up" class="nav-item {% if active == 'signal_journal' %}active{% endif %}">
+          <i class="bi bi-journal-richtext nav-icon-green"></i><span class="nav-text">Signal Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>

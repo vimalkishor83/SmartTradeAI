@@ -2085,6 +2085,115 @@ def live_read_performance():
     }), 200
 
 
+def _signal_outcome_label(status: str) -> str | None:
+    return {"hit_target": "win", "hit_sl": "loss", "expired": "neutral"}.get(status)
+
+
+def _build_retrospective_note(direction: str, outcome: str | None, reasoning_detail) -> str:
+    """Plain-language "did the thesis hold up" sentence built entirely from
+    data already computed and persisted at generation time — the reasoning
+    factors that actually supported the final call (reasoning_detail's
+    `aligned` flag — see SignalEngine._labeled_reasons) plus the real
+    outcome. No new analysis happens here, just narrating what's already
+    on the row for a human (or a future review of what went wrong) to
+    read without re-deriving it from raw scores."""
+    aligned = [r["text"] for r in (reasoning_detail or []) if r.get("aligned")][:3]
+    thesis = "; ".join(aligned) if aligned else "no strongly supporting factors were recorded"
+    side = "long" if direction == "BUY" else "short"
+    if outcome is None:
+        return f"Still open — {side} thesis: {thesis}."
+    if outcome == "win":
+        return f"Correct call — {side} thesis ({thesis}) played out; target was reached."
+    if outcome == "loss":
+        return f"Incorrect — {side} thesis was {thesis}, but price moved against the position and hit the stop instead."
+    return f"Expired without resolving either way — {side} thesis was {thesis}, but neither target nor stop was hit before it timed out."
+
+
+@signals_bp.route("/journal", methods=["GET"])
+@login_required
+def signal_journal():
+    """Unified, human-readable record of every signal this platform has
+    generated — both Auto-Generate's persisted Signal rows (which keep
+    their full reasoning even after closing — see Signal.status) and
+    Terminal's live-preview reads (LiveReadLog) — with the original
+    rationale and, for anything resolved, a plain-language retrospective
+    on whether that thesis actually held up. This is the "why was this
+    taken, and were we right" record, not just another signal list.
+    """
+    page = max(int(request.args.get("page", 1)), 1)
+    per_page = min(max(int(request.args.get("per_page", 30)), 1), 100)
+    market = request.args.get("market") or None
+    timeframe = request.args.get("timeframe") or None
+    outcome_filter = request.args.get("outcome") or None   # win, loss, neutral, open
+    source_filter = request.args.get("source") or None     # auto_generate, terminal
+
+    entries = []
+
+    if source_filter != "terminal":
+        q = Signal.query.filter(Signal.signal_type.in_(["BUY", "SELL"]))
+        if timeframe:
+            q = q.filter(Signal.timeframe == timeframe)
+        rows = q.order_by(Signal.generated_at.desc()).limit(400).all()
+        asset_ids = {r.asset_id for r in rows}
+        assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+        for s in rows:
+            a = assets_map.get(s.asset_id)
+            if not a or (market and a.market != market):
+                continue
+            outcome = _signal_outcome_label(s.status)
+            entries.append({
+                "source": "auto_generate", "id": s.id,
+                "asset": a.symbol, "asset_id": a.id, "market": a.market,
+                "timeframe": s.timeframe, "signal_type": s.signal_type,
+                "confidence_score": s.confidence_score, "confidence_label": s.confidence_label,
+                "entry_price": s.entry_price, "stop_loss": s.stop_loss,
+                "target1": s.target1, "target2": s.target2, "target3": s.target3,
+                "pnl_pct": s.pnl_pct, "reasoning": s.reasoning, "reasoning_detail": s.reasoning_detail,
+                "regime": s.regime, "status": s.status, "outcome": outcome,
+                "generated_at": s.generated_at.isoformat() if s.generated_at else None,
+                "retrospective_note": _build_retrospective_note(s.signal_type, outcome, s.reasoning_detail),
+            })
+
+    if source_filter != "auto_generate":
+        from app.models.live_read_log import LiveReadLog
+        q = LiveReadLog.query
+        if timeframe:
+            q = q.filter(LiveReadLog.timeframe == timeframe)
+        rows = q.order_by(LiveReadLog.generated_at.desc()).limit(400).all()
+        for r in rows:
+            a = r.asset
+            if not a or (market and a.market != market):
+                continue
+            entries.append({
+                "source": "terminal", "id": r.id,
+                "asset": a.symbol, "asset_id": a.id, "market": a.market,
+                "timeframe": r.timeframe, "signal_type": r.signal_type,
+                "confidence_score": r.confidence_score, "confidence_label": None,
+                "entry_price": r.entry_price, "stop_loss": r.stop_loss,
+                "target1": r.target1, "target2": r.target2, "target3": r.target3,
+                "pnl_pct": None, "reasoning": r.reasoning, "reasoning_detail": r.reasoning_detail,
+                "regime": r.regime, "status": "open" if r.outcome is None else "closed", "outcome": r.outcome,
+                "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+                "retrospective_note": _build_retrospective_note(r.signal_type, r.outcome, r.reasoning_detail),
+            })
+
+    if outcome_filter:
+        entries = [e for e in entries
+                   if (e["outcome"] == outcome_filter) or (outcome_filter == "open" and e["outcome"] is None)]
+
+    entries.sort(key=lambda e: e["generated_at"] or "", reverse=True)
+    total = len(entries)
+    start = (page - 1) * per_page
+    page_items = entries[start:start + per_page]
+
+    return jsonify({
+        "entries": page_items,
+        "total": total,
+        "pages": max(1, (total + per_page - 1) // per_page),
+        "page": page,
+    }), 200
+
+
 # ─── Backtest & Proof-of-Performance ──────────────────────────────────────────
 
 @signals_bp.route("/history-stats", methods=["GET"])
