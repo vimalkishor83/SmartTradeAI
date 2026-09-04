@@ -69,6 +69,12 @@ class PlatformConfig(db.Model):
     # Auto-Generate and Terminal live reads -- one flag controls both.
     smc_order_block_gate_enabled = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Same off-by-default, unvalidated-by-a-full-sweep status as the order
+    # block gate above -- a separate toggle (not bundled with it) so the two
+    # SMC concepts can be tested/enabled independently. See SignalEngine.
+    # _smc_liquidity_sweep_gate.
+    smc_liquidity_sweep_gate_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
@@ -98,5 +104,6 @@ class PlatformConfig(db.Model):
             "telegram_alerts_new_ip_login": self.telegram_alerts_new_ip_login,
             "audit_log_super_admins": self.audit_log_super_admins,
             "smc_order_block_gate_enabled": self.smc_order_block_gate_enabled,
+            "smc_liquidity_sweep_gate_enabled": self.smc_liquidity_sweep_gate_enabled,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -94,13 +94,22 @@
       <input class="form-check-input" type="checkbox" role="switch" id="smcGateToggle" onchange="toggleSmcGate(this.checked)">
       <label class="form-check-label" for="smcGateToggle">SMC Order-Block Gate</label>
     </div>
-    <p class="text-muted small mt-2 mb-0">
+    <p class="text-muted small mt-2 mb-3">
       Requires price to be sitting inside an unmitigated swing-structure order block (a Smart Money Concepts
       technique) before a signal fires, on top of the existing trend/momentum gates. Applies to both Auto-Generate
       and Terminal live reads. <strong>Off by default</strong> — unlike this platform's other signal-quality gates,
       this hasn't been through a full multi-asset backtest validation yet. An initial single-asset test (SOLUSDT,
       15m/1h/4h) showed mixed results: a real improvement on 1h, but worse on 15m and 4h on that one asset. Enable
       to observe/test it live, not as a proven improvement.
+    </p>
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="smcLiquidityToggle" onchange="toggleSmcLiquidity(this.checked)">
+      <label class="form-check-label" for="smcLiquidityToggle">SMC Liquidity-Sweep Gate</label>
+    </div>
+    <p class="text-muted small mt-2 mb-0">
+      A separate, independent toggle requiring a recent "stop hunt then reverse" — price sweeping past a swing
+      high/low (taking out the stops sitting there) and reclaiming the other side — before a signal fires. Same
+      status as the Order-Block Gate above: off by default, not yet validated across multiple assets.
     </p>
   </div>
 </div>
@@ -225,6 +234,7 @@ async function loadPlatformConfig() {
   updateKpis();
   loadAssetsSummary();
   document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
+  document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
 }
 
 function updateKpis() {
@@ -240,6 +250,17 @@ async function toggleSmcGate(checked) {
   } else {
     Toast.show('Failed to update', 'error');
     document.getElementById('smcGateToggle').checked = !checked;
+  }
+}
+
+async function toggleSmcLiquidity(checked) {
+  const res = await API.put('/admin/platform-config', { smc_liquidity_sweep_gate_enabled: checked });
+  if (res) {
+    Toast.show(`SMC Liquidity-Sweep Gate ${checked ? 'enabled' : 'disabled'}`, 'success');
+    _cfg.smc_liquidity_sweep_gate_enabled = checked;
+  } else {
+    Toast.show('Failed to update', 'error');
+    document.getElementById('smcLiquidityToggle').checked = !checked;
   }
 }
 
@@ -342,6 +363,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('saveTimeframesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
+  document.getElementById('smcLiquidityToggle').disabled = !isSuperAdmin;
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {

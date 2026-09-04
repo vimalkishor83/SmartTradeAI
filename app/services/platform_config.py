@@ -43,5 +43,9 @@ def is_smc_order_block_enabled() -> bool:
     return bool(get_platform_config().get("smc_order_block_gate_enabled"))
 
 
+def is_smc_liquidity_sweep_enabled() -> bool:
+    return bool(get_platform_config().get("smc_liquidity_sweep_gate_enabled"))
+
+
 def invalidate_platform_config():
     cache.delete(_CACHE_KEY)

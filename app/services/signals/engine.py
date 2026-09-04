@@ -131,8 +131,13 @@ class SignalEngine:
                 return None
 
             # Optional, admin-toggled (default OFF) — see _smc_order_block_gate's
-            # own docstring for why this isn't unconditional like the gates above.
+            # own docstring for why these aren't unconditional like the gates
+            # above. Two independent toggles, not one combined switch, so
+            # either concept can be tested/enabled without the other.
             if not force and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
+                return None
+
+            if not force and self._smc_liquidity_enabled() and not self._smc_liquidity_sweep_gate(df, raw_direction, atr):
                 return None
 
             # Stage 5: Volume gate (skipped on force)
@@ -262,6 +267,8 @@ class SignalEngine:
             # failed structure check is "no qualifying setup", not "no data",
             # matching this function's own HOLD-producing gates above.
             if raw_direction != "HOLD" and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
+                raw_direction = "HOLD"
+            if raw_direction != "HOLD" and self._smc_liquidity_enabled() and not self._smc_liquidity_sweep_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
 
             confidence = (
@@ -452,6 +459,13 @@ class SignalEngine:
         except Exception:
             return False
 
+    def _smc_liquidity_enabled(self) -> bool:
+        try:
+            from app.services.platform_config import is_smc_liquidity_sweep_enabled
+            return is_smc_liquidity_sweep_enabled()
+        except Exception:
+            return False
+
     def _find_swing_points(self, highs, lows, start, end, k):
         """Simple fractal pivots: bar i is a swing high/low if it's the
         max/min among the k bars on each side of it. Returns (swing_high_idx,
@@ -546,6 +560,59 @@ class SignalEngine:
                 continue
 
             if (zone_low - buffer) <= current_close <= (zone_high + buffer):
+                return True
+
+        return False
+
+    # Separate toggle from the order-block gate (PlatformConfig.
+    # smc_liquidity_sweep_gate_enabled) so the two can be tested
+    # independently rather than forced to move together. "Liquidity" here
+    # means the same thing app/api/v1/market_data.py's _compute_liquidity
+    # already displays on the Advanced Analysis chart (a cluster of stops
+    # sitting just past an obvious swing high/low) — this gate doesn't
+    # call that function directly (it clusters MULTIPLE nearby pivots for
+    # a chart overlay; a single genuine pivot is enough to confirm a real
+    # sweep for a gating decision), but it's the same underlying concept,
+    # confirmed to already have a real, working implementation elsewhere
+    # in this codebase before writing a second one here.
+    SMC_SWEEP_REBOUND_ATR = 0.1   # how far back above/below the pivot counts as "reclaimed"
+
+    def _smc_liquidity_sweep_gate(self, df: pd.DataFrame, direction: str, atr: float) -> bool:
+        """True if price recently swept a swing low (BUY) / swing high
+        (SELL) -- traded through it, taking out the stops sitting just
+        beyond it -- and then reclaimed back the other side, which is the
+        classic SMC "stop hunt then reverse" confirmation. Fails open (True)
+        on insufficient data, same convention as the order-block gate."""
+        if not atr or len(df) < self.SMC_LOOKBACK + self.SMC_SWING_K + 1:
+            return True
+
+        highs  = df["high"].astype(float).reset_index(drop=True)
+        lows   = df["low"].astype(float).reset_index(drop=True)
+        closes = df["close"].astype(float).reset_index(drop=True)
+        n = len(df)
+        start = max(0, n - self.SMC_LOOKBACK)
+        k = self.SMC_SWING_K
+
+        swing_highs, swing_lows = self._find_swing_points(highs.values, lows.values, start, n, k)
+        current_close = float(closes.iloc[-1])
+        rebound = self.SMC_SWEEP_REBOUND_ATR * atr
+        pivots = swing_lows if direction == "BUY" else swing_highs
+
+        for p_idx in pivots:
+            if p_idx >= n - 1:
+                continue  # need at least one bar after the pivot to have swept it
+            pivot_price = float(lows.iloc[p_idx]) if direction == "BUY" else float(highs.iloc[p_idx])
+            after_low  = lows.iloc[p_idx + 1:n]
+            after_high = highs.iloc[p_idx + 1:n]
+
+            if direction == "BUY":
+                swept = (after_low < pivot_price).any()
+                reclaimed = current_close > pivot_price + rebound
+            else:
+                swept = (after_high > pivot_price).any()
+                reclaimed = current_close < pivot_price - rebound
+
+            if swept and reclaimed:
                 return True
 
         return False
