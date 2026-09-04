@@ -5339,6 +5339,20 @@ select option {
   overflow: auto;
   max-height: 75vh;
   padding: 12px;
+  /* The packed cluster's own width/height varies per group (8 bubbles on
+     Major vs. 189 on Altcoin) and is always narrower than this card, which
+     spans the full row -- without centering, every group's bubbles sat
+     flush at the top-left with the rest of the card empty. The actual
+     absolute-positioned bubbles live in .bubble-canvas-inner, sized to
+     exactly that group's packed dimensions; this just centers that box. */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.bubble-canvas-inner {
+  position: relative;
+  flex-shrink: 0;
 }
 
 /* Packed circle-map bubble: a light "card" disc with a green/red ring

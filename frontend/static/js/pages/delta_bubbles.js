@@ -118,7 +118,7 @@ function dbRenderCanvas(data) {
   const { nodes, width, height } = dbPackLayout(withRadius);
   canvas.style.height = Math.max(height, 320) + 'px';
 
-  canvas.innerHTML = nodes.map((b, i) => {
+  const bubblesHtml = nodes.map((b, i) => {
     const d = b.r * 2;
     const up = b.change_pct >= 0;
     const sign = up ? '+' : '';
@@ -140,6 +140,8 @@ function dbRenderCanvas(data) {
       ${showPct ? `<span class="mkt-bubble-pct" style="color:${up ? 'var(--green)' : 'var(--red)'};font-size:${Math.max(9, Math.min(d * 0.13, 13))}px">${sign}${b.change_pct.toFixed(1)}%</span>` : ''}
     </div>`;
   }).join('');
+
+  canvas.innerHTML = `<div class="bubble-canvas-inner" style="width:${width}px;height:${height}px">${bubblesHtml}</div>`;
 }
 
 function dbRenderTable(data) {
