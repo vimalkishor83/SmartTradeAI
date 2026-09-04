@@ -169,6 +169,47 @@ def _build_question_prompt(asset_symbol: str, market: str, question: str, contex
     return "\n".join(lines)
 
 
+def _build_general_prompt(question: str, context: dict) -> str:
+    lines = [
+        "You are the trading assistant for SmartTrade AI, a signals platform. The user is asking a "
+        "general question, not one tied to a specific asset they have open.",
+        "Answer using ONLY the real platform data given below -- never invent a number, signal, or "
+        "event that isn't listed here. If the data doesn't cover what's asked (e.g. a specific "
+        "asset's price), say so plainly and suggest they open that asset's page and ask there "
+        "instead of guessing.",
+        "This is informational only, not personalised financial advice -- don't tell the user to "
+        "buy/sell, phrase it as what the data shows.",
+        "",
+    ]
+    if context.get("active_signals") is not None:
+        lines.append(f"Active signals right now: {context['active_signals']}")
+    if context.get("win_rate") is not None:
+        lines.append(f"Platform win rate (all-time, {context.get('closed_trades_total', 0)} closed trades): {context['win_rate']}%")
+    if context.get("latest_signal"):
+        lines.append(f"Most recent signal generated: {context['latest_signal']}")
+    lines += [
+        "",
+        f"User's question: {question}",
+        "",
+        "Answer in 2-4 sentences, plain text, no markdown, no disclaimers beyond what's asked.",
+    ]
+    return "\n".join(lines)
+
+
+def answer_general_question(question: str, context: dict) -> str | None:
+    """Same contract as answer_asset_question() but for the global Ask AI
+    widget when no specific asset is in view -- grounded in a platform-wide
+    snapshot (_gather_general_context() in app/api/v1/assets.py) instead of
+    one asset's data."""
+    try:
+        prompt = _build_general_prompt(question, context)
+        text = _call_llm(prompt, max_tokens=350)
+        return text[:1200] if text else None
+    except Exception as e:
+        logger.debug(f"LLM general Q&A unavailable: {e}")
+        return None
+
+
 def answer_asset_question(asset_symbol: str, market: str, question: str, context: dict) -> str | None:
     """Returns an LLM-written answer grounded in the real `context` dict
     (price/indicators/latest signal/news -- gathered by the caller from

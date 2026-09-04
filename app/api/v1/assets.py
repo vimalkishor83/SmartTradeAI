@@ -229,6 +229,96 @@ def _llm_qa_quota_ok() -> bool:
     return True
 
 
+def _gather_general_context() -> dict:
+    """Platform-wide snapshot for the global Ask AI widget when it's opened
+    on a page with no specific asset in view (Dashboard, Terminal,
+    Settings, etc.) -- same "real data only, gaps left out" contract as
+    _gather_asset_context(), just scoped to the whole platform instead of
+    one symbol."""
+    context: dict = {}
+
+    try:
+        from app.models.signal import Signal, SignalHistory
+        context["active_signals"] = Signal.query.filter_by(status="active").count()
+        total_h = SignalHistory.query.count()
+        if total_h:
+            wins = SignalHistory.query.filter(SignalHistory.outcome == "win").count()
+            context["win_rate"] = round(wins / total_h * 100, 1)
+            context["closed_trades_total"] = total_h
+    except Exception:
+        pass
+
+    try:
+        from app.models.signal import Signal as _Signal
+        top = (_Signal.query.join(Asset, _Signal.asset_id == Asset.id)
+               .filter(_Signal.signal_type.in_(["BUY", "SELL"]))
+               .order_by(_Signal.generated_at.desc()).first())
+        if top and top.asset:
+            context["latest_signal"] = (
+                f"{top.signal_type} on {top.asset.symbol} ({top.timeframe}), "
+                f"confidence {top.confidence_score:.0f}%, status: {top.status}"
+            )
+    except Exception:
+        pass
+
+    return context
+
+
+@assets_bp.route("/ask", methods=["POST"])
+@premium_required
+@subscription_feature_required("ai_enabled")
+@limiter.limit("10 per hour")
+def ask_ai_general():
+    """Backs the global floating Ask AI widget (every page, not just asset
+    detail) -- an optional `asset_id` grounds the answer in that asset's
+    real data via the exact same _gather_asset_context()/
+    answer_asset_question() path as ask_about_asset() below; omitted, it
+    falls back to a platform-wide snapshot via _gather_general_context()/
+    answer_general_question() so pages with no asset in view (Dashboard,
+    Terminal, Settings) still get a grounded answer instead of a blank
+    refusal. Shares the same tier gate, per-user rate limit and platform-
+    wide hourly quota as the per-asset route since both draw on the same
+    single free-tier LLM key."""
+    data = request.get_json() or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+    if len(question) > 300:
+        return jsonify({"error": "question must be 300 characters or fewer"}), 400
+
+    asset_id = data.get("asset_id")
+    asset = Asset.query.get(asset_id) if asset_id else None
+
+    from app.services.ai.llm_reasoning import is_configured, answer_asset_question, answer_general_question
+
+    if not is_configured():
+        return jsonify({
+            "answer": None, "available": False,
+            "message": "AI Q&A isn't set up yet — an admin needs to add a free LLM key under Admin > API Configurations.",
+        }), 200
+
+    if not _llm_qa_quota_ok():
+        return jsonify({
+            "answer": None, "available": True,
+            "message": "AI Q&A has hit its shared hourly limit across all users — try again in a bit.",
+        }), 200
+
+    if asset:
+        context = _gather_asset_context(asset)
+        answer = answer_asset_question(asset.symbol, asset.market, question, context)
+    else:
+        context = _gather_general_context()
+        answer = answer_general_question(question, context)
+
+    if not answer:
+        return jsonify({
+            "answer": None, "available": True,
+            "message": "Couldn't get an answer just now — try again shortly.",
+        }), 200
+
+    return jsonify({"answer": answer, "available": True}), 200
+
+
 @assets_bp.route("/<int:asset_id>/ask", methods=["POST"])
 @premium_required
 @subscription_feature_required("ai_enabled")

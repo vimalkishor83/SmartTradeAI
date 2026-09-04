@@ -489,6 +489,25 @@
   </div>
 </div>
 
+<!-- ═══ ASK AI — global floating widget (every page) ═══════════════════════ -->
+<button class="ask-ai-fab" id="askAiFab" title="Ask AI">
+  <i class="bi bi-chat-left-text-fill" id="askAiFabIcon"></i>
+</button>
+<div class="ask-ai-popup" id="askAiPopup">
+  <div class="ask-ai-popup-header">
+    <span class="ask-ai-popup-title"><i class="bi bi-stars text-accent"></i>Ask AI<span class="badge-tag" style="font-size:9px">PRO</span></span>
+    <button class="ask-ai-popup-close" id="askAiPopupClose"><i class="bi bi-x-lg"></i></button>
+  </div>
+  <div class="ask-ai-popup-context" id="askAiPopupContext">General market &amp; platform question</div>
+  <div class="ask-ai-suggestions" id="askAiSuggestions"></div>
+  <div class="ask-ai-popup-answer" id="askAiPopupAnswer" style="display:none"></div>
+  <div class="ask-ai-input-row">
+    <input type="text" id="askAiFabInput" class="form-control form-control-sm" placeholder="Ask a question…" maxlength="300">
+    <button class="btn btn-primary btn-sm" id="askAiFabSend" style="white-space:nowrap"><i class="bi bi-send"></i></button>
+  </div>
+  <div class="ask-ai-popup-footnote">Grounded in real platform data — not general knowledge.</div>
+</div>
+
 {% else %}
 {% block auth_content %}{% endblock %}
 {% endif %}
@@ -500,6 +519,9 @@
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/socket.io.min.js"></script>
 <script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
+{% if not hide_sidebar %}
+<script src="/static/js/global_ask_ai.js?v={{ asset_version('js/global_ask_ai.js') }}"></script>
+{% endif %}
 {% block extra_js %}{% endblock %}
 
 <script>

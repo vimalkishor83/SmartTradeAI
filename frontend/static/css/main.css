@@ -5512,3 +5512,112 @@ select option {
   color: var(--yellow) !important;
   font-weight: 700;
 }
+/* ════════════════════════════════════════════════════════════
+   ASK AI FLOATING WIDGET — global, every logged-in page
+   ════════════════════════════════════════════════════════════ */
+.ask-ai-fab {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #0b0d12;
+  border: none;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  cursor: pointer;
+  z-index: 950;
+  transition: transform 0.15s ease;
+}
+.ask-ai-fab:hover { transform: scale(1.06); }
+.ask-ai-fab i.bi-x-lg { font-size: 18px; }
+
+.ask-ai-popup {
+  position: fixed;
+  right: 24px;
+  bottom: 90px;
+  width: 340px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 950;
+  padding: 14px;
+  display: none;
+}
+.ask-ai-popup.open { display: block; animation: askAiPopIn 0.15s ease; }
+@keyframes askAiPopIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ask-ai-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.ask-ai-popup-title {
+  font-weight: 600;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ask-ai-popup-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px;
+}
+.ask-ai-popup-close:hover { color: var(--text-primary); }
+.ask-ai-popup-context {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed var(--border);
+}
+.ask-ai-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.ask-ai-suggestion-chip {
+  text-align: left;
+  background: var(--bg-elevated, rgba(255,255,255,0.04));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.ask-ai-suggestion-chip:hover {
+  border-color: var(--accent);
+  background: rgba(245, 166, 35, 0.08);
+}
+.ask-ai-input-row {
+  display: flex;
+  gap: 6px;
+}
+.ask-ai-popup-answer {
+  max-height: 240px;
+  overflow-y: auto;
+}
+.ask-ai-popup-footnote {
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  margin-top: 8px;
+}
