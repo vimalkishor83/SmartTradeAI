@@ -123,11 +123,14 @@ def _register_platform_config(app):
     per-view DB/cache lookup."""
     @app.context_processor
     def _inject_platform_config():
-        from app.services.platform_config import get_platform_config, get_display_timeframes
+        from app.services.platform_config import (
+            get_platform_config, get_display_timeframes, get_terminal_default_timeframe,
+        )
         cfg = get_platform_config()
         return {
             "disabled_nav_items": set(cfg.get("disabled_nav_items") or []),
             "display_timeframes": get_display_timeframes(),
+            "terminal_default_timeframe": get_terminal_default_timeframe(),
         }
 
 

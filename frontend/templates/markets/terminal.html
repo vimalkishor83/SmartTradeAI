@@ -117,7 +117,7 @@
         <span class="text-muted fs-xs">Timeframe</span>
         <div class="terminal-tabs" id="terminalTfTabs">
           {% for tf in display_timeframes %}
-          <div class="terminal-tab {% if tf == '1h' %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</div>
+          <div class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</div>
           {% endfor %}
         </div>
       </div>
@@ -149,9 +149,12 @@
 <script>
 let _termMarket = 'crypto';
 // Matches whichever tab the server-rendered markup actually marked active
-// (see the Jinja loop above) — '1h' is the ordinary case, but an admin
-// could remove it from Platform Config's timeframe list entirely, in which
-// case the first configured timeframe becomes the true default instead.
+// (see the Jinja loop above) — driven by PlatformConfig.terminal_default_
+// timeframe (Admin > Platform Configuration), not a hardcoded '1h'
+// anymore. get_terminal_default_timeframe() already falls back to '1h'
+// then the first configured timeframe if the admin's chosen default isn't
+// actually in the timeframe list, so this chain is just the client-side
+// mirror of that same guard, not the primary mechanism.
 let _termTf = document.querySelector('#terminalTfTabs .terminal-tab.active')?.dataset.tf
   || document.querySelector('#terminalTfTabs .terminal-tab')?.dataset.tf
   || '1h';

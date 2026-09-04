@@ -93,6 +93,12 @@ def update_platform_config_route():
             return jsonify({"error": "invalid timeframe token"}), 400
         row.timeframes = tfs
 
+    if "terminal_default_timeframe" in data:
+        tf = data["terminal_default_timeframe"]
+        if not isinstance(tf, str) or not re.match(r"^\d+[mhdw]$", tf):
+            return jsonify({"error": "invalid timeframe token"}), 400
+        row.terminal_default_timeframe = tf
+
     for field in ["telegram_signal_individual_markets", "telegram_signal_group_markets",
                   "telegram_signal_closed_individual_markets", "telegram_signal_closed_group_markets",
                   "telegram_rating_change_individual_markets", "telegram_rating_change_group_markets",

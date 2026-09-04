@@ -81,6 +81,13 @@
       <input type="text" id="tfInput" class="form-control form-control-sm" placeholder="e.g. 3m, 6h" pattern="^\d+[mhdw]$">
       <button class="btn btn-sm btn-outline-light" onclick="addTimeframe()"><i class="bi bi-plus-lg"></i></button>
     </div>
+    <hr class="my-3" style="border-color:var(--border)">
+    <label class="form-label small text-muted mb-2">Terminal's default timeframe tab</label>
+    <div class="d-flex gap-2 align-items-center">
+      <select class="form-select form-select-sm" id="terminalDefaultTf" style="width:140px"></select>
+      <button class="btn btn-sm btn-outline-light" id="saveTerminalDefaultTfBtn" onclick="saveTerminalDefaultTf()"><i class="bi bi-check2 me-1"></i>Save</button>
+    </div>
+    <p class="text-muted small mt-2 mb-0">Which tab is pre-selected when anyone opens Terminal. Limited to whatever's in the timeframe list above — remove a timeframe from there and it drops out of this choice too.</p>
   </div>
 </div>
 
@@ -328,6 +335,26 @@ function renderTimeframes() {
       <button class="btn-icon-xs" onclick="moveTimeframe(${i},1)" ${i === tfs.length - 1 ? 'disabled style="opacity:.3"' : ''} title="Move later"><i class="bi bi-chevron-right"></i></button>
       <button class="btn-icon-xs text-danger" onclick="removeTimeframe(${i})" title="Remove"><i class="bi bi-x-lg"></i></button>` : ''}
     </span>`).join('');
+  renderTerminalDefaultTf();
+}
+
+function renderTerminalDefaultTf() {
+  const sel = document.getElementById('terminalDefaultTf');
+  const tfs = _cfg.timeframes || [];
+  const current = _cfg.terminal_default_timeframe || '1h';
+  sel.innerHTML = tfs.map(tf => `<option value="${tf}">${tf}</option>`).join('');
+  if (tfs.includes(current)) sel.value = current;
+}
+
+async function saveTerminalDefaultTf() {
+  const tf = document.getElementById('terminalDefaultTf').value;
+  const res = await API.put('/admin/platform-config', { terminal_default_timeframe: tf });
+  if (res) {
+    Toast.show(`Terminal now defaults to ${tf}`, 'success');
+    _cfg.terminal_default_timeframe = tf;
+  } else {
+    Toast.show('Failed to save default timeframe', 'error');
+  }
 }
 
 function moveTimeframe(i, dir) {
@@ -386,6 +413,8 @@ document.addEventListener('app:ready', () => {
   document.getElementById('savePagesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('saveTimeframesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('terminalDefaultTf').disabled = !isSuperAdmin;
+  document.getElementById('saveTerminalDefaultTfBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
   document.getElementById('smcLiquidityToggle').disabled = !isSuperAdmin;
   document.getElementById('smcSrToggle').disabled = !isSuperAdmin;

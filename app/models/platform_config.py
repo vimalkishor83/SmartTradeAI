@@ -13,6 +13,14 @@ class PlatformConfig(db.Model):
     disabled_nav_items = db.Column(db.JSON, default=list)
     timeframes = db.Column(db.JSON, default=lambda: list(DEFAULT_TIMEFRAMES))
 
+    # Which timeframe tab is pre-selected when Terminal loads, for every
+    # visitor — was hardcoded to '1h' directly in the template. Validated
+    # against `timeframes` above at read time (see get_terminal_default_
+    # timeframe in app/services/platform_config.py), not here, since an
+    # admin could remove this exact token from the timeframe list later
+    # without touching this field.
+    terminal_default_timeframe = db.Column(db.String(10), default="1h", nullable=False)
+
     # Per-category, per-delivery-level market lists — replaces a single
     # global market gate + a flat on/off toggle per category. Each field
     # is the list of Asset.MARKETS this category/level fires for; an empty
@@ -96,6 +104,7 @@ class PlatformConfig(db.Model):
         return {
             "disabled_nav_items": self.disabled_nav_items or [],
             "timeframes": self.timeframes or list(DEFAULT_TIMEFRAMES),
+            "terminal_default_timeframe": self.terminal_default_timeframe or "1h",
             "telegram_signal_individual_markets": self.telegram_signal_individual_markets or [],
             "telegram_signal_group_markets": self.telegram_signal_group_markets or [],
             "telegram_signal_closed_individual_markets": self.telegram_signal_closed_individual_markets or [],

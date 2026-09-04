@@ -39,6 +39,20 @@ def get_display_timeframes() -> list[str]:
     return result or list(FETCHABLE_TIMEFRAMES)
 
 
+def get_terminal_default_timeframe() -> str:
+    """Which tab Terminal pre-selects on load. Falls back to '1h' if
+    that's actually available, else the first configured timeframe --
+    covers an admin picking a default and later removing it from the
+    timeframe list, or removing '1h' itself, without leaving Terminal
+    with no active tab at all (see terminal.html's own JS-side fallback
+    for the client-side half of this same guard)."""
+    available = get_display_timeframes()
+    configured = get_platform_config().get("terminal_default_timeframe") or "1h"
+    if configured in available:
+        return configured
+    return "1h" if "1h" in available else (available[0] if available else "1h")
+
+
 def is_smc_order_block_enabled() -> bool:
     return bool(get_platform_config().get("smc_order_block_gate_enabled"))
 
