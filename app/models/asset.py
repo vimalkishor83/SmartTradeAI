@@ -24,7 +24,17 @@ class Asset(db.Model):
 
     __table_args__ = (db.UniqueConstraint("symbol", "exchange", name="uq_symbol_exchange"),)
 
-    MARKETS = ["crypto", "forex", "gold", "silver", "indian_stock", "index"]
+    # Was ["crypto", "forex", "gold", "silver", "indian_stock", "index"] --
+    # stale against reality on two counts, found during a codebase audit:
+    # every real asset uses market="commodity" (not "gold"/"silver"
+    # separately, which no asset actually has), and "us_stock" was missing
+    # even though APIConfig.PROVIDERS["us_stock"] and the broker registry
+    # (Alpaca, Interactive Brokers, Tradier, TD Ameritrade) already exist
+    # for it. No live page currently calls POST /assets/ directly (this
+    # list is otherwise only enforced there and on PUT), so this had zero
+    # live-user impact, but it would have silently rejected a real
+    # "commodity" asset the moment anything did.
+    MARKETS = ["crypto", "forex", "commodity", "indian_stock", "us_stock", "index"]
 
     def to_dict(self):
         return {
