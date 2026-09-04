@@ -1,5 +1,6 @@
 from datetime import datetime
 from app.extensions import db
+from app.services.markets import MARKET_KEYS
 
 
 class APIConfig(db.Model):
@@ -34,7 +35,11 @@ class APIConfig(db.Model):
     logs = db.relationship("APILog", backref="api_config", lazy="dynamic",
                            cascade="all, delete-orphan")
 
-    MARKETS = ["crypto", "indian_stock", "us_stock", "forex", "commodity", "index", "ai"]
+    # The 6 tradeable markets come from the same canonical registry
+    # Asset.MARKETS now uses (app.services.markets) -- "ai" is the one
+    # addition here, a pseudo-market for LLM signal-reasoning credentials
+    # (see app/services/ai/llm_reasoning.py), not a tradeable market.
+    MARKETS = MARKET_KEYS + ["ai"]
 
     PROVIDERS = {
         "crypto":       ["binance", "bybit", "okx", "kucoin", "delta_exchange", "coindcx", "bitget", "custom"],
