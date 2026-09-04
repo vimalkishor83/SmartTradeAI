@@ -206,7 +206,15 @@ function dbSetTableView(on) {
     : '<i class="bi bi-table me-1"></i>Table View';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// app:ready (fired from app.js), not DOMContentLoaded: this page is
+// tier-gated (requires_tier=2 in views.py), and app:ready is deliberately
+// skipped on a tier-locked page since showTierLockOverlay() replaces
+// #pageContentBody's real elements with an upgrade card -- listening on
+// DOMContentLoaded instead ran this unconditionally and raced that swap,
+// throwing on the first now-missing element for any account below
+// Premium (same bug and fix as journal.html's Trade Journal, this
+// session).
+document.addEventListener('app:ready', () => {
   dbLoad();
   document.getElementById('refreshBubblesBtn').addEventListener('click', dbLoad);
   document.getElementById('tableViewBtn').addEventListener('click', () => dbSetTableView(!dbTableView));

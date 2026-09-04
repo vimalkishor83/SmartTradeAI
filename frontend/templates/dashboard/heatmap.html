@@ -231,9 +231,18 @@ async function loadHeatmapPage() {
   }
 }
 
-document.getElementById('hmMarket').addEventListener('change', renderPage);
-populateMarketSelect(document.getElementById('hmMarket'), { includeAll: true });
-loadHeatmapPage();
-setInterval(loadHeatmapPage, 180000); // refresh every 3 min
+// app:ready (fired from app.js), not an unconditional top-level call: this
+// page is tier-gated (requires_tier=2 in views.py), and app:ready is
+// deliberately skipped on a tier-locked page. Running immediately instead
+// (as this did before) doesn't crash -- #hmBody etc. still exist at parse
+// time -- but it wins the race against the async tier check often enough
+// that a sub-Premium account would briefly see real heatmap data flash in
+// before showTierLockOverlay() swaps in the upgrade card a moment later.
+document.addEventListener('app:ready', () => {
+  document.getElementById('hmMarket').addEventListener('change', renderPage);
+  populateMarketSelect(document.getElementById('hmMarket'), { includeAll: true });
+  loadHeatmapPage();
+  setInterval(loadHeatmapPage, 180000); // refresh every 3 min
+});
 </script>
 {% endblock %}

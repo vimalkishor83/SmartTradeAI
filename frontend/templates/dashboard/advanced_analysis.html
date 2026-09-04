@@ -754,38 +754,49 @@ function showToast(msg, type) {
   console.warn(msg);
 }
 
-// ── Wire up controls ───────────────────────────────────────────
-document.getElementById('aaAssetSelect').addEventListener('change', function() {
-  document.getElementById('btnAnalyze').disabled = !this.value;
-});
-
-document.querySelectorAll('.aa-tab').forEach(tab => {
-  tab.addEventListener('click', function() {
-    const panelKey = this.dataset.panel;
-    document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === this));
-    document.querySelectorAll('.aa-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === panelKey));
+// app:ready (fired from app.js), not an unconditional top-level block:
+// this page is tier-gated (requires_tier=2 in views.py), and app:ready is
+// deliberately skipped on a tier-locked page. Running this immediately
+// instead (as it did before) doesn't crash -- these elements still exist
+// at parse time -- but it wins the race against the async tier check
+// often enough that a sub-Premium account would briefly see real controls
+// and chart data flash in before showTierLockOverlay() swaps in the
+// upgrade card a moment later (same bug class as journal.html's Trade
+// Journal and heatmap.html, this session).
+document.addEventListener('app:ready', () => {
+  // ── Wire up controls ───────────────────────────────────────────
+  document.getElementById('aaAssetSelect').addEventListener('change', function() {
+    document.getElementById('btnAnalyze').disabled = !this.value;
   });
-});
 
-document.querySelectorAll('.tf-btn').forEach(btn => {
-  btn.addEventListener('click', function() {
-    document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-    this.classList.add('active');
-    selectedTf = this.dataset.tf;
+  document.querySelectorAll('.aa-tab').forEach(tab => {
+    tab.addEventListener('click', function() {
+      const panelKey = this.dataset.panel;
+      document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === this));
+      document.querySelectorAll('.aa-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === panelKey));
+    });
   });
-});
 
-document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
-
-// overlay toggles — re-render overlays without re-fetching
-['togFib','togLiq','togFvg','togOB','togStruct','togVwap','togTL'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
-    if (analysisData) renderAllOverlays();
+  document.querySelectorAll('.tf-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+      this.classList.add('active');
+      selectedTf = this.dataset.tf;
+    });
   });
-});
 
-// ── Boot ───────────────────────────────────────────────────────
-initChart();
-loadAssets();
+  document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+
+  // overlay toggles — re-render overlays without re-fetching
+  ['togFib','togLiq','togFvg','togOB','togStruct','togVwap','togTL'].forEach(id => {
+    document.getElementById(id).addEventListener('change', () => {
+      if (analysisData) renderAllOverlays();
+    });
+  });
+
+  // ── Boot ───────────────────────────────────────────────────────
+  initChart();
+  loadAssets();
+});
 </script>
 {% endblock %}
