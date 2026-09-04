@@ -66,6 +66,23 @@ def _pct_change(open_: float, close: float) -> float:
     return (close - open_) / open_ * 100
 
 
+# How much a big move can grow a bubble beyond its turnover-only baseline.
+# Size used to be turnover alone, so a small-cap token swinging 15% looked
+# exactly as "significant" as one sitting flat (same turnover, same size),
+# while a big-cap coin's routine 1-2% move always dominated the map purely
+# on volume. This is a multiplicative BOOST on top of turnover, not a
+# replacement -- turnover still anchors the base size (an illiquid token
+# pumping 50% on thin volume shouldn't visually outsize BTC), it just no
+# longer ignores how much the price actually moved. Capped at a 25%+ move
+# so one wild pump/dump doesn't blow the layout out.
+MOVE_BOOST_CAP_PCT = 25.0
+
+
+def _activity_score(turnover_usd: float, change_pct: float) -> float:
+    move_boost = 1 + min(abs(change_pct), MOVE_BOOST_CAP_PCT) / MOVE_BOOST_CAP_PCT
+    return turnover_usd * move_boost
+
+
 def _ticker_to_bubble(t: dict) -> dict | None:
     symbol = t.get("symbol")
     close = float(t.get("close") or 0)
@@ -74,12 +91,14 @@ def _ticker_to_bubble(t: dict) -> dict | None:
     turnover_usd = float(t.get("turnover_usd") or t.get("turnover") or 0)
     if not symbol or close <= 0 or turnover_usd <= 0:
         return None
+    change_pct = round(_pct_change(open_, close), 3)
     return {
         "symbol": symbol,
         "label": _short_name(symbol, t.get("description")),
         "price": close,
-        "change_pct": round(_pct_change(open_, close), 3),
-        "size_metric": turnover_usd,
+        "change_pct": change_pct,
+        "size_metric": _activity_score(turnover_usd, change_pct),
+        "turnover_usd": turnover_usd,
         "volume": volume,
     }
 
@@ -139,7 +158,12 @@ def get_bubbles(group: str) -> dict:
             excluded = set(MAJOR_SYMBOLS) | set(METAL_SYMBOLS)
             remainder = [t for sym, t in by_symbol.items() if sym not in excluded]
             remainder_bubbles = [b for b in (_ticker_to_bubble(t) for t in remainder) if b]
-            remainder_bubbles.sort(key=lambda b: b["size_metric"], reverse=True)
+            # Ranked by raw turnover, not the blended size_metric below --
+            # the mid-cap/altcoin split is a volume-rank classification
+            # (see MIDCAP_COUNT's docstring), and a huge % mover on thin
+            # volume shouldn't jump the classification boundary just
+            # because its DISPLAYED bubble is now boosted for visibility.
+            remainder_bubbles.sort(key=lambda b: b["turnover_usd"], reverse=True)
             bubbles = remainder_bubbles[:MIDCAP_COUNT] if group == "midcap" else remainder_bubbles[MIDCAP_COUNT:]
             symbols = None
 

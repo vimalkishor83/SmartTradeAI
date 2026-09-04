@@ -124,7 +124,7 @@ function dbRenderCanvas(data) {
     const sign = up ? '+' : '';
     const avatarD = Math.max(16, Math.min(d * 0.28, 40));
     const ticker = dbTickerRoot(b.symbol);
-    const title = `${b.label}\n${data.color_label}: ${sign}${b.change_pct.toFixed(2)}%\n${data.metric_label}: ${dbAbbr(b.size_metric)}${b.price != null ? `\nPrice: ${b.price}` : ''}`;
+    const title = `${b.label}\n${data.color_label}: ${sign}${b.change_pct.toFixed(2)}%\n${data.metric_label}: ${dbAbbr(b.turnover_usd ?? b.size_metric)}${b.price != null ? `\nPrice: ${b.price}` : ''}`;
     const delay = (i % 12) * 0.35;
     const popDelay = Math.min(i * 0.012, 0.6);
 
@@ -144,7 +144,15 @@ function dbRenderCanvas(data) {
 
 function dbRenderTable(data) {
   const tb = document.getElementById('bubbleTableBody');
-  const bubbles = [...(data.bubbles || [])].sort((a, b) => b.size_metric - a.size_metric);
+  // Sort/display the real turnover_usd where it exists, not size_metric --
+  // that's now a blended (turnover x move-magnitude) visualization value
+  // for bubble sizing, and this table's column is explicitly labeled
+  // "24h Turnover (USD)" (metric_label), so showing the blended number
+  // here would just be mislabeled data. Options bubbles have no
+  // turnover_usd (they're sized by open interest, which IS what
+  // metric_label says for that group), hence the fallback.
+  const metricOf = (b) => b.turnover_usd ?? b.size_metric;
+  const bubbles = [...(data.bubbles || [])].sort((a, b) => metricOf(b) - metricOf(a));
   dbSet('thColor', data.color_label);
   dbSet('thSize', data.metric_label);
   if (!bubbles.length) {
@@ -156,7 +164,7 @@ function dbRenderTable(data) {
       <td><span class="asset-cell-name">${b.label}</span></td>
       <td class="num">${b.price != null ? (+b.price).toLocaleString() : '—'}</td>
       <td class="num" style="color:${b.change_pct >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${b.change_pct >= 0 ? '+' : ''}${b.change_pct.toFixed(2)}%</td>
-      <td class="num">${dbAbbr(b.size_metric)}</td>
+      <td class="num">${dbAbbr(metricOf(b))}</td>
     </tr>
   `).join('');
 }
@@ -171,8 +179,20 @@ async function dbLoad() {
   dbData = data;
   dbSet('bubbleMeta', `${data.bubbles.length} · generated ${new Date(data.generated_at * 1000).toLocaleTimeString()}`);
   document.getElementById('bubbleLegend').style.display = '';
-  dbRenderCanvas(data);
-  dbRenderTable(data);
+  // The API call above already has a network-failure fallback ("Failed to
+  // load"); this catches the separate case of a real response whose shape
+  // trips up rendering (canvas or table) -- previously an uncaught
+  // exception here would leave the "Loading…" placeholder frozen with no
+  // indication anything went wrong, which reads as "blank"/stuck rather
+  // than a visible, honest error.
+  try {
+    dbRenderCanvas(data);
+    dbRenderTable(data);
+  } catch (e) {
+    console.error('Delta Bubbles render failed:', e);
+    document.getElementById('bubbleCanvas').innerHTML =
+      '<div class="text-center text-muted py-5 w-100"><i class="bi bi-exclamation-triangle d-block mb-2" style="font-size:24px"></i>Could not render this group — try Refresh.</div>';
+  }
 }
 
 function dbSetTableView(on) {
