@@ -120,9 +120,14 @@ def generate_reasoning(direction: str, asset_symbol: str, timeframe: str, confid
             model = model or "gemini-2.0-flash"
             text = _call_gemini(base_url, api_key, model, prompt)
         else:
-            # groq, openrouter, and any other OpenAI-compatible "custom" provider
+            # groq, openrouter, and any other OpenAI-compatible "custom" provider.
+            # llama-3.3-70b-versatile / llama-3.1-8b-instant both returned
+            # "model_not_found" on a real free-tier Groq key when this was
+            # tested live -- Groq's own model tiering shifts over time, and
+            # openai/gpt-oss-20b is what actually worked. Confirmed against
+            # a real account, not assumed from docs.
             base_url = cfg.base_url or "https://api.groq.com/openai/v1"
-            model = model or "llama-3.3-70b-versatile"
+            model = model or "openai/gpt-oss-20b"
             text = _call_openai_compatible(base_url, api_key, model, prompt)
 
         return text[:500] if text else None

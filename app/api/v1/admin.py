@@ -1074,7 +1074,17 @@ def _test_connection(cfg: APIConfig) -> dict:
     if cfg.auth_type == "token" and cfg.access_token:
         headers["Authorization"] = f"Bearer {cfg.access_token}"
 
-    # Provider-specific ping endpoints
+    # groq/openrouter are OpenAI-compatible (Authorization: Bearer <key>,
+    # not the X-*-APIKEY headers above every market-data provider here
+    # uses) -- gemini instead takes its key as a ?key= query param, same
+    # shape as the alpha_vantage/finnhub/twelve_data case just below.
+    if cfg.provider in ("groq", "openrouter") and cfg.get_api_key():
+        headers["Authorization"] = f"Bearer {cfg.get_api_key()}"
+
+    # Provider-specific ping endpoints. LLM providers use GET /models — a
+    # free, lightweight, no-tokens-consumed way to confirm the key actually
+    # authenticates, without spending a real chat-completion call just to
+    # test connectivity.
     ping_paths = {
         "binance":       "/api/v3/time",
         "delta_exchange": "/v2/products?page_size=1",
@@ -1090,6 +1100,9 @@ def _test_connection(cfg: APIConfig) -> dict:
         "finnhub":       "/quote?symbol=AAPL",
         "polygon":       "/v2/aggs/ticker/AAPL/range/1/day/2023-01-01/2023-01-02",
         "alpaca":        "/v2/clock",
+        "groq":          "/models",
+        "openrouter":    "/models",
+        "gemini":        f"/models/{(cfg.config or {}).get('model', 'gemini-2.0-flash')}",
     }
     path = ping_paths.get(cfg.provider, "/")
     url  = base + path
@@ -1101,8 +1114,12 @@ def _test_connection(cfg: APIConfig) -> dict:
         # always failed auth for these three providers, and additionally
         # sent encrypted secret material out over the wire/query-string to
         # a third party for no reason.
-        r   = requests.get(url, headers=headers, timeout=6,
-                           params={"apikey": cfg.get_api_key()} if cfg.provider in ("alpha_vantage", "finnhub", "twelve_data") else {})
+        params = {}
+        if cfg.provider in ("alpha_vantage", "finnhub", "twelve_data"):
+            params = {"apikey": cfg.get_api_key()}
+        elif cfg.provider == "gemini":
+            params = {"key": cfg.get_api_key()}
+        r   = requests.get(url, headers=headers, timeout=6, params=params)
         ms  = int((time.time() - t0) * 1000)
         result["latency_ms"] = ms
         result["reachable"]  = True

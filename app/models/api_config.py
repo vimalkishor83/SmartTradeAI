@@ -72,7 +72,7 @@ class APIConfig(db.Model):
         "polygon":              {"base_url": "https://api.polygon.io"},
         "tiingo":               {"base_url": "https://api.tiingo.com"},
         "iex_cloud":            {"base_url": "https://cloud.iexapis.com/stable"},
-        "groq":                 {"base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
+        "groq":                 {"base_url": "https://api.groq.com/openai/v1", "model": "openai/gpt-oss-20b"},
         "gemini":               {"base_url": "https://generativelanguage.googleapis.com/v1beta", "model": "gemini-2.0-flash"},
         "openrouter":           {"base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
     }
