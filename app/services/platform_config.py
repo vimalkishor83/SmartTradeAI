@@ -39,5 +39,9 @@ def get_display_timeframes() -> list[str]:
     return result or list(FETCHABLE_TIMEFRAMES)
 
 
+def is_smc_order_block_enabled() -> bool:
+    return bool(get_platform_config().get("smc_order_block_gate_enabled"))
+
+
 def invalidate_platform_config():
     cache.delete(_CACHE_KEY)

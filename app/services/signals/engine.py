@@ -130,6 +130,11 @@ class SignalEngine:
             ):
                 return None
 
+            # Optional, admin-toggled (default OFF) — see _smc_order_block_gate's
+            # own docstring for why this isn't unconditional like the gates above.
+            if not force and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
+                return None
+
             # Stage 5: Volume gate (skipped on force)
             if not force and market in ("crypto", "indian_stock"):
                 if not self._volume_gate(df):
@@ -251,6 +256,13 @@ class SignalEngine:
                 indicators, df, market, threshold=0.55, patterns=patterns,
                 timeframe=timeframe, mtf_confirmations=mtf_confirmations,
             )
+
+            # Same optional, admin-toggled SMC check as generate_signal() —
+            # downgrades to HOLD rather than {"available": False}, since a
+            # failed structure check is "no qualifying setup", not "no data",
+            # matching this function's own HOLD-producing gates above.
+            if raw_direction != "HOLD" and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
+                raw_direction = "HOLD"
 
             confidence = (
                 self._compute_confidence(raw_scores, higher_bias, raw_direction)
@@ -410,6 +422,133 @@ class SignalEngine:
         if not ema9 or not atr:
             return True  # no EMA/ATR data — allow through (data issue, not a bad setup)
         return abs(close - ema9) <= self.EMA_EXTENSION_MAX_ATR * atr
+
+    # ──────────────────────────────────────────────────────
+    # Optional SMC (Smart Money Concepts) order-block gate
+    # ──────────────────────────────────────────────────────
+    # Admin-toggled, default OFF (PlatformConfig.smc_order_block_gate_enabled)
+    # — unlike the ADX/DI/EMA-extension gates above, this has NOT yet been
+    # through a live-validated backtest sweep proving it improves results,
+    # because "where exactly is the order block" is genuinely discretionary
+    # in most SMC trading education. Ships as an explicit opt-in so it can
+    # be tested against real data before anyone decides it should affect
+    # the default signal set. See _smc_order_block_gate for the concrete,
+    # deterministic definition actually implemented.
+    SMC_SWING_K = 2               # bars each side to confirm a swing pivot
+    # Must comfortably fit inside the backtest engine's 60-candle rolling
+    # window (warmup=60 in app/services/backtesting/engine.py) or the
+    # length guard below fails open on every single call during a
+    # backtest, silently testing nothing — found exactly that way: an
+    # initial LOOKBACK=60 produced byte-identical gate-on/gate-off results.
+    SMC_LOOKBACK = 40             # candles searched for a usable order block
+    SMC_IMPULSE_WINDOW = 10       # bars after a swing point to confirm a real impulsive move
+    SMC_IMPULSE_ATR_MULT = 2.0    # how big that move must be, in ATR, to count as "impulsive"
+    SMC_ZONE_BUFFER_ATR = 0.15    # small tolerance around the zone edges
+
+    def _smc_gate_enabled(self) -> bool:
+        try:
+            from app.services.platform_config import is_smc_order_block_enabled
+            return is_smc_order_block_enabled()
+        except Exception:
+            return False
+
+    def _find_swing_points(self, highs, lows, start, end, k):
+        """Simple fractal pivots: bar i is a swing high/low if it's the
+        max/min among the k bars on each side of it. Returns (swing_high_idx,
+        swing_low_idx) lists, indices local to the full series."""
+        swing_highs, swing_lows = [], []
+        for i in range(max(start, k), min(end, len(highs) - k)):
+            window_h = highs[i - k:i + k + 1]
+            window_l = lows[i - k:i + k + 1]
+            if highs[i] >= window_h.max():
+                swing_highs.append(i)
+            if lows[i] <= window_l.min():
+                swing_lows.append(i)
+        return swing_highs, swing_lows
+
+    def _smc_order_block_gate(self, df: pd.DataFrame, direction: str, atr: float) -> bool:
+        """True if price is currently sitting inside an unmitigated order
+        block in the signal's own direction, OR if there simply isn't
+        enough data/no clear structure to judge (fails open — this is a
+        quality filter, not a "prove a negative" requirement).
+
+        Definition used (deterministic, not discretionary):
+        - A swing low (BUY) / swing high (SELL) followed within
+          SMC_IMPULSE_WINDOW bars by a move of at least SMC_IMPULSE_ATR_MULT
+          x ATR away from it counts as a confirmed impulsive move.
+        - The order block is the last opposite-colored candle at or just
+          before that swing point (the last down-candle before a bullish
+          impulse, or the last up-candle before a bearish one) — the
+          classic SMC "last candle before the move" definition.
+        - The zone is that candle's [low, high], with a small ATR buffer.
+        - "Unmitigated" means price hasn't closed back through the FAR side
+          of the zone (below zone_low for a bullish OB, above zone_high for
+          a bearish one) at any point since it formed — that would mean the
+          zone already failed, not that it's still a valid area to react
+          from.
+        - The gate passes if the CURRENT close sits inside (or just
+          outside, within the buffer of) any such still-valid zone.
+        """
+        if not atr or len(df) < self.SMC_LOOKBACK + self.SMC_SWING_K + 1:
+            return True
+
+        highs  = df["high"].astype(float).reset_index(drop=True)
+        lows   = df["low"].astype(float).reset_index(drop=True)
+        opens  = df["open"].astype(float).reset_index(drop=True)
+        closes = df["close"].astype(float).reset_index(drop=True)
+        n = len(df)
+        start = max(0, n - self.SMC_LOOKBACK)
+        k = self.SMC_SWING_K
+
+        swing_highs, swing_lows = self._find_swing_points(highs.values, lows.values, start, n, k)
+        current_close = float(closes.iloc[-1])
+        buffer = self.SMC_ZONE_BUFFER_ATR * atr
+        pivots = swing_lows if direction == "BUY" else swing_highs
+
+        for p_idx in pivots:
+            window_end = min(n, p_idx + self.SMC_IMPULSE_WINDOW)
+            if window_end <= p_idx:
+                continue
+            pivot_price = float(lows.iloc[p_idx]) if direction == "BUY" else float(highs.iloc[p_idx])
+            if direction == "BUY":
+                extreme = float(highs.iloc[p_idx:window_end].max())
+                impulsive = (extreme - pivot_price) >= self.SMC_IMPULSE_ATR_MULT * atr
+            else:
+                extreme = float(lows.iloc[p_idx:window_end].min())
+                impulsive = (pivot_price - extreme) >= self.SMC_IMPULSE_ATR_MULT * atr
+            if not impulsive:
+                continue
+
+            # Walk back a few bars from the pivot to find the last
+            # opposite-colored candle — the order block itself.
+            ob_idx = None
+            for j in range(p_idx, max(start, p_idx - k - 2), -1):
+                is_down = closes.iloc[j] < opens.iloc[j]
+                is_up   = closes.iloc[j] > opens.iloc[j]
+                if direction == "BUY" and is_down:
+                    ob_idx = j
+                    break
+                if direction == "SELL" and is_up:
+                    ob_idx = j
+                    break
+            if ob_idx is None:
+                continue
+
+            zone_low  = float(lows.iloc[ob_idx])
+            zone_high = float(highs.iloc[ob_idx])
+
+            # Invalidated if price already closed through the far side
+            # anywhere between the OB forming and now.
+            after = closes.iloc[ob_idx + 1:n]
+            if direction == "BUY" and (after < zone_low - buffer).any():
+                continue
+            if direction == "SELL" and (after > zone_high + buffer).any():
+                continue
+
+            if (zone_low - buffer) <= current_close <= (zone_high + buffer):
+                return True
+
+        return False
 
     # ──────────────────────────────────────────────────────
     # Stage 3 — Higher timeframe alignment gate

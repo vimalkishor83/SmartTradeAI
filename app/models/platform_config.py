@@ -58,6 +58,17 @@ class PlatformConfig(db.Model):
     # AuditLog.record(), the single place this is actually enforced.
     audit_log_super_admins = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Off by default -- an experimental extra gate (SignalEngine.
+    # _smc_order_block_gate) requiring price to be near an unmitigated
+    # swing-structure order block before a signal fires, on top of the
+    # existing EMA/ADX/DI/momentum gates. Unlike those, this hasn't run
+    # through the same live-validated backtest sweep yet (SMC concepts are
+    # notoriously discretionary to turn into deterministic rules), so it's
+    # opt-in rather than always-on until there's real evidence either way.
+    # Read by SignalEngine.generate_signal()/analyze() for both
+    # Auto-Generate and Terminal live reads -- one flag controls both.
+    smc_order_block_gate_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
@@ -86,5 +97,6 @@ class PlatformConfig(db.Model):
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "telegram_alerts_new_ip_login": self.telegram_alerts_new_ip_login,
             "audit_log_super_admins": self.audit_log_super_admins,
+            "smc_order_block_gate_enabled": self.smc_order_block_gate_enabled,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

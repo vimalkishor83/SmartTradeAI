@@ -84,6 +84,27 @@
   </div>
 </div>
 
+<!-- Signal Generation (Experimental) -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-flask text-accent"></i> Signal Generation (Experimental)</span>
+  </div>
+  <div class="section-card-body p-3">
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="smcGateToggle" onchange="toggleSmcGate(this.checked)">
+      <label class="form-check-label" for="smcGateToggle">SMC Order-Block Gate</label>
+    </div>
+    <p class="text-muted small mt-2 mb-0">
+      Requires price to be sitting inside an unmitigated swing-structure order block (a Smart Money Concepts
+      technique) before a signal fires, on top of the existing trend/momentum gates. Applies to both Auto-Generate
+      and Terminal live reads. <strong>Off by default</strong> — unlike this platform's other signal-quality gates,
+      this hasn't been through a full multi-asset backtest validation yet. An initial single-asset test (SOLUSDT,
+      15m/1h/4h) showed mixed results: a real improvement on 1h, but worse on 15m and 4h on that one asset. Enable
+      to observe/test it live, not as a proven improvement.
+    </p>
+  </div>
+</div>
+
 <!-- Assets -->
 <div class="section-card mb-4">
   <div class="section-card-header">
@@ -203,11 +224,23 @@ async function loadPlatformConfig() {
   renderTimeframes();
   updateKpis();
   loadAssetsSummary();
+  document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
 }
 
 function updateKpis() {
   document.getElementById('kpiPagesHidden').textContent = (_cfg.disabled_nav_items || []).length;
   document.getElementById('kpiTimeframes').textContent = (_cfg.timeframes || []).length;
+}
+
+async function toggleSmcGate(checked) {
+  const res = await API.put('/admin/platform-config', { smc_order_block_gate_enabled: checked });
+  if (res) {
+    Toast.show(`SMC Order-Block Gate ${checked ? 'enabled' : 'disabled'}`, 'success');
+    _cfg.smc_order_block_gate_enabled = checked;
+  } else {
+    Toast.show('Failed to update', 'error');
+    document.getElementById('smcGateToggle').checked = !checked;
+  }
 }
 
 function renderPages() {
@@ -308,6 +341,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('savePagesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('saveTimeframesBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {
