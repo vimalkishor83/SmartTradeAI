@@ -1234,12 +1234,22 @@ def _open_live_read_log(asset, timeframe, result):
     docstring for why this is tracked separately from real signals."""
     try:
         from app.models.live_read_log import LiveReadLog
+        try:
+            from app.services.ai.llm_reasoning import generate_reasoning
+            llm_text = generate_reasoning(
+                result["signal_type"], asset.symbol, timeframe,
+                result.get("confidence_score") or 0, result.get("regime"), result.get("reasoning_detail"),
+            )
+            reasoning_text = llm_text or result.get("reasoning")
+        except Exception:
+            reasoning_text = result.get("reasoning")
+
         row = LiveReadLog(
             asset_id=asset.id, timeframe=timeframe, signal_type=result["signal_type"],
             confidence_score=result.get("confidence_score"), entry_price=result.get("entry_price"),
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
-            reasoning=result.get("reasoning"), reasoning_detail=result.get("reasoning_detail"),
+            reasoning=reasoning_text, reasoning_detail=result.get("reasoning_detail"),
             regime=result.get("regime"),
         )
         db.session.add(row)

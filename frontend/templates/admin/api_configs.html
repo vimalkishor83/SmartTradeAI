@@ -113,6 +113,7 @@
             <option value="forex">Forex</option>
             <option value="commodity">Commodity</option>
             <option value="index">Indices</option>
+            <option value="ai">AI (Signal Reasoning)</option>
           </select>
         </div>
         <div class="cfg-field">
@@ -504,7 +505,7 @@ let isSuperAdmin = false;
 
 const MARKET_LABELS = {
   crypto:'Crypto', indian_stock:'Indian Stocks', us_stock:'US Stocks',
-  forex:'Forex', commodity:'Commodity', index:'Indices', other:'Other'
+  forex:'Forex', commodity:'Commodity', index:'Indices', ai:'AI (Signal Reasoning)', other:'Other'
 };
 const STATUS_COLOR = { active:'bg-success', paused:'bg-warning text-dark', error:'bg-danger', unknown:'bg-secondary' };
 const CONN_DOT = { ok:'var(--green)', error:'var(--red)', unknown:'var(--text-muted)' };
@@ -870,6 +871,7 @@ function providerLabel(p) {
     oanda:'OANDA',yahoo:'Yahoo Finance',alpha_vantage:'Alpha Vantage',
     twelve_data:'Twelve Data',finnhub:'Finnhub',polygon:'Polygon.io',
     tiingo:'Tiingo',iex_cloud:'IEX Cloud',custom:'Custom API',
+    groq:'Groq',gemini:'Google Gemini',openrouter:'OpenRouter',
   };
   return labels[p] || p;
 }

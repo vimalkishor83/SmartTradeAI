@@ -140,6 +140,22 @@ def generate_signals_for_timeframe(app, timeframe: str):
         from app.websocket.events import broadcast_signal
 
         for result, asset in signals_to_add:
+            # Optional LLM-written narrative in place of the deterministic
+            # joined-string reasoning -- see llm_reasoning's docstring for
+            # why this call site (a genuine, already-gated new signal, not
+            # every candle check) and not inside the engine itself. Falls
+            # straight back to the existing text on anything but a clean
+            # success, so this can only add polish, never break generation.
+            try:
+                from app.services.ai.llm_reasoning import generate_reasoning
+                llm_text = generate_reasoning(
+                    result["signal_type"], asset.symbol, timeframe,
+                    result["confidence_score"], result.get("regime"), result.get("reasoning_detail"),
+                )
+                reasoning_text = llm_text or result["reasoning"]
+            except Exception:
+                reasoning_text = result["reasoning"]
+
             signal = Signal(
                 asset_id          = asset.id,
                 timeframe         = timeframe,
@@ -159,7 +175,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 ai_score          = result["ai_score"],
                 indicators        = result["indicators"],
                 patterns          = result["patterns"],
-                reasoning         = result["reasoning"],
+                reasoning         = reasoning_text,
                 reasoning_detail  = result.get("reasoning_detail"),
                 regime            = result.get("regime"),
                 expires_at        = result["expires_at"],

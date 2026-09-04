@@ -34,7 +34,7 @@ class APIConfig(db.Model):
     logs = db.relationship("APILog", backref="api_config", lazy="dynamic",
                            cascade="all, delete-orphan")
 
-    MARKETS = ["crypto", "indian_stock", "us_stock", "forex", "commodity", "index"]
+    MARKETS = ["crypto", "indian_stock", "us_stock", "forex", "commodity", "index", "ai"]
 
     PROVIDERS = {
         "crypto":       ["binance", "bybit", "okx", "kucoin", "delta_exchange", "coindcx", "bitget", "custom"],
@@ -44,6 +44,12 @@ class APIConfig(db.Model):
         "commodity":    ["yahoo", "twelve_data", "alpha_vantage", "custom"],
         "index":        ["yahoo", "alpha_vantage", "twelve_data", "finnhub", "polygon", "dhan", "custom"],
         "data":         ["yahoo", "alpha_vantage", "twelve_data", "finnhub", "polygon", "tiingo", "iex_cloud", "custom"],
+        # Not a market data feed -- powers the LLM-written "why this signal"
+        # narrative (see app/services/ai/llm_reasoning.py). Groq and
+        # OpenRouter both have genuinely free tiers and speak the same
+        # OpenAI-compatible chat-completions format; Gemini's free tier
+        # uses its own request shape, handled separately in that service.
+        "ai":           ["groq", "gemini", "openrouter", "custom"],
     }
 
     PROVIDER_DEFAULTS = {
@@ -66,6 +72,9 @@ class APIConfig(db.Model):
         "polygon":              {"base_url": "https://api.polygon.io"},
         "tiingo":               {"base_url": "https://api.tiingo.com"},
         "iex_cloud":            {"base_url": "https://cloud.iexapis.com/stable"},
+        "groq":                 {"base_url": "https://api.groq.com/openai/v1", "model": "llama-3.3-70b-versatile"},
+        "gemini":               {"base_url": "https://generativelanguage.googleapis.com/v1beta", "model": "gemini-2.0-flash"},
+        "openrouter":           {"base_url": "https://openrouter.ai/api/v1", "model": "meta-llama/llama-3.3-70b-instruct:free"},
     }
 
     def set_api_key(self, plaintext: str):
