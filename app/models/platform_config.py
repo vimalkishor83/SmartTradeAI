@@ -75,6 +75,11 @@ class PlatformConfig(db.Model):
     # _smc_liquidity_sweep_gate.
     smc_liquidity_sweep_gate_enabled = db.Column(db.Boolean, default=False, nullable=False)
 
+    # Third and last SMC toggle — multi-touch support/resistance zones.
+    # Same off-by-default, unvalidated status as the two above. See
+    # SignalEngine._smc_support_resistance_gate.
+    smc_support_resistance_gate_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     updated_by = db.Column(db.Integer, db.ForeignKey("users.id"))
 
@@ -105,5 +110,6 @@ class PlatformConfig(db.Model):
             "audit_log_super_admins": self.audit_log_super_admins,
             "smc_order_block_gate_enabled": self.smc_order_block_gate_enabled,
             "smc_liquidity_sweep_gate_enabled": self.smc_liquidity_sweep_gate_enabled,
+            "smc_support_resistance_gate_enabled": self.smc_support_resistance_gate_enabled,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }

@@ -145,6 +145,9 @@ def update_platform_config_route():
     if "smc_liquidity_sweep_gate_enabled" in data:
         row.smc_liquidity_sweep_gate_enabled = bool(data["smc_liquidity_sweep_gate_enabled"])
 
+    if "smc_support_resistance_gate_enabled" in data:
+        row.smc_support_resistance_gate_enabled = bool(data["smc_support_resistance_gate_enabled"])
+
     db.session.commit()
     invalidate_platform_config()
     return jsonify(row.to_dict()), 200

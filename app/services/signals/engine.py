@@ -140,6 +140,9 @@ class SignalEngine:
             if not force and self._smc_liquidity_enabled() and not self._smc_liquidity_sweep_gate(df, raw_direction, atr):
                 return None
 
+            if not force and self._smc_sr_enabled() and not self._smc_support_resistance_gate(df, raw_direction, atr):
+                return None
+
             # Stage 5: Volume gate (skipped on force)
             if not force and market in ("crypto", "indian_stock"):
                 if not self._volume_gate(df):
@@ -269,6 +272,8 @@ class SignalEngine:
             if raw_direction != "HOLD" and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
             if raw_direction != "HOLD" and self._smc_liquidity_enabled() and not self._smc_liquidity_sweep_gate(df, raw_direction, atr):
+                raw_direction = "HOLD"
+            if raw_direction != "HOLD" and self._smc_sr_enabled() and not self._smc_support_resistance_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
 
             confidence = (
@@ -616,6 +621,80 @@ class SignalEngine:
                 return True
 
         return False
+
+    # Third and last of the concepts named in the original request (order
+    # blocks, liquidity, support/resistance) — its own independent toggle,
+    # same off-by-default/not-yet-multi-asset-validated status as the two
+    # above. Unlike those two (built around a SINGLE swing point), proper
+    # S/R needs multiple nearby pivots clustered into a zone and a real
+    # touch count — the same clustering shape as _compute_liquidity in
+    # app/api/v1/market_data.py (found during the fake-data sweep), applied
+    # here as a gate rather than a chart overlay. A longer lookback than
+    # the order-block/liquidity gates on purpose: a level only a handful of
+    # candles old isn't "support/resistance" in any meaningful sense yet,
+    # it's just the last swing point — real S/R needs more history to have
+    # actually been tested more than once. Still small enough to fit the
+    # backtest engine's 60-candle rolling window (see SMC_LOOKBACK's own
+    # comment for why that ceiling matters).
+    SMC_SR_LOOKBACK = 55
+    SMC_SR_MIN_TOUCHES = 2          # how many distinct pivots must cluster together to count as a real zone
+    SMC_SR_CLUSTER_TOLERANCE_PCT = 0.003   # 0.3% -- how close two pivots must be to count as "the same level"
+    SMC_SR_ZONE_BUFFER_ATR = 0.3    # wider than the order-block buffer -- S/R is a zone, not a precise line
+
+    def _smc_sr_enabled(self) -> bool:
+        try:
+            from app.services.platform_config import is_smc_support_resistance_enabled
+            return is_smc_support_resistance_enabled()
+        except Exception:
+            return False
+
+    def _cluster_pivot_prices(self, prices: list[float]) -> list[tuple[float, int]]:
+        """Groups nearby prices (within SMC_SR_CLUSTER_TOLERANCE_PCT of each
+        other) into zones, same tolerance-clustering shape as
+        _compute_liquidity in app/api/v1/market_data.py. Returns
+        (zone_price, touch_count) for zones with enough touches."""
+        clusters: list[list[float]] = []
+        for p in prices:
+            if p <= 0:
+                continue
+            placed = False
+            for c in clusters:
+                ref = sum(c) / len(c)
+                if abs(p - ref) / ref <= self.SMC_SR_CLUSTER_TOLERANCE_PCT:
+                    c.append(p)
+                    placed = True
+                    break
+            if not placed:
+                clusters.append([p])
+        return [(sum(c) / len(c), len(c)) for c in clusters if len(c) >= self.SMC_SR_MIN_TOUCHES]
+
+    def _smc_support_resistance_gate(self, df: pd.DataFrame, direction: str, atr: float) -> bool:
+        """True if price is currently near a real, multiple-times-tested
+        support zone (BUY) or resistance zone (SELL) — clustered swing
+        pivots with at least SMC_SR_MIN_TOUCHES hits, not just the single
+        most recent swing point. Fails open on insufficient data, same
+        convention as the other two SMC gates."""
+        if not atr or len(df) < self.SMC_SR_LOOKBACK + self.SMC_SWING_K + 1:
+            return True
+
+        highs = df["high"].astype(float).reset_index(drop=True)
+        lows  = df["low"].astype(float).reset_index(drop=True)
+        closes = df["close"].astype(float).reset_index(drop=True)
+        n = len(df)
+        start = max(0, n - self.SMC_SR_LOOKBACK)
+        k = self.SMC_SWING_K
+
+        swing_highs, swing_lows = self._find_swing_points(highs.values, lows.values, start, n, k)
+        current_close = float(closes.iloc[-1])
+        buffer = self.SMC_SR_ZONE_BUFFER_ATR * atr
+
+        if direction == "BUY":
+            pivot_prices = [float(lows.iloc[i]) for i in swing_lows]
+        else:
+            pivot_prices = [float(highs.iloc[i]) for i in swing_highs]
+
+        zones = self._cluster_pivot_prices(pivot_prices)
+        return any(abs(current_close - zone_price) <= buffer for zone_price, _hits in zones)
 
     # ──────────────────────────────────────────────────────
     # Stage 3 — Higher timeframe alignment gate

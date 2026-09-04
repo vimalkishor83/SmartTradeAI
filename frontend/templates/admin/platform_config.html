@@ -106,10 +106,22 @@
       <input class="form-check-input" type="checkbox" role="switch" id="smcLiquidityToggle" onchange="toggleSmcLiquidity(this.checked)">
       <label class="form-check-label" for="smcLiquidityToggle">SMC Liquidity-Sweep Gate</label>
     </div>
-    <p class="text-muted small mt-2 mb-0">
+    <p class="text-muted small mt-2 mb-3">
       A separate, independent toggle requiring a recent "stop hunt then reverse" — price sweeping past a swing
       high/low (taking out the stops sitting there) and reclaiming the other side — before a signal fires. Same
       status as the Order-Block Gate above: off by default, not yet validated across multiple assets.
+    </p>
+    <div class="form-check form-switch mb-0">
+      <input class="form-check-input" type="checkbox" role="switch" id="smcSrToggle" onchange="toggleSmcSr(this.checked)">
+      <label class="form-check-label" for="smcSrToggle">SMC Support/Resistance Gate</label>
+    </div>
+    <p class="text-muted small mt-2 mb-0">
+      A third independent toggle requiring price to be near a real, multiple-times-tested support (for a BUY) or
+      resistance (for a SELL) zone — clustered swing pivots with at least 2 hits, not just the single most recent
+      swing point. <strong>Off by default, and unlike the two gates above, an initial single-asset test (SOLUSDT)
+      was not just mixed — every threshold combination tried underperformed the no-gate baseline on every
+      timeframe.</strong> Left available for further testing, but there's no positive signal for this one yet at
+      any calibration tried.
     </p>
   </div>
 </div>
@@ -235,6 +247,7 @@ async function loadPlatformConfig() {
   loadAssetsSummary();
   document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
   document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
+  document.getElementById('smcSrToggle').checked = !!_cfg.smc_support_resistance_gate_enabled;
 }
 
 function updateKpis() {
@@ -261,6 +274,17 @@ async function toggleSmcLiquidity(checked) {
   } else {
     Toast.show('Failed to update', 'error');
     document.getElementById('smcLiquidityToggle').checked = !checked;
+  }
+}
+
+async function toggleSmcSr(checked) {
+  const res = await API.put('/admin/platform-config', { smc_support_resistance_gate_enabled: checked });
+  if (res) {
+    Toast.show(`SMC Support/Resistance Gate ${checked ? 'enabled' : 'disabled'}`, 'success');
+    _cfg.smc_support_resistance_gate_enabled = checked;
+  } else {
+    Toast.show('Failed to update', 'error');
+    document.getElementById('smcSrToggle').checked = !checked;
   }
 }
 
@@ -364,6 +388,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
   document.getElementById('smcLiquidityToggle').disabled = !isSuperAdmin;
+  document.getElementById('smcSrToggle').disabled = !isSuperAdmin;
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {
