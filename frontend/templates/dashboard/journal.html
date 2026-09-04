@@ -311,7 +311,15 @@ let _totalPages  = 1;
 let _modal       = null;
 
 // ── init ──────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', async () => {
+// app:ready (fired from app.js), not DOMContentLoaded: this page is
+// tier-gated (data-requires-tier on <body>), and app:ready is deliberately
+// skipped on a tier-locked page since showTierLockOverlay() replaces
+// #pageContentBody's real elements (fAsset, journalBody, etc.) with an
+// upgrade card -- listening on DOMContentLoaded instead ran this
+// unconditionally and raced that swap, throwing "Cannot read properties of
+// null (reading 'appendChild')" in loadAssets() the instant a free/basic
+// user (below Journal's required tier) hit this page.
+document.addEventListener('app:ready', async () => {
   _modal = new bootstrap.Modal(document.getElementById('journalModal'));
   populateMarketSelect(document.getElementById('filterMarket'), { includeAll: true, allLabel: 'All markets' });
   populateMarketSelect(document.getElementById('fMarket'), { includeAll: true, allLabel: '— Select —' });
@@ -421,7 +429,7 @@ async function loadStats() {
   const pnlEl = document.getElementById('kpiPnl');
   pnlEl.textContent = fmt(s.total_pnl);
   pnlEl.className   = 'kpi-value ' + (s.total_pnl >= 0 ? 'text-green' : 'text-red');
-  document.getElementById('kpiPF').textContent = s.profit_factor === Infinity ? '∞' : s.profit_factor;
+  document.getElementById('kpiPF').textContent = s.profit_factor == null && s.total_trades ? '∞' : (s.profit_factor ?? 0);
 
   // Insights
   const panel = document.getElementById('insightPanel');

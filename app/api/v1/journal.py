@@ -208,7 +208,13 @@ def stats():
 
     gross_profit = sum(p for p in pnls if p > 0)
     gross_loss   = abs(sum(p for p in pnls if p < 0))
-    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss else (float("inf") if gross_profit else 0)
+    # None (not float("inf")) when every trade is a winner: Python's json
+    # module happily serializes inf as the bare token `Infinity`, which
+    # isn't valid JSON -- the browser's JSON.parse() rejects it outright,
+    # throwing inside API.get('/journal/stats') and silently killing the
+    # rest of loadStats() (KPI row + Trading Insights) for any user whose
+    # journal so far has zero losing trades.
+    profit_factor = round(gross_profit / gross_loss, 2) if gross_loss else (None if gross_profit else 0)
 
     # by_emotion
     emotion_map = {}
