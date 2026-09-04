@@ -161,7 +161,7 @@
           <label>🔑 API Key</label>
           <input id="cfgApiKey" class="cfg-input font-monospace" placeholder="Leave blank to keep existing" autocomplete="off">
         </div>
-        <div class="cfg-field">
+        <div class="cfg-field" id="cfgApiSecretField">
           <label>🔒 API Secret</label>
           <input id="cfgApiSecret" type="password" class="cfg-input font-monospace" placeholder="Leave blank to keep existing" autocomplete="new-password">
         </div>
@@ -670,6 +670,7 @@ function openEditModal(id) {
   document.getElementById('cfgIsDefault').checked     = c.is_default;
   document.getElementById('cfgIsActive').checked      = c.is_active;
   onMarketChange(c.provider);
+  onProviderChange();
   onAuthTypeChange();
   openCfgPanel();
 }
@@ -687,6 +688,7 @@ function resetModal() {
   document.getElementById('cfgIsDefault').checked     = false;
   document.getElementById('cfgIsActive').checked      = true;
   document.getElementById('providerHint').style.display = 'none';
+  document.getElementById('cfgApiSecretField').style.display = '';
   hideTestResult();
   onAuthTypeChange();
 }
@@ -700,6 +702,13 @@ function onMarketChange(selectProvider) {
   if (selectProvider) psel.value = selectProvider;
 }
 
+// Providers that authenticate with a single bearer token — no secret,
+// no HMAC signing pair. Showing an empty "API Secret" field next to
+// "API Key" for these reads as if both are expected, which isn't true
+// for these (the backend never requires api_secret either way — this is
+// purely to stop people hunting for a "secret" these providers don't have).
+const SINGLE_TOKEN_PROVIDERS = new Set(['groq', 'gemini', 'openrouter']);
+
 function onProviderChange() {
   const p    = document.getElementById('cfgProvider').value;
   const defs = PROVIDER_DEFAULTS[p];
@@ -709,6 +718,14 @@ function onProviderChange() {
     const hint = document.getElementById('providerHint');
     hint.innerHTML = `<i class="bi bi-info-circle me-1 text-accent"></i>Pre-filled defaults for <strong>${providerLabel(p)}</strong>. You can override any field.`;
     hint.style.display = 'block';
+  }
+
+  const secretField = document.getElementById('cfgApiSecretField');
+  if (SINGLE_TOKEN_PROVIDERS.has(p)) {
+    secretField.style.display = 'none';
+    document.getElementById('cfgApiSecret').value = '';
+  } else {
+    secretField.style.display = '';
   }
   // Auto-name
   if (!document.getElementById('cfgName').value && p) {
