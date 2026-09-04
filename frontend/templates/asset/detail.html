@@ -481,6 +481,26 @@
         </div>
       </div>
 
+      <!-- Ask AI -->
+      <div class="section-card mb-3" style="padding:14px">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <div class="fw-600 fs-sm">
+            <i class="bi bi-chat-left-text me-1 text-accent"></i>Ask AI about {{ asset.symbol }}
+          </div>
+          <span class="badge-tag" style="font-size:9px">PRO</span>
+        </div>
+        <div id="askAiContent">
+          <div class="d-flex gap-2">
+            <input type="text" id="askAiInput" class="form-control form-control-sm" placeholder="e.g. What's driving the price today?" maxlength="300">
+            <button class="btn btn-primary btn-sm" id="askAiBtn" onclick="submitAskAi()" style="white-space:nowrap">
+              <i class="bi bi-send"></i>
+            </button>
+          </div>
+          <div id="askAiAnswer" class="fs-xs text-muted mt-2"></div>
+          <div class="fs-xs text-muted mt-2" style="opacity:.7">Grounded in this asset's real current price, indicators, latest signal and news — not general knowledge.</div>
+        </div>
+      </div>
+
       <!-- Quick Stats -->
       <div class="section-card" style="padding:14px">
         <div class="fw-600 fs-sm mb-3">
@@ -1807,6 +1827,36 @@ function _aiPredRowHtml(tf, state) {
     <td class="fs-xs text-muted text-end">${state.predicted_target != null ? formatPrice(state.predicted_target) : '—'}</td>
   </tr>`;
 }
+
+/* ── Ask AI ────────────────────────────────────────────── */
+async function submitAskAi() {
+  const input = document.getElementById('askAiInput');
+  const btn = document.getElementById('askAiBtn');
+  const out = document.getElementById('askAiAnswer');
+  const question = input.value.trim();
+  if (!question) return;
+
+  btn.disabled = true;
+  input.disabled = true;
+  out.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Thinking…`;
+
+  const res = await API.post(`/assets/${ASSET_ID}/ask`, { question });
+
+  btn.disabled = false;
+  input.disabled = false;
+
+  if (res && res.answer) {
+    out.innerHTML = `<div class="mt-1" style="color:var(--text-primary);line-height:1.5">${res.answer.replace(/</g, '&lt;')}</div>`;
+  } else if (res && res.message) {
+    out.innerHTML = `<span class="text-warning">${res.message}</span>`;
+  } else {
+    out.innerHTML = `<span class="text-danger">${res?.error || 'Could not get an answer — try again.'}</span>`;
+  }
+}
+
+document.getElementById('askAiInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); submitAskAi(); }
+});
 
 async function loadAiPrediction() {
   const el = document.getElementById('aiPredictionContent');

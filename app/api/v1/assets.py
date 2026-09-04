@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
-from app.auth.decorators import login_required, admin_required, super_admin_required
+from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
 from app.services.data.fetcher import market_fetcher
 
 assets_bp = Blueprint("assets", __name__)
@@ -146,6 +146,132 @@ def get_markets():
     configuration."""
     from app.services.markets import MARKETS, MARKET_LABELS
     return jsonify({"markets": Asset.MARKETS, "labels": MARKET_LABELS, "registry": MARKETS}), 200
+
+
+def _gather_asset_context(asset) -> dict:
+    """Real, currently-true data about `asset` for the LLM to ground its
+    answer in -- price/indicators/latest signal/news, each independently
+    best-effort (a failure in one shouldn't blank out the others). Never
+    fabricated; whatever's missing is just left out of the prompt, and
+    answer_asset_question()'s own prompt tells the model to say so rather
+    than invent a number for a gap here."""
+    context: dict = {}
+
+    try:
+        ticker = market_fetcher.fetch_ticker(asset)
+        if ticker:
+            context["price"] = ticker.get("price")
+            context["change_pct"] = ticker.get("change_pct")
+    except Exception:
+        pass
+
+    try:
+        df = market_fetcher.fetch(asset, "1h", 60)
+        if df is not None and len(df) >= 20:
+            from app.services.indicators.calculator import calculate_all_indicators
+            ind = calculate_all_indicators(df, light=True)
+            parts = []
+            rsi = ind.get("rsi")
+            if rsi is not None:
+                parts.append(f"RSI {rsi:.0f}")
+            ema9, ema21 = ind.get("ema9"), ind.get("ema21")
+            if ema9 and ema21:
+                parts.append("EMA9>EMA21 (short-term uptrend)" if ema9 > ema21 else "EMA9<EMA21 (short-term downtrend)")
+            st_dir = ind.get("supertrend_direction")
+            if st_dir:
+                parts.append(f"Supertrend {st_dir}")
+            adx = ind.get("adx")
+            if adx is not None:
+                parts.append(f"ADX {adx:.0f} ({'trending' if adx >= 20 else 'range-bound'})")
+            if parts:
+                context["indicators"] = ", ".join(parts) + " (1h timeframe)"
+    except Exception:
+        pass
+
+    try:
+        from app.models.signal import Signal
+        sig = (Signal.query.filter_by(asset_id=asset.id)
+               .order_by(Signal.generated_at.desc()).first())
+        if sig:
+            context["latest_signal"] = (
+                f"{sig.signal_type} on {sig.timeframe} at {sig.entry_price}, "
+                f"confidence {sig.confidence_score:.0f}%, status: {sig.status}, "
+                f"generated {sig.generated_at.strftime('%Y-%m-%d %H:%M UTC')}"
+            )
+    except Exception:
+        pass
+
+    try:
+        from app.models.news import News
+        recent = News.query.order_by(News.published_at.desc()).limit(200).all()
+        matched = [n.title for n in recent if n.related_assets and asset.symbol in n.related_assets][:3]
+        if matched:
+            context["news"] = "; ".join(matched)
+    except Exception:
+        pass
+
+    return context
+
+
+def _llm_qa_quota_ok() -> bool:
+    """Coarse platform-wide cap on top of the per-user rate limit on the
+    route below -- protects the shared free-tier LLM key (one admin-
+    configured key used by every user) from being exhausted by many
+    different users each individually staying under their own limit. An
+    hourly bucket keyed by the current UTC hour, not a precise sliding
+    window -- good enough as a hard ceiling, not billing-grade accounting."""
+    from datetime import datetime
+    key = f"llm_qa_quota_{datetime.utcnow().strftime('%Y%m%d%H')}"
+    count = cache.get(key) or 0
+    if count >= 100:
+        return False
+    cache.set(key, count + 1, timeout=3700)
+    return True
+
+
+@assets_bp.route("/<int:asset_id>/ask", methods=["POST"])
+@premium_required
+@subscription_feature_required("ai_enabled")
+@limiter.limit("10 per hour")
+def ask_about_asset(asset_id):
+    """Free-form Q&A about one asset, answered by the same admin-configured
+    LLM that writes signal reasoning (app/services/ai/llm_reasoning.py) --
+    grounded in _gather_asset_context()'s real data, never the model's own
+    unguided knowledge. Gated the same way as AI Predictions (premium tier
+    + ai_enabled feature flag) since this shares one free-tier API key
+    across the whole platform and a fully open, unlimited chat surface
+    would burn through that budget fast."""
+    asset = Asset.query.get_or_404(asset_id)
+    data = request.get_json() or {}
+    question = (data.get("question") or "").strip()
+    if not question:
+        return jsonify({"error": "question is required"}), 400
+    if len(question) > 300:
+        return jsonify({"error": "question must be 300 characters or fewer"}), 400
+
+    from app.services.ai.llm_reasoning import is_configured, answer_asset_question
+
+    if not is_configured():
+        return jsonify({
+            "answer": None, "available": False,
+            "message": "AI Q&A isn't set up yet — an admin needs to add a free LLM key under Admin > API Configurations.",
+        }), 200
+
+    if not _llm_qa_quota_ok():
+        return jsonify({
+            "answer": None, "available": True,
+            "message": "AI Q&A has hit its shared hourly limit across all users — try again in a bit.",
+        }), 200
+
+    context = _gather_asset_context(asset)
+    answer = answer_asset_question(asset.symbol, asset.market, question, context)
+    if not answer:
+        return jsonify({
+            "answer": None, "available": True,
+            "message": "Couldn't get an answer just now — try again shortly.",
+        }), 200
+
+    return jsonify({"answer": answer, "available": True}), 200
 
 
 @assets_bp.route("/search", methods=["GET"])
