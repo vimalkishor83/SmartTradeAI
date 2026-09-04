@@ -303,6 +303,36 @@ def _load_model(key: str):
     return None
 
 
+def _models_ready(cache_key: str) -> bool:
+    """True if every ensemble member whose library is actually installed
+    already has a fresh (< _RETRAIN_AFTER) cached model file. Lets
+    predict() skip straight to inference: the triple-barrier label pass
+    it would otherwise run first (an O(n) but non-trivial Python loop,
+    see _make_triple_barrier_labels) only exists to produce training
+    data, so computing it just to turn around and call _load_model()
+    without training is pure waste -- previously paid on every call
+    whose in-process prediction cache had expired but whose model file
+    was still fresh (the common case for 5m/15m timeframes, where the
+    pred-cache TTL is shorter than the 30-min prewarm interval)."""
+    installed = []
+    for lib, prefix in (("sklearn", "rf_"), ("xgboost", "xgb_"), ("lightgbm", "lgb_")):
+        try:
+            __import__(lib)
+            installed.append(prefix)
+        except ImportError:
+            continue
+    if not installed:
+        return False
+    for prefix in installed:
+        p = _model_path(f"{prefix}{cache_key}")
+        try:
+            if not p.exists() or (time.time() - p.stat().st_mtime) >= _RETRAIN_AFTER:
+                return False
+        except Exception:
+            return False
+    return True
+
+
 def _save_model(key: str, model):
     try:
         import joblib
@@ -354,29 +384,40 @@ class AIPredictor:
             bull_prob = cached[0]
         else:
             try:
-                from app.services.indicators.calculator import calculate_atr
-
                 feat = _build_features(df)
-                atr  = calculate_atr(df["high"], df["low"], df["close"]).loc[feat.index]
-                labels = _make_triple_barrier_labels(df.loc[feat.index], atr)
+                X_pred = feat.values[[-1]]
 
-                X_all = feat.values
-                y_all = labels.values
-                X_pred = X_all[[-1]]
-                # Triple-barrier labels are NaN for the trailing _TB_MAX_HOLD
-                # bars (not enough forward data to resolve a barrier touch)
-                # and for the very last row (used only for X_pred) --
-                # exclude both from training rather than assuming a fixed
-                # drop count.
-                valid = ~np.isnan(y_all)
-                valid[-1] = False  # last row's own label is never used for training
-                X_train = X_all[valid]
-                y_train = y_all[valid].astype(int)
+                bull_prob = None
+                if _models_ready(cache_key):
+                    bull_prob = self._ensemble_predict_inference_only(X_pred, cache_key)
 
-                if len(X_train) < _MIN_TRAIN_ROWS:
-                    return _default
+                if bull_prob is None:
+                    # No fresh cached model for at least one ensemble member
+                    # (first run for this symbol+TF, or past _RETRAIN_AFTER)
+                    # -- build real training data and let _ensemble_predict
+                    # train/calibrate whatever's missing.
+                    from app.services.indicators.calculator import calculate_atr
 
-                bull_prob = self._ensemble_predict(X_train, y_train, X_pred, asset_symbol, timeframe)
+                    atr    = calculate_atr(df["high"], df["low"], df["close"]).loc[feat.index]
+                    labels = _make_triple_barrier_labels(df.loc[feat.index], atr)
+
+                    X_all = feat.values
+                    y_all = labels.values
+                    # Triple-barrier labels are NaN for the trailing _TB_MAX_HOLD
+                    # bars (not enough forward data to resolve a barrier touch)
+                    # and for the very last row (used only for X_pred) --
+                    # exclude both from training rather than assuming a fixed
+                    # drop count.
+                    valid = ~np.isnan(y_all)
+                    valid[-1] = False  # last row's own label is never used for training
+                    X_train = X_all[valid]
+                    y_train = y_all[valid].astype(int)
+
+                    if len(X_train) < _MIN_TRAIN_ROWS:
+                        return _default
+
+                    bull_prob = self._ensemble_predict(X_train, y_train, X_pred, asset_symbol, timeframe)
+
                 with self._cache_lock:
                     self._pred_cache[cache_key] = (bull_prob, time.time())
 
@@ -531,6 +572,25 @@ class AIPredictor:
             return float(np.mean(probs))
 
         return self._heuristic_fallback(X_pred[0])
+
+    def _ensemble_predict_inference_only(self, X_pred: np.ndarray, cache_key: str) -> float | None:
+        """Companion to _ensemble_predict() for the _models_ready() fast
+        path: loads whatever cached model files exist and averages their
+        predict_proba() -- no training, no calibration fitting, since
+        _models_ready() already confirmed every installed member has a
+        fresh file. Returns None (never a guess) if a file goes missing
+        between the _models_ready() check and here (e.g. force_retrain()
+        racing in), so the caller falls back to the full train/predict path."""
+        probs: list[float] = []
+        for prefix in ("rf_", "xgb_", "lgb_"):
+            m = _load_model(f"{prefix}{cache_key}")
+            if m is None:
+                continue
+            try:
+                probs.append(m.predict_proba(X_pred)[0][1])
+            except Exception as e:
+                logger.error(f"Inference-only predict error [{prefix}{cache_key}]: {e}")
+        return float(np.mean(probs)) if probs else None
 
     def _heuristic_fallback(self, features: np.ndarray) -> float:
         """
