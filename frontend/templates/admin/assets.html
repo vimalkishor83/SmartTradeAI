@@ -76,11 +76,6 @@
       </div>
       <select id="assetMarketFilter" class="form-select form-select-sm" style="width:160px" onchange="applyFilter()">
         <option value="">All Markets</option>
-        <option value="crypto">Crypto</option>
-        <option value="forex">Forex</option>
-        <option value="commodity">Commodity</option>
-        <option value="indian_stock">Indian Stocks</option>
-        <option value="index">Indices</option>
       </select>
       <div class="form-check mb-0">
         <input class="form-check-input" type="checkbox" id="showDisabled" onchange="applyFilter()">
@@ -511,6 +506,7 @@ document.addEventListener('app:ready', () => {
   // No per-row checkboxes render for a view-only (non-super-admin) user, so
   // the select-all header checkbox has nothing to drive — hide it too.
   document.getElementById('assetSelectAll').style.display = isSuperAdmin ? '' : 'none';
+  populateMarketSelect(document.getElementById('assetMarketFilter'), { includeAll: true });
   loadDeltaCatalog();
 
   loadAssets();

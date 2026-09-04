@@ -69,11 +69,6 @@
           </select>
           <select class="form-select form-select-sm" id="filterMarket" style="width:110px">
             <option value="">All markets</option>
-            <option value="crypto">Crypto</option>
-            <option value="forex">Forex</option>
-            <option value="commodity">Commodity</option>
-            <option value="indian_stock">Indian Stock</option>
-            <option value="index">Index</option>
           </select>
           <input type="date" class="form-control form-control-sm" id="filterDateFrom" placeholder="From" style="width:130px" title="Date from">
           <input type="date" class="form-control form-control-sm" id="filterDateTo" placeholder="To" style="width:130px" title="Date to">
@@ -203,11 +198,6 @@
             <label class="form-label">Market</label>
             <select class="form-select" id="fMarket">
               <option value="">— Select —</option>
-              <option value="crypto">Crypto</option>
-              <option value="forex">Forex</option>
-              <option value="commodity">Commodity</option>
-              <option value="indian_stock">Indian Stock</option>
-              <option value="index">Index</option>
             </select>
           </div>
 
@@ -323,6 +313,8 @@ let _modal       = null;
 // ── init ──────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
   _modal = new bootstrap.Modal(document.getElementById('journalModal'));
+  populateMarketSelect(document.getElementById('filterMarket'), { includeAll: true, allLabel: 'All markets' });
+  populateMarketSelect(document.getElementById('fMarket'), { includeAll: true, allLabel: '— Select —' });
   await loadAssets();
   await Promise.all([loadEntries(), loadStats()]);
   loadWeeklyReview();

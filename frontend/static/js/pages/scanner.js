@@ -163,6 +163,7 @@ async function _addWatch(sym) { const id = _symbolIds[sym]; if (!id) return; awa
 
 /* ── init ── */
 document.addEventListener('app:ready', async () => {
+  await populateMarketSelect(document.getElementById('scanMarket'), { includeAll: true });
   loadScanKPIs();
   const assets = await API.get('/assets/').catch(() => null);
   (assets?.assets || []).forEach(a => { _symbolIds[a.symbol] = a.id; });

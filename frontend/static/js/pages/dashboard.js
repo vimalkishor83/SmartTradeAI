@@ -426,6 +426,7 @@ function loadAll() {
 
 document.addEventListener('app:ready', () => {
   _chartDefaults();
+  populateMarketSelect(document.getElementById('signalMarketFilter'), { includeAll: true });
   loadAll();
 
   document.getElementById('refreshAll')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });

@@ -86,11 +86,6 @@
   <div class="hm-controls">
     <select class="form-select form-select-sm" id="hmMarket" style="width:auto">
       <option value="">All Markets</option>
-      <option value="crypto">Crypto</option>
-      <option value="forex">Forex</option>
-      <option value="commodity">Commodities</option>
-      <option value="indian_stock">Indian Stocks</option>
-      <option value="index">Indices</option>
     </select>
     <div class="btn-group btn-group-sm" role="group">
       <button type="button" class="btn btn-outline-secondary active" id="viewCompact" onclick="setView('compact')">S</button>
@@ -237,6 +232,7 @@ async function loadHeatmapPage() {
 }
 
 document.getElementById('hmMarket').addEventListener('change', renderPage);
+populateMarketSelect(document.getElementById('hmMarket'), { includeAll: true });
 loadHeatmapPage();
 setInterval(loadHeatmapPage, 180000); // refresh every 3 min
 </script>

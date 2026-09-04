@@ -13,11 +13,6 @@
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <select class="form-select form-select-sm" id="mktFilter" style="width:auto">
       <option value="all">All Markets</option>
-      <option value="crypto">Crypto</option>
-      <option value="forex">Forex</option>
-      <option value="commodity">Commodities</option>
-      <option value="indian_stock">Indian Stocks</option>
-      <option value="index">Indices</option>
     </select>
     <button class="btn btn-sm btn-outline-light" id="refreshBtn">
       <i class="bi bi-arrow-repeat me-1"></i>Refresh
@@ -878,6 +873,7 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideEmaDetail(); });
 
 document.addEventListener('app:ready', () => {
+  populateMarketSelect(document.getElementById('mktFilter'), { includeAll: true, allValue: 'all' });
   loadData(true);
   document.getElementById('refreshBtn').addEventListener('click', () => {
     if (_currentTab === 'ai')      { _aiLoaded = false; loadAiData(true); }

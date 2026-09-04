@@ -13,11 +13,6 @@
   <div class="d-flex gap-2 align-items-center flex-wrap">
     <select class="form-select form-select-sm" id="mktFilter" style="width:auto">
       <option value="all">All Markets</option>
-      <option value="crypto">Crypto</option>
-      <option value="forex">Forex</option>
-      <option value="commodity">Commodities</option>
-      <option value="indian_stock">Indian Stocks</option>
-      <option value="index">Indices</option>
     </select>
     <select class="form-select form-select-sm" id="viewMode" style="width:auto">
       <option value="signal">Signal Type</option>
@@ -319,6 +314,7 @@ async function loadMatrix(showSpinner = true) {
 }
 
 document.addEventListener('app:ready', () => {
+  populateMarketSelect(document.getElementById('mktFilter'), { includeAll: true, allValue: 'all' });
   loadMatrix();
   document.getElementById('refreshBtn').addEventListener('click', async (e) => {
     const icon = e.currentTarget.querySelector('i');

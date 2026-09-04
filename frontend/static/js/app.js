@@ -128,6 +128,37 @@ const API = {
   },
 };
 
+// ─── Markets registry ─────────────────────────
+// Single shared fetch of app.services.markets (see that module's
+// docstring) so every page's market dropdown/filter reads from one place
+// instead of hardcoding its own <option> list — 11 templates did exactly
+// that independently before this existed. Cached in-memory for the page's
+// lifetime; a fresh page load re-fetches, which is fine since this rarely
+// changes and the endpoint itself is cheap (static data, no DB query).
+let _marketsRegistryCache = null;
+
+async function loadMarketsRegistry() {
+  if (_marketsRegistryCache) return _marketsRegistryCache;
+  const data = await API.get('/assets/markets');
+  _marketsRegistryCache = data?.registry || [];
+  return _marketsRegistryCache;
+}
+
+// Populates a <select> with the registry's markets. Preserves the
+// element's current value where possible (falls back to opts.selected,
+// then to whatever the browser defaults a fresh <select> to) so calling
+// this on a page that deep-links to a specific market (e.g. ?market=forex)
+// doesn't clobber that selection.
+async function populateMarketSelect(selectEl, opts = {}) {
+  if (!selectEl) return;
+  const { includeAll = false, allLabel = 'All Markets', allValue = '', selected = null } = opts;
+  const prior = selected ?? selectEl.value;
+  const registry = await loadMarketsRegistry();
+  const optionsHtml = registry.map(m => `<option value="${m.key}">${m.label}</option>`).join('');
+  selectEl.innerHTML = (includeAll ? `<option value="${allValue}">${allLabel}</option>` : '') + optionsHtml;
+  if (prior) selectEl.value = prior;
+}
+
 // ─── Auth ─────────────────────────────────────
 const Auth = {
   user: null,

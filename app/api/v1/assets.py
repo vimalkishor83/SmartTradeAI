@@ -136,7 +136,16 @@ def delete_asset(asset_id):
 @assets_bp.route("/markets", methods=["GET"])
 @login_required
 def get_markets():
-    return jsonify({"markets": Asset.MARKETS}), 200
+    """The canonical market registry (app.services.markets), for any page
+    that wants to populate a market dropdown/filter without hardcoding its
+    own <option> list — see that module's docstring for why this exists.
+    Was returning just the bare key list with no live consumer; now
+    includes labels too, both keyed and in registry order, since a
+    dropdown needs the human label as much as the value. Public within the
+    login-required surface (no admin gate) since this is just labels, not
+    configuration."""
+    from app.services.markets import MARKETS, MARKET_LABELS
+    return jsonify({"markets": Asset.MARKETS, "labels": MARKET_LABELS, "registry": MARKETS}), 200
 
 
 @assets_bp.route("/search", methods=["GET"])

@@ -134,11 +134,6 @@
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <select class="form-select form-select-sm" id="allMkt" style="width:auto">
           <option value="">All Markets</option>
-          <option value="crypto">Crypto</option>
-          <option value="forex">Forex</option>
-          <option value="commodity">Commodities</option>
-          <option value="indian_stock">Indian Stocks</option>
-          <option value="index">Indices</option>
         </select>
         <select class="form-select form-select-sm" id="allTf" style="width:auto">
           <option value="">All TF</option>
@@ -191,8 +186,6 @@
       <div class="d-flex flex-wrap gap-2 align-items-center">
         <select class="form-select form-select-sm" id="histMkt" style="width:auto">
           <option value="">All Markets</option>
-          <option value="crypto">Crypto</option><option value="forex">Forex</option>
-          <option value="indian_stock">Indian Stocks</option><option value="index">Indices</option>
         </select>
         <select class="form-select form-select-sm" id="histOutcome" style="width:auto">
           <option value="">All Outcomes</option>
@@ -554,6 +547,8 @@ document.addEventListener('app:ready', () => {
     if (vl && mc) { vl.textContent = mc + '%'; }
   })();
 
+  populateMarketSelect(document.getElementById('allMkt'), { includeAll: true });
+  populateMarketSelect(document.getElementById('histMkt'), { includeAll: true });
   loadSummary();
   loadSignalsMarketState();
   if (location.search.includes('tab=history')) {

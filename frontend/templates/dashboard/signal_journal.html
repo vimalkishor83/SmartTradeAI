@@ -61,11 +61,6 @@
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <select class="form-select form-select-sm" id="sjMarket" style="width:auto">
         <option value="">All Markets</option>
-        <option value="crypto">Crypto</option>
-        <option value="forex">Forex</option>
-        <option value="commodity">Commodities</option>
-        <option value="indian_stock">Indian Stocks</option>
-        <option value="index">Indices</option>
       </select>
       <select class="form-select form-select-sm" id="sjTimeframe" style="width:auto">
         <option value="">All Timeframes</option>
@@ -231,6 +226,7 @@ function renderPager(total) {
 }
 
 document.addEventListener('app:ready', () => {
+  populateMarketSelect(document.getElementById('sjMarket'), { includeAll: true });
   loadJournal();
   wireSearchClear('sjSearch');
 
