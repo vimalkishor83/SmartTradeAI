@@ -4,7 +4,7 @@ from app.models.asset import Asset
 from app.models.saved_screen import SavedScreen
 from app.models.mtf_watch_config import MtfWatchConfig, DEFAULT_MTF_WATCH_SYMBOLS
 from app.auth.decorators import login_required
-from app.services.data.fetcher import market_fetcher
+from app.services.data.fetcher import market_fetcher, blocked_data_markets
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.scanner.delta_mtf_scanner import (
     run_scan as run_delta_mtf_scan,
@@ -58,8 +58,17 @@ def run_scan():
         query = query.filter_by(market=market)
     assets = query.all()
 
+    # Same rationale as prewarm_ta_cache/prewarm_ai_cache: fetch()/fetch_many()
+    # already refuse a market paused in APIConfig (returns None), so an asset
+    # in one just silently contributed nothing while still counting toward
+    # "scanned" -- e.g. Indian stocks/indices paused mid-session made a scan
+    # report "of 12 scanned" when only 7 were ever actually evaluated.
+    blocked = blocked_data_markets()
+    if blocked:
+        assets = [a for a in assets if a.market not in blocked]
+
     if not assets:
-        return jsonify({"results": [], "count": 0}), 200
+        return jsonify({"results": [], "count": 0, "scanned": 0}), 200
 
     # Fetch all OHLCV up front via fetch_many: this batches Yahoo
     # (non-crypto) assets into ONE HTTP call for the timeframe (vs. N
