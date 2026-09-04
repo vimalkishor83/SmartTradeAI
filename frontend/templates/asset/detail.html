@@ -449,6 +449,26 @@
             <div class="text-center py-3 text-muted fs-xs">Loading…</div>
           </div>
         </div>
+
+        <!-- Ask AI -->
+        <div class="section-card mb-3" style="padding:14px">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <div class="fw-600 fs-sm">
+              <i class="bi bi-chat-left-text me-1 text-accent"></i>Ask AI about {{ asset.symbol }}
+            </div>
+            <span class="badge-tag" style="font-size:9px">PRO</span>
+          </div>
+          <div id="askAiContent">
+            <div class="d-flex gap-2">
+              <input type="text" id="askAiInput" class="form-control form-control-sm" placeholder="e.g. What's driving the price today?" maxlength="300">
+              <button class="btn btn-primary btn-sm" id="askAiBtn" onclick="submitAskAi()" style="white-space:nowrap">
+                <i class="bi bi-send"></i>
+              </button>
+            </div>
+            <div id="askAiAnswer" class="fs-xs text-muted mt-2"></div>
+            <div class="fs-xs text-muted mt-2" style="opacity:.7">Grounded in this asset's real current price, indicators, latest signal and news — not general knowledge.</div>
+          </div>
+        </div>
       </div>
 
       <div id="sbTabOverview" style="display:none">
@@ -478,26 +498,6 @@
             </button>
             <div class="text-muted fs-xs mt-2">Runs 5m–1D ensemble models — ~30s total</div>
           </div>
-        </div>
-      </div>
-
-      <!-- Ask AI -->
-      <div class="section-card mb-3" style="padding:14px">
-        <div class="d-flex align-items-center justify-content-between mb-3">
-          <div class="fw-600 fs-sm">
-            <i class="bi bi-chat-left-text me-1 text-accent"></i>Ask AI about {{ asset.symbol }}
-          </div>
-          <span class="badge-tag" style="font-size:9px">PRO</span>
-        </div>
-        <div id="askAiContent">
-          <div class="d-flex gap-2">
-            <input type="text" id="askAiInput" class="form-control form-control-sm" placeholder="e.g. What's driving the price today?" maxlength="300">
-            <button class="btn btn-primary btn-sm" id="askAiBtn" onclick="submitAskAi()" style="white-space:nowrap">
-              <i class="bi bi-send"></i>
-            </button>
-          </div>
-          <div id="askAiAnswer" class="fs-xs text-muted mt-2"></div>
-          <div class="fs-xs text-muted mt-2" style="opacity:.7">Grounded in this asset's real current price, indicators, latest signal and news — not general knowledge.</div>
         </div>
       </div>
 
