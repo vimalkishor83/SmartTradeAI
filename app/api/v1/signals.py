@@ -8,6 +8,7 @@ from app.auth.decorators import login_required, admin_required, super_admin_requ
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
+from app.services.pagination import bounded_page, bounded_per_page
 from datetime import datetime, timedelta
 from sqlalchemy import and_, case, func
 from sqlalchemy.exc import IntegrityError
@@ -971,8 +972,8 @@ def get_signals():
     timeframe = request.args.get("timeframe")
     signal_type = request.args.get("signal_type")
     min_confidence = float(request.args.get("min_confidence", 0))
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
+    page = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 20), maximum=100)
 
     user_id = get_jwt_identity()
     user = User.query.get(user_id)
