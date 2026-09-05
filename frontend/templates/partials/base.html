@@ -37,9 +37,11 @@
 </head>
 <body{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
+<a class="skip-link" href="#pageContent">Skip to main content</a>
+
 {% if not hide_sidebar %}
 <!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->
-<aside class="sidebar" id="sidebar">
+<aside class="sidebar" id="sidebar" aria-label="Primary navigation">
 
   <!-- Brand -->
   <div class="sidebar-header">
@@ -47,7 +49,7 @@
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
       <span class="brand-name">SmartTrade <span class="text-accent">AI</span></span>
     </a>
-    <button class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar">
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar" aria-controls="sidebar" aria-expanded="true">
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
   </div>
@@ -74,11 +76,11 @@
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
-      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_overview else 'false' }}" aria-controls="navGroupBodyOverview">
         <span class="nav-section-label">Overview</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
-      </div>
-      <div class="nav-group-body">
+      </button>
+      <div class="nav-group-body" id="navGroupBodyOverview">
         {% if '/dashboard' not in disabled_nav_items %}
         <a href="/dashboard" data-tooltip="Dashboard" class="nav-item {% if active == 'dashboard' %}active{% endif %}">
           <i class="bi bi-grid-1x2-fill nav-icon-amber"></i><span class="nav-text">Dashboard</span>
@@ -94,11 +96,11 @@
 
     <!-- Markets -->
     <div class="nav-group {% if grp_markets %}open{% endif %}" data-group="markets">
-      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_markets else 'false' }}" aria-controls="navGroupBodyMarkets">
         <span class="nav-section-label">Markets</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
-      </div>
-      <div class="nav-group-body">
+      </button>
+      <div class="nav-group-body" id="navGroupBodyMarkets">
         {% if '/markets/crypto' not in disabled_nav_items %}
         <a href="/markets/crypto" data-tooltip="Crypto" class="nav-item {% if active == 'crypto' %}active{% endif %}">
           <i class="bi bi-currency-bitcoin nav-icon-blue"></i><span class="nav-text">Crypto</span><span class="badge-live">LIVE</span>
@@ -134,11 +136,11 @@
 
     <!-- Signals & Tools -->
     <div class="nav-group {% if grp_signals %}open{% endif %}" data-group="signals">
-      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_signals else 'false' }}" aria-controls="navGroupBodySignals">
         <span class="nav-section-label">Signals &amp; Tools</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
-      </div>
-      <div class="nav-group-body">
+      </button>
+      <div class="nav-group-body" id="navGroupBodySignals">
         {% if '/signals' not in disabled_nav_items %}
         <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
           <i class="bi bi-lightning-charge-fill nav-icon-green"></i><span class="nav-text">All Signals</span>
@@ -200,11 +202,11 @@
 
     <!-- Analysis -->
     <div class="nav-group {% if grp_analysis %}open{% endif %}" data-group="analysis">
-      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_analysis else 'false' }}" aria-controls="navGroupBodyAnalysis">
         <span class="nav-section-label">Analysis</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
-      </div>
-      <div class="nav-group-body">
+      </button>
+      <div class="nav-group-body" id="navGroupBodyAnalysis">
         {% if '/ta-summary' not in disabled_nav_items %}
         <a href="/ta-summary" data-tooltip="TA Summary — requires Premium or higher" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
           <i class="bi bi-speedometer2 nav-icon-cyan"></i><span class="nav-text">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
@@ -245,11 +247,11 @@
 
     <!-- Portfolio -->
     <div class="nav-group {% if grp_portfolio %}open{% endif %}" data-group="portfolio">
-      <div class="nav-group-header" onclick="toggleNavGroup(this)">
+      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_portfolio else 'false' }}" aria-controls="navGroupBodyPortfolio">
         <span class="nav-section-label">Portfolio</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
-      </div>
-      <div class="nav-group-body">
+      </button>
+      <div class="nav-group-body" id="navGroupBodyPortfolio">
         {% if '/portfolio' not in disabled_nav_items %}
         <a href="/portfolio" data-tooltip="Portfolio" class="nav-item {% if active == 'portfolio' %}active{% endif %}">
           <i class="bi bi-pie-chart-fill nav-icon-purple"></i><span class="nav-text">Portfolio</span>
@@ -292,11 +294,11 @@
     <!-- Admin (hidden until role check) -->
     <div id="adminNav" style="display:none">
       <div class="nav-group {% if grp_admin %}open{% endif %}" data-group="admin">
-        <div class="nav-group-header" onclick="toggleNavGroup(this)">
+        <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_admin else 'false' }}" aria-controls="navGroupBodyAdmin">
           <span class="nav-section-label">Admin</span>
           <i class="bi bi-chevron-down nav-group-arrow"></i>
-        </div>
-        <div class="nav-group-body">
+        </button>
+        <div class="nav-group-body" id="navGroupBodyAdmin">
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
             <i class="bi bi-speedometer2 nav-icon-red"></i><span class="nav-text">Admin Panel</span>
           </a>
@@ -367,7 +369,7 @@
   <nav class="top-navbar">
     <div class="navbar-left">
       <!-- Mobile toggle / desktop collapse trigger -->
-      <button class="btn-icon" id="mobileSidebarToggle" title="Toggle sidebar">
+      <button type="button" class="btn-icon" id="mobileSidebarToggle" title="Toggle sidebar" aria-controls="sidebar" aria-expanded="false">
         <i class="bi bi-list"></i>
       </button>
       <div class="breadcrumb-nav">
@@ -401,10 +403,10 @@
       </button>
 
       <!-- Notification bell -->
-      <div class="notification-bell" id="notifBell" role="button" tabindex="0" title="Notifications">
+      <button type="button" class="notification-bell" id="notifBell" aria-label="Notifications" aria-expanded="false">
         <i class="bi bi-bell-fill" style="font-size:14px"></i>
         <span class="notif-badge" id="notifCount" style="display:none">0</span>
-      </div>
+      </button>
     </div>
   </nav>
 
@@ -514,7 +516,7 @@
 {% endif %}
 
 <!-- Toast container -->
-<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" style="z-index:9999"></div>
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer" role="status" aria-live="polite" aria-atomic="true" style="z-index:9999"></div>
 
 <!-- Scripts -->
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
@@ -564,6 +566,7 @@ if ('serviceWorker' in navigator) {
       toggleBtn.querySelector('i').className = collapsed
         ? 'bi bi-layout-sidebar-inset-reverse'
         : 'bi bi-layout-sidebar-inset';
+      toggleBtn.setAttribute('aria-expanded', String(!collapsed));
     }
     try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch {}
   }
@@ -571,10 +574,12 @@ if ('serviceWorker' in navigator) {
   function openMobile() {
     sidebar.classList.add('mobile-open');
     backdrop && (backdrop.style.display = 'block');
+    mobileBtn?.setAttribute('aria-expanded', 'true');
   }
   function closeMobile() {
     sidebar.classList.remove('mobile-open');
     backdrop && (backdrop.style.display = 'none');
+    mobileBtn?.setAttribute('aria-expanded', 'false');
   }
 
   // Restore desktop state
@@ -633,6 +638,7 @@ function toggleNavGroup(header) {
   // Don't collapse if sidebar is in icon-only mode
   if (document.getElementById('sidebar')?.classList.contains('collapsed')) return;
   const isOpen = group.classList.toggle('open');
+  header.setAttribute('aria-expanded', String(isOpen));
   try { localStorage.setItem('navgrp_' + group.dataset.group, isOpen ? '1' : '0'); } catch {}
 }
 
@@ -649,6 +655,8 @@ function toggleNavGroup(header) {
     } else if (saved === '0') {
       g.classList.remove('open');
     }
+    const header = g.querySelector('.nav-group-header');
+    if (header) header.setAttribute('aria-expanded', String(g.classList.contains('open')));
     // if no saved state: leave as server rendered (open for active, closed for others)
   });
 })();
