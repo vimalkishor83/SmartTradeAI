@@ -422,6 +422,14 @@ The multi-asset comparison route now uses the shared bounded pagination helper f
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `e31c5a8`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **172 passed** in 45.66s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.9 IMPLEMENTED — Bound signal analytics query filters
+
+Signal listing now normalizes `min_confidence` to a finite `0..100` range, while the per-asset performance endpoint bounds `days` to `1..3650` with a 90-day default. Shared integer/float helpers centralize malformed-input handling and avoid query-time exceptions or misleading future/oversized lookbacks.
+
+**Risk level:** Low (valid requests remain equivalent; only invalid/out-of-range inputs are normalized). **Affected modules:** `app/services/pagination.py`, `app/api/v1/signals.py`, `tests/unit/test_pagination.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

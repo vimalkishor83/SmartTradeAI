@@ -8,7 +8,7 @@ from app.auth.decorators import login_required, admin_required, super_admin_requ
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
-from app.services.pagination import bounded_page, bounded_per_page
+from app.services.pagination import bounded_float, bounded_int, bounded_page, bounded_per_page
 from datetime import datetime, timedelta
 from sqlalchemy import and_, case, func
 from sqlalchemy.exc import IntegrityError
@@ -971,7 +971,7 @@ def get_signals():
     asset_id = request.args.get("asset_id", type=int)
     timeframe = request.args.get("timeframe")
     signal_type = request.args.get("signal_type")
-    min_confidence = float(request.args.get("min_confidence", 0))
+    min_confidence = bounded_float(request.args.get("min_confidence", 0), default=0, minimum=0, maximum=100)
     page = bounded_page(request.args.get("page", 1))
     per_page = bounded_per_page(request.args.get("per_page", 20), maximum=100)
 
@@ -1524,10 +1524,7 @@ def signal_performance():
 
     Query params: ?days=<lookback, default 90> &market=<optional filter>
     """
-    try:
-        days = int(request.args.get("days", 90))
-    except (TypeError, ValueError):
-        days = 90
+    days = bounded_int(request.args.get("days", 90), default=90, minimum=1, maximum=3650)
     market = request.args.get("market")
 
     cutoff = datetime.utcnow() - timedelta(days=days)
