@@ -12,6 +12,7 @@ import hmac
 import pytest
 
 from app.services.trading.delta_trading import DeltaTradingClient, DeltaTradingError
+from app.api.v1.trading import _parse_bool
 
 
 def _client():
@@ -95,6 +96,21 @@ class TestClientConstruction:
         client = DeltaTradingClient(api_key="key", api_secret="secret")
         assert client.api_key == "key"
         assert client.api_secret == "secret"
+
+
+class TestTradingInputParsing:
+    def test_boolean_values_are_preserved(self):
+        assert _parse_bool(True, "reduce_only") is True
+        assert _parse_bool(False, "reduce_only") is False
+
+    def test_string_booleans_are_parsed_without_truthiness_coercion(self):
+        assert _parse_bool("true", "reduce_only") is True
+        assert _parse_bool("false", "reduce_only") is False
+        assert _parse_bool("0", "reduce_only") is False
+
+    def test_ambiguous_values_are_rejected(self):
+        with pytest.raises(ValueError):
+            _parse_bool("maybe", "reduce_only")
 
 
 class TestPlaceOrderValidation:

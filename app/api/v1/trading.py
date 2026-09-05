@@ -25,6 +25,19 @@ from app.services.trading.broker_registry import get_broker, list_brokers, requi
 trading_bp = Blueprint("trading", __name__)
 
 
+def _parse_bool(value, field_name):
+    """Parse JSON booleans without Python's unsafe bool("false") coercion."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off", ""}:
+            return False
+    raise ValueError(f"{field_name} must be a boolean")
+
+
 def _client_or_error():
     """Returns (client, None) or (None, (response, status)) for the current user."""
     user_id = int(get_jwt_identity())
@@ -279,7 +292,10 @@ def place_order():
     order_type = (data.get("order_type") or "limit_order").strip()
     limit_price = data.get("limit_price")
     stop_price = data.get("stop_price")
-    reduce_only = bool(data.get("reduce_only", False))
+    try:
+        reduce_only = _parse_bool(data.get("reduce_only", False), "reduce_only")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     leverage = data.get("leverage")
 
     if not our_symbol or not side or not size:

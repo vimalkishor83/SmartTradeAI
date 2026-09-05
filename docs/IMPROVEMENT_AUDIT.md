@@ -374,6 +374,14 @@ The unified `/signals/journal` endpoint already capped page size at 100, but mal
 
 **Regression evidence:** Local syntax validation and whitespace validation passed. Production deployment completed on 2026-09-05 from commit `226e826`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **159 passed** in 42.85s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 5.4 IMPLEMENTED — Parse trading booleans safely
+
+The live order route previously used Python truthiness for `reduce_only`, which converts the string `"false"` into `True`. The route now accepts native JSON booleans and explicit string equivalents, while rejecting ambiguous values before any broker/product lookup or order placement occurs.
+
+**Risk level:** High safety value, low compatibility risk (valid booleans and common explicit string values are preserved). **Affected modules:** `app/api/v1/trading.py`, `tests/unit/test_delta_trading_signing.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
