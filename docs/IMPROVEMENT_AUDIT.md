@@ -125,7 +125,17 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 
 ### 2.8 MINOR — Walk-forward window averaging unweighted by trade count
 
-`app/services/backtest/walk_forward.py` averages `win_rate` across windows via unweighted `np.mean(win_rates)` rather than pooling trades first. A window with 3 trades and a window with 50 trades currently count equally toward the average. Not a >100% bug; a minor statistical-quality issue. **Risk level:** Low. **Not fixed this pass** — flagged for a future Phase 1 follow-up.
+`app/services/backtest/walk_forward.py` averaged `win_rate` across windows via unweighted `np.mean(win_rates)` rather than pooling trades first. A window with 3 trades and a window with 50 trades therefore counted equally toward the average. Not a >100% bug; a minor statistical-quality issue. **Risk level:** Low. Fixed below.
+
+### 2.8 FIXED — Walk-forward aggregate win rate now reflects trade volume
+
+**Root cause:** `run_walk_forward()` calculated `avg_win_rate` with `np.mean(win_rates)`, giving every time window equal weight even when their trade counts differed materially. A one-trade window therefore influenced the reported aggregate as much as a high-activity window with dozens of trades.
+
+**Fix:** Each window now carries `winning_trades`, and the aggregate uses pooled `winning_trades / total_trades * 100`. The response also includes aggregate `total_trades` and `winning_trades` so the displayed percentage can be independently reconciled. A fallback derives the winner count from the legacy `total_trades`/`win_rate` fields when a mocked or older engine result lacks `winning_trades`.
+
+**Risk level:** Low (aggregate reporting only; individual window calculations and trading behavior are unchanged). **Affected modules:** `app/services/backtesting/walk_forward.py`, `tests/unit/test_walk_forward.py`. **Migration:** none.
+
+**Regression evidence:** Unit tests cover a 1-trade 0% window plus a 9-trade 100% window, proving the aggregate is 90% rather than the old 50%, and cover the legacy-result fallback. Production hot-copy verification completed on 2026-09-05: the app container's full suite reported `150 passed`, the live health endpoint returned `HTTP 200`, and the recent app/worker log scan contained no traceback/error matches. The containers were restarted before these checks; the change is API-only and the module is not imported by `app/tasks/`.
 
 ---
 

@@ -81,6 +81,7 @@ def run_walk_forward(
             "end_date": str(segment.index[-1]) if hasattr(segment.index[-1], "__str__") else str(end),
             "candles": len(segment),
             "total_trades": result["total_trades"],
+            "winning_trades": result.get("winning_trades", round(result["total_trades"] * result["win_rate"] / 100)),
             "win_rate": result["win_rate"],
             "net_profit_pct": result["net_profit_pct"],
             "max_drawdown": result["max_drawdown"],
@@ -93,7 +94,8 @@ def run_walk_forward(
 
     profitable = [w for w in windows if w["net_profit_pct"] > 0]
     net_profit_pcts = [w["net_profit_pct"] for w in windows]
-    win_rates = [w["win_rate"] for w in windows]
+    total_trades = sum(w["total_trades"] for w in windows)
+    winning_trades = sum(w["winning_trades"] for w in windows)
     worst_drawdown = max((w["max_drawdown"] for w in windows), default=0)
 
     # "Consistent" bar: profitable in a majority of windows AND no single
@@ -111,7 +113,12 @@ def run_walk_forward(
         "windows_profitable": len(profitable),
         "avg_net_profit_pct": round(float(np.mean(net_profit_pcts)), 2),
         "std_net_profit_pct": round(float(np.std(net_profit_pcts)), 2),
-        "avg_win_rate": round(float(np.mean(win_rates)), 2),
+        # Pool the window counts instead of averaging percentages. A window
+        # with one trade must not carry the same statistical weight as one
+        # with dozens of trades.
+        "avg_win_rate": round(winning_trades / total_trades * 100, 2) if total_trades else 0.0,
+        "total_trades": total_trades,
+        "winning_trades": winning_trades,
         "worst_max_drawdown": round(worst_drawdown, 2),
         "walk_forward_consistent": consistent,
     }
