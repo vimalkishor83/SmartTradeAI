@@ -1,13 +1,26 @@
+import json
 import logging
 import os
+import re
 import threading
-from flask import Flask
+import time
+import uuid
+from flask import Flask, g, request
 from app.config import get_config
 from app.extensions import db, bcrypt, jwt, socketio, limiter, cache, migrate, scheduler, cors, mail
 from app.extensions import configure_sqlite_concurrency
 from flask_compress import Compress
 
 compress = Compress()
+
+_REQUEST_ID_PATTERN = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
+
+
+def _safe_request_id(value):
+    """Keep trusted-looking correlation IDs safe for response headers/logs."""
+    if isinstance(value, str) and _REQUEST_ID_PATTERN.fullmatch(value):
+        return value
+    return uuid.uuid4().hex
 
 
 def create_app(config_class=None):
@@ -46,6 +59,7 @@ def create_app(config_class=None):
     _register_blueprints(app)
     _init_db(app)
     _configure_logging(app)
+    _register_request_observability(app)
     _init_scheduler(app)
     _start_streams(app)
     _register_asset_versioning(app)
@@ -154,6 +168,41 @@ def _register_security_visit_alerts(app):
         except Exception:
             pass
         return None
+
+
+def _register_request_observability(app):
+    """Attach a safe correlation ID and duration to every HTTP response."""
+    @app.before_request
+    def _start_request_observability():
+        g.request_id = _safe_request_id(request.headers.get("X-Request-ID"))
+        g.request_started_at = time.perf_counter()
+
+    @app.after_request
+    def _finish_request_observability(response):
+        request_id = getattr(g, "request_id", None) or _safe_request_id(None)
+        started_at = getattr(g, "request_started_at", None)
+        duration_ms = 0.0
+        if started_at is not None:
+            duration_ms = max((time.perf_counter() - started_at) * 1000, 0.0)
+
+        response.headers["X-Request-ID"] = request_id
+        if request.endpoint == "static":
+            return response
+
+        # JSON keeps user-controlled paths safely escaped while giving log
+        # shippers stable fields without changing the existing formatter.
+        app.logger.info(
+            "request_complete %s",
+            json.dumps({
+                "request_id": request_id,
+                "method": request.method,
+                "path": request.path,
+                "endpoint": request.endpoint or "",
+                "status": response.status_code,
+                "duration_ms": round(duration_ms, 2),
+            }, separators=(",", ":"), sort_keys=True),
+        )
+        return response
 
 
 def _register_asset_versioning(app):

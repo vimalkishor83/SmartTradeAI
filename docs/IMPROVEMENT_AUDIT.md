@@ -438,6 +438,14 @@ The primary dashboard shell now provides a skip-to-content link, a labeled navig
 
 **Regression evidence:** Jinja template parsing, JavaScript syntax validation, static accessibility checks, and whitespace validation passed locally. Production deployment completed on 2026-09-05 from commits `6ed1fc2` and `cf40c7c`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **175 passed** in 45.89s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches. Authenticated visual browser verification remains a follow-up because no browser control surface was available in this session.
 
+### 7.10 IMPLEMENTED — Add request correlation and timing logs
+
+The Flask app now preserves a safe inbound `X-Request-ID` or generates one, returns it on every response, and emits a JSON request-completion record for application requests containing the method, path, endpoint, status and duration. Static asset responses keep the correlation header but are excluded from completion logging to avoid log noise. Query strings are intentionally excluded so credentials and other URL parameters are not copied into application logs, while escaped JSON prevents user-controlled paths from creating log-injection lines.
+
+**Risk level:** Low (response header and INFO-level logging only; route behavior and payloads are unchanged). **Affected modules:** `app/__init__.py`, `tests/integration/test_request_observability.py`. **Migration:** none.
+
+**Regression evidence:** Focused integration tests passed locally. Production deployment and full-suite verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
