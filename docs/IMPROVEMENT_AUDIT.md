@@ -462,6 +462,14 @@ The strategy backtest, walk-forward, and live-engine backtest routes now share o
 
 **Regression evidence:** Focused boundary tests passed locally (**24 passed**); the full local suite passed with **209 passed** in 114.61s. Production deployment completed on 2026-09-05 from `953ea6d`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the deployed boundary suite passed (**24 passed**), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.13 IMPLEMENTED — Add observed accuracy context to AI Insights
+
+AI prediction responses now include a bounded historical context for the same asset and timeframe: recent resolved prediction count, correct count, and observed accuracy. The context query is limited to 50 rows and cached for ten minutes, so AI Insights gets useful accountability without adding an expensive query to every model calculation. The AI Insights card now labels this as observed history, shows the sample size, and explicitly indicates when no resolved sample exists; the model confidence score and prediction algorithm are unchanged.
+
+**Risk level:** Low to medium (additive API/UI contract and one indexed, bounded query; no model or database schema change). **Affected modules:** `app/api/v1/predictions.py`, `frontend/templates/dashboard/ai_insights.html`, `tests/unit/test_prediction_history_context.py`, `tests/integration/test_prediction_history_route.py`. **Migration:** none.
+
+**Regression evidence:** Focused API/UI contract tests passed locally (**3 passed**); the full local suite passed with **212 passed** in 116.15s. Production deployment and production smoke verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

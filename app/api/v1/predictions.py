@@ -11,6 +11,44 @@ from datetime import datetime, timedelta
 predictions_bp = Blueprint("predictions", __name__)
 
 
+def _prediction_history_summary(rows) -> dict:
+    """Summarize recent resolved predictions without implying a guarantee."""
+    total = len(rows)
+    correct = sum(1 for row in rows if row.was_correct)
+    return {
+        "sample_size": total,
+        "correct": correct,
+        "accuracy": round(correct / total * 100, 1) if total else None,
+        "scope": "same asset and timeframe, recent resolved predictions",
+    }
+
+
+def _prediction_history_context(asset_id: int, timeframe: str) -> dict:
+    """Return a bounded validation context for an AI Insights card."""
+    cache_key = f"prediction_history_context:{asset_id}:{timeframe}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    rows = (Prediction.query
+            .filter_by(asset_id=asset_id, timeframe=timeframe)
+            .filter(Prediction.was_correct.isnot(None))
+            .order_by(Prediction.evaluated_at.desc())
+            .limit(50)
+            .all())
+    summary = _prediction_history_summary(rows)
+    cache.set(cache_key, summary, timeout=600)
+    return summary
+
+
+def _prediction_response(prediction: Prediction) -> dict:
+    payload = prediction.to_dict()
+    payload["historical_context"] = _prediction_history_context(
+        prediction.asset_id, prediction.timeframe,
+    )
+    return payload
+
+
 @predictions_bp.route("/<int:asset_id>", methods=["GET"])
 @premium_required
 @subscription_feature_required("ai_enabled")
@@ -25,7 +63,7 @@ def get_prediction(asset_id):
     ).filter(Prediction.predicted_at >= datetime.utcnow() - timedelta(minutes=30)).first()
 
     if existing:
-        return jsonify(existing.to_dict()), 200
+        return jsonify(_prediction_response(existing)), 200
 
     # ── Non-blocking: never train a model inside a user request ──────────────
     # Training a cold model takes ~100s and would hang the AI Insights page
@@ -70,7 +108,7 @@ def get_prediction(asset_id):
     db.session.add(pred)
     db.session.commit()
 
-    return jsonify(pred.to_dict()), 200
+    return jsonify(_prediction_response(pred)), 200
 
 
 @predictions_bp.route("/model-performance", methods=["GET"])
