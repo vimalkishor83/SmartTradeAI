@@ -113,8 +113,14 @@
       color: var(--text);
       font-size: 15px;
       line-height: 1.6;
-      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
+      /* No overflow-x here on purpose — html already clips horizontal
+         overflow above. Setting it on BOTH html and body makes body its
+         own independent scroll container (an "overflow-y: visible" +
+         "overflow-x: hidden" pairing computes overflow-y to auto per the
+         CSS overflow spec), which silently breaks position:sticky for
+         every direct child of body (the ticker strip and navbar included
+         — they'd scroll away instead of freezing at the top). */
     }
 
     a { color: inherit; text-decoration: none; }

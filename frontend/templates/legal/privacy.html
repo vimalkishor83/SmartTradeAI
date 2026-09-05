@@ -1,38 +1,504 @@
-{% extends "partials/base.html" %}
-{% set hide_sidebar = true %}
-{% block title %}Privacy Policy — SmartTrade AI{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — SmartTrade AI</title>
+  <meta name="description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
+  <link rel="canonical" href="https://smarttradeai.online/privacy" />
 
-{% block auth_content %}
-<div class="auth-container" style="max-width:720px">
-  <div class="auth-card text-start">
-    <h2 class="fw-bold mb-3">Privacy Policy</h2>
-    <p class="text-muted small">
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SmartTrade AI" />
+  <meta property="og:title" content="Privacy Policy — SmartTrade AI" />
+  <meta property="og:description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
+  <meta property="og:url" content="https://smarttradeai.online/privacy" />
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    }
+
+    :root {
+      --bg:       #080b12;
+      --bg2:      #10141c;
+      --bg3:      #060810;
+      --card:     #10141c;
+      --card2:    #161d29;
+      --accent:   #f5a623;
+      --accent2:  #ffc861;
+      --accent-dim: rgba(245,166,35,0.12);
+      --green:    #22d97f;
+      --red:      #ff5a6a;
+      --text:     #eef1f8;
+      --text2:    #94a3b8;
+      --text3:    #64748b;
+      --border:   rgba(255,255,255,0.07);
+      --radius:   12px;
+      --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      /* No overflow-x here — html already clips it. Setting it on both
+         html and body breaks position:sticky for body's children. */
+    }
+    a { color: inherit; text-decoration: none; }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 12px; top: -48px;
+      background: var(--accent);
+      color: #14100a;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 12px; }
+
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,11,18,0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      height: 64px;
+    }
+    .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
+    .nav-brand .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 0 1px rgba(245,166,35,0.35), 0 4px 16px rgba(245,166,35,0.25);
+    }
+    .nav-brand .ai-part { color: var(--accent); }
+    .nav-links { display: flex; align-items: center; gap: 30px; list-style: none; }
+    .nav-links a { color: var(--text2); font-size: 14px; font-weight: 500; transition: color 0.2s; }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta { display: flex; align-items: center; gap: 12px; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 9px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; border: none;
+    }
+    .btn-ghost { background: none; color: var(--text2); border: 1px solid transparent; }
+    .btn-ghost:hover { color: var(--text); border-color: var(--border); }
+    .btn-accent { background: linear-gradient(135deg, var(--accent), #d97f0a); color: #14100a; box-shadow: 0 4px 14px rgba(245,166,35,0.3); }
+    .btn-accent:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,166,35,0.4); }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .navbar { padding: 0 4%; }
+      .nav-brand { font-size: 15px; gap: 7px; }
+      .nav-brand .brand-icon { width: 30px; height: 30px; font-size: 15px; }
+      .nav-cta { gap: 8px; }
+      .nav-cta .btn { padding: 7px 12px; font-size: 12.5px; }
+      .nav-cta-name { display: none; }
+    }
+
+    .legal-hero { max-width: 880px; margin: 0 auto; padding: 52px 5% 20px; text-align: center; }
+    .legal-eyebrow {
+      display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
+    }
+    .legal-hero h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
+    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; max-width: 620px; margin: 0 auto 22px; }
+    .legal-badge-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+    .legal-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+      color: var(--text2); background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px;
+    }
+    .legal-badge.accent { color: var(--accent2); border-color: rgba(245,166,35,0.3); background: var(--accent-dim); }
+
+    .legal-meta {
+      max-width: 880px; margin: 0 auto; padding: 0 5% 8px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+      background: var(--border); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; margin-bottom: 32px;
+    }
+    .legal-meta-item { background: var(--card); padding: 14px 16px; text-align: center; }
+    .legal-meta-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+    .legal-meta-value { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    @media (max-width: 640px) { .legal-meta { grid-template-columns: 1fr; margin: 0 4% 28px; } }
+
+    .legal-notices { max-width: 880px; margin: 0 auto; padding: 0 5%; }
+    .notice-status {
+      background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 16px 20px; margin-bottom: 40px; font-size: 13px; line-height: 1.7; color: var(--text2);
+    }
+    .notice-status strong { color: var(--text); }
+
+    .legal-layout {
+      max-width: 1080px; margin: 0 auto; padding: 0 5% 80px;
+      display: grid; grid-template-columns: 220px 1fr; gap: 56px; align-items: start;
+    }
+    .toc-desktop { position: sticky; top: 84px; }
+    .toc-desktop h2 { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+    .toc-desktop ol { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .toc-desktop a {
+      display: flex; gap: 10px; align-items: baseline; font-size: 13px; color: var(--text2);
+      padding: 7px 10px; border-radius: 7px; line-height: 1.4; transition: background 0.15s, color 0.15s;
+    }
+    .toc-desktop a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .toc-desktop a.active { color: var(--accent2); background: var(--accent-dim); }
+    .toc-desktop a .toc-num { font-family: var(--font-mono); color: var(--text3); flex-shrink: 0; }
+    .toc-desktop a.active .toc-num { color: var(--accent); }
+    .toc-mobile { display: none; }
+
+    @media (max-width: 900px) {
+      .legal-layout { grid-template-columns: 1fr; gap: 0; }
+      .toc-desktop { display: none; }
+      .toc-mobile { display: block; margin-bottom: 28px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+      .toc-mobile summary {
+        cursor: pointer; padding: 14px 16px; font-size: 13.5px; font-weight: 700; color: var(--text);
+        display: flex; align-items: center; justify-content: space-between; list-style: none;
+      }
+      .toc-mobile summary::-webkit-details-marker { display: none; }
+      .toc-mobile summary::after { content: '▾'; color: var(--text3); }
+      .toc-mobile[open] summary::after { content: '▴'; }
+      .toc-mobile ol { list-style: none; padding: 4px 8px 12px; display: flex; flex-direction: column; }
+      .toc-mobile a { display: flex; gap: 10px; font-size: 13.5px; color: var(--text2); padding: 9px 10px; min-height: 40px; align-items: center; }
+      .toc-mobile a .toc-num { font-family: var(--font-mono); color: var(--text3); }
+    }
+
+    .legal-doc { min-width: 0; max-width: 680px; }
+    .legal-section { padding: 26px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 84px; }
+    .legal-section:last-child { border-bottom: none; }
+    .legal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .legal-section-num { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+    .legal-section h2 { font-size: 17.5px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+    .legal-section p { font-size: 14.5px; line-height: 1.8; color: var(--text2); }
+
+    .related-docs { margin-top: 8px; padding-top: 32px; }
+    .related-docs h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+    .related-docs-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .related-doc { background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; font-size: 13.5px; font-weight: 600; color: var(--text); transition: background 0.15s; }
+    a.related-doc:hover { background: var(--card2); color: var(--accent2); }
+    .related-doc-disabled { color: var(--text3); cursor: default; }
+    .related-doc-soon { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text3); background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 6px; }
+
+    .legal-cta { margin-top: 44px; padding: 28px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+    .legal-cta p { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+
+    .footer { background: var(--bg3); border-top: 1px solid var(--border); padding: 40px 5%; text-align: center; }
+    .footer-brand { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
+    .footer-brand .ai { color: var(--accent); }
+    .footer-tagline { color: var(--text2); font-size: 13.5px; margin-bottom: 22px; }
+    .footer-columns { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto 30px; text-align: left; }
+    .footer-col-title { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text3); margin-bottom: 12px; }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .footer-col a { color: var(--text2); font-size: 13px; font-weight: 500; transition: color 0.2s; }
+    .footer-col a:hover { color: var(--accent); }
+    @media (max-width: 768px) { .footer-columns { grid-template-columns: repeat(2, 1fr); text-align: center; } .footer-col ul { align-items: center; } }
+    .financial-disclaimer {
+      max-width: 780px; margin: 0 auto 20px; padding: 14px 18px; border: 1px solid var(--border); border-radius: 10px;
+      background: rgba(255,255,255,0.02); color: var(--text3); font-size: 11.5px; line-height: 1.6; text-align: left;
+    }
+    .financial-disclaimer strong { color: var(--text2); }
+    .footer-copy { color: var(--text3); font-size: 12.5px; }
+
+    #backToTop {
+      position: fixed; bottom: 28px; right: 28px; width: 44px; height: 44px; border-radius: 50%;
+      background: var(--accent); color: #14100a; display: flex; align-items: center; justify-content: center;
+      font-size: 16px; opacity: 0; visibility: hidden; transform: translateY(8px); transition: all 0.25s;
+      z-index: 90; border: none; cursor: pointer;
+    }
+    #backToTop.show { opacity: 1; visibility: visible; transform: translateY(0); }
+    #backToTop:hover { opacity: 0.9; transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to content</a>
+
+<nav class="navbar">
+  <a href="/home" class="nav-brand">
+    <div class="brand-icon">📈</div>
+    SmartTrade <span class="ai-part">AI</span>
+  </a>
+  <ul class="nav-links">
+    <li><a href="/home">Home</a></li>
+    <li><a href="/home#features">Features</a></li>
+    <li><a href="/home#how-it-works">How It Works</a></li>
+    <li><a href="/home#signals">Live Signals</a></li>
+    <li><a href="/home#pricing">Pricing</a></li>
+    <li><a href="/home#faq">FAQ</a></li>
+    <li><a href="/home#about">About</a></li>
+  </ul>
+  <div class="nav-cta" id="navCta">
+    <a href="/login" class="btn btn-ghost" id="navLoginBtn">Login</a>
+    <a href="/register" class="btn btn-accent" id="navSignupBtn">Sign Up Free</a>
+  </div>
+</nav>
+
+<main id="main-content">
+
+  <div class="legal-hero">
+    <span class="legal-eyebrow">Legal &amp; Transparency</span>
+    <h1>Privacy Policy</h1>
+    <p class="legal-hero-sub">
+      What SmartTrade AI collects, how broker API keys are protected, and the rights you have
+      over your own account data.
+    </p>
+    <div class="legal-badge-row">
+      <span class="legal-badge accent">📄 Privacy Policy</span>
+    </div>
+  </div>
+
+  <div class="legal-meta">
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Document</div>
+      <div class="legal-meta-value">Privacy Policy</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Version</div>
+      <div class="legal-meta-value">Current</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Status</div>
+      <div class="legal-meta-value">Informational</div>
+    </div>
+  </div>
+
+  <div class="legal-notices">
+    <div class="notice-status">
       <strong>Placeholder document — this is not a legally reviewed Privacy Policy.</strong>
       Replace this page with a real policy drafted or reviewed by a lawyer before taking real users
       or payments in production, and adjust it to match your actual data handling practices and
       applicable regulations (e.g. GDPR, CCPA) for the regions you serve.
-    </p>
-    <hr>
-    <h3 class="h6 fw-bold mt-4">1. What We Collect</h3>
-    <p class="text-muted small">Account details you provide (username, email, name), trading
-      preferences and settings, and usage data (login times, IP address, audit trail of actions)
-      needed to operate and secure the platform.</p>
-    <h3 class="h6 fw-bold mt-4">2. Broker API Keys</h3>
-    <p class="text-muted small">If you connect a broker/exchange account, API credentials are
-      encrypted at rest and used solely to place orders and fetch data on your behalf, per your
-      configuration.</p>
-    <h3 class="h6 fw-bold mt-4">3. How We Use Data</h3>
-    <p class="text-muted small">To provide the service, secure your account, improve signal
-      accuracy, and communicate important account or security notices.</p>
-    <h3 class="h6 fw-bold mt-4">4. Data Sharing</h3>
-    <p class="text-muted small">We do not sell your personal data. Data is not shared with third
-      parties except as needed to operate the service (e.g. email delivery) or as required by law.</p>
-    <h3 class="h6 fw-bold mt-4">5. Your Rights</h3>
-    <p class="text-muted small">You may request access to, correction of, or deletion of your
-      account data at any time by contacting support.</p>
-    <div class="text-center mt-4">
-      <a href="/register" class="text-accent small fw-semibold">Back to Registration</a>
     </div>
   </div>
-</div>
-{% endblock %}
+
+  <div class="legal-layout">
+
+    <details class="toc-mobile">
+      <summary>On this page</summary>
+      <ol>
+        <li><a href="#sec-01"><span class="toc-num mono">01</span>What We Collect</a></li>
+        <li><a href="#sec-02"><span class="toc-num mono">02</span>Broker API Keys</a></li>
+        <li><a href="#sec-03"><span class="toc-num mono">03</span>How We Use Data</a></li>
+        <li><a href="#sec-04"><span class="toc-num mono">04</span>Data Sharing</a></li>
+        <li><a href="#sec-05"><span class="toc-num mono">05</span>Your Rights</a></li>
+      </ol>
+    </details>
+
+    <nav class="toc-desktop" aria-label="Table of contents" id="tocDesktop">
+      <h2>On This Page</h2>
+      <ol>
+        <li><a href="#sec-01" data-toc><span class="toc-num mono">01</span>What We Collect</a></li>
+        <li><a href="#sec-02" data-toc><span class="toc-num mono">02</span>Broker API Keys</a></li>
+        <li><a href="#sec-03" data-toc><span class="toc-num mono">03</span>How We Use Data</a></li>
+        <li><a href="#sec-04" data-toc><span class="toc-num mono">04</span>Data Sharing</a></li>
+        <li><a href="#sec-05" data-toc><span class="toc-num mono">05</span>Your Rights</a></li>
+      </ol>
+    </nav>
+
+    <div class="legal-doc">
+
+      <section class="legal-section" id="sec-01">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">01</span>
+          <h2>What We Collect</h2>
+        </div>
+        <p>Account details you provide (username, email, name), trading preferences and settings,
+          and usage data (login times, IP address, audit trail of actions) needed to operate and
+          secure the platform.</p>
+      </section>
+
+      <section class="legal-section" id="sec-02">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">02</span>
+          <h2>Broker API Keys</h2>
+        </div>
+        <p>If you connect a broker/exchange account, API credentials are encrypted at rest and used
+          solely to place orders and fetch data on your behalf, per your configuration.</p>
+      </section>
+
+      <section class="legal-section" id="sec-03">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">03</span>
+          <h2>How We Use Data</h2>
+        </div>
+        <p>To provide the service, secure your account, improve signal accuracy, and communicate
+          important account or security notices.</p>
+      </section>
+
+      <section class="legal-section" id="sec-04">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">04</span>
+          <h2>Data Sharing</h2>
+        </div>
+        <p>We do not sell your personal data. Data is not shared with third parties except as needed
+          to operate the service (e.g. email delivery) or as required by law.</p>
+      </section>
+
+      <section class="legal-section" id="sec-05">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">05</span>
+          <h2>Your Rights</h2>
+        </div>
+        <p>You may request access to, correction of, or deletion of your account data at any time by
+          contacting support.</p>
+      </section>
+
+      <div class="related-docs">
+        <h2>Related Legal Documents</h2>
+        <div class="related-docs-list">
+          <a class="related-doc" href="/terms">Terms of Service</a>
+          <a class="related-doc" href="/disclaimer">Financial Disclaimer</a>
+          <div class="related-doc related-doc-disabled">
+            Cookie Policy
+            <span class="related-doc-soon">Coming Soon</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="legal-cta">
+        <p>Ready to explore SmartTrade AI?</p>
+        <a href="/home" class="btn btn-accent">← Return to SmartTrade AI</a>
+      </div>
+
+    </div>
+  </div>
+
+</main>
+
+<footer class="footer">
+  <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
+  <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
+
+  <div class="footer-columns">
+    <div class="footer-col">
+      <div class="footer-col-title">Product</div>
+      <ul>
+        <li><a href="/home#features">Features</a></li>
+        <li><a href="/home#how-it-works">How It Works</a></li>
+        <li><a href="/home#signals">Live Signals</a></li>
+        <li><a href="/home#pricing">Pricing</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Account</div>
+      <ul>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li id="footerLoginItem"><a href="/login">Login</a></li>
+        <li id="footerRegisterItem"><a href="/register">Register</a></li>
+        <li><a href="/forgot-password">Forgot Password</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Company</div>
+      <ul>
+        <li><a href="/home#about">About Us</a></li>
+        <li><a href="/home#contact">Contact Us</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Legal</div>
+      <ul>
+        <li><a href="/terms">Terms of Service</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/disclaimer">Financial Disclaimer</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Support</div>
+      <ul>
+        <li><a href="/home#contact">Contact Support</a></li>
+        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="financial-disclaimer">
+    <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
+    analytical/algorithmic tools. It does not provide personalised investment advice, guaranteed predictions, or
+    assured returns. Trading and investing in financial markets involves substantial risk, including loss of
+    principal. Signals and analysis shown here are for informational purposes only — always conduct independent
+    research and consult a qualified financial professional before making financial decisions.
+  </div>
+
+  <div class="footer-copy">Built with ❤️ for traders everywhere &nbsp;·&nbsp; © 2026 SmartTrade AI. All rights reserved.</div>
+</footer>
+
+<button id="backToTop" title="Back to top" aria-label="Back to top">↑</button>
+
+<script>
+(function () {
+  const btn = document.getElementById('backToTop');
+  if (!btn) return;
+  const sync = () => btn.classList.toggle('show', window.scrollY > 500);
+  sync();
+  window.addEventListener('scroll', sync, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+
+<script>
+(async function () {
+  const token = localStorage.getItem('access_token');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); return; }
+    const me = await res.json();
+    const name = (me.full_name || me.username || '').trim().split(' ')[0] || null;
+    document.getElementById('footerLoginItem')?.remove();
+    document.getElementById('footerRegisterItem')?.remove();
+    const cta = document.getElementById('navCta');
+    if (cta) {
+      cta.innerHTML = name
+        ? '<a href="/dashboard" class="btn btn-accent">👤 <span class="nav-cta-name">' + name + ' </span>→ Dashboard</a>'
+        : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
+    }
+  } catch (e) { /* network error — leave logged-out nav as-is */ }
+})();
+</script>
+
+<script>
+(function () {
+  const links = Array.from(document.querySelectorAll('#tocDesktop a[data-toc]'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const link = byId.get(entry.target.id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        links.forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('.legal-section[id^="sec-"]').forEach(sec => observer.observe(sec));
+})();
+</script>
+
+</body>
+</html>
