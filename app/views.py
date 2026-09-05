@@ -1,13 +1,61 @@
-from flask import Blueprint, render_template, redirect, url_for, request
+from flask import Blueprint, render_template, redirect, url_for, request, Response
 from app.models.asset import Asset
 from app.auth.decorators import page_admin_required
 
 views_bp = Blueprint("views", __name__)
 
+_SITE_URL = "https://smarttradeai.online"
+
+# Only genuinely public, indexable pages — everything under /dashboard,
+# /admin, /asset, etc. requires auth and has nothing for a crawler to index.
+_PUBLIC_PAGES = [
+    ("/home", "1.0", "weekly"),
+    ("/login", "0.3", "monthly"),
+    ("/register", "0.5", "monthly"),
+    ("/forgot-password", "0.2", "monthly"),
+    ("/terms", "0.2", "yearly"),
+    ("/privacy", "0.2", "yearly"),
+    ("/disclaimer", "0.2", "yearly"),
+]
+
 
 @views_bp.route("/")
 def index():
     return redirect(url_for("views.landing"))
+
+
+@views_bp.route("/robots.txt")
+def robots_txt():
+    lines = [
+        "User-agent: *",
+        "Allow: /home",
+        "Allow: /login",
+        "Allow: /register",
+        "Allow: /forgot-password",
+        "Allow: /terms",
+        "Allow: /privacy",
+        "Allow: /disclaimer",
+        "Disallow: /dashboard",
+        "Disallow: /admin",
+        "Disallow: /asset/",
+        "Disallow: /api/",
+        "Disallow: /settings",
+        f"Sitemap: {_SITE_URL}/sitemap.xml",
+        "",
+    ]
+    return Response("\n".join(lines), mimetype="text/plain")
+
+
+@views_bp.route("/sitemap.xml")
+def sitemap_xml():
+    urls = "".join(
+        f"<url><loc>{_SITE_URL}{path}</loc>"
+        f"<changefreq>{freq}</changefreq><priority>{priority}</priority></url>"
+        for path, priority, freq in _PUBLIC_PAGES
+    )
+    xml = f'<?xml version="1.0" encoding="UTF-8"?>' \
+          f'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">{urls}</urlset>'
+    return Response(xml, mimetype="application/xml")
 
 
 @views_bp.route("/home")

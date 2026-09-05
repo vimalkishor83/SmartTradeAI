@@ -20,6 +20,64 @@
   <meta name="twitter:description" content="Real-time BUY/SELL signals across Crypto, Forex, Stocks & Commodities — backed by 50+ technical indicators, multi-timeframe analysis and AI-assisted insights." />
   <meta name="twitter:image" content="https://smarttradeai.online/static/img/icon-512.png" />
 
+  <!-- Structured data (JSON-LD) — every field below traces to real app
+       state (live Subscription pricing, the actual FAQ content rendered
+       further down this page). Helps search engines understand what the
+       product is and can surface FAQ rich results; it is not a ranking
+       shortcut, just an accurate machine-readable description. -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "SmartTrade AI",
+    "url": "https://smarttradeai.online/home",
+    "logo": "https://smarttradeai.online/static/img/icon-512.png"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "SmartTrade AI",
+    "url": "https://smarttradeai.online/home"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "SmartTrade AI",
+    "applicationCategory": "FinanceApplication",
+    "operatingSystem": "Web",
+    "description": "Real-time BUY/SELL trading signals across Crypto, Forex, Indian Stocks, Commodities and Indices, backed by 50+ technical indicators and AI-assisted confidence scoring.",
+    "offers": [
+      { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "INR" },
+      { "@type": "Offer", "name": "Basic", "price": "299", "priceCurrency": "INR" },
+      { "@type": "Offer", "name": "Premium", "price": "999", "priceCurrency": "INR" },
+      { "@type": "Offer", "name": "Pro", "price": "2499", "priceCurrency": "INR" }
+    ]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      { "@type": "Question", "name": "What is SmartTrade AI?", "acceptedAnswer": { "@type": "Answer", "text": "A market analysis platform that combines live market data, technical indicators, multi-timeframe analysis and AI-assisted scoring into a single signal — with an entry, stop-loss and target attached, so you can see the reasoning, not just a buy/sell flag." } },
+      { "@type": "Question", "name": "How are the signals generated?", "acceptedAnswer": { "@type": "Answer", "text": "Each signal runs through a multi-stage pipeline — trend, momentum, volume, and multi-timeframe alignment checks, plus a machine-learning confidence score — before it's shown. If a setup doesn't clear the bar, you'll see a HOLD instead of a forced call." } },
+      { "@type": "Question", "name": "What does the confidence score mean?", "acceptedAnswer": { "@type": "Answer", "text": "It reflects how many of the pipeline's checks agree with each other for that setup — higher agreement across trend, momentum and timeframe alignment scores higher. It's a measure of internal consistency, not a probability of the trade working out." } },
+      { "@type": "Question", "name": "What markets and timeframes are covered?", "acceptedAnswer": { "@type": "Answer", "text": "Crypto, Forex, Indian Stocks, Commodities, and Indices — across 7 timeframes from 1 minute to 1 day. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier)." } },
+      { "@type": "Question", "name": "Do I need to connect a broker?", "acceptedAnswer": { "@type": "Answer", "text": "No — you can use SmartTrade AI purely for signals and analysis. Connecting a supported broker is optional and only needed if you want one-click trade execution from inside the platform." } },
+      { "@type": "Question", "name": "Is there a free plan?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The Free plan includes delayed signals and a limited watchlist. Paid tiers unlock live (undelayed) signals, backtesting, AI insights, and larger watchlists." } },
+      { "@type": "Question", "name": "Can I cancel or change my plan anytime?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — plan changes are requested from Settings once you're logged in and reviewed quickly. No lock-in contracts." } },
+      { "@type": "Question", "name": "How is my account protected? Is 2FA supported?", "acceptedAnswer": { "@type": "Answer", "text": "Passwords are never stored in plain text, and optional two-factor authentication (authenticator app or backup codes) can be enabled from Settings for an extra layer of protection on login." } },
+      { "@type": "Question", "name": "I forgot my password — how do I get back in?", "acceptedAnswer": { "@type": "Answer", "text": "Use Reset your password from the login page — we'll email a reset link if that address matches an account. The link expires after use for security." } },
+      { "@type": "Question", "name": "Is SmartTrade AI financial advice?", "acceptedAnswer": { "@type": "Answer", "text": "No. SmartTrade AI provides financial education, market information and analytical tools — not personalised investment advice. Always do your own research and consult a qualified financial professional before making financial decisions." } },
+      { "@type": "Question", "name": "Does SmartTrade AI guarantee profits or accuracy?", "acceptedAnswer": { "@type": "Answer", "text": "No — no signal provider can. Every setup shown here can still be invalidated by the market. Trading involves substantial risk, including loss of principal; treat every signal as one input into your own decision, not a guaranteed outcome." } }
+    ]
+  }
+  </script>
+
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -1000,14 +1058,17 @@
         <a href="/register" class="btn btn-outline btn-lg">See Demo →</a>
       </div>
 
-      <!-- Fear & Greed sentiment strip -->
-      <div class="sentiment-strip">
+      <!-- Fear & Greed sentiment strip — real data from alternative.me's
+           BTC-derived Crypto Fear & Greed Index via our own /api/v1/sentiment
+           proxy (15-min cache). Labeled "Crypto" specifically since the
+           upstream index is BTC-market-derived, not a general market gauge. -->
+      <div class="sentiment-strip" id="sentimentStrip" style="display:none">
         <div class="sentiment-strip-head">
-          <span class="sentiment-strip-label">Market Sentiment</span>
-          <span class="sentiment-strip-value mono"><span class="num">62</span> · Greed</span>
+          <span class="sentiment-strip-label">Crypto Sentiment</span>
+          <span class="sentiment-strip-value mono" id="sentimentStripValue">—</span>
         </div>
         <div class="sentiment-bar">
-          <div class="sentiment-marker" style="left:62%"></div>
+          <div class="sentiment-marker" id="sentimentMarker" style="left:50%"></div>
         </div>
         <div class="sentiment-scale">
           <span>Extreme Fear</span>
@@ -1571,6 +1632,27 @@ async function loadLandingTicker() {
 }
 loadLandingTicker();
 setInterval(loadLandingTicker, 5000);
+
+// Crypto Fear & Greed strip — real data only. Stays hidden until a genuine
+// value loads; never falls back to a placeholder number (would look live
+// but be fake, which is worse than not showing it at all).
+async function loadSentimentStrip() {
+  const strip = document.getElementById('sentimentStrip');
+  if (!strip) return;
+  try {
+    const res = await fetch('/api/v1/sentiment/fear-greed');
+    const payload = await res.json();
+    const current = payload && payload.data && payload.data.current;
+    if (!current || current.value == null) return;
+    const pct = Math.max(0, Math.min(100, current.value));
+    const valueEl = document.getElementById('sentimentStripValue');
+    const marker = document.getElementById('sentimentMarker');
+    if (valueEl) valueEl.innerHTML = `<span class="num">${current.value}</span> · ${current.classification || '—'}`;
+    if (marker) marker.style.left = pct + '%';
+    strip.style.display = '';
+  } catch (e) { /* leave hidden — no fake fallback */ }
+}
+loadSentimentStrip();
 
 (async function () {
   const statsBand = document.getElementById('landingStatsBand');
