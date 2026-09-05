@@ -518,6 +518,14 @@ The live-signal and signal-history export endpoints now apply an endpoint-specif
 
 **Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 89.83s. Production deployment completed on 2026-09-05 from `1396e07`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: csv-rate-limit-20260905`, the deployed export, performance and prediction tests passed (**9 passed** in 6.62s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.20 IMPLEMENTED — Restore Terminal live-read data-quality persistence
+
+The data-quality persistence change for generated signals also passed data_quality into Terminal LiveReadLog construction, but the live-read model and database schema did not yet have that column. Because the logging helper intentionally catches persistence failures to keep the Terminal responsive, every new BUY/SELL live-read log silently rolled back. The ORM model, serializer, SQLite fallback migration, and Alembic migration now agree, so live-read context is persisted without changing the preview or outcome rules.
+
+**Risk level:** High auditability value, low compatibility risk (nullable additive column; existing rows and live-read response behavior remain valid). **Affected modules:** app/models/live_read_log.py, app/__init__.py, migrations/versions/4c8d9e0f1a2b_add_data_quality_to_live_read_logs.py, tests/unit/test_live_read_log_contract.py. **Migration:** required; the application startup migration runner applies it automatically in the deployed topology.
+
+**Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production migration and verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

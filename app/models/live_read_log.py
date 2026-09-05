@@ -44,6 +44,9 @@ class LiveReadLog(db.Model):
     reasoning = db.Column(db.Text)
     reasoning_detail = db.Column(db.JSON, default=list)
     regime = db.Column(db.String(30))
+    # Snapshot of the market-data quality decision used for the preview.
+    # Nullable so rows created before this field was introduced remain valid.
+    data_quality = db.Column(db.JSON, default=dict)
 
     asset = db.relationship("Asset")
 
@@ -63,4 +66,5 @@ class LiveReadLog(db.Model):
             "reasoning": self.reasoning,
             "reasoning_detail": self.reasoning_detail,
             "regime": self.regime,
+            "data_quality": self.data_quality,
         }
