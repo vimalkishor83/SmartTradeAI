@@ -468,7 +468,7 @@ AI prediction responses now include a bounded historical context for the same as
 
 **Risk level:** Low to medium (additive API/UI contract and one indexed, bounded query; no model or database schema change). **Affected modules:** `app/api/v1/predictions.py`, `frontend/templates/dashboard/ai_insights.html`, `tests/unit/test_prediction_history_context.py`, `tests/integration/test_prediction_history_route.py`. **Migration:** none.
 
-**Regression evidence:** Focused API/UI contract tests passed locally (**3 passed**); the full local suite passed with **212 passed** in 116.15s. Production deployment and production smoke verification are pending for this slice.
+**Regression evidence:** Focused API/UI contract tests passed locally (**3 passed**); the full local suite passed with **212 passed** in 116.15s. Production deployment completed on 2026-09-05 from `268ce3e`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the deployed prediction-context tests passed (**3 passed**), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
