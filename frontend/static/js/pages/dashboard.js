@@ -270,6 +270,20 @@ function loadInspector(s) {
     ['Trend', s.trend_score], ['Momentum', s.momentum_score],
     ['Volume', s.volume_score], ['Pattern', s.pattern_score],
   ];
+  // Evidence / Counter-Evidence — SignalEngine already computes this per
+  // factor (reasoning_detail's `aligned` flag, see
+  // SignalEngine._labeled_reasons) but until now nothing in the UI
+  // surfaced it: the checklist above only shows four fixed score-vs-
+  // threshold checks, never the actual reasons, and counter-evidence
+  // (a factor that pointed the other way but was outweighed -- e.g. a
+  // strong reversal pattern beating a still-bullish EMA trend) was
+  // computed and persisted but never shown anywhere. Splitting on the
+  // same `aligned` flag `_build_retrospective_note` already uses server-
+  // side keeps this consistent with the plain-language summary on
+  // /signal-journal.
+  const detail = s.reasoning_detail || [];
+  const evidence = detail.filter(r => r.aligned);
+  const counterEvidence = detail.filter(r => !r.aligned);
 
   body.innerHTML = `
     <div class="insp-grid">
@@ -284,6 +298,8 @@ function loadInspector(s) {
     <div class="insp-section-title">Why AI Chose ${s.signal_type}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>
     ${warnings.length ? `<div class="insp-section-title text-yellow">Warnings</div><div class="insp-warns">${warnings.map(w => `<div class="insp-warn"><i class="bi bi-exclamation-triangle-fill text-yellow"></i>${w}</div>`).join('')}</div>` : ''}
+    ${evidence.length ? `<div class="insp-section-title">Evidence Supporting ${s.signal_type}</div><div class="insp-checks">${evidence.map(r => `<div class="insp-check"><i class="bi bi-check-circle-fill text-green"></i>${r.text}</div>`).join('')}</div>` : ''}
+    ${counterEvidence.length ? `<div class="insp-section-title text-yellow">Counter-Evidence (outweighed)</div><div class="insp-warns">${counterEvidence.map(r => `<div class="insp-warn"><i class="bi bi-arrow-left-right text-yellow"></i>${r.text}</div>`).join('')}</div>` : ''}
     <div class="insp-section-title">Confidence Factors</div>
     ${factors.map(([n, v]) => `<div class="insp-model"><span class="insp-model-n">${n}</span><div class="insp-model-track"><div class="insp-model-fill" style="width:${Math.max(0, Math.min(100, v || 0))}%;background:${dir}"></div></div><span class="insp-model-p">${Math.round(v || 0)}%</span></div>`).join('')}
   `;

@@ -2,7 +2,7 @@
 
 **Status:** Living document. Started as Phase 0 of a structured production-hardening pass; updated as each subsequent phase's investigation and fixes land. Every entry below is based on reading the actual code and, where marked, verifying behavior live on the production server — not on the platform's design intent or documentation claims.
 
-**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 initial pass)
+**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass)
 
 ---
 
@@ -251,21 +251,43 @@ This surfaces as a real, user-facing accuracy claim: `GET /signals/live-read-per
 
 ---
 
-## 6. Remaining P0/P1 items from the full 16-phase spec (not started)
+## 6. Phase 5 — AI Decision Inspector: findings and fixes
 
-This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), and one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+### 6.1 FOUND & FIXED — Evidence/Counter-Evidence data existed but was never shown
+
+**Root cause:** `SignalEngine.generate_signal()`/`analyze()` already compute and persist a structured, per-factor breakdown of what supported vs. opposed the final call — `reasoning_detail`, a list of `{text, lean, aligned}` (see `SignalEngine._labeled_reasons()`), where `aligned` marks whether that factor's lean agreed with the signal's final direction or was outweighed by something stronger (e.g. a reversal pattern beating a still-bullish EMA trend). This is real, already-computed, already-persisted data (`Signal.reasoning_detail`, a JSON column, included in `Signal.to_dict()` and therefore in every `/signals` API response) — and the server-side `_build_retrospective_note()` used by `/signal-journal` already reads it. But the AI Decision Inspector (`frontend/static/js/pages/dashboard.js::loadInspector()`) never used it at all: it only showed a fixed 4-item checklist (score-vs-threshold pass/fail, no actual reasons) and a "Confidence Factors" bar chart. Counter-evidence in particular — a factor that pointed the other way but lost — was silently dropped everywhere in the UI even though it was sitting in the API response the whole time. This is exactly the "Evidence/Counter-Evidence" gap flagged as not-yet-built in §3.3 and §4.1 of this audit.
+
+**Fix:** `loadInspector()` now splits `s.reasoning_detail` on its existing `aligned` flag into two new sections — "Evidence Supporting {BUY/SELL}" (aligned factors, green check icons, reusing the existing `.insp-check`/`.insp-checks` styling) and "Counter-Evidence (outweighed)" (non-aligned factors, only rendered when at least one exists — most signals have none). No new backend work was needed; this is a pure frontend addition surfacing data the engine was already producing.
+
+**Risk level:** Low (additive UI only, reuses existing CSS classes, no calculation/API changes). **Affected modules:** `frontend/static/js/pages/dashboard.js`. **Migration:** none. **Tests:** none added — no test infrastructure exists for this vanilla-JS dashboard file (confirmed: no frontend build/test pipeline in this repo), consistent with how the Phase 2 §3.2 frontend-only fix was handled; existing 148 backend tests confirmed passing unchanged.
+
+**Verified live** (production, disposable test account, deleted after): fetched a real live `AVAXUSDT` BUY signal via the actual `/api/v1/signals/` endpoint and called `loadInspector()` with it directly in the browser — confirmed "Evidence Supporting BUY" rendered all 8 real, live reasoning factors ("EMA9>EMA21 (uptrend)", "Golden cross zone", "Price above VWAP", "SuperTrend bullish", "Price above Ichimoku cloud", "RSI bullish zone (60)", "MACD bullish crossover", "Volume in line with average") with correct green-check styling; confirmed the Counter-Evidence section correctly does not render when a signal has none (this one had none); confirmed the rest of the Inspector (entry/stop/targets, checklist, warnings, Confidence Factors) still renders correctly alongside the new sections.
+
+### 6.2 Remaining Phase 5 items (not done in this pass)
+
+- Historical-accuracy context alongside the Inspector's confidence % (still flagged from §3.3 — the existing `/model-performance` and confidence-calibration-band data could plausibly feed this).
+- Data-quality status (now available from Phase 3's `assess_data_quality()`) is not yet surfaced in the Inspector — a natural next addition now that both pieces exist independently.
+- Market-regime confidence context (`s.regime` already exists on every signal but isn't shown in the Inspector itself, only used elsewhere) — not added this pass, scoped separately to keep this change to one concrete addition.
+- **A much deeper AI/ML rigor spec was handed over on 2026-09-05, to start once the current phase of this 16-phase pass reaches a natural stopping point** — see the user-provided spec (calibration separation, ensemble redesign, drift monitoring, leakage testing, shadow models, per-model independent evaluation, a new `/admin/ai-quality` page, etc.). That spec substantially deepens and overlaps this section's remaining items and Phase 2/3's remaining items — treat it as the rigorous continuation of this work, not a separate backlog, when it's time to start it.
+
+---
+
+## 7. Remaining P0/P1 items from the full 16-phase spec (not started)
+
+This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix), and one concrete Phase 5 item (Evidence/Counter-Evidence in the AI Decision Inspector). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
 
 - Phase 1 (remainder): commission/slippage/spread modeling audit, Sharpe/Sortino/recovery-factor calculation audit, reproducibility metadata (backtest ID, engine version, model version) on every result, walk-forward's unweighted window averaging (§2.8).
 - Phase 2 (remainder): see §3.3 above.
 - Phase 3 (remainder): see §4.6 above.
 - Phase 4 (remainder): see §5.3 above.
-- Phases 5–16: as specified, untouched.
+- Phase 5 (remainder): see §6.2 above.
+- Phases 6–16: as specified, untouched.
 
 Each should get its own investigation-then-fix pass with the same evidence-based discipline used here (read the actual code, verify claims against real behavior, add regression tests, verify live before calling it done) rather than being implemented speculatively in one large batch.
 
 ---
 
-## 7. Files changed this pass
+## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
 - `frontend/templates/dashboard/backtesting.html` — win-rate double-multiplication fix, `sample_trades`/`trades_data` key fix, zero-trade empty state, min-sample-size warning.
@@ -292,6 +314,9 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 - `app/api/v1/signals.py` — corrected `_frozen_live_read()`/`_close_live_read_log()`/`live_read_performance()` docstrings to accurately describe the `target3`-based resolution and its non-comparability to real-signal `target1`-based outcomes; no logic changed.
 - `frontend/templates/dashboard/performance.html` — added a user-facing caption on the "Terminal Live Reads" card clarifying the Win Rate shown there isn't directly comparable to real-signal win rate.
 
+**Session 6 (Phase 5 — Evidence/Counter-Evidence in the AI Decision Inspector, §6.1):**
+- `frontend/static/js/pages/dashboard.js` — `loadInspector()` now renders "Evidence Supporting {direction}" and "Counter-Evidence (outweighed)" sections from the already-computed `reasoning_detail` field.
+
 - `docs/IMPROVEMENT_AUDIT.md` — this file.
 
-**Database changes:** none across all five sessions; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**
+**Database changes:** none across all six sessions; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**
