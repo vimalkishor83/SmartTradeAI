@@ -1110,12 +1110,12 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">📊</div>
-        <div class="stat-num mono">24</div>
+        <div class="stat-num mono" id="heroStatAssets">···</div>
         <div class="stat-label">Assets Tracked</div>
       </div>
       <div class="stat-card">
         <div class="stat-icon">⏱️</div>
-        <div class="stat-num mono">7</div>
+        <div class="stat-num mono" id="heroStatTimeframes">···</div>
         <div class="stat-label">Timeframes</div>
       </div>
       <div class="stat-card">
@@ -1710,19 +1710,28 @@ loadSentimentStrip();
 
 (async function () {
   const statsBand = document.getElementById('landingStatsBand');
-  if (statsBand) {
+  const heroAssets = document.getElementById('heroStatAssets');
+  const heroTimeframes = document.getElementById('heroStatTimeframes');
+  if (statsBand || heroAssets || heroTimeframes) {
     try {
       const res = await fetch('/api/v1/signals/public-stats');
       const s = await res.json();
-      const nums = statsBand.querySelectorAll('.stats-band-item .num');
       const fmtInt = (n) => (n || 0).toLocaleString('en-IN');
-      if (nums.length === 4) {
-        nums[0].textContent = fmtInt(s.signals_generated);
-        nums[1].textContent = fmtInt(s.trades_tracked);
-        nums[2].textContent = fmtInt(s.assets_covered);
-        nums[3].textContent = fmtInt(s.markets_covered);
+      if (statsBand) {
+        const nums = statsBand.querySelectorAll('.stats-band-item .num');
+        if (nums.length === 4) {
+          nums[0].textContent = fmtInt(s.signals_generated);
+          nums[1].textContent = fmtInt(s.trades_tracked);
+          nums[2].textContent = fmtInt(s.assets_covered);
+          nums[3].textContent = fmtInt(s.markets_covered);
+        }
       }
-    } catch (e) { /* leave placeholders */ }
+      // These two hero cards were hardcoded ("24" assets, "7" timeframes)
+      // and had quietly drifted from the real, current platform coverage
+      // — now pulled live so they can never go stale again.
+      if (heroAssets) heroAssets.textContent = fmtInt(s.assets_covered);
+      if (heroTimeframes) heroTimeframes.textContent = fmtInt(s.timeframes_covered);
+    } catch (e) { /* leave loading-state placeholders */ }
   }
 
   const body = document.getElementById('landingSignalsBody');

@@ -1474,11 +1474,14 @@ def public_stats():
     resolved = Signal.query.filter(Signal.status.in_(["hit_target", "hit_sl"])).count()
     assets = Asset.query.filter_by(is_active=True).count()
     markets = db.session.query(Asset.market).filter_by(is_active=True).distinct().count()
+    from app.services.platform_config import get_platform_config
+    timeframes = len(get_platform_config().get("timeframes") or [])
     return jsonify({
         "signals_generated": total_signals,
         "trades_tracked": resolved,
         "assets_covered": assets,
         "markets_covered": markets,
+        "timeframes_covered": timeframes,
     }), 200
 
 

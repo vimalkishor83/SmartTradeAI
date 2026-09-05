@@ -336,8 +336,8 @@
     </h1>
 
     <div class="auth-side-stats">
-      <div class="auth-side-stat"><div class="auth-side-stat-num">24</div><div class="auth-side-stat-label">Assets</div></div>
-      <div class="auth-side-stat"><div class="auth-side-stat-num">7</div><div class="auth-side-stat-label">Timeframes</div></div>
+      <div class="auth-side-stat"><div class="auth-side-stat-num" id="authStatAssets">···</div><div class="auth-side-stat-label">Assets</div></div>
+      <div class="auth-side-stat"><div class="auth-side-stat-num" id="authStatTimeframes">···</div><div class="auth-side-stat-label">Timeframes</div></div>
       <div class="auth-side-stat"><div class="auth-side-stat-num">50+</div><div class="auth-side-stat-label">Indicators</div></div>
     </div>
 
@@ -352,12 +352,8 @@
     </div>
 
     <div class="auth-side-proof">
-      <div class="avatars">
-        <span style="background:#f5a623">A</span>
-        <span style="background:#ffc861">R</span>
-        <span style="background:#d97f0a">S</span>
-      </div>
-      <span>Trusted by traders across Crypto, Forex &amp; Indian markets</span>
+      <i class="bi bi-globe-americas" style="font-size:15px;color:var(--accent)"></i>
+      <span>Multi-market coverage — Crypto, Forex, Indian Stocks &amp; Commodities</span>
     </div>
 
     <div class="auth-chart" aria-hidden="true">
@@ -400,7 +396,7 @@
           <label class="form-label">Password</label>
           <div class="input-group">
             <input type="password" class="form-control" id="password" placeholder="••••••••" required minlength="8" autocomplete="new-password" />
-            <button class="btn btn-outline-light" type="button" id="toggleRegPwd"><i class="bi bi-eye"></i></button>
+            <button class="btn btn-outline-light" type="button" id="toggleRegPwd" aria-label="Show password" aria-pressed="false"><i class="bi bi-eye"></i></button>
           </div>
           <div class="pwd-strength-track mt-2">
             <div class="pwd-strength-bar" id="pwdStrengthBar"></div>
@@ -508,6 +504,24 @@
   }
 })();
 
+// The Assets/Timeframes stat cards were hardcoded ("24"/"7") and had
+// quietly drifted from the platform's real, current coverage — now
+// pulled from the same public endpoint the landing page stats use.
+(async function () {
+  const elAssets = document.getElementById('authStatAssets');
+  const elTf = document.getElementById('authStatTimeframes');
+  if (!elAssets && !elTf) return;
+  try {
+    const res = await fetch('/api/v1/signals/public-stats');
+    const s = await res.json();
+    if (elAssets) elAssets.textContent = s.assets_covered ?? '—';
+    if (elTf) elTf.textContent = s.timeframes_covered ?? '—';
+  } catch (e) {
+    if (elAssets) elAssets.textContent = '—';
+    if (elTf) elTf.textContent = '—';
+  }
+})();
+
 // If already logged in, go straight to dashboard (verify token is valid
 // first) — matches login.html's identical guard. Without this, an
 // already-authenticated visitor landing on /register (e.g. from a stale
@@ -612,9 +626,13 @@
 
 document.getElementById('toggleRegPwd').addEventListener('click', () => {
   const pwd  = document.getElementById('password');
-  const icon = document.querySelector('#toggleRegPwd i');
-  if (pwd.type === 'password') { pwd.type = 'text';     icon.className = 'bi bi-eye-slash'; }
-  else                         { pwd.type = 'password'; icon.className = 'bi bi-eye'; }
+  const btn  = document.getElementById('toggleRegPwd');
+  const icon = btn.querySelector('i');
+  const show = pwd.type === 'password';
+  pwd.type = show ? 'text' : 'password';
+  icon.className = show ? 'bi bi-eye-slash' : 'bi bi-eye';
+  btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+  btn.setAttribute('aria-pressed', String(show));
 });
 
 // Lightweight client-side strength meter — purely a UX nudge alongside the
