@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from app.services.backtesting.engine import backtest_engine
+from app.services.backtesting.reproducibility import build_reproducibility_metadata
 
 _MIN_WINDOW_BARS = 150  # below this, indicator warmup dominates and results are noise
 
@@ -121,4 +122,13 @@ def run_walk_forward(
         "winning_trades": winning_trades,
         "worst_max_drawdown": round(worst_drawdown, 2),
         "walk_forward_consistent": consistent,
+        "reproducibility": build_reproducibility_metadata(
+            df,
+            strategy=strategy,
+            timeframe=timeframe,
+            initial_capital=initial_capital,
+            commission=commission,
+            slippage=slippage,
+            extra_config={"n_windows": len(windows)},
+        ),
     }

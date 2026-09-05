@@ -22,6 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from app.services.backtesting.reproducibility import build_reproducibility_metadata
+
 logger = logging.getLogger(__name__)
 
 # ── Realistic defaults ──────────────────────────────────────────────────────
@@ -358,9 +360,18 @@ class BacktestEngine:
             })
             equity.append(round(capital, 2))
 
-        return self._compute_stats(
+        result = self._compute_stats(
             trades, equity, initial_capital, commission, slippage, timeframe
         )
+        result["reproducibility"] = build_reproducibility_metadata(
+            df,
+            strategy=strategy,
+            timeframe=timeframe,
+            initial_capital=initial_capital,
+            commission=commission,
+            slippage=slippage,
+        )
+        return result
 
     # ── Position management (SL / T1 partial / T2 / timeout) ───────────────
 

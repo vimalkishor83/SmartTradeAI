@@ -41,6 +41,14 @@ class Backtest(db.Model):
     equity_curve = db.Column(db.JSON, default=list)
     trades_data = db.Column(db.JSON, default=list)
 
+    # Reproducibility provenance. Nullable so historical rows remain readable
+    # and clearly show which results predate provenance capture.
+    engine_version = db.Column(db.String(50))
+    model_version = db.Column(db.String(50))
+    config_fingerprint = db.Column(db.String(64))
+    data_fingerprint = db.Column(db.String(64))
+    data_candles = db.Column(db.Integer)
+
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     completed_at = db.Column(db.DateTime)
 
@@ -80,5 +88,15 @@ class Backtest(db.Model):
             "commission_pct":  self.commission_pct,
             "slippage_pct":    self.slippage_pct,
             "exit_reasons":    self.exit_reasons,
+            "reproducibility": {
+                "backtest_id": self.id,
+                "engine_version": self.engine_version,
+                "model_version": self.model_version,
+                "config_fingerprint": self.config_fingerprint,
+                "data_fingerprint": self.data_fingerprint,
+                "data_candles": self.data_candles,
+                "data_start": self.start_date.isoformat() if self.start_date else None,
+                "data_end": self.end_date.isoformat() if self.end_date else None,
+            },
             "created_at":      self.created_at.isoformat(),
         }

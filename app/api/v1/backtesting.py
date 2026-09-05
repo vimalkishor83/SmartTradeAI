@@ -8,6 +8,7 @@ from app.services.backtesting.engine import backtest_engine
 from app.services.backtesting.walk_forward import run_walk_forward
 from app.services.data.fetcher import market_fetcher
 from app.services.backtest.validation import parse_strategy_payload
+from app.services.backtesting.reproducibility import BACKTEST_ENGINE_VERSION
 from datetime import datetime
 
 # Shared across /run and /walk-forward — keeps strategy-name normalization
@@ -109,6 +110,17 @@ def run_backtest():
     for k, v in result.items():
         if hasattr(bt, k):
             setattr(bt, k, v)
+
+    provenance = result.get("reproducibility") or {}
+    bt.engine_version = provenance.get("engine_version", BACKTEST_ENGINE_VERSION)
+    bt.model_version = provenance.get("model_version")
+    bt.config_fingerprint = provenance.get("config_fingerprint")
+    bt.data_fingerprint = provenance.get("data_fingerprint")
+    bt.data_candles = provenance.get("data_candles")
+    if provenance.get("data_start"):
+        bt.start_date = datetime.fromisoformat(provenance["data_start"].replace("Z", "+00:00")).replace(tzinfo=None)
+    if provenance.get("data_end"):
+        bt.end_date = datetime.fromisoformat(provenance["data_end"].replace("Z", "+00:00")).replace(tzinfo=None)
 
     db.session.commit()
     # equity_curve/trades_data are stored on the row (assigned via the

@@ -470,6 +470,11 @@ def _migrate_columns(app):
         ("backtests",  "commission_pct",       "REAL    DEFAULT 0.1"),
         ("backtests",  "slippage_pct",         "REAL    DEFAULT 0.05"),
         ("backtests",  "exit_reasons",         "TEXT    DEFAULT '{}'"),
+        ("backtests",  "engine_version",       "TEXT"),
+        ("backtests",  "model_version",        "TEXT"),
+        ("backtests",  "config_fingerprint",   "TEXT"),
+        ("backtests",  "data_fingerprint",     "TEXT"),
+        ("backtests",  "data_candles",         "INTEGER"),
         # 2FA columns
         ("users",      "totp_secret",          "TEXT"),
         ("users",      "totp_enabled",         "INTEGER DEFAULT 0"),

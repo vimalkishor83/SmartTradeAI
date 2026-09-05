@@ -566,6 +566,14 @@ The strategy-config backtest engine now includes the exit fill impact when it fo
 
 **Regression evidence:** Backtest correctness and request-boundary tests passed locally (**44 passed**); the full local suite passed with **223 passed** in 90.65s. Production deployment completed on 2026-09-06 from `f6e2106`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: forced-close-slippage-20260906`, the deployed backtest correctness and request-boundary tests passed (**44 passed** in 8.31s), and the fresh app/worker error scan had no error, traceback, critical, or exception output. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.26 IMPLEMENTED — Stamp backtest reproducibility metadata
+
+Successful strategy-config, walk-forward, and live-signal backtest results now expose a common provenance contract: engine version, explicit model scope, canonical configuration fingerprint, ordered OHLCV dataset fingerprint, candle count, and dataset bounds. Persisted strategy backtests store the same fields through an additive migration and return the saved backtest ID, while deterministic rule-based strategies correctly report `model_version: not_applicable` rather than implying an ML model produced the result.
+
+**Risk level:** High auditability value, low runtime compatibility risk (additive nullable columns and response metadata; no strategy, fill, or metric behavior changes). **Affected modules:** `app/services/backtesting/reproducibility.py`, `app/services/backtesting/engine.py`, `app/services/backtesting/walk_forward.py`, `app/services/backtest/runner.py`, `app/models/backtest.py`, `app/api/v1/backtesting.py`, `app/__init__.py`, `migrations/versions/6e0f1a2b3c4d_add_backtest_reproducibility_metadata.py`, `tests/unit/test_backtest_reproducibility.py`, `tests/integration/test_backtest_metadata_route.py`. **Migration:** required; additive nullable columns are applied automatically at startup.
+
+**Regression evidence:** Reproducibility, persistence, walk-forward, partial-exit, and request-boundary tests passed locally (**26 passed**); the full local suite passed with **228 passed** in 93.29s. Production deployment and migration verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

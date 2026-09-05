@@ -22,6 +22,10 @@ import pandas as pd
 
 from app.services.signals.engine import signal_engine, _EXPIRY
 from app.services.data.fetcher import market_fetcher
+from app.services.backtesting.reproducibility import (
+    LIVE_WALK_FORWARD_ENGINE_VERSION,
+    build_reproducibility_metadata,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +157,7 @@ def run_backtest(asset, timeframe: str, days: int = 60, limit: int | None = None
             **_summarize([]),
         }
 
+    source_df = df
     df = df.reset_index(drop=True)
     max_bars = _expiry_bars(timeframe)
     trades: list[dict] = []
@@ -216,6 +221,16 @@ def run_backtest(asset, timeframe: str, days: int = 60, limit: int | None = None
         "expiry_bars": max_bars,
         **summary,
         "sample_trades": trades[-15:],   # last few for inspection
+        "reproducibility": build_reproducibility_metadata(
+            source_df,
+            strategy="signal_engine",
+            timeframe=timeframe,
+            initial_capital=0.0,
+            commission=0.0,
+            slippage=0.0,
+            extra_config={"days": days, "walk_step": _WALK_STEP},
+            engine_version=LIVE_WALK_FORWARD_ENGINE_VERSION,
+        ),
     }
 
 
