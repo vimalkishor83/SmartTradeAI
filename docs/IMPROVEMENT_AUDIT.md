@@ -331,7 +331,7 @@ Admin user, session, audit-log and system-log endpoints now reuse the shared pag
 
 **Risk level:** Low (input normalization; default response sizes are unchanged). **Affected modules:** `app/api/v1/admin.py`, `app/services/pagination.py`, `tests/unit/test_pagination.py`. **Migration:** none.
 
-**Regression evidence:** Targeted pagination tests and the full local unit baseline passed before this change. Production deployment verification is pending for this change.
+**Regression evidence:** Targeted pagination tests and the full local unit baseline passed before this change. Production verification completed on 2026-09-05 after rebuilding the app service from `85ebd8c`: the full suite reported **159 passed**, health and root endpoints returned `HTTP 200`, the app remained healthy, and the fresh app/worker log scan contained no traceback/error matches.
 
 ---
 
