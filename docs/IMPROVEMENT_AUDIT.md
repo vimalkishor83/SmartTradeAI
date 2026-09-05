@@ -726,6 +726,14 @@ Prediction cache misses now use a per-symbol/timeframe single-flight lock. The f
 
 **Regression evidence:** Focused predictor/readiness/split tests passed (**9 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**278 passed** in 108.98s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.46 IMPLEMENTED — Batch news-ingestion URL deduplication
+
+The scheduled news importer now loads existing article URLs in bounded batches before inserting new rows, instead of querying once per feed item. It also records URLs as they are queued, so duplicate articles returned by overlapping provider feeds are inserted only once in the same run. This lowers database round trips during refreshes without changing the public news payload or provider behavior.
+
+**Risk level:** Medium operational-performance value, low data/API risk (existing rows are still preserved and only duplicate inserts are removed). **Affected modules:** `app/tasks/data_tasks.py`, `tests/integration/test_news_ingestion.py`. **Migration:** none.
+
+**Regression evidence:** Focused news-ingestion test passed (**1 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**279 passed** in 105.85s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -853,5 +861,9 @@ Prediction cache misses now use a per-symbol/timeframe single-flight lock. The f
 **Session 24 (ML performance — prediction single-flight):**
 - `app/services/ai/predictor.py` — add per-key locks around cache-miss computation and forced retraining, with a second cache check for waiting callers.
 - `tests/unit/test_prediction_model_outputs.py` — verify concurrent identical misses invoke the expensive ensemble computation once and share the cached result.
+
+**Session 25 (data-ingestion performance — batched news deduplication):**
+- `app/tasks/data_tasks.py` — replace per-article URL existence queries with bounded batch lookups and same-run duplicate guards.
+- `tests/integration/test_news_ingestion.py` — verify existing, duplicate, missing-URL and new feed-item behavior.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

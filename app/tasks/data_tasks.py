@@ -798,17 +798,29 @@ def fetch_news(app):
             logger.error(f"News fetch failed: {e}")
             return
 
+        # Resolve existing URLs in bounded batches instead of issuing one
+        # SELECT per feed item. A refresh can contain several hundred rows
+        # across the configured symbols, while SQLite also has a finite bind
+        # parameter budget for a single IN clause.
+        urls = {item.get("url") for item in items if item.get("url")}
+        existing_urls = set()
+        url_list = list(urls)
+        for start in range(0, len(url_list), 500):
+            existing_urls.update(
+                row[0] for row in db.session.query(News.url)
+                .filter(News.url.in_(url_list[start:start + 500]))
+                .all()
+            )
+
         new_count = 0
         for item in items:
-            if not item.get("url"):
-                continue
-            exists = News.query.filter_by(url=item["url"]).first()
-            if exists:
+            url = item.get("url")
+            if not url or url in existing_urls:
                 continue
             news = News(
                 title=item["title"],
                 summary=item.get("summary"),
-                url=item["url"],
+                url=url,
                 source=item.get("source", "Yahoo Finance"),
                 sentiment=item.get("sentiment"),
                 sentiment_score=item.get("sentiment_score"),
@@ -816,6 +828,8 @@ def fetch_news(app):
                 published_at=item.get("published_at"),
             )
             db.session.add(news)
+            # Guard duplicates returned within this same provider response.
+            existing_urls.add(url)
             new_count += 1
 
         try:
