@@ -262,29 +262,38 @@ function renderTable(assets) {
     const statusCell = isSuperAdmin
       ? `<div class="form-check form-switch mb-0">
           <input class="form-check-input" type="checkbox" role="switch"
-            ${a.is_active ? 'checked' : ''} onchange="toggleAssetActive(${a.id},'${a.symbol}',this.checked)">
+            ${a.is_active ? 'checked' : ''} data-action="toggle-active" data-id="${STSafe.assetId(a.id)}" data-symbol="${STSafe.html(a.symbol)}">
         </div>`
       : `<span class="badge ${a.is_active ? 'bg-success' : 'bg-danger'}">${a.is_active ? 'Active' : 'Disabled'}</span>`;
     const actionCell = isSuperAdmin
-      ? `<button class="btn btn-sm btn-outline-danger" onclick="removeAsset(${a.id},'${a.symbol}')">
+      ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-asset" data-id="${STSafe.assetId(a.id)}" data-symbol="${STSafe.html(a.symbol)}">
           <i class="bi bi-trash3"></i>
         </button>`
       : '<span class="text-muted small">View only</span>';
     const checkCell = isSuperAdmin
-      ? `<input class="form-check-input" type="checkbox" ${_selectedAssetIds.has(a.id) ? 'checked' : ''} onchange="toggleAssetSelect(${a.id},this.checked)">`
+      ? `<input class="form-check-input" type="checkbox" ${_selectedAssetIds.has(a.id) ? 'checked' : ''} data-action="select-asset" data-id="${STSafe.assetId(a.id)}">`
       : '';
-    return `<tr id="arow_${a.id}" ${a.is_active ? '' : 'style="opacity:.55"'}>
+    return `<tr id="arow_${STSafe.assetId(a.id)}" ${a.is_active ? '' : 'style="opacity:.55"'}>
       <td>${checkCell}</td>
-      <td><code style="color:var(--accent)">${a.symbol}</code></td>
-      <td>${a.name || '—'}</td>
-      <td><span style="font-size:11px;font-weight:600;color:${col}">${mkt}</span></td>
-      <td style="font-size:12px">${a.exchange || '—'}</td>
-      <td style="font-size:12px">${a.data_source || '—'}</td>
-      <td style="font-size:12px">${dt}</td>
+      <td><code style="color:var(--accent)">${STSafe.html(a.symbol)}</code></td>
+      <td>${STSafe.html(a.name || '—')}</td>
+      <td><span style="font-size:11px;font-weight:600;color:${col}">${STSafe.html(mkt)}</span></td>
+      <td style="font-size:12px">${STSafe.html(a.exchange || '—')}</td>
+      <td style="font-size:12px">${STSafe.html(a.data_source || '—')}</td>
+      <td style="font-size:12px">${STSafe.html(dt)}</td>
       <td>${statusCell}</td>
       <td>${actionCell}</td>
     </tr>`;
   }).join('');
+  body.querySelectorAll('[data-action="toggle-active"]').forEach(input => {
+    input.addEventListener('change', () => toggleAssetActive(input.dataset.id, input.dataset.symbol, input.checked));
+  });
+  body.querySelectorAll('[data-action="remove-asset"]').forEach(button => {
+    button.addEventListener('click', () => removeAsset(button.dataset.id, button.dataset.symbol));
+  });
+  body.querySelectorAll('[data-action="select-asset"]').forEach(input => {
+    input.addEventListener('change', () => toggleAssetSelect(input.dataset.id, input.checked));
+  });
   updateSelectedToolbar();
 }
 
@@ -293,7 +302,9 @@ function _visibleAssetRowIds() {
 }
 
 function toggleAssetSelect(id, checked) {
-  if (checked) _selectedAssetIds.add(id); else _selectedAssetIds.delete(id);
+  const assetId = Number(id);
+  if (!Number.isInteger(assetId) || assetId < 1) return;
+  if (checked) _selectedAssetIds.add(assetId); else _selectedAssetIds.delete(assetId);
   updateSelectedToolbar();
 }
 
@@ -424,15 +435,20 @@ function renderDeltaCatalog() {
 
   grid.innerHTML = hint + list.map(c => `
     <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-      <div class="asset-toggle ${c.is_active ? 'active' : ''}" data-symbol="${c.symbol}"
-           ${isSuperAdmin ? `onclick="toggleDeltaCatalogEntry(this,'${c.symbol}')"` : 'style="cursor:default;opacity:.7"'}>
+      <div class="asset-toggle ${c.is_active ? 'active' : ''}" data-symbol="${STSafe.html(c.symbol)}"
+           ${isSuperAdmin ? '' : 'style="cursor:default;opacity:.7"'}>
         <div class="check"></div>
         <div>
-          <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${c.symbol}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${c.name}</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${STSafe.html(c.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${STSafe.html(c.name)}</div>
         </div>
       </div>
     </div>`).join('');
+  if (isSuperAdmin) {
+    grid.querySelectorAll('.asset-toggle').forEach(el => {
+      el.addEventListener('click', () => toggleDeltaCatalogEntry(el, el.dataset.symbol));
+    });
+  }
 }
 
 // Adds (if untracked) or toggles (if tracked) one catalog entry. Mutates
@@ -568,19 +584,27 @@ async function searchAssets() {
       ? `<input type="hidden" id="mkt_${sid}" value="crypto"><span class="badge-tag">Crypto</span>`
       : `<select id="mkt_${sid}" class="form-select form-select-sm" style="width:160px">${mkOpts(guessMkt(r))}</select>`;
     return `<tr id="row_${sid}">
-      <td><code style="color:var(--accent)">${r.symbol}</code></td>
-      <td>${r.name}</td>
+      <td><code style="color:var(--accent)">${STSafe.html(r.symbol)}</code></td>
+      <td>${STSafe.html(r.name)}</td>
       <td style="font-size:12px">${sourceBadge}</td>
-      <td style="font-size:12px">${r.exchange || '—'}</td>
+      <td style="font-size:12px">${STSafe.html(r.exchange || '—')}</td>
       <td>${marketCell}</td>
       <td>
-        <button onclick="addAsset('${r.symbol}','${r.name.replace(/'/g,"\\'")}','${r.exchange||''}','${r.source||'yahoo'}')"
+        <button class="asset-add-btn" data-symbol="${STSafe.html(r.symbol)}" data-name="${STSafe.html(r.name)}" data-exchange="${STSafe.html(r.exchange || '')}" data-source="${STSafe.html(r.source || 'yahoo')}"
           style="background:var(--accent);color:#000;border:none;border-radius:6px;padding:4px 14px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">
           <i class="bi bi-plus-lg me-1"></i>Add
         </button>
       </td>
     </tr>`;
   }).join('');
+  document.querySelectorAll('.asset-add-btn').forEach(button => {
+    button.addEventListener('click', () => addAsset(
+      button.dataset.symbol,
+      button.dataset.name,
+      button.dataset.exchange,
+      button.dataset.source,
+    ));
+  });
 }
 
 async function addAsset(symbol, name, exchange, source) {
@@ -596,7 +620,7 @@ async function addAsset(symbol, name, exchange, source) {
   if (res.ok) {
     Toast.show(`${symbol} added as ${market}`, 'success');
     const row = document.getElementById('row_' + sid);
-    if (row) row.innerHTML = `<td colspan="6" class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>${symbol}</strong> added as <em>${market}</em></td>`;
+    if (row) row.innerHTML = `<td colspan="6" class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>${STSafe.html(symbol)}</strong> added as <em>${STSafe.html(market)}</em></td>`;
     loadAssets();
   } else {
     Toast.show(data.error || 'Failed to add asset', 'error');

@@ -798,6 +798,14 @@ Dashboard opportunities, signals, heatmap cells and Decision Inspector context n
 
 **Regression evidence:** Dashboard, global widget and overview rendering checks passed (**7 passed**), Dashboard and core JavaScript files passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**293 passed** in 111.91s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.55 IMPLEMENTED — Harden admin Assets rendering and controls
+
+Admin Assets now escapes symbols, names, exchange/source values and catalog labels. Asset status, removal, selection, Delta catalog toggles and search-result additions use dataset-backed event listeners instead of embedding provider strings in inline handlers. Existing super-admin/view-only permissions, bulk operations and asset filtering remain unchanged.
+
+**Risk level:** High admin-session security value, low behavior/API risk (the same handlers and payloads are used through safer bindings). **Affected modules:** `frontend/templates/admin/assets.html`, `tests/unit/test_admin_assets_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Admin Assets, Dashboard and shared widget safety checks passed (**6 passed**), shared JavaScript passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**295 passed** in 120.60s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -965,5 +973,9 @@ Dashboard opportunities, signals, heatmap cells and Decision Inspector context n
 **Session 33 (UI security/accessibility — Dashboard rendering safety):**
 - `frontend/static/js/pages/dashboard.js` — escape opportunity, signal, inspector and heatmap values; replace inline navigation with validated links and keyboard-capable row handlers.
 - `tests/unit/test_dashboard_template_safety.py` — protect the Dashboard rendering and navigation contract.
+
+**Session 34 (UI security — admin Assets rendering safety):**
+- `frontend/templates/admin/assets.html` — escape provider/catalog values and replace inline asset/catalog/search handlers with dataset-backed event listeners.
+- `tests/unit/test_admin_assets_template_safety.py` — protect the admin Assets rendering and control-binding contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
