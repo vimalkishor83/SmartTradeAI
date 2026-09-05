@@ -4,6 +4,8 @@
 
 **Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass)
 
+Phase 0 architecture and sequencing artifacts are maintained in [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) and [`docs/ENTERPRISE_TRANSFORMATION_PLAN.md`](ENTERPRISE_TRANSFORMATION_PLAN.md). They describe the current implementation and do not imply that planned AI, calibration, observability or frontend capabilities already exist.
+
 ---
 
 ## 1. Current Architecture (as verified)
