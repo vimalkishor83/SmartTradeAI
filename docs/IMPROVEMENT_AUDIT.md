@@ -412,7 +412,7 @@ The authenticated OHLCV endpoint now normalizes invalid `limit` values and clamp
 
 **Risk level:** Low (valid requests and the previous maximum are unchanged). **Affected modules:** `app/api/v1/market_data.py`, `tests/unit/test_pagination.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `0846d20`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **171 passed** in 45.59s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
