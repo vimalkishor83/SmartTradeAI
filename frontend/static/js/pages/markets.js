@@ -97,10 +97,10 @@ async function loadLiveSignals() {
     const conf = s.confidence_score || 0; const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
     const rr = parseFloat(s.risk_reward) || 0; const st = _statusOf(s);
     return `<tr>
-      <td><a href="/asset/${s.asset_id}" class="asset-cell-name" style="text-decoration:none">${s.asset}</a></td>
-      <td><span class="badge-tag">${mktLabel(s.market)}</span></td>
+      <td><a href="${STSafe.assetHref(s.asset_id)}" class="asset-cell-name" style="text-decoration:none">${STSafe.html(s.asset)}</a></td>
+      <td><span class="badge-tag">${STSafe.html(mktLabel(s.market))}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td><span class="badge-tag">${s.timeframe}</span></td>
+      <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
       <td class="num">${formatPrice(s.entry_price, s.market)}</td>
       <td class="num" style="color:var(--red)">${formatPrice(s.stop_loss, s.market)}</td>
       <td class="num" style="color:var(--green)">${formatPrice(s.target1, s.market)}</td>
@@ -135,16 +135,16 @@ function loadTopOpps(signals) {
     </div>`;
   el.innerHTML = head + top.map((s, i) => {
     const conf = s.confidence_score || 0; const rr = parseFloat(s.risk_reward);
-    return `<div class="opp-list-row" onclick="location='/asset/${s.asset_id}'">
+    return `<a class="opp-list-row" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
       <span class="opp-rank">${i + 1}</span>
-      <span class="opp-list-name">${s.asset}</span>
+      <span class="opp-list-name">${STSafe.html(s.asset)}</span>
       ${signalBadge(s.signal_type)}
       <span class="opp-list-conf" style="color:${conf >= 70 ? 'var(--green)' : 'var(--yellow)'}">${conf.toFixed(0)}%</span>
       <span class="opp-list-rr">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span>
       <span id="oppspk_${s.id}" class="opp-list-spark"></span>
-    </div>`;
+    </a>`;
   }).join('');
-  top.forEach(s => { const e = document.getElementById(`oppspk_${s.id}`); if (e && typeof Sparkline !== 'undefined') Sparkline.load(e, s.asset_id, s.timeframe || '1h'); });
+  top.forEach(s => { const e = document.getElementById(STSafe.domId('oppspk_', s.id)); if (e && typeof Sparkline !== 'undefined') Sparkline.load(e, s.asset_id, s.timeframe || '1h'); });
 }
 
 /* ── AI Score Heatmap ──
@@ -195,8 +195,8 @@ async function loadAiHeat() {
     const label = score >= 80 ? 'STRONG BUY' : score >= 60 ? 'BUY' : score >= 40 ? 'HOLD' : score >= 20 ? 'SELL' : 'STRONG SELL';
     const bg = score >= 80 ? 'rgba(16,185,129,.22)' : score >= 60 ? 'rgba(74,222,128,.16)' : score >= 40 ? 'rgba(245,158,11,.16)' : score >= 20 ? 'rgba(248,113,113,.16)' : 'rgba(239,68,68,.22)';
     const bd = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--red)';
-    return `<div class="ai-heat-cell" style="background:${bg};border-color:${bd}33" onclick="location='/asset/${it.id}'">
-      <div class="ahc-sym">${it.symbol}</div><div class="ahc-score" style="color:${bd}">${score}</div><div class="ahc-lbl">${label}</div></div>`;
+    return `<a class="ai-heat-cell" href="${STSafe.assetHref(it.id)}" style="background:${bg};border-color:${bd}33;text-decoration:none;color:inherit">
+      <div class="ahc-sym">${STSafe.html(it.symbol)}</div><div class="ahc-score" style="color:${bd}">${score}</div><div class="ahc-lbl">${label}</div></a>`;
   }).join('');
 }
 
@@ -272,7 +272,8 @@ async function loadNewsImpact() {
   el.innerHTML = rows.slice(0, 4).map(n => {
     const imp = n.sentiment === 'negative' ? ['High Impact', 'var(--red)'] : n.sentiment === 'positive' ? ['Positive', 'var(--green)'] : ['Neutral', 'var(--text-muted)'];
     const t = n.published_at ? new Date(n.published_at + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
-    return `<a class="ni-row" href="${n.url || '#'}" target="_blank" rel="noopener"><span class="ni-imp" style="color:${imp[1]}">${imp[0]}</span><span class="ni-text">${(n.title || '').slice(0, 70)}</span><span class="ni-time">${t}</span></a>`;
+    const href = STSafe.externalUrl(n.url) || '#';
+    return `<a class="ni-row" href="${STSafe.html(href)}" target="_blank" rel="noopener"><span class="ni-imp" style="color:${imp[1]}">${imp[0]}</span><span class="ni-text">${STSafe.html((n.title || '').slice(0, 70))}</span><span class="ni-time">${t}</span></a>`;
   }).join('');
 }
 async function loadUpcoming() {
@@ -284,7 +285,7 @@ async function loadUpcoming() {
   el.innerHTML = events.map(e => {
     const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
     const imp = (e.impact || 'low').toLowerCase(); const clr = imp === 'high' ? 'var(--red)' : imp === 'medium' ? 'var(--yellow)' : 'var(--text-muted)';
-    return `<div class="ue-row"><span class="ue-time">${t}</span><span class="ue-name">${e.title}</span><span class="ue-imp" style="color:${clr}">${imp.charAt(0).toUpperCase() + imp.slice(1)}</span></div>`;
+    return `<div class="ue-row"><span class="ue-time">${t}</span><span class="ue-name">${STSafe.html(e.title)}</span><span class="ue-imp" style="color:${clr}">${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))}</span></div>`;
   }).join('');
 }
 

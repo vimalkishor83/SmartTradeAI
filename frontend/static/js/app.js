@@ -10,6 +10,39 @@ window.MIN_CONFIDENCE = parseInt(localStorage.getItem('min_confidence'), 10) || 
 
 const TIER_LABELS = { 1: 'Basic', 2: 'Premium', 3: 'Pro' };
 
+// Keep provider/database values out of HTML and inline navigation contexts.
+// Pages can use this small shared surface instead of reimplementing escaping
+// for every table and card that consumes live market data.
+window.STSafe = window.STSafe || Object.freeze({
+  html(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+  },
+  externalUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return null;
+    try {
+      const url = new URL(raw, window.location.origin);
+      return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+    } catch (_) {
+      return null;
+    }
+  },
+  assetId(value) {
+    const id = String(value ?? '').trim();
+    return /^\d+$/.test(id) ? id : '';
+  },
+  assetHref(value) {
+    const id = this.assetId(value);
+    return id ? `/asset/${id}` : '#';
+  },
+  domId(prefix, value) {
+    const id = String(value ?? '').replace(/[^A-Za-z0-9_-]/g, '');
+    return `${prefix}${id}`;
+  }
+});
+
 // Swaps a tier-gated page's content area for a locked upgrade card instead
 // of hiding data behind a hard redirect — the sidebar/header/page title
 // stay visible and navigable, only #pageContentBody (see partials/base.html)
@@ -630,7 +663,8 @@ function formatChange(val) {
 
 function signalBadge(type) {
   const map = { BUY: 'signal-buy', SELL: 'signal-sell', HOLD: 'signal-hold', EXIT: 'signal-exit' };
-  return `<span class="signal-badge ${map[type] || ''}">${type || '—'}</span>`;
+  const label = map[type] ? type : '—';
+  return `<span class="signal-badge ${map[type] || ''}">${STSafe.html(label)}</span>`;
 }
 
 function confidenceBar(score) {

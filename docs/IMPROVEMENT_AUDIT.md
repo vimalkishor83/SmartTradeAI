@@ -774,6 +774,14 @@ Direct Yahoo OHLCV requests now use the same per-symbol/timeframe single-flight 
 
 **Regression evidence:** Focused market-data single-flight checks passed (**3 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**286 passed** in 116.18s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.52 IMPLEMENTED — Harden Markets and Morning Briefing rendering
+
+Markets and Morning Briefing now share a small UI safety layer for provider/database values. Headlines and event text are escaped, external article links accept only HTTP(S), asset links accept numeric database IDs only, and inline `onclick` navigation was replaced with normal links. Signal badges also fall back to a neutral label for unknown signal types instead of echoing arbitrary values into HTML.
+
+**Risk level:** High trust/security value, low UX/API risk (normal links preserve navigation and all approved display values remain visible). **Affected modules:** `frontend/static/js/app.js`, `frontend/static/js/pages/markets.js`, `frontend/static/js/pages/briefing.js`, `tests/unit/test_market_briefing_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Overview and News rendering safety checks passed (**4 passed**), all changed JavaScript files passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**289 passed** in 113.41s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -926,5 +934,11 @@ Direct Yahoo OHLCV requests now use the same per-symbol/timeframe single-flight 
 **Session 30 (market-data performance — Yahoo single-flight and cache-size guard):**
 - `app/services/data/fetcher.py` — collapse direct Yahoo cache misses and require the requested minimum row count in batch/prewarm cache reads.
 - `tests/unit/test_market_data_singleflight.py` — verify concurrent Yahoo calls share one provider request and short cached frames are refetched for larger limits.
+
+**Session 31 (UI security — shared overview rendering safety):**
+- `frontend/static/js/app.js` — add shared HTML, URL, asset-ID and DOM-ID safety helpers; neutralize unknown signal badge labels.
+- `frontend/static/js/pages/markets.js` — escape live signal, opportunity, heatmap, news and event values; use safe links instead of inline navigation.
+- `frontend/static/js/pages/briefing.js` — escape movers, levels, headlines, economic events and insight text; validate asset IDs and article URLs.
+- `tests/unit/test_market_briefing_template_safety.py` — protect the overview rendering contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

@@ -104,7 +104,7 @@ function loadMovers(rows) {
   const losers = sorted.filter(m => (m.change_pct || 0) < 0).slice(-6).reverse();
   const row = (m) => {
     const up = (m.change_pct || 0) >= 0;
-    return `<tr><td><div class="mv-sym">${m.symbol}</div><div class="mv-name">${m.name || ''}</div></td>
+    return `<tr><td><div class="mv-sym">${STSafe.html(m.symbol)}</div><div class="mv-name">${STSafe.html(m.name || '')}</div></td>
       <td class="num">${formatPrice(m.price)}</td>
       <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'} ${Math.abs(m.change_pct || 0).toFixed(2)}%</td></tr>`;
   };
@@ -131,7 +131,7 @@ function loadSentiment(rows, score) {
     const a = arr.reduce((x, y) => x + y, 0) / arr.length;
     const sc = Math.round(Math.max(5, Math.min(95, 50 + a * 12)));
     const clr = sc >= 55 ? 'var(--green)' : sc >= 45 ? 'var(--yellow)' : 'var(--red)';
-    return `<div class="sbm-row"><span class="sbm-name">${label(m)}</span><div class="sbm-track"><div class="sbm-fill" style="width:${sc}%;background:${clr}"></div></div><span class="sbm-val">${sc}</span></div>`;
+    return `<div class="sbm-row"><span class="sbm-name">${STSafe.html(label(m))}</span><div class="sbm-track"><div class="sbm-fill" style="width:${sc}%;background:${clr}"></div></div><span class="sbm-val">${sc}</span></div>`;
   }).join('');
 }
 
@@ -156,13 +156,13 @@ function loadCrypto(rows) {
   tb.innerHTML = crypto.map(c => {
     const up = (c.change_pct || 0) >= 0;
     return `<tr>
-      <td class="mv-sym">${c.symbol}</td>
+      <td class="mv-sym">${STSafe.html(c.symbol)}</td>
       <td class="num">${formatPrice(c.price)}</td>
       <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'}${Math.abs(c.change_pct || 0).toFixed(2)}%</td>
-      <td><div id="cspk_${c.asset_id}" style="line-height:0"></div></td>
+      <td><div id="${STSafe.domId('cspk_', c.asset_id)}" style="line-height:0"></div></td>
     </tr>`;
   }).join('');
-  crypto.forEach(c => { const el = document.getElementById(`cspk_${c.asset_id}`); if (el && typeof Sparkline !== 'undefined' && c.asset_id) Sparkline.load(el, c.asset_id, '1h'); });
+  crypto.forEach(c => { const el = document.getElementById(STSafe.domId('cspk_', c.asset_id)); if (el && typeof Sparkline !== 'undefined' && c.asset_id) Sparkline.load(el, c.asset_id, '1h'); });
 }
 function _abbrev(n) { if (n >= 1e9) return (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return Math.round(n); }
 
@@ -187,7 +187,7 @@ function loadLevels(rows) {
 function _renderLevelTabs() {
   const tabs = document.getElementById('levelTabs');
   if (!tabs) return;
-  tabs.innerHTML = _levelAssets.map((a, i) => `<button class="level-tab ${i === 0 ? 'active' : ''}" data-sym="${a.symbol}">${a.symbol}</button>`).join('');
+  tabs.innerHTML = _levelAssets.map((a, i) => `<button class="level-tab ${i === 0 ? 'active' : ''}" data-sym="${STSafe.html(a.symbol)}">${STSafe.html(a.symbol)}</button>`).join('');
   tabs.querySelectorAll('.level-tab').forEach(t => t.addEventListener('click', () => {
     tabs.querySelectorAll('.level-tab').forEach(x => x.classList.remove('active'));
     t.classList.add('active'); _renderLevels(t.dataset.sym);
@@ -203,7 +203,7 @@ function _openKlConfig() {
   panel.innerHTML = `
     <div class="kl-config-title">Choose assets to show <span class="text-muted">(up to 6)</span></div>
     <div class="kl-config-grid">${syms.map(s =>
-    `<label class="kl-chk"><input type="checkbox" value="${s}" ${selected.has(s) ? 'checked' : ''}>${s}</label>`).join('')}</div>
+    `<label class="kl-chk"><input type="checkbox" value="${STSafe.html(s)}" ${selected.has(s) ? 'checked' : ''}>${STSafe.html(s)}</label>`).join('')}</div>
     <div class="kl-config-actions">
       <button class="btn btn-sm btn-primary" id="klSave"><i class="bi bi-check2 me-1"></i>Save</button>
       <button class="btn btn-sm btn-outline-secondary" id="klCancel">Cancel</button>
@@ -231,7 +231,9 @@ async function _renderLevels(sym) {
   const price = asset.price || 0;
   // Try real OHLCV for classic pivots; fall back to % bands off current price.
   let H = price * 1.01, L = price * 0.99, C = price, candles = [];
-  const oh = await API.get(`/market-data/${asset.asset_id}/ohlcv`, { timeframe: '1h', limit: 40 }).catch(() => null);
+  const assetId = STSafe.assetId(asset.asset_id);
+  if (!assetId) return;
+  const oh = await API.get(`/market-data/${assetId}/ohlcv`, { timeframe: '1h', limit: 40 }).catch(() => null);
   candles = oh?.data || oh?.ohlcv || oh?.candles || [];
   if (candles.length) {
     const last = candles[candles.length - 1];
@@ -279,10 +281,11 @@ async function loadHeadlines() {
   el.innerHTML = rows.slice(0, 6).map(n => {
     const t = n.published_at ? new Date(n.published_at + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
     const dot = n.sentiment === 'positive' ? 'var(--green)' : n.sentiment === 'negative' ? 'var(--red)' : 'var(--text-muted)';
-    return `<a class="headline-row" href="${n.url || '#'}" target="_blank" rel="noopener">
+    const href = STSafe.externalUrl(n.url) || '#';
+    return `<a class="headline-row" href="${STSafe.html(href)}" target="_blank" rel="noopener">
       <span class="headline-time">${t}</span>
       <span class="headline-dot" style="background:${dot}"></span>
-      <span class="headline-text">${n.title || ''}</span></a>`;
+      <span class="headline-text">${STSafe.html(n.title || '')}</span></a>`;
   }).join('');
 }
 
@@ -300,9 +303,9 @@ async function loadEcon() {
       const imp = (e.impact || 'low').toLowerCase();
       const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
       const impClr = imp === 'high' ? 'var(--red)' : imp === 'medium' ? 'var(--yellow)' : 'var(--text-muted)';
-      return `<tr><td class="num">${t}</td><td>${e.title || ''}</td>
-        <td><span style="color:${impClr};font-weight:700"><i class="bi bi-bar-chart-fill" style="font-size:9px"></i> ${imp.charAt(0).toUpperCase() + imp.slice(1)}</span></td>
-        <td class="num">${e.previous ?? '—'}</td><td class="num">${e.forecast ?? '—'}</td></tr>`;
+      return `<tr><td class="num">${t}</td><td>${STSafe.html(e.title || '')}</td>
+        <td><span style="color:${impClr};font-weight:700"><i class="bi bi-bar-chart-fill" style="font-size:9px"></i> ${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))}</span></td>
+        <td class="num">${STSafe.html(e.previous ?? '—')}</td><td class="num">${STSafe.html(e.forecast ?? '—')}</td></tr>`;
     }).join('');
   }
   if (upcoming) {
@@ -311,7 +314,7 @@ async function loadEcon() {
     if (next) {
       const t = new Date(next.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
       const imp = (next.impact || 'low').toLowerCase();
-      upcoming.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-calendar2-event text-accent"></i><div><div style="font-weight:700;font-size:13px">${t} &nbsp;${next.title}</div><div class="fs-xs" style="color:${imp === 'high' ? 'var(--red)' : 'var(--yellow)'}">${imp.charAt(0).toUpperCase() + imp.slice(1)} Impact</div></div></div>${link}`;
+      upcoming.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-calendar2-event text-accent"></i><div><div style="font-weight:700;font-size:13px">${t} &nbsp;${STSafe.html(next.title || '')}</div><div class="fs-xs" style="color:${imp === 'high' ? 'var(--red)' : 'var(--yellow)'}">${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))} Impact</div></div></div>${link}`;
     } else {
       upcoming.innerHTML = `<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No high-impact events scheduled</div>${link}`;
     }
@@ -333,7 +336,7 @@ function loadInsights(rows, avg, std) {
   const cryptoAvg = rows.filter(r => r.market === 'crypto').reduce((a, b, _, arr) => a + (b.change_pct || 0) / arr.length, 0);
   insights.push(['currency-bitcoin', cryptoAvg >= 0 ? 'var(--green)' : 'var(--red)', `Crypto market structure ${cryptoAvg >= 0 ? 'bullish above key breakouts' : 'soft below key supports'}.`]);
   el.innerHTML = insights.slice(0, 5).map(([ic, clr, txt]) =>
-    `<div class="insight-row"><i class="bi bi-${ic}" style="color:${clr}"></i><span>${txt}</span></div>`).join('');
+    `<div class="insight-row"><i class="bi bi-${ic}" style="color:${clr}"></i><span>${STSafe.html(txt)}</span></div>`).join('');
 }
 
 /* ── Today at a Glance ────────────────────────────────────────── */
