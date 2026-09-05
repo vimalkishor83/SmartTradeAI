@@ -245,6 +245,18 @@ function loadInspector(s) {
     : 'timestamp unavailable';
   const qualityProvider = String(quality.provider || 'provider unavailable')
     .replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const provenance = s.reproducibility || {};
+  const provenanceText = value => String(value || 'unavailable')
+    .replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const sourceLabel = provenance.generation_source === 'manual' ? 'Manual' :
+    provenance.generation_source === 'automatic' ? 'Automatic' : 'Legacy / unknown';
+  const modelLabel = provenance.model_version === 'not_applicable' ? 'Rule-based scoring' :
+    provenanceText(provenance.model_version);
+  const fingerprintLabel = provenance.data_fingerprint
+    ? `${provenance.data_fingerprint.slice(0, 12)}...`
+    : 'unavailable';
+  const decisionTitle = provenance.model_version && provenance.model_version !== 'not_applicable'
+    ? 'Why This Signal Qualified (AI-assisted)' : 'Why This Signal Qualified';
   // "AI Model Agreement" removed from this checklist: ai_score is a
   // hardcoded placeholder (10) for every automatically-generated signal --
   // the real ML ensemble is never invoked for these -- and even for the
@@ -311,7 +323,11 @@ function loadInspector(s) {
       <div class="insp-context-main"><i class="bi bi-activity"></i><strong>Market regime</strong><span>${s.regime || 'Not classified'}</span></div>
       <div class="insp-context-meta">This describes the observed environment, not a profit prediction.</div>
     </div>
-    <div class="insp-section-title">Why AI Chose ${s.signal_type}</div>
+    <div class="insp-context insp-provenance" role="status">
+      <div class="insp-context-main"><i class="bi bi-fingerprint"></i><strong>Signal provenance</strong><span>${sourceLabel}</span></div>
+      <div class="insp-context-meta">${modelLabel} · ${provenance.data_candles ?? '—'} candles · data ${fingerprintLabel}</div>
+    </div>
+    <div class="insp-section-title">${decisionTitle}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>
     ${warnings.length ? `<div class="insp-section-title text-yellow">Warnings</div><div class="insp-warns">${warnings.map(w => `<div class="insp-warn"><i class="bi bi-exclamation-triangle-fill text-yellow"></i>${w}</div>`).join('')}</div>` : ''}
     ${evidence.length ? `<div class="insp-section-title">Evidence Supporting ${s.signal_type}</div><div class="insp-checks">${evidence.map(r => `<div class="insp-check"><i class="bi bi-check-circle-fill text-green"></i>${r.text}</div>`).join('')}</div>` : ''}
