@@ -59,8 +59,8 @@ function showTierLockOverlay(minTier) {
     <div class="section-card" style="min-height:340px;display:flex;align-items:center;justify-content:center">
       <div class="text-center p-4" style="max-width:420px">
         <i class="bi bi-lock-fill" style="font-size:32px;color:var(--accent)"></i>
-        <h4 class="mt-3 mb-2">${pageTitle} is a ${planName} feature</h4>
-        <p class="text-muted small mb-3">Upgrade to the ${planName} plan or higher to unlock this page and its data.</p>
+        <h4 class="mt-3 mb-2">${STSafe.html(pageTitle)} is a ${STSafe.html(planName)} feature</h4>
+        <p class="text-muted small mb-3">Upgrade to the ${STSafe.html(planName)} plan or higher to unlock this page and its data.</p>
         <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
       </div>
     </div>`;
@@ -202,8 +202,8 @@ async function populateMarketSelect(selectEl, opts = {}) {
   const { includeAll = false, allLabel = 'All Markets', allValue = '', selected = null } = opts;
   const prior = selected ?? selectEl.value;
   const registry = await loadMarketsRegistry();
-  const optionsHtml = registry.map(m => `<option value="${m.key}">${m.label}</option>`).join('');
-  selectEl.innerHTML = (includeAll ? `<option value="${allValue}">${allLabel}</option>` : '') + optionsHtml;
+  const optionsHtml = registry.map(m => `<option value="${STSafe.html(m.key)}">${STSafe.html(m.label)}</option>`).join('');
+  selectEl.innerHTML = (includeAll ? `<option value="${STSafe.html(allValue)}">${STSafe.html(allLabel)}</option>` : '') + optionsHtml;
   if (prior) selectEl.value = prior;
 }
 
@@ -401,13 +401,15 @@ const Toast = {
     if (!container) return;
     const icons   = { success: 'check-circle-fill', error: 'x-circle-fill', warning: 'exclamation-triangle-fill', info: 'info-circle-fill' };
     const colors  = { success: 'var(--green)', error: 'var(--red)', warning: 'var(--yellow)', info: 'var(--accent)' };
+    const safeType = icons[type] ? type : 'info';
     const el = document.createElement('div');
     el.className = 'toast smart-toast show';
     el.innerHTML = `<div class="toast-body d-flex align-items-center gap-2">
-      <i class="bi bi-${icons[type]}" style="color:${colors[type]}"></i>
-      <span>${message}</span>
+      <i class="bi bi-${icons[safeType]}" style="color:${colors[safeType]}"></i>
+      <span></span>
       <button type="button" class="btn-close btn-close-white ms-auto" onclick="this.closest('.toast').remove()"></button>
     </div>`;
+    el.querySelector('span').textContent = String(message ?? '');
     container.appendChild(el);
     setTimeout(() => el.remove(), duration);
   },
@@ -458,15 +460,20 @@ const Notifications = {
       // cards in light theme, the same bug class fixed elsewhere for
       // tables/badges but missed in this widget).
       listEl.innerHTML = data.notifications.map(n => `
-        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${n.id}" onclick="Notifications.markRead(${n.id})" style="cursor:pointer">
-          <div class="fw-semibold" style="font-size:13px;color:var(--text-primary)">${n.title}</div>
-          <div style="font-size:12px;color:var(--text-secondary)">${n.message}</div>
+        <div class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${STSafe.html(STSafe.assetId(n.id))}" style="cursor:pointer">
+          <div class="fw-semibold" style="font-size:13px;color:var(--text-primary)">${STSafe.html(n.title)}</div>
+          <div style="font-size:12px;color:var(--text-secondary)">${STSafe.html(n.message)}</div>
           <div class="mt-1" style="font-size:11px;color:var(--text-muted)">${formatTime(n.created_at)}</div>
         </div>`).join('');
+      listEl.querySelectorAll('.notif-item').forEach(item => {
+        item.addEventListener('click', () => this.markRead(item.dataset.id));
+      });
     }
   },
   async markRead(id) {
-    await API.put(`/notifications/${id}/read`, {});
+    const notificationId = STSafe.assetId(id);
+    if (!notificationId) return;
+    await API.put(`/notifications/${notificationId}/read`, {});
     this.load();
   },
   async markAllRead() {
@@ -508,8 +515,8 @@ const Ticker = {
     return items.map(item => {
       const cls   = item.change_pct >= 0 ? 'up' : 'down';
       const arrow = item.change_pct >= 0 ? '▲' : '▼';
-      return `<span class="ticker-item" data-symbol="${item.symbol}">
-        <span class="ticker-symbol">${item.symbol}</span>
+      return `<span class="ticker-item" data-symbol="${STSafe.html(item.symbol)}">
+        <span class="ticker-symbol">${STSafe.html(item.symbol)}</span>
         <span class="ticker-price"> ${formatPrice(item.price)}</span>
         <span class="ticker-change ${cls}"> ${arrow}${Math.abs(item.change_pct).toFixed(2)}%</span>
       </span>`;
@@ -565,7 +572,8 @@ const Ticker = {
     const track = document.getElementById('tickerTrack');
     if (!track) return;
     // Update the specific ticker item DOM (no full re-render — avoids scroll reset)
-    track.querySelectorAll(`[data-symbol="${tick.symbol}"]`).forEach(el => {
+    track.querySelectorAll('.ticker-item').forEach(el => {
+      if (el.dataset.symbol !== tick.symbol) return;
       const cls   = tick.change_pct >= 0 ? 'up' : 'down';
       const arrow = tick.change_pct >= 0 ? '▲' : '▼';
       el.querySelector('.ticker-price').textContent  = ' ' + formatPrice(tick.price);

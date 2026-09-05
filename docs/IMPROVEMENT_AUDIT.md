@@ -782,6 +782,14 @@ Markets and Morning Briefing now share a small UI safety layer for provider/data
 
 **Regression evidence:** Overview and News rendering safety checks passed (**4 passed**), all changed JavaScript files passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**289 passed** in 113.41s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.53 IMPLEMENTED — Harden shared notifications, ticker and command palette
+
+The global notification dropdown and toast system now render server messages as text rather than HTML. Ticker symbols are escaped and live updates match DOM nodes through their dataset instead of interpolating a provider value into a CSS selector. The command palette now validates asset IDs and escapes asset names, so the shared navigation surface is safe across authenticated pages.
+
+**Risk level:** High cross-page trust/security value, low UX/API risk (notification interactions and ticker updates retain their existing behavior). **Affected modules:** `frontend/static/js/app.js`, `frontend/templates/partials/base.html`, `tests/unit/test_global_ui_safety.py`. **Migration:** none.
+
+**Regression evidence:** Global UI safety checks passed (**6 passed**), `app.js` passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**291 passed** in 115.49s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -940,5 +948,10 @@ Markets and Morning Briefing now share a small UI safety layer for provider/data
 - `frontend/static/js/pages/markets.js` — escape live signal, opportunity, heatmap, news and event values; use safe links instead of inline navigation.
 - `frontend/static/js/pages/briefing.js` — escape movers, levels, headlines, economic events and insight text; validate asset IDs and article URLs.
 - `tests/unit/test_market_briefing_template_safety.py` — protect the overview rendering contract.
+
+**Session 32 (UI security — global widget rendering safety):**
+- `frontend/static/js/app.js` — render toast/notification text safely, protect ticker symbol rendering and selector matching, and sanitize market registry options.
+- `frontend/templates/partials/base.html` — escape and validate lazy-loaded command-palette asset entries.
+- `tests/unit/test_global_ui_safety.py` — protect shared widget and navigation rendering contracts.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

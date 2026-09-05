@@ -686,9 +686,9 @@ function toggleNavGroup(header) {
       const data = await API.get('/assets/');
       const assets = data?.assets || [];
       assetsWrap.innerHTML = assets.map(a => `
-        <a href="/asset/${a.id}" class="cmd-item cmd-item-asset">
+        <a href="${STSafe.assetHref(a.id)}" class="cmd-item cmd-item-asset">
           <i class="bi bi-graph-up-arrow"></i>
-          <span class="cmd-item-label">${a.symbol}<span class="cmd-item-sub">${a.name || ''}</span></span>
+          <span class="cmd-item-label">${STSafe.html(a.symbol)}<span class="cmd-item-sub">${STSafe.html(a.name || '')}</span></span>
         </a>`).join('');
       // Newly-added DOM nodes need to join the same filter/keyboard-nav
       // pool the static items use.
