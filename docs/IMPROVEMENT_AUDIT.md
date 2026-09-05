@@ -404,7 +404,7 @@ Portfolio add/update routes now require JSON objects, normalize symbols, and val
 
 **Risk level:** High safety value, low compatibility risk (valid inputs and explicit clearing remain supported). **Affected modules:** `app/api/v1/portfolio.py`, `tests/integration/test_risk_routes.py`, `tests/unit/test_portfolio_input_validation.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `174862c`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **170 passed** in 45.20s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
