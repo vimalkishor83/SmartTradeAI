@@ -1177,11 +1177,20 @@ def _frozen_live_read(asset, timeframe, df):
     Freezes analyze()'s BUY/SELL output the first time it's computed for
     this asset+timeframe and keeps serving that exact snapshot — only
     current_price stays live — until either the hypothetical trade would
-    have actually resolved (price reaches the frozen stop-loss or final
-    target, the same condition that would close a real persisted signal)
-    or the timeframe's normal signal-validity window elapses. HOLD reads
-    have no entry/stop/target numbers to freeze, so they're always
-    computed fresh.
+    have actually resolved (price reaches the frozen stop-loss or FINAL
+    target/target3) or the cache entry's own TTL (matched to the
+    timeframe's signal-validity window) expires and a fresh read replaces
+    it. NOTE: this is a deliberately stricter bar than a real persisted
+    Signal, which closes as soon as target1 is hit (see
+    app/tasks/data_tasks.py::_check_outcome) — a card that reaches
+    target1 but not target3 keeps showing that same frozen setup rather
+    than refreshing into a new one. That's the right behavior for what's
+    *displayed* (don't reshuffle a card's plan just because it partially
+    played out), but it means LiveReadLog.outcome (see live_read_performance()
+    below) is NOT computed on the same criteria as real Signal outcomes and
+    the two win rates are not apples-to-apples — see that function's
+    docstring. HOLD reads have no entry/stop/target numbers to freeze, so
+    they're always computed fresh.
     """
     close = float(df["close"].iloc[-1])
     # The OHLCV candle's own close only moves when a candle actually
@@ -1262,8 +1271,9 @@ def _open_live_read_log(asset, timeframe, result):
 
 def _close_live_read_log(log_id, exit_price, direction, stop_loss):
     """Marks a still-open LiveReadLog resolved once price actually reaches
-    its frozen stop-loss or final target — same win/loss condition that
-    would close a real persisted signal."""
+    its frozen stop-loss or final target (target3 — see _frozen_live_read's
+    docstring for why this is a stricter, non-comparable bar than the
+    target1-based close a real persisted Signal uses)."""
     if not log_id:
         return
     try:
@@ -2079,7 +2089,19 @@ def live_read_performance():
     fallback, tracked in LiveReadLog — see _frozen_live_read) actually call
     it, separate from real generated-signal performance above. Useful for
     judging whether the board's "at a glance" reads are trustworthy on
-    their own, not just as a stand-in for a real signal."""
+    their own, not just as a stand-in for a real signal.
+
+    IMPORTANT — this win_rate is NOT directly comparable to the real-signal
+    win rate shown elsewhere on the same page: a LiveReadLog only resolves
+    (and can only count as a win) once price reaches target3, the final/
+    hardest target, whereas a real Signal is marked a win at target1 (see
+    _frozen_live_read's docstring). A read that reaches target1 or target2
+    and then reverses counts as neither a win nor a loss here — it just
+    sits in `open` until its cache entry ages out, uncounted in win_rate's
+    denominator, rather than resolving as an "expired" outcome the way a
+    real Signal's `_check_outcome` does. Do not use this number to claim
+    an overall platform accuracy figure without this caveat attached.
+    """
     from app.models.live_read_log import LiveReadLog
 
     total = LiveReadLog.query.count()
