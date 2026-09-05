@@ -6,6 +6,7 @@ from app.auth.decorators import login_required, premium_required, subscription_f
 from app.services.ai.predictor import ai_predictor
 from app.services.ai.prediction_records import build_prediction_record
 from app.services.data.fetcher import market_fetcher
+from app.services.data.quality import assess_data_quality
 from app.services.backtest.validation import parse_timeframe
 from sqlalchemy import case, func
 from datetime import datetime, timedelta
@@ -96,6 +97,7 @@ def get_prediction(asset_id):
     if df is None:
         return jsonify({"error": "Data unavailable"}), 503
 
+    data_quality = assess_data_quality(df, asset.market, timeframe)
     result = ai_predictor.predict(df, asset.symbol, timeframe)
 
     # A neutral fallback is not a trained prediction and must not enter the
@@ -105,6 +107,7 @@ def get_prediction(asset_id):
             "asset_id": asset.id,
             "timeframe": timeframe,
             **result,
+            "data_quality": data_quality,
             "warming_up": True,
         }), 202
 
@@ -114,6 +117,7 @@ def get_prediction(asset_id):
         result=result,
         entry_price=float(df["close"].iloc[-1]),
         valid_until=datetime.utcnow() + timedelta(hours=4),
+        data_quality=data_quality,
     )
     db.session.add(pred)
     db.session.commit()

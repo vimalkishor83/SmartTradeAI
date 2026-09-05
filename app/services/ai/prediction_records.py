@@ -12,6 +12,7 @@ def build_prediction_record(
     result: dict,
     entry_price: float,
     valid_until: datetime,
+    data_quality: dict | None = None,
 ) -> Prediction:
     """Map one predictor result into the canonical database representation."""
     return Prediction(
@@ -19,6 +20,7 @@ def build_prediction_record(
         timeframe=timeframe,
         model_name=result["model_name"],
         model_version=result.get("model_version"),
+        data_quality=data_quality,
         bullish_probability=result["bullish_probability"],
         bearish_probability=result["bearish_probability"],
         predicted_direction=result["predicted_direction"],

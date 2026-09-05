@@ -29,7 +29,9 @@ def test_prediction_record_maps_model_version_from_predictor_result():
     )
 
     assert prediction.model_version == "ensemble-calibrated-v1"
+    prediction.data_quality = {"status": "GREEN", "candle_count": 220}
     assert prediction.to_dict()["model_version"] == "ensemble-calibrated-v1"
+    assert prediction.to_dict()["data_quality"]["status"] == "GREEN"
 
 
 def test_legacy_prediction_serializes_missing_model_version_explicitly():
@@ -41,3 +43,4 @@ def test_legacy_prediction_serializes_missing_model_version_explicitly():
     )
 
     assert prediction.to_dict()["model_version"] is None
+    assert prediction.to_dict()["data_quality"] is None

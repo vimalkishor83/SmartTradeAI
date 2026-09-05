@@ -16,6 +16,8 @@ class Prediction(db.Model):
     # Immutable identifier for the calibrated model contract that produced
     # this row. Legacy predictions remain readable with this value as NULL.
     model_version = db.Column(db.String(50))
+    # Snapshot of the candles' integrity/freshness at prediction time.
+    data_quality = db.Column(db.JSON)
     bullish_probability = db.Column(db.Float)
     bearish_probability = db.Column(db.Float)
     predicted_direction = db.Column(db.String(10))  # bullish, bearish, neutral
@@ -54,6 +56,7 @@ class Prediction(db.Model):
             "timeframe": self.timeframe,
             "model_name": self.model_name,
             "model_version": self.model_version,
+            "data_quality": self.data_quality,
             "bullish_probability": self.bullish_probability,
             "bearish_probability": self.bearish_probability,
             "predicted_direction": self.predicted_direction,

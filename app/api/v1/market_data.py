@@ -461,14 +461,16 @@ def ai_summary():
     from app.models.user import UserAssetPreference
     from app.services.ai.predictor import ai_predictor
     from app.services.ai.prediction_records import build_prediction_record
+    from app.services.data.quality import assess_data_quality
     from datetime import datetime, timedelta
 
     user   = get_current_user()
     market = request.args.get("market") or "all"
 
     # ── Serve from pre-warmed global cache (near-instant) ────────
-    # v2 prevents Redis from serving the pre-versioning payload indefinitely.
-    global_ai = cache.get("ai_summary_all:v2")
+    # v3 prevents Redis from serving payloads created before data-quality
+    # context was added to each AI summary cell.
+    global_ai = cache.get("ai_summary_all:v3")
     if global_ai:
         prefs = {p.asset_id: p.enabled
                  for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
@@ -531,6 +533,7 @@ def ai_summary():
                 row["tf"][tf] = {
                     "direction":    p["predicted_direction"],
                     "model_version": p.get("model_version"),
+                    "data_quality": p.get("data_quality"),
                     "confidence":   round(float(p["confidence"]),          1),
                     "bullish_prob": round(float(p["bullish_probability"]),  1),
                     "bearish_prob": round(float(p["bearish_probability"]),  1),
@@ -539,6 +542,7 @@ def ai_summary():
             df = all_data.get(asset.symbol, {}).get(tf)
             try:
                 # predictor handles None / short df internally, returns neutral default
+                data_quality = assess_data_quality(df, asset.market, tf)
                 result = ai_predictor.predict(df, asset.symbol, tf)
                 # A real model version is required before this can affect
                 # historical validation or the cached prediction history.
@@ -549,19 +553,21 @@ def ai_summary():
                         result=result,
                         entry_price=float(df["close"].iloc[-1]),
                         valid_until=datetime.utcnow() + timedelta(hours=4),
+                        data_quality=data_quality,
                     )
                     db.session.add(pred)
                 # Values from predictor are already 0–100
                 row["tf"][tf] = {
                     "direction":    result["predicted_direction"],
                     "model_version": result.get("model_version"),
+                    "data_quality": data_quality,
                     "confidence":   round(float(result["confidence"]),         1),
                     "bullish_prob": round(float(result["bullish_probability"]), 1),
                     "bearish_prob": round(float(result["bearish_probability"]), 1),
                 }
             except Exception as e:
                 logger.error(f"AI summary cell failed [{asset.symbol}/{tf}]: {e}", exc_info=True)
-                row["tf"][tf] = {"direction": "neutral", "model_version": None, "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
+                row["tf"][tf] = {"direction": "neutral", "model_version": None, "data_quality": None, "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
         return row
 
     # Sequential, not ThreadPoolExecutor — cached sklearn model objects
@@ -586,7 +592,7 @@ def ai_summary():
     # cold-path re-cache (hit on a miss before the scheduler first runs)
     # was still using the old 150s, undoing that fix until the next
     # scheduled prewarm ran.
-    cache.set("ai_summary_all:v2", payload, timeout=1980)
+    cache.set("ai_summary_all:v3", payload, timeout=1980)
     return jsonify(payload), 200
 
 

@@ -210,6 +210,16 @@ function buildResultCard(tf, data) {
   const modelVersion = data.model_version
     ? escapePredictionMeta(data.model_version)
     : 'unavailable (legacy or fallback)';
+  const quality = data.data_quality;
+  const qualityStatus = String(quality?.status || 'UNKNOWN').toUpperCase();
+  const qualityColor = qualityStatus === 'GREEN' ? 'var(--green)' : qualityStatus === 'YELLOW' ? 'var(--yellow)' : qualityStatus === 'RED' ? 'var(--red)' : 'var(--text-muted)';
+  const qualityAge = Number(quality?.last_candle_age_seconds);
+  const qualityDetail = quality
+    ? `${Number(quality.candle_count || 0)} candles${Number.isFinite(qualityAge) ? ` · latest ${Math.max(0, qualityAge / 60).toFixed(0)} min old` : ''}`
+    : 'Unavailable for legacy prediction';
+  const qualityIssue = quality?.issues?.length
+    ? `<div style="font-size:10px;color:${qualityColor};margin-top:3px">${escapePredictionMeta(quality.issues[0])}</div>`
+    : '';
   const history = data.historical_context;
   const historyHtml = history ? `
     <div class="mt-3 pt-2" style="border-top:1px solid var(--border)">
@@ -268,6 +278,13 @@ function buildResultCard(tf, data) {
         </div>
       </div>` : ''}
     </div>` : ''}
+
+    <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)">
+      <span>Input quality</span>
+      <span style="font-weight:800;color:${qualityColor};margin-left:4px">${escapePredictionMeta(qualityStatus)}</span>
+      <span style="margin-left:4px">· ${escapePredictionMeta(qualityDetail)}</span>
+      ${qualityIssue}
+    </div>
 
     <div class="mt-2" style="font-size:10px;color:var(--text-muted)">
       Model: ${modelName} · Version: ${modelVersion}<br>
