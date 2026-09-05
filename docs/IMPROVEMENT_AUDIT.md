@@ -478,6 +478,14 @@ The per-asset AI prediction endpoint now validates its timeframe against the can
 
 **Regression evidence:** Focused prediction tests passed locally (**4 passed**); the full local suite passed with **213 passed** in 119.47s. Production deployment completed on 2026-09-05 from `61684f2`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: prediction-timeframe-20260905`, the deployed prediction tests passed (**4 passed** in 7.31s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.15 IMPLEMENTED — Move model-performance aggregation into the database
+
+The model-performance endpoint now calculates overall, timeframe, asset, model, and 30-day trend statistics with SQL aggregates instead of loading every evaluated prediction row into Python. The asset query returns only the top 20 groups needed by the UI, empty summaries are cached consistently, and the prediction evaluator invalidates the summary cache when new outcomes are committed.
+
+**Risk level:** Medium performance and freshness value, low API compatibility risk (response keys and calculations are preserved; no model or schema change). **Affected modules:** `app/api/v1/predictions.py`, `app/tasks/data_tasks.py`, `tests/integration/test_model_performance_route.py`. **Migration:** none.
+
+**Regression evidence:** Focused model-performance tests passed locally (**2 passed**); the full local suite and production verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

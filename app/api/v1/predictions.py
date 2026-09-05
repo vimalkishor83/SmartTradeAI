@@ -6,7 +6,7 @@ from app.auth.decorators import login_required, premium_required, subscription_f
 from app.services.ai.predictor import ai_predictor
 from app.services.data.fetcher import market_fetcher
 from app.services.backtest.validation import parse_timeframe
-from sqlalchemy import func
+from sqlalchemy import case, func
 from datetime import datetime, timedelta
 
 predictions_bp = Blueprint("predictions", __name__)
@@ -115,6 +115,24 @@ def get_prediction(asset_id):
     return jsonify(_prediction_response(pred)), 200
 
 
+def _empty_model_performance() -> dict:
+    return {
+        "overall": {"total": 0, "correct": 0, "accuracy": 0},
+        "by_timeframe": {},
+        "by_asset": [],
+        "by_model": {},
+        "trend": [],
+    }
+
+
+def _correct_count_expr():
+    """Build a portable SQL expression for boolean prediction outcomes."""
+    return func.coalesce(
+        func.sum(case((Prediction.was_correct.is_(True), 1), else_=0)),
+        0,
+    )
+
+
 @predictions_bp.route("/model-performance", methods=["GET"])
 @login_required
 def model_performance():
@@ -122,125 +140,132 @@ def model_performance():
     Aggregate accuracy stats for the model performance dashboard.
     Returns per-asset × per-timeframe accuracy, overall stats, and a
     rolling 30-day accuracy trend (daily buckets).
+
+    All aggregation happens in the database. The previous implementation
+    hydrated every evaluated prediction into Python before calculating five
+    views, which made response memory and latency grow with table size.
     """
     cached = cache.get("model_perf_stats")
-    if cached:
+    if cached is not None:
         return jsonify(cached), 200
 
-    # Only count evaluated predictions (was_correct is not null). Pull just
-    # the columns the aggregations below use — avoids hydrating full Prediction
-    # ORM rows (incl. the features_used JSON) for what can be a large table.
-    evaluated = (Prediction.query
-                 .filter(Prediction.was_correct != None)
-                 .with_entities(Prediction.asset_id, Prediction.timeframe,
-                                Prediction.was_correct, Prediction.model_name,
-                                Prediction.evaluated_at)
-                 .all())
+    resolved = Prediction.was_correct.isnot(None)
+    overall_row = (db.session.query(
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved).one())
+    total = int(overall_row.total or 0)
+    correct = int(overall_row.correct or 0)
 
-    if not evaluated:
-        return jsonify({
-            "overall": {"total": 0, "correct": 0, "accuracy": 0},
-            "by_timeframe": {},
-            "by_asset": [],
-            "by_model": {},
-            "trend": [],
-        }), 200
+    if not total:
+        payload = _empty_model_performance()
+        cache.set("model_perf_stats", payload, timeout=600)
+        return jsonify(payload), 200
 
-    asset_ids = {p.asset_id for p in evaluated}
-    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
-
-    # Overall
-    total   = len(evaluated)
-    correct = sum(1 for p in evaluated if p.was_correct)
-    acc_pct = round(correct / total * 100, 1) if total else 0
-
-    # By timeframe
-    tf_stats: dict[str, dict] = {}
-    for p in evaluated:
-        tf = p.timeframe
-        if tf not in tf_stats:
-            tf_stats[tf] = {"total": 0, "correct": 0}
-        tf_stats[tf]["total"] += 1
-        if p.was_correct:
-            tf_stats[tf]["correct"] += 1
-    by_timeframe = {
-        tf: {
-            "total":    s["total"],
-            "correct":  s["correct"],
-            "accuracy": round(s["correct"] / s["total"] * 100, 1) if s["total"] else 0,
+    by_timeframe = {}
+    timeframe_rows = (db.session.query(
+        Prediction.timeframe.label("timeframe"),
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved)
+     .group_by(Prediction.timeframe)
+     .order_by(Prediction.timeframe.asc())
+     .all())
+    for row in timeframe_rows:
+        row_total = int(row.total or 0)
+        row_correct = int(row.correct or 0)
+        by_timeframe[row.timeframe] = {
+            "total": row_total,
+            "correct": row_correct,
+            "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
         }
-        for tf, s in sorted(tf_stats.items())
-    }
 
-    # By asset (top 20 by sample count)
-    asset_stats: dict[int, dict] = {}
-    for p in evaluated:
-        aid = p.asset_id
-        if aid not in asset_stats:
-            asset_stats[aid] = {"total": 0, "correct": 0}
-        asset_stats[aid]["total"] += 1
-        if p.was_correct:
-            asset_stats[aid]["correct"] += 1
+    # Ask the database for only the top 20 assets before loading display names.
+    asset_rows = (db.session.query(
+        Prediction.asset_id.label("asset_id"),
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved)
+     .group_by(Prediction.asset_id)
+     .order_by(func.count(Prediction.id).desc(), Prediction.asset_id.asc())
+     .limit(20)
+     .all())
+    asset_ids = [row.asset_id for row in asset_rows]
+    assets_map = {}
+    if asset_ids:
+        assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
+
     by_asset = []
-    for aid, s in sorted(asset_stats.items(), key=lambda x: -x[1]["total"])[:20]:
-        a = assets_map.get(aid)
-        if not a:
+    for row in asset_rows:
+        asset = assets_map.get(row.asset_id)
+        if not asset:
             continue
+        row_total = int(row.total or 0)
+        row_correct = int(row.correct or 0)
         by_asset.append({
-            "asset_id": aid,
-            "symbol":   a.symbol,
-            "name":     a.name,
-            "market":   a.market,
-            "total":    s["total"],
-            "correct":  s["correct"],
-            "accuracy": round(s["correct"] / s["total"] * 100, 1) if s["total"] else 0,
+            "asset_id": row.asset_id,
+            "symbol": asset.symbol,
+            "name": asset.name,
+            "market": asset.market,
+            "total": row_total,
+            "correct": row_correct,
+            "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
         })
 
-    # By model
-    model_stats: dict[str, dict] = {}
-    for p in evaluated:
-        m = p.model_name or "unknown"
-        if m not in model_stats:
-            model_stats[m] = {"total": 0, "correct": 0}
-        model_stats[m]["total"] += 1
-        if p.was_correct:
-            model_stats[m]["correct"] += 1
-    by_model = {
-        m: {
-            "total":    s["total"],
-            "correct":  s["correct"],
-            "accuracy": round(s["correct"] / s["total"] * 100, 1) if s["total"] else 0,
+    model_expr = func.coalesce(func.nullif(Prediction.model_name, ""), "unknown")
+    by_model = {}
+    model_rows = (db.session.query(
+        model_expr.label("model"),
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved)
+     .group_by(model_expr)
+     .order_by(model_expr.asc())
+     .all())
+    for row in model_rows:
+        row_total = int(row.total or 0)
+        row_correct = int(row.correct or 0)
+        by_model[row.model] = {
+            "total": row_total,
+            "correct": row_correct,
+            "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
         }
-        for m, s in model_stats.items()
-    }
 
-    # 30-day daily trend
+    # Group only the 30-day window needed by the chart instead of transferring
+    # the complete history just to discard older rows in Python.
     cutoff = datetime.utcnow() - timedelta(days=30)
-    recent = [p for p in evaluated if p.evaluated_at and p.evaluated_at >= cutoff]
-    daily: dict[str, dict] = {}
-    for p in recent:
-        day = p.evaluated_at.strftime("%Y-%m-%d")
-        if day not in daily:
-            daily[day] = {"total": 0, "correct": 0}
-        daily[day]["total"] += 1
-        if p.was_correct:
-            daily[day]["correct"] += 1
-    trend = [
-        {
-            "date":     d,
-            "total":    s["total"],
-            "correct":  s["correct"],
-            "accuracy": round(s["correct"] / s["total"] * 100, 1) if s["total"] else 0,
-        }
-        for d, s in sorted(daily.items())
-    ]
+    day_expr = func.date(Prediction.evaluated_at)
+    trend_rows = (db.session.query(
+        day_expr.label("day"),
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(
+        resolved,
+        Prediction.evaluated_at.isnot(None),
+        Prediction.evaluated_at >= cutoff,
+    ).group_by(day_expr).order_by(day_expr.asc()).all())
+    trend = []
+    for row in trend_rows:
+        row_total = int(row.total or 0)
+        row_correct = int(row.correct or 0)
+        day = row.day.date() if isinstance(row.day, datetime) else row.day
+        trend.append({
+            "date": day.isoformat() if hasattr(day, "isoformat") else str(day),
+            "total": row_total,
+            "correct": row_correct,
+            "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
+        })
 
     payload = {
-        "overall":      {"total": total, "correct": correct, "accuracy": acc_pct},
+        "overall": {
+            "total": total,
+            "correct": correct,
+            "accuracy": round(correct / total * 100, 1) if total else 0,
+        },
         "by_timeframe": by_timeframe,
-        "by_asset":     by_asset,
-        "by_model":     by_model,
-        "trend":        trend,
+        "by_asset": by_asset,
+        "by_model": by_model,
+        "trend": trend,
     }
     cache.set("model_perf_stats", payload, timeout=600)
     return jsonify(payload), 200

@@ -569,7 +569,7 @@ def evaluate_expired_predictions(app):
         from app.models.prediction import Prediction
         from app.models.asset import Asset
         from app.services.data.fetcher import market_fetcher
-        from app.extensions import db
+        from app.extensions import db, cache
         from datetime import datetime, timedelta
 
         # Predictions that expired but haven't been evaluated yet
@@ -638,6 +638,7 @@ def evaluate_expired_predictions(app):
             db.session.commit()
             evaluated = sum(1 for p in unevaluated if p.evaluated_at is not None)
             if evaluated:
+                cache.delete("model_perf_stats")
                 logger.info(f"Evaluated {evaluated} expired predictions")
         except Exception:
             db.session.rollback()
