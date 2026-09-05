@@ -35,10 +35,10 @@
 <!-- ── Context View ──────────────────────────────────────────────────────── -->
 <div id="contextView">
   <div class="row g-3" id="contextGrid">
-    <div class="col-12 text-center py-5 text-muted">
+    <div class="col-12"><div class="section-card text-center py-5 text-muted">
       <i class="bi bi-hourglass-split d-block mb-2" style="font-size:32px"></i>
       Loading context data…
-    </div>
+    </div></div>
   </div>
 </div>
 
@@ -190,16 +190,16 @@ document.getElementById('createWl').addEventListener('click', async () => {
 /* ── Context View ──────────────────────────────────── */
 async function loadContextView() {
   const grid = document.getElementById('contextGrid');
-  grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+  grid.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">
     <div class="spinner-border spinner-border-sm me-2"></div> Fetching live context…
-  </div>`;
+  </div></div>`;
 
   const data = await API.get('/watchlist/context');
   if (!data?.context?.length) {
-    grid.innerHTML = `<div class="col-12 text-center py-5 text-muted">
+    grid.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">
       <i class="bi bi-star d-block mb-2" style="font-size:40px;color:var(--border)"></i>
       No watchlist items yet. Add some assets to see context.
-    </div>`;
+    </div></div>`;
     return;
   }
 
