@@ -1,5 +1,7 @@
 """Tests for truthful ensemble-member probability output."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -67,3 +69,47 @@ def test_model_artifact_path_changes_with_training_contract(monkeypatch):
     monkeypatch.setattr(predictor_module, "AI_MODEL_VERSION", "test-contract-v3")
 
     assert predictor_module._model_path("rf_SYMBOL_1h") != original_path
+
+
+def test_model_save_publishes_completed_artifact_atomically(monkeypatch, tmp_path):
+    import joblib
+
+    target = tmp_path / "artifact.pkl"
+    monkeypatch.setattr(predictor_module, "_model_path", lambda _key: target)
+    replacements = []
+    real_replace = predictor_module.os.replace
+
+    def record_replace(source, destination):
+        replacements.append((Path(source), Path(destination)))
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(predictor_module.os, "replace", record_replace)
+
+    predictor_module._save_model("artifact", {"value": 42})
+
+    assert joblib.load(target) == {"value": 42}
+    assert len(replacements) == 1
+    source, destination = replacements[0]
+    assert source.parent == target.parent
+    assert source != target
+    assert destination == target
+    assert not source.exists()
+
+
+def test_model_save_cleans_temporary_artifact_after_serialization_failure(
+    monkeypatch, tmp_path,
+):
+    import joblib
+
+    target = tmp_path / "artifact.pkl"
+    target.write_bytes(b"existing-artifact")
+    monkeypatch.setattr(predictor_module, "_model_path", lambda _key: target)
+
+    def fail_dump(_model, _path):
+        raise OSError("simulated disk failure")
+
+    monkeypatch.setattr(joblib, "dump", fail_dump)
+    predictor_module._save_model("artifact", {"value": 42})
+
+    assert target.read_bytes() == b"existing-artifact"
+    assert list(tmp_path.glob(f".{target.name}.*.tmp")) == []

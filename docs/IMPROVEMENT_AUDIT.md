@@ -710,6 +710,14 @@ The model-performance response now reports the evaluated actual-outcome mix (bul
 
 **Regression evidence:** Focused model-performance tests passed (**2 passed**), Python compilation, JavaScript syntax and whitespace validation passed, and the full local regression suite passed (**275 passed** in 109.63s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.44 IMPLEMENTED — Publish AI model artifacts atomically
+
+AI model saves now serialize to a same-directory temporary file and publish with `os.replace()` only after serialization completes. Concurrent API readers therefore see either the previous complete artifact or the new complete artifact, never a partially written pickle; if serialization fails, the existing last-known-good artifact is preserved and the temporary file is removed.
+
+**Risk level:** High reliability value, low inference/API risk (artifact format and model selection are unchanged). **Affected modules:** `app/services/ai/predictor.py`, `tests/unit/test_prediction_model_outputs.py`. **Migration:** none.
+
+**Regression evidence:** Focused predictor/readiness/split tests passed (**8 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**277 passed** in 108.32s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -829,5 +837,9 @@ The model-performance response now reports the evaluated actual-outcome mix (bul
 - `app/api/v1/predictions.py` — aggregate evaluated bullish/bearish/neutral/unknown outcomes and decisive directional accuracy in SQL.
 - `frontend/templates/dashboard/model_performance.html` — show neutral sample count and decisive accuracy alongside the existing coverage caveat.
 - `tests/integration/test_model_performance_route.py` — verify outcome composition, decisive accuracy and the empty response contract.
+
+**Session 23 (ML reliability — atomic model artifact publication):**
+- `app/services/ai/predictor.py` — serialize models to a same-directory temporary file and publish with `os.replace`, preserving the last good artifact when serialization fails.
+- `tests/unit/test_prediction_model_outputs.py` — verify completed-file publication, target replacement and temporary-file cleanup on failure.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

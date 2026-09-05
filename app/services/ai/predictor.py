@@ -13,6 +13,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -353,14 +354,31 @@ def _models_ready(cache_key: str) -> bool:
 
 
 def _save_model(key: str, model):
+    temp_path = None
     try:
         import joblib
         p = _model_path(key)
-        joblib.dump(model, p)
+        # Publish only after serialization completes so readers never load a
+        # partially written artifact during a concurrent retrain.
+        with tempfile.NamedTemporaryFile(
+            dir=p.parent,
+            prefix=f".{p.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as temp_file:
+            temp_path = Path(temp_file.name)
+        joblib.dump(model, temp_path)
+        os.replace(temp_path, p)
+        temp_path = None
         with _model_mem_cache_lock:
             _model_mem_cache.pop(p, None)
     except Exception as e:
         logger.debug(f"Model save failed [{key}]: {e}")
+        if temp_path is not None:
+            try:
+                temp_path.unlink()
+            except OSError:
+                pass
 
 
 # ─────────────────────────────────────────────────────────────────────────────
