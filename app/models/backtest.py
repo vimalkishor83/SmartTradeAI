@@ -29,6 +29,7 @@ class Backtest(db.Model):
     max_drawdown = db.Column(db.Float, default=0)
     sharpe_ratio = db.Column(db.Float, default=0)
     sortino_ratio = db.Column(db.Float, default=0)
+    recovery_factor = db.Column(db.Float, default=0)
     profit_factor = db.Column(db.Float, default=0)
     avg_win = db.Column(db.Float, default=0)
     avg_loss = db.Column(db.Float, default=0)
@@ -81,6 +82,7 @@ class Backtest(db.Model):
             "max_drawdown": self.max_drawdown,
             "sharpe_ratio":    self.sharpe_ratio,
             "sortino_ratio":   self.sortino_ratio,
+            "recovery_factor": self.recovery_factor,
             "profit_factor":   self.profit_factor,
             "avg_win":         self.avg_win,
             "avg_loss":        self.avg_loss,

@@ -303,6 +303,15 @@ function showResults(data, isLive) {
     { label: 'Sharpe Ratio',  value: typeof sharpe === 'number' ? sharpe.toFixed(2) : sharpe,
       cls: parseFloat(sharpe) >= 1 ? 'text-green' : '' },
   ];
+  if (!isLive) {
+    const recovery = Number(data.recovery_factor || 0);
+    kpis.push({
+      label: 'Recovery Factor',
+      value: recovery >= 999 ? '∞' : recovery.toFixed(2),
+      cls: recovery > 1 ? 'text-green' : recovery > 0 ? 'text-yellow' : 'text-red',
+      sub: recovery >= 999 ? 'No observed drawdown' : 'Net profit / max drawdown',
+    });
+  }
 
   const costSummary = !isLive ? `
     <div class="col-12">

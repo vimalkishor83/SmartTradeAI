@@ -14,6 +14,7 @@ Improvements over original:
   9. Separate MAE/MFE tracked per trade (max adverse / max favourable excursion)
  10. Sortino ratio added to stats (penalises only downside volatility)
  11. Optional full bid/ask spread applied as half-spread adverse movement per fill
+ 12. Risk ratios use realized per-bar equity returns; recovery factor is explicit
 """
 from __future__ import annotations
 
@@ -489,6 +490,7 @@ class BacktestEngine:
                 "total_trades": 0, "winning_trades": 0, "losing_trades": 0,
                 "win_rate": 0, "net_profit": 0, "net_profit_pct": 0,
                 "max_drawdown": 0, "sharpe_ratio": 0, "sortino_ratio": 0,
+                "recovery_factor": 0,
                 "profit_factor": 0, "avg_win": 0, "avg_loss": 0,
                 "avg_bars_held": 0, "total_commission": 0, "total_slippage": 0,
                 "total_spread": 0, "commission_pct": commission * 100,
@@ -533,11 +535,19 @@ class BacktestEngine:
         total_spread   = sum(t.get("spread_cost", 0) for t in trades)
         avg_hold       = float(np.mean([t.get("bars_held", 0) for t in stat_trades]))
 
-        # Equity drawdown
+        # Equity drawdown in both percentage and account-currency terms.
         eq = pd.Series(equity)
         rolling_max  = eq.cummax()
         drawdown     = (eq - rolling_max) / rolling_max
         max_drawdown = float(drawdown.min() * 100)
+        max_drawdown_amount = float((rolling_max - eq).max())
+        if max_drawdown_amount > 0:
+            recovery_factor = net_profit / max_drawdown_amount
+        else:
+            # A positive return with no observed drawdown has no finite
+            # recovery denominator; use the same explicit cap as the
+            # existing no-loss profit-factor contract.
+            recovery_factor = 999.0 if net_profit > 0 else 0.0
 
         # Exit reason breakdown — per consolidated signal (a signal that
         # took a T1 partial then hit its final stop is "stop_loss", the
@@ -548,18 +558,10 @@ class BacktestEngine:
             r = t.get("exit_reason", "unknown")
             reasons[r] = reasons.get(r, 0) + 1
 
-        # Annualised Sharpe and Sortino — per-signal returns, not per-fill.
-        ret_series = pd.Series([t["pnl_pct"] for t in stat_trades])
-        bars_per_year = _bars_per_year(timeframe)
-        if len(ret_series) > 1 and ret_series.std() > 0:
-            sharpe = float(ret_series.mean() / ret_series.std()) * np.sqrt(bars_per_year)
-        else:
-            sharpe = 0.0
-        downside = ret_series[ret_series < 0]
-        if len(downside) > 1 and downside.std() > 0:
-            sortino = float(ret_series.mean() / downside.std()) * np.sqrt(bars_per_year)
-        else:
-            sortino = 0.0
+        # Annualized risk ratios use realized per-bar equity returns. The
+        # prior implementation annualized per-trade returns with a per-candle
+        # factor, which mixed observation frequencies and inflated ratios.
+        sharpe, sortino = _annualized_risk_metrics(equity, timeframe)
 
         return {
             "total_trades":     len(stat_trades),
@@ -571,6 +573,7 @@ class BacktestEngine:
             "max_drawdown":     round(max_drawdown, 2),
             "sharpe_ratio":     round(sharpe, 2),
             "sortino_ratio":    round(sortino, 2),
+            "recovery_factor":  round(min(recovery_factor, 999), 2),
             "profit_factor":    round(min(profit_factor, 999), 2),
             "avg_win":          round(avg_win, 2),
             "avg_loss":         round(avg_loss, 2),
@@ -649,6 +652,42 @@ def _bars_per_year(timeframe: str) -> float:
         "1h": 8_760,   "2h": 4_380,   "4h": 2_190,   "1d": 252,
     }
     return float(mapping.get(timeframe, 252))
+
+
+def _annualized_risk_metrics(equity: list, timeframe: str) -> tuple[float, float]:
+    """Return Sharpe and zero-target Sortino from realized bar returns.
+
+    The engine's equity curve is sampled once per input candle. Using that
+    same frequency for both the return series and annualisation factor keeps
+    the ratio units consistent. A risk-free rate is intentionally not
+    assumed; these are excess returns relative to zero.
+    """
+    values = pd.to_numeric(pd.Series(equity), errors="coerce")
+    values = values[np.isfinite(values)]
+    if len(values) < 3:
+        return 0.0, 0.0
+
+    previous = values.shift(1)
+    returns = ((values - previous) / previous).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(returns) < 2:
+        return 0.0, 0.0
+
+    mean_return = float(returns.mean())
+    volatility = float(returns.std(ddof=1))
+    annualization = np.sqrt(_bars_per_year(timeframe))
+    sharpe = mean_return / volatility * annualization if volatility > 0 else 0.0
+
+    # Downside deviation is the RMS of negative returns across the full
+    # sample, not the standard deviation of the negative subset. This keeps
+    # positive/flat bars in the denominator and avoids a small-sample bias.
+    downside = np.minimum(returns.to_numpy(dtype=float), 0.0)
+    downside_deviation = float(np.sqrt(np.mean(np.square(downside))))
+    if downside_deviation > 0:
+        sortino = mean_return / downside_deviation * annualization
+    else:
+        sortino = 999.0 if mean_return > 0 else 0.0
+
+    return float(sharpe), float(sortino)
 
 
 backtest_engine = BacktestEngine()

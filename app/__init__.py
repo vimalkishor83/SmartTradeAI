@@ -464,6 +464,7 @@ def _migrate_columns(app):
         ("users",      "risk_per_trade_pct",   "REAL    DEFAULT 1.0"),
         ("users",      "min_confidence_filter","INTEGER DEFAULT 60"),
         ("backtests",  "sortino_ratio",        "REAL    DEFAULT 0"),
+        ("backtests",  "recovery_factor",      "REAL    DEFAULT 0"),
         ("backtests",  "avg_bars_held",        "REAL    DEFAULT 0"),
         ("backtests",  "total_commission",     "REAL    DEFAULT 0"),
         ("backtests",  "total_slippage",       "REAL    DEFAULT 0"),

@@ -2,7 +2,7 @@
 
 **Status:** Living document. Started as Phase 0 of a structured production-hardening pass; updated as each subsequent phase's investigation and fixes land. Every entry below is based on reading the actual code and, where marked, verifying behavior live on the production server — not on the platform's design intent or documentation claims.
 
-**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass)
+**Last updated:** 2026-09-06 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass)
 
 Phase 0 architecture and sequencing artifacts are maintained in [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) and [`docs/ENTERPRISE_TRANSFORMATION_PLAN.md`](ENTERPRISE_TRANSFORMATION_PLAN.md). They describe the current implementation and do not imply that planned AI, calibration, observability or frontend capabilities already exist.
 
@@ -345,9 +345,9 @@ Admin user, session, audit-log and system-log endpoints now reuse the shared pag
 
 ## 7. Remaining P0/P1 items from the full 16-phase spec (not started)
 
-This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix), and one concrete Phase 5 item (Evidence/Counter-Evidence in the AI Decision Inspector). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), the strategy backtest cost and risk-metric audit, one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix), and one concrete Phase 5 item (Evidence/Counter-Evidence in the AI Decision Inspector). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
 
-- Phase 1 (remainder): commission/slippage/spread modeling audit, Sharpe/Sortino/recovery-factor calculation audit, reproducibility metadata (backtest ID, engine version, model version) on every result, walk-forward's unweighted window averaging (§2.8).
+- Phase 1 (remainder): signal-lifecycle reproducibility metadata (engine/model versions on generated live signals) and the remaining high-impact calculation decisions not covered by the strategy-config engine audit.
 - Phase 2 (remainder): see §3.3 above.
 - Phase 3 (remainder): see §4.6 above.
 - Phase 4 (remainder): see §5.3 above.
@@ -581,6 +581,14 @@ Strategy-config backtests now accept an optional full-spread assumption, default
 **Risk level:** High measurement-integrity value, low compatibility risk (optional input defaults to zero; additive result fields and migration; existing default backtests keep their prior fill behavior). **Affected modules:** `app/services/backtest/validation.py`, `app/services/backtesting/engine.py`, `app/services/backtesting/walk_forward.py`, `app/services/backtesting/reproducibility.py`, `app/api/v1/backtesting.py`, `app/models/backtest.py`, `app/__init__.py`, `frontend/templates/dashboard/backtesting.html`, `migrations/versions/7f1a2b3c4d5e_add_backtest_spread_metrics.py`, `tests/unit/test_backtest_partial_exit_consolidation.py`, `tests/unit/test_backtest_request_validation.py`, `tests/integration/test_backtesting_request_boundary.py`, `tests/integration/test_backtest_metadata_route.py`. **Migration:** required; additive spread metrics are applied automatically at startup.
 
 **Regression evidence:** Spread fill direction, partial-exit allocation, request validation, route boundaries, persistence, and provenance tests passed locally (**37 passed**); the full local suite passed with **231 passed** in 134.61s. Production deployment completed on 2026-09-06 from `e7d1a6e`: Alembic reported `7f1a2b3c4d5e (head)`, the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: backtest-spread-20260906`, the safe deployed backtest unit subset passed (**29 passed** in 5.18s), and the fresh app/worker error scan had no application error, traceback, critical, exception, migration fallback, or duplicate-column output. The standalone Flask CLI inspection still emits the previously observed Eventlet context warnings, but they are outside the Gunicorn app/worker logs and did not prevent the migration from reaching head. A full integration suite was not run against production because it could mutate live services or data.
+
+### 7.28 IMPLEMENTED — Correct annualized risk ratios and add recovery factor
+
+The strategy-config backtest engine no longer annualizes per-trade percentage returns with a per-candle factor, which mixed incompatible observation frequencies and could materially inflate Sharpe and Sortino. Both ratios now use realized per-bar equity returns sampled at the input candle frequency; Sortino uses zero as its explicit target and downside RMS across the full return sample. The engine also reports a recovery factor (`net profit / maximum drawdown in account currency`), with an explicit `999` cap only for positive results with no observed drawdown. The field is persisted and shown in the strategy backtest UI; the live-signal walk-forward engine remains R-based and does not claim unsupported risk ratios.
+
+**Risk level:** High measurement-integrity value, medium compatibility impact (existing Sharpe/Sortino values may change because the prior units were incorrect; recovery factor is additive and capped for non-finite no-drawdown cases). **Affected modules:** `app/services/backtesting/engine.py`, `app/models/backtest.py`, `app/__init__.py`, `frontend/templates/dashboard/backtesting.html`, `migrations/versions/8a2b3c4d5e6f_add_backtest_recovery_factor.py`, `tests/unit/test_backtest_risk_metrics.py`. **Migration:** required; the additive nullable recovery metric is applied automatically at startup.
+
+**Regression evidence:** Equity-frequency Sharpe/Sortino, downside deviation, drawdown recovery, no-drawdown handling, backtest persistence, partial-exit, and request-boundary tests passed locally (**21 focused tests**); the full local suite passed with **234 passed** in 134.14s. Production deployment verification is pending for this slice. A full integration suite will not be run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
