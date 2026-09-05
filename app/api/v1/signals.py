@@ -7,6 +7,7 @@ from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
+from app.services.signals.provenance import build_signal_provenance
 from app.services.data.fetcher import market_fetcher
 from app.services.pagination import bounded_float, bounded_int, bounded_page, bounded_per_page
 from app.services.backtest.validation import (
@@ -266,6 +267,7 @@ def _run_auto_generate(app):
                     sig = Signal(
                         asset_id=asset.id,
                         timeframe=timeframe,
+                        **build_signal_provenance(df, source="automatic"),
                         **{k: v for k, v in result.items()
                            if k in ["signal_type","entry_price","stop_loss","target1","target2","target3",
                                     "risk_reward","confidence_score","confidence_label","trend_score",
@@ -1120,12 +1122,16 @@ def generate_signal():
     if not result:
         return jsonify({"error": "Could not generate signal — market conditions not met (low volatility or no clear direction)"}), 422
 
-    # AI boost
+    # AI boost. A neutral fallback is not a model result and must not be
+    # presented as one or change the rule-based score.
+    model_version = None
     try:
         from app.services.ai.predictor import ai_predictor
         prediction = ai_predictor.predict(df, asset.symbol, timeframe)
-        result["ai_score"] = prediction.get("confidence", 50) * 0.2
-        result["confidence_score"] = min(100, result["confidence_score"] + result["ai_score"] * 0.1)
+        model_version = prediction.get("model_version")
+        if model_version:
+            result["ai_score"] = prediction.get("confidence", 50) * 0.2
+            result["confidence_score"] = min(100, result["confidence_score"] + result["ai_score"] * 0.1)
     except Exception:
         pass
 
@@ -1138,6 +1144,7 @@ def generate_signal():
     signal = Signal(
         asset_id=asset.id,
         timeframe=timeframe,
+        **build_signal_provenance(df, source="manual", model_version=model_version),
         **{k: v for k, v in result.items()
            if k in ["signal_type", "entry_price", "stop_loss", "target1", "target2", "target3",
                     "risk_reward", "confidence_score", "confidence_label", "trend_score",

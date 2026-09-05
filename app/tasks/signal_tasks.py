@@ -54,6 +54,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
         from app.models.signal import Signal
         from app.extensions import db
         from app.services.signals.engine import signal_engine
+        from app.services.signals.provenance import build_signal_provenance
         from app.services.data.fetcher import market_fetcher, blocked_data_markets
 
         assets  = Asset.query.filter_by(is_active=True).all()
@@ -159,6 +160,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
             signal = Signal(
                 asset_id          = asset.id,
                 timeframe         = timeframe,
+                **build_signal_provenance(df, source="automatic"),
                 signal_type       = result["signal_type"],
                 entry_price       = result["entry_price"],
                 stop_loss         = result["stop_loss"],
@@ -178,6 +180,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 reasoning         = reasoning_text,
                 reasoning_detail  = result.get("reasoning_detail"),
                 regime            = result.get("regime"),
+                data_quality      = result.get("data_quality"),
                 expires_at        = result["expires_at"],
             )
             db.session.add(signal)

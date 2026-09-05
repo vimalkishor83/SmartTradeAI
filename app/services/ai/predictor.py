@@ -28,6 +28,7 @@ _MODEL_DIR.mkdir(parents=True, exist_ok=True)
 _RETRAIN_AFTER      = 86400   # 24 h — retrain if model file older than this
 _MIN_TRAIN_ROWS     = 100     # minimum rows after feature engineering
 _DIRECTION_THRESHOLD = 0.60   # bull/bear prob must exceed this to fire
+AI_MODEL_VERSION    = "ensemble-calibrated-v1"
 
 # In-process prediction cache TTL per timeframe (seconds)
 _PRED_TTL = {"1m":60,"5m":300,"15m":900,"30m":1800,"1h":3600,"2h":7200,"4h":14400,"1d":86400}
@@ -368,6 +369,7 @@ class AIPredictor:
             "predicted_direction": "neutral",
             "confidence": 50.0,
             "model_name": "ensemble",
+            "model_version": None,
             "predicted_target": None,
             "predicted_stop": None,
         }
@@ -446,6 +448,7 @@ class AIPredictor:
             "predicted_direction": direction,
             "confidence":          confidence,
             "model_name":          "ensemble+cal",
+            "model_version":       AI_MODEL_VERSION,
             "predicted_target":    round(close + atr * 1.5, 6) if direction == "bullish" else round(close - atr * 1.5, 6),
             "predicted_stop":      round(close - atr,       6) if direction == "bullish" else round(close + atr,       6),
         }

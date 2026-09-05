@@ -51,6 +51,16 @@ class Signal(db.Model):
     invalidation_conditions = db.Column(db.JSON, default=list)  # plain-language thesis-invalidation bullets
     target_allocations = db.Column(db.JSON, default=list)       # [{level, price, pct}, ...] partial-profit split
 
+    # Reproducibility provenance. Nullable so signals created before this
+    # contract was introduced remain readable and are visibly legacy rows.
+    generation_source = db.Column(db.String(20))  # automatic, manual
+    engine_version = db.Column(db.String(50))
+    model_version = db.Column(db.String(50))       # not_applicable for rules
+    data_fingerprint = db.Column(db.String(64))
+    data_candles = db.Column(db.Integer)
+    data_start = db.Column(db.DateTime)
+    data_end = db.Column(db.DateTime)
+
     generated_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -128,6 +138,15 @@ class Signal(db.Model):
             "lane_verdicts": self.lane_verdicts,
             "invalidation_conditions": self.invalidation_conditions,
             "target_allocations": self.target_allocations,
+            "reproducibility": {
+                "generation_source": self.generation_source,
+                "engine_version": self.engine_version,
+                "model_version": self.model_version,
+                "data_fingerprint": self.data_fingerprint,
+                "data_candles": self.data_candles,
+                "data_start": self.data_start.isoformat() if self.data_start else None,
+                "data_end": self.data_end.isoformat() if self.data_end else None,
+            },
             "generated_at": self.generated_at.isoformat(),
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }

@@ -478,6 +478,13 @@ def _migrate_columns(app):
         ("backtests",  "config_fingerprint",   "TEXT"),
         ("backtests",  "data_fingerprint",     "TEXT"),
         ("backtests",  "data_candles",         "INTEGER"),
+        ("signals",    "generation_source",    "TEXT"),
+        ("signals",    "engine_version",       "TEXT"),
+        ("signals",    "model_version",        "TEXT"),
+        ("signals",    "data_fingerprint",     "TEXT"),
+        ("signals",    "data_candles",         "INTEGER"),
+        ("signals",    "data_start",            "DATETIME"),
+        ("signals",    "data_end",              "DATETIME"),
         # 2FA columns
         ("users",      "totp_secret",          "TEXT"),
         ("users",      "totp_enabled",         "INTEGER DEFAULT 0"),
