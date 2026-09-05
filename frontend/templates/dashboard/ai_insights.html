@@ -183,6 +183,12 @@ function buildSkeletonCard(tf) {
   </div>`;
 }
 
+function escapePredictionMeta(value) {
+  return String(value).replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
 function buildResultCard(tf, data) {
   if (!data) {
     return `<div class="pred-card" id="predCard_${tf}">
@@ -200,6 +206,10 @@ function buildResultCard(tf, data) {
   const dirCls  = dir === 'bullish' ? 'bullish' : dir === 'bearish' ? 'bearish' : 'neutral';
   const dirClr  = dir === 'bullish' ? 'var(--green)' : dir === 'bearish' ? 'var(--red)' : 'var(--yellow)';
   const dirIcon = dir === 'bullish' ? 'bi-arrow-up-right' : dir === 'bearish' ? 'bi-arrow-down-right' : 'bi-dash';
+  const modelName = escapePredictionMeta(data.model_name || 'ensemble');
+  const modelVersion = data.model_version
+    ? escapePredictionMeta(data.model_version)
+    : 'unavailable (legacy or fallback)';
   const history = data.historical_context;
   const historyHtml = history ? `
     <div class="mt-3 pt-2" style="border-top:1px solid var(--border)">
@@ -260,7 +270,8 @@ function buildResultCard(tf, data) {
     </div>` : ''}
 
     <div class="mt-2" style="font-size:10px;color:var(--text-muted)">
-      Model: ${data.model_name || 'ensemble'}
+      Model: ${modelName} · Version: ${modelVersion}<br>
+      Probabilities are model outputs, not guaranteed outcomes.
     </div>
     ${historyHtml}
   </div>`;

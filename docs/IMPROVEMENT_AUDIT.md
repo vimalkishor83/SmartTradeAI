@@ -159,7 +159,7 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 - **"LSTM" was false** — it appeared in UI copy and a build script's pitch-document generator ("Random Forest + XGBoost + LightGBM + LSTM") but no LSTM/tensorflow/keras code exists anywhere in the repository. Fixed — see §3.2.
 - **The `confidence_score` shown on every regular, automatically-generated signal is rule-based technical scoring — it is not ML model output.** The real ML ensemble is only invoked by a separate, manual, super-admin-only endpoint (`POST /signals/generate`), which adds a small, explicitly labeled AI boost only when a real calibrated prediction is available. The former automatic `ai=10` placeholder was removed in §7.30 so automatic confidence is no longer inflated by a fabricated model component.
 - **A confidence-calibration system already exists** and is more mature than expected: `app/api/v1/signals.py::_confidence_calibration_bands()` buckets closed signals into Weak/Moderate/Strong/Very Strong bands and compares actual vs. expected win rate, rendered as a chart on the main dashboard. Separately, `/model-performance` tracks the AI predictor's own directional accuracy (not bucketed by confidence). **Important nuance for future work**: the calibration chart evaluates the *rule-based* `confidence_score`, which per the point above isn't an ML probability to begin with — worth keeping in mind before extending it further.
-- `/ai-insights` (the real ML-ensemble-backed page) shows a bare confidence percentage with zero accuracy-history or uncertainty context — not fixed this pass (flagged for §3.4).
+- `/ai-insights` (the real ML-ensemble-backed page) now shows bounded observed accuracy context beside the confidence percentage, plus the persisted model version when available; the contract and rollout are recorded in §7.31.
 
 ### 3.2 FIXED — Fabricated per-model attribution in the "AI Decision Inspector"
 
@@ -178,10 +178,10 @@ A second, related bug in the same function: the checklist's `['AI Model Agreemen
 
 **Risk level:** Low (frontend-only, no calculation logic changed — `confidence_score` itself, `trend_score`/`momentum_score`/etc. are untouched; only how they're *labeled and re-combined for display* changed). **Affected modules:** `frontend/static/js/pages/dashboard.js`, `frontend/templates/dashboard/ai_insights.html`, `frontend/templates/dashboard/ta_summary.html`, `scripts/build_pitch_document.py`. **Migration:** none. **Tests:** none added — this is a pure display/labeling fix with no new calculation logic to regression-test; existing 126 tests confirmed unaffected.
 
-### 3.3 Remaining Phase 2 items (not started)
+### 3.3 Remaining Phase 2 items
 
 - Evidence/Counter-Evidence/Data-Quality/Uncertainty sections for `/ai-insights` and the AI Decision Inspector (the spec's core ask) — not yet designed or built.
-- Historical-accuracy context alongside `/ai-insights`' bare confidence % (the existing `/model-performance` accuracy data could plausibly feed this without a new data pipeline — worth investigating first before building anything new).
+- Broader model-performance and calibration views remain separate from the per-asset/timeframe observed history now shown on `/ai-insights`; future work should reconcile these scopes without presenting them as interchangeable metrics.
 - Whether/how to redesign `_compute_confidence`'s broader weighting remains a product decision; the fabricated automatic AI component itself is removed in §7.30.
 - Model agreement (RF vs. XGBoost vs. LightGBM individually, not just the ensemble average) is not currently exposed anywhere — would require exposing `_ensemble_predict`'s per-model `predict_proba` outputs, not just the averaged result.
 - Market-regime confidence and data-freshness indicators near signals/AI insights — genuinely absent everywhere (confirmed via search), overlaps with Phase 3 (Data Quality) and Phase 4 (Signal lifecycle) — better tackled there.
@@ -606,6 +606,14 @@ Automatic signal generation now uses only the rule-based trend, momentum, volume
 
 **Regression evidence:** Local targeted signal-confidence, provenance and serialization tests passed (**7 passed**), and the full local suite passed with **240 passed** in 132.27s; JavaScript syntax/whitespace validation passed. Production app verification completed on 2026-09-06 from `3b9cb54` after the backend provenance release: the app health endpoint returned `HTTP 200` with `X-Request-ID: signal-provenance-ui-20260906`, the app was healthy, and the deployed Signals page source no longer contains the fabricated AI bar. No live signal was manually generated for verification because that endpoint writes production data and can invoke real model training.
 
+### 7.31 IMPLEMENTED — Persist AI prediction model versions and retire fallback history pollution
+
+AI predictions now persist the calibrated predictor version (`ensemble-calibrated-v1`) through the direct endpoint, batch AI summary, and scheduled prewarm writer. A shared prediction-record builder removes the former field-mapping duplication across those writers. Neutral or short-data predictor fallbacks remain available to the UI but are no longer written into validation history as trained-model predictions. The AI summary Redis key moved to `ai_summary_all:v2` so stale pre-versioning payloads cannot hide the new metadata. AI Insights now shows the model name, version availability, and an explicit reminder that probabilities are model outputs rather than guaranteed outcomes; legacy rows are labeled as version-unavailable rather than being rewritten with an invented version.
+
+**Risk level:** High auditability and measurement-integrity value, low compatibility risk (one additive nullable prediction column, additive response metadata, and an explicit 202 warming-up response for a predictor fallback). **Affected modules:** `app/models/prediction.py`, `app/services/ai/prediction_records.py`, `app/api/v1/predictions.py`, `app/api/v1/market_data.py`, `app/tasks/data_tasks.py`, `app/__init__.py`, `migrations/versions/ac4d5e6f7a8b_add_prediction_model_version.py`, `frontend/templates/dashboard/ai_insights.html`, `tests/unit/test_prediction_model_version.py`. **Migration:** required; the additive nullable prediction column is applied automatically at startup.
+
+**Regression evidence:** Focused model-version, history-context, and authenticated prediction-route tests passed (**6 passed**); Python compilation and whitespace validation passed; the full local suite passed with **242 passed** in 127.26s. Production deployment verification is pending for this slice; the safe plan is Alembic head inspection, health/compose checks, source verification, and the non-mutating deployed regression subset. A full production integration suite is intentionally not run because prediction generation and other integration paths can mutate live services or data.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -655,4 +663,12 @@ Automatic signal generation now uses only the rule-based trend, momentum, volume
 - `frontend/templates/dashboard/signals.html` — remove the duplicate fabricated AI score bar.
 - `tests/unit/test_signal_engine_confidence.py` — verify automatic scores exclude the placeholder and real manual AI input remains separate.
 
-**Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows also gained additive cost, reproducibility and risk fields. **API contract changes:** none breaking — `POST /backtesting/run` and `Signal.to_dict()` gained additive fields; no field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**
+**Session 10 (Phase 2 — prediction model-version provenance, §7.31):**
+- `app/models/prediction.py` — persist and serialize the calibrated AI model version; tolerate transient rows without a database-assigned timestamp during serialization.
+- `app/services/ai/prediction_records.py` — shared canonical mapper for all AI prediction writers.
+- `app/api/v1/predictions.py`, `app/api/v1/market_data.py`, `app/tasks/data_tasks.py` — carry model versions through direct, batch, and scheduled paths; do not persist neutral fallbacks; version the AI summary cache key.
+- `app/__init__.py`, `migrations/versions/ac4d5e6f7a8b_add_prediction_model_version.py` — additive SQLite fallback and Alembic migration.
+- `frontend/templates/dashboard/ai_insights.html` — show model/version provenance and probability caveat with escaped metadata.
+- `tests/unit/test_prediction_model_version.py` — model mapping and legacy serialization regression coverage.
+
+**Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**

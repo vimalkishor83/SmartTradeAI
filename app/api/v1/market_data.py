@@ -460,13 +460,15 @@ def ai_summary():
     from app.models.prediction import Prediction
     from app.models.user import UserAssetPreference
     from app.services.ai.predictor import ai_predictor
+    from app.services.ai.prediction_records import build_prediction_record
     from datetime import datetime, timedelta
 
     user   = get_current_user()
     market = request.args.get("market") or "all"
 
     # ── Serve from pre-warmed global cache (near-instant) ────────
-    global_ai = cache.get("ai_summary_all")
+    # v2 prevents Redis from serving the pre-versioning payload indefinitely.
+    global_ai = cache.get("ai_summary_all:v2")
     if global_ai:
         prefs = {p.asset_id: p.enabled
                  for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
@@ -528,6 +530,7 @@ def ai_summary():
                 # Values already stored as 0–100 in DB
                 row["tf"][tf] = {
                     "direction":    p["predicted_direction"],
+                    "model_version": p.get("model_version"),
                     "confidence":   round(float(p["confidence"]),          1),
                     "bullish_prob": round(float(p["bullish_probability"]),  1),
                     "bearish_prob": round(float(p["bearish_probability"]),  1),
@@ -537,31 +540,28 @@ def ai_summary():
             try:
                 # predictor handles None / short df internally, returns neutral default
                 result = ai_predictor.predict(df, asset.symbol, tf)
-                # Only persist to DB if we had real data (avoid saving default neutral)
-                if df is not None and len(df) >= 100:
-                    pred = Prediction(
-                        asset_id=asset.id, timeframe=tf,
-                        model_name=result["model_name"],
-                        bullish_probability=result["bullish_probability"],
-                        bearish_probability=result["bearish_probability"],
-                        predicted_direction=result["predicted_direction"],
-                        predicted_target=result.get("predicted_target"),
-                        predicted_stop=result.get("predicted_stop"),
+                # A real model version is required before this can affect
+                # historical validation or the cached prediction history.
+                if df is not None and len(df) >= 100 and result.get("model_version"):
+                    pred = build_prediction_record(
+                        asset_id=asset.id,
+                        timeframe=tf,
+                        result=result,
                         entry_price=float(df["close"].iloc[-1]),
-                        confidence=result["confidence"],
                         valid_until=datetime.utcnow() + timedelta(hours=4),
                     )
                     db.session.add(pred)
                 # Values from predictor are already 0–100
                 row["tf"][tf] = {
                     "direction":    result["predicted_direction"],
+                    "model_version": result.get("model_version"),
                     "confidence":   round(float(result["confidence"]),         1),
                     "bullish_prob": round(float(result["bullish_probability"]), 1),
                     "bearish_prob": round(float(result["bearish_probability"]), 1),
                 }
             except Exception as e:
                 logger.error(f"AI summary cell failed [{asset.symbol}/{tf}]: {e}", exc_info=True)
-                row["tf"][tf] = {"direction": "neutral", "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
+                row["tf"][tf] = {"direction": "neutral", "model_version": None, "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
         return row
 
     # Sequential, not ThreadPoolExecutor — cached sklearn model objects
@@ -586,7 +586,7 @@ def ai_summary():
     # cold-path re-cache (hit on a miss before the scheduler first runs)
     # was still using the old 150s, undoing that fix until the next
     # scheduled prewarm ran.
-    cache.set("ai_summary_all", payload, timeout=1980)
+    cache.set("ai_summary_all:v2", payload, timeout=1980)
     return jsonify(payload), 200
 
 

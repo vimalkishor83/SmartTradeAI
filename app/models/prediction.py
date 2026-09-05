@@ -13,6 +13,9 @@ class Prediction(db.Model):
     asset_id = db.Column(db.Integer, db.ForeignKey("assets.id"), nullable=False, index=True)
     timeframe = db.Column(db.String(10), nullable=False, index=True)
     model_name = db.Column(db.String(50))  # random_forest, xgboost, lgbm, lstm, ensemble
+    # Immutable identifier for the calibrated model contract that produced
+    # this row. Legacy predictions remain readable with this value as NULL.
+    model_version = db.Column(db.String(50))
     bullish_probability = db.Column(db.Float)
     bearish_probability = db.Column(db.Float)
     predicted_direction = db.Column(db.String(10))  # bullish, bearish, neutral
@@ -50,11 +53,12 @@ class Prediction(db.Model):
             "asset_id": self.asset_id,
             "timeframe": self.timeframe,
             "model_name": self.model_name,
+            "model_version": self.model_version,
             "bullish_probability": self.bullish_probability,
             "bearish_probability": self.bearish_probability,
             "predicted_direction": self.predicted_direction,
             "predicted_target": self.predicted_target,
             "entry_price": self.entry_price,
             "confidence": self.confidence,
-            "predicted_at": self.predicted_at.isoformat(),
+            "predicted_at": self.predicted_at.isoformat() if self.predicted_at else None,
         }

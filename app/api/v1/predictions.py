@@ -4,6 +4,7 @@ from app.models.prediction import Prediction
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, premium_required, subscription_feature_required
 from app.services.ai.predictor import ai_predictor
+from app.services.ai.prediction_records import build_prediction_record
 from app.services.data.fetcher import market_fetcher
 from app.services.backtest.validation import parse_timeframe
 from sqlalchemy import case, func
@@ -81,6 +82,7 @@ def get_prediction(asset_id):
             "asset_id":            asset.id,
             "timeframe":           timeframe,
             "model_name":          "warming_up",
+            "model_version":       None,
             "predicted_direction": "neutral",
             "bullish_probability": 50.0,
             "bearish_probability": 50.0,
@@ -96,17 +98,21 @@ def get_prediction(asset_id):
 
     result = ai_predictor.predict(df, asset.symbol, timeframe)
 
-    pred = Prediction(
+    # A neutral fallback is not a trained prediction and must not enter the
+    # validation history as though a model produced it.
+    if not result.get("model_version"):
+        return jsonify({
+            "asset_id": asset.id,
+            "timeframe": timeframe,
+            **result,
+            "warming_up": True,
+        }), 202
+
+    pred = build_prediction_record(
         asset_id=asset.id,
         timeframe=timeframe,
-        model_name=result["model_name"],
-        bullish_probability=result["bullish_probability"],
-        bearish_probability=result["bearish_probability"],
-        predicted_direction=result["predicted_direction"],
-        predicted_target=result["predicted_target"],
-        predicted_stop=result["predicted_stop"],
+        result=result,
         entry_price=float(df["close"].iloc[-1]),
-        confidence=result["confidence"],
         valid_until=datetime.utcnow() + timedelta(hours=4),
     )
     db.session.add(pred)

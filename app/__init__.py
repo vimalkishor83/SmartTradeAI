@@ -455,6 +455,7 @@ def _migrate_columns(app):
         ("users",      "approval_status",      "TEXT    DEFAULT 'approved'"),
         ("watchlist_items", "alert_set_at_price", "REAL"),
         ("predictions", "entry_price", "REAL"),
+        ("predictions", "model_version", "TEXT"),
         ("user_broker_credentials", "passphrase_encrypted", "TEXT"),
         ("watchlists",      "updated_at", "DATETIME"),
         ("watchlist_items", "updated_at", "DATETIME"),
