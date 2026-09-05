@@ -42,6 +42,10 @@ class Signal(db.Model):
     # Market regime at generation time (trend × volatility), e.g. "uptrend_normal"
     regime = db.Column(db.String(30))
 
+    # Snapshot of the market-data quality decision used to create this signal.
+    # Nullable so historical rows remain readable after the migration.
+    data_quality = db.Column(db.JSON, default=dict)
+
     # Deeepr-style position-analysis breakdown, snapshotted at generation time
     lane_verdicts = db.Column(db.JSON, default=dict)            # {technical, flow, narrative, macro, lanes_agreeing}
     invalidation_conditions = db.Column(db.JSON, default=list)  # plain-language thesis-invalidation bullets
@@ -120,6 +124,7 @@ class Signal(db.Model):
             "reasoning": self.reasoning,
             "reasoning_detail": self.reasoning_detail,
             "regime": self.regime,
+            "data_quality": self.data_quality,
             "lane_verdicts": self.lane_verdicts,
             "invalidation_conditions": self.invalidation_conditions,
             "target_allocations": self.target_allocations,

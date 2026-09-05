@@ -239,6 +239,14 @@ Covers: `_normalize_utc()` on naive/aware/equivalent-instant inputs; GREEN on fr
 - Persisting a `data_quality` status per generated `Signal` (would need a new DB column/migration — deliberately not added speculatively; the current fix enforces correctness via the gate itself without requiring a schema change) — worth doing once Phase 6 (Dashboard UX) needs to *display* freshness per signal.
 - The Yahoo-paused-for-all-4-non-crypto-markets operational finding above needs the user's decision, not a code fix.
 
+### 4.7 IMPLEMENTED — Persist data-quality context on generated signals
+
+The data-quality gate previously made the correct allow/block decision but discarded its result before persistence. Signals now snapshot the additive `data_quality` contract, including status, provider when known, candle count, expected interval, normalized last-candle timestamp, age and warnings. The field is nullable for historical rows, is serialized by `Signal.to_dict()`, and is included by automatic generation, manual generation and signal-journal responses. This gives the dashboard and terminal a trustworthy basis for freshness/integrity UI instead of reconstructing quality after the fact.
+
+**Risk level:** Medium (nullable JSON migration plus additive API field; existing rows and response fields remain compatible). **Affected modules:** `app/models/signal.py`, `app/services/signals/engine.py`, `app/api/v1/signals.py`, `migrations/versions/3b7c9d1e2f4a_add_data_quality_to_signals.py`, `tests/unit/test_signal_quality_contract.py`. **Migration:** add nullable `signals.data_quality`.
+
+**Regression evidence:** Full local unit baseline passed with **120 tests**. Production deployment verification is pending for this change.
+
 ---
 
 ## 5. Phase 4 — Signal Engine Hardening: findings and fixes

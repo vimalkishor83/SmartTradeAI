@@ -266,7 +266,7 @@ def _run_auto_generate(app):
                            if k in ["signal_type","entry_price","stop_loss","target1","target2","target3",
                                     "risk_reward","confidence_score","confidence_label","trend_score",
                                     "momentum_score","volume_score","pattern_score","ai_score",
-                                    "indicators","patterns","reasoning","reasoning_detail","regime","expires_at",
+                                    "indicators","patterns","reasoning","reasoning_detail","regime","data_quality","expires_at",
                                     "lane_verdicts","invalidation_conditions","target_allocations"]},
                     )
                     db.session.add(sig)
@@ -1055,7 +1055,7 @@ def generate_signal():
            if k in ["signal_type", "entry_price", "stop_loss", "target1", "target2", "target3",
                     "risk_reward", "confidence_score", "confidence_label", "trend_score",
                     "momentum_score", "volume_score", "pattern_score", "ai_score",
-                    "indicators", "patterns", "reasoning", "reasoning_detail", "regime", "expires_at",
+                    "indicators", "patterns", "reasoning", "reasoning_detail", "regime", "data_quality", "expires_at",
                     "lane_verdicts", "invalidation_conditions", "target_allocations"]},
     )
     signal.set_confidence_label()
@@ -1260,6 +1260,7 @@ def _open_live_read_log(asset, timeframe, result):
             target2=result.get("target2"), target3=result.get("target3"),
             reasoning=reasoning_text, reasoning_detail=result.get("reasoning_detail"),
             regime=result.get("regime"),
+            data_quality=result.get("data_quality"),
         )
         db.session.add(row)
         db.session.commit()
@@ -2195,7 +2196,7 @@ def signal_journal():
                 "entry_price": s.entry_price, "stop_loss": s.stop_loss,
                 "target1": s.target1, "target2": s.target2, "target3": s.target3,
                 "pnl_pct": s.pnl_pct, "reasoning": s.reasoning, "reasoning_detail": s.reasoning_detail,
-                "regime": s.regime, "status": s.status, "outcome": outcome,
+                "regime": s.regime, "data_quality": s.data_quality, "status": s.status, "outcome": outcome,
                 "generated_at": s.generated_at.isoformat() if s.generated_at else None,
                 "retrospective_note": _build_retrospective_note(s.signal_type, outcome, s.reasoning_detail),
             })
@@ -2218,7 +2219,7 @@ def signal_journal():
                 "entry_price": r.entry_price, "stop_loss": r.stop_loss,
                 "target1": r.target1, "target2": r.target2, "target3": r.target3,
                 "pnl_pct": None, "reasoning": r.reasoning, "reasoning_detail": r.reasoning_detail,
-                "regime": r.regime, "status": "open" if r.outcome is None else "closed", "outcome": r.outcome,
+                "regime": r.regime, "data_quality": getattr(r, "data_quality", None), "status": "open" if r.outcome is None else "closed", "outcome": r.outcome,
                 "generated_at": r.generated_at.isoformat() if r.generated_at else None,
                 "retrospective_note": _build_retrospective_note(r.signal_type, r.outcome, r.reasoning_detail),
             })

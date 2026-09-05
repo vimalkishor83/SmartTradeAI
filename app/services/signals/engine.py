@@ -210,6 +210,7 @@ class SignalEngine:
                 "volatility_regime": vol_regime,
                 "higher_tf_bias":    higher_bias,
                 "regime":            self._regime_label(higher_bias, vol_regime, raw_direction),
+                "data_quality":      quality,
                 "expires_at":        datetime.utcnow() + timedelta(minutes=expiry_min),
                 # ── Deeepr-style position-analysis packaging (additive only —
                 # does not affect direction/entry/stop/target math above) ──
