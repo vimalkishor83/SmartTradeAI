@@ -99,11 +99,25 @@ Below 20 decided trades, the Total Trades KPI now shows a "Small sample (&lt;20)
 
 **Not yet covered by tests:** the strategy-config engine's (`app/services/backtesting/engine.py`) equivalent stats function — see §2.6.
 
-### 2.6 NOT YET FIXED — Partial-TP double-counting in the strategy-config engine
+### 2.6 FIXED — Partial-TP double-counting in the strategy-config engine
 
-`app/services/backtesting/engine.py` (the *other* backtest engine, used by `POST /api/v1/backtesting/run`, not the walk-forward "Live Engine") appends a separate `trades` list entry for a T1 partial exit (line ~254, `outcome: "win"/"loss"`) **in addition to** the eventual full-close entry for the same underlying signal (lines ~274-286 / ~333-340). One live position can therefore become two rows in `_compute_stats`'s trade list, inflating both `total_trades` and the win/loss counts for what was actually a single trade. This does not itself produce a value outside 0-100% (win_rate is still `wins/total`, which stays bounded), but it does skew the *accuracy* of the reported win rate and total-trade count whenever a strategy uses partial take-profits.
+`app/services/backtesting/engine.py` (the *other* backtest engine, used by `POST /api/v1/backtesting/run`, not the walk-forward "Live Engine") appended a separate `trades` list entry for a T1 partial exit **in addition to** the eventual full-close entry for the same underlying signal. One live position became two rows in `_compute_stats`'s trade list, each classified win/loss *independently* — so a signal that banked a real gain at T1 and then gave a little back to a breakeven-minus-costs stop on the runner was reported as "1 win + 1 loss" instead of one net-profitable trade, inflating `total_trades` and skewing `win_rate`/`profit_factor`/`sharpe_ratio`/`sortino_ratio`/`avg_win`/`avg_loss` (all computed by iterating that same per-fill list) for any strategy using partial take-profits. This never produced an out-of-bounds value (win_rate stayed 0–100 by construction either way), which is why it's a distinct, subtler defect from §2.1 — but it directly skewed statistical accuracy, which Phase 1 explicitly calls out ("Correctly distinguish winning/losing/partially-successful trades").
 
-**Risk level:** Medium (silent statistical skew, not a crash or an impossible value — harder for a user to notice than the >100% bug, but affects trust in the "Multi-Indicator"/"EMA Crossover"/etc. strategy backtests specifically). **Affected modules:** `app/services/backtesting/engine.py`. **Proposed fix (not yet implemented):** track partial exits as a running-total adjustment on the *same* trade record rather than a separate list entry, only appending one final row per opened position once it's fully closed. **Migration:** none required (in-memory calculation change only, no schema impact) — needs careful test coverage before changing, since it affects every existing strategy-config backtest's reported numbers.
+**Fix:** every trade-list entry (partial exit, final close, and the end-of-data force-close) now carries an `entry_bar_index` linking it to the position it belongs to. A new `_consolidate_trades()` helper merges same-position legs into one logical trade (summed P&L/commission/slippage, `outcome` from the *net* P&L, `bars_held` = the full duration, `exit_reason` = what the position actually finished on) before `_compute_stats` computes any aggregate KPI. The raw per-fill rows are still returned verbatim in `trades_data` — this is a stats-aggregation fix only, no audit detail was removed.
+
+**Verified live** on production with a disposable test account and a real BTCUSDT/1h backtest, then deleted: the run produced 14 raw trade-list rows (partial + final legs) that correctly consolidated to **8 real signals** (`total_trades: 8`, `winning_trades: 7`, `losing_trades: 1`, `win_rate: 87.5%`) — confirming partial-TP exits do occur on real data and the consolidation logic groups them correctly rather than just passing synthetic test cases.
+
+**Risk level:** Medium (statistical-accuracy fix touching several aggregate KPIs at once — mitigated with 8 new unit tests before deploying, covering the single-leg pass-through case, partial-win+small-loss netting to one win, partial-win+bigger-loss netting to one loss, commission/slippage summation, independent positions staying separate, and a defensive case for rows with no linking key). **Affected modules:** `app/services/backtesting/engine.py`, `tests/unit/test_backtest_partial_exit_consolidation.py` (new, 8 tests). **Migration:** none (in-memory calculation only, no schema change) — existing `Backtest` rows already saved to the database retain their pre-fix numbers; only backtests run *after* this fix get the corrected consolidation.
+
+### 2.6a FIXED (found while fixing §2.6) — Non-live backtest chart and trade table were also always empty
+
+While fixing §2.6, found that `POST /api/v1/backtesting/run`'s response — which the Backtesting page's `showResults()` reads directly with no follow-up request — never included `equity_curve` or `trades_data`, even though `BacktestEngine._compute_stats()` computes both and the generic `setattr` loop in the `/run` handler already saves them to the `Backtest` row's columns. `Backtest.to_dict()` (used by this endpoint, by `list_backtests()`, and by `get_backtest()`) simply never serialized either field. `list_backtests()`'s existing, pre-existing pattern already worked around this correctly for the single-backtest detail view (`get_backtest()` manually bolts `equity_curve`/`trades_data` onto its response after calling `to_dict()`) — but `POST /run`'s handler didn't do the same, so the equity chart and full trade list were silently empty for **every** non-live/strategy-config backtest result, independent of and in addition to the §2.1/§2.2 live-engine bugs.
+
+**Fix:** `POST /run`'s handler now bolts on `equity_curve`/`trades_data` the same way `get_backtest()` already does. Deliberately did **not** add these two fields to `to_dict()` itself, since `list_backtests()` (up to 50 history rows) shares that method and would otherwise carry a full ~500-point equity curve + ~100-trade array per row it never displays — added `winning_trades`/`losing_trades` (cheap scalars) directly to `to_dict()` since those are safe for every caller.
+
+**Verified live**: the same test backtest above returned `equity_curve` (500 points) and `trades_data` (14 rows) in its `/run` response; the Backtesting page rendered the trade table with all 14 rows and a populated equity chart, both previously always empty.
+
+**Risk level:** Low (additive — restores previously-computed-but-undelivered data; `list_backtests()` payload size unaffected). **Affected modules:** `app/models/backtest.py`, `app/api/v1/backtesting.py`. **Migration:** none.
 
 ### 2.7 NOT A BUG — Look-ahead bias / future-data leakage
 
@@ -131,9 +145,17 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 
 ## 4. Files changed this pass
 
+**Session 1 (win-rate display bugs, §2.1–2.5):**
 - `frontend/templates/dashboard/backtesting.html` — win-rate double-multiplication fix, `sample_trades`/`trades_data` key fix, zero-trade empty state, min-sample-size warning.
 - `app/api/v1/signals.py` — `sample_trades`/`trades_data` key fix in the `/signals/backtest` trade-normalization loop.
 - `tests/unit/test_backtest_win_rate.py` — new, 9 tests.
+
+**Session 2 (partial-TP consolidation, §2.6–2.6a):**
+- `app/services/backtesting/engine.py` — `entry_bar_index`/`leg_units` linking fields on every trade-list append site, new `_consolidate_trades()` helper, `_compute_stats()` now computes aggregate KPIs from consolidated (per-signal) trades while `trades_data` stays raw (per-fill).
+- `app/models/backtest.py` — `winning_trades`/`losing_trades` added to `to_dict()`.
+- `app/api/v1/backtesting.py` — `POST /run` now includes `equity_curve`/`trades_data` in its response, matching `get_backtest()`'s existing pattern.
+- `tests/unit/test_backtest_partial_exit_consolidation.py` — new, 8 tests.
+
 - `docs/IMPROVEMENT_AUDIT.md` — this file.
 
-**Database changes:** none. **API contract changes:** none (response schemas unchanged; only which existing fields the consumers read was fixed). **No destructive migration. No new credentials or secrets introduced.**
+**Database changes:** none — no schema/migration in either session; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. **No destructive migration. No new credentials or secrets introduced.**

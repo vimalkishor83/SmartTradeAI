@@ -253,6 +253,15 @@ class BacktestEngine:
                         "slippage_cost":round(abs(partial_fill - exit_price) * partial_units, 2),
                         "outcome":      "win" if partial_net > 0 else "loss",
                         "date":         str(df.index[i]) if hasattr(df.index[i], "__str__") else str(i),
+                        # Links this leg to its eventual final-close leg (same
+                        # entry_bar_index) so _compute_stats can consolidate
+                        # one signal's two fills into one logical trade for
+                        # win_rate/total_trades/etc, instead of double-counting
+                        # a single profitable signal as "1 win + 1 loss" when
+                        # the remainder later closes at a small breakeven-minus-
+                        # costs loss. See _consolidate_trades().
+                        "entry_bar_index": position["bar_index"],
+                        "leg_units":       partial_units,
                     })
                     # Shrink the remaining position — the rest still tracks
                     # toward T2/breakeven-SL/timeout with the smaller size.
@@ -283,6 +292,8 @@ class BacktestEngine:
                         "slippage_cost":round(position["slippage_cost"] + abs(exit_fill - exit_price) * position["units"], 2),
                         "outcome":      "win" if net_pnl > 0 else "loss",
                         "date":         str(df.index[i]) if hasattr(df.index[i], "__str__") else str(i),
+                        "entry_bar_index": position["bar_index"],
+                        "leg_units":       position["units"],
                     })
                     position = None
 
@@ -337,6 +348,8 @@ class BacktestEngine:
                 "pnl": round(net_pnl, 2), "commission": round(comm_cost + position["entry_commission"], 2),
                 "slippage_cost": 0.0, "outcome": "win" if net_pnl > 0 else "loss",
                 "date": str(df.index[-1]),
+                "entry_bar_index": position["bar_index"],
+                "leg_units":       position["units"],
             })
             equity.append(round(capital, 2))
 
@@ -429,13 +442,27 @@ class BacktestEngine:
                 "equity_curve": equity[-500:], "trades_data": [],
             }
 
-        wins   = [t for t in trades if t["outcome"] == "win"]
-        losses = [t for t in trades if t["outcome"] == "loss"]
+        # A single signal that scales out 50% at T1 (see _manage_position)
+        # appends TWO rows to `trades`: the T1 partial fill, then the
+        # eventual close of the remaining half. Every aggregate stat below
+        # (win_rate, total_trades, avg_win/loss, profit_factor, sharpe,
+        # sortino) must describe *signals*, not *fills* — otherwise a single
+        # net-profitable signal that banked a real gain at T1 and then gave
+        # a few points back to a breakeven-minus-costs stop on the runner
+        # gets counted as "1 win + 1 loss", silently understating the
+        # strategy's true win rate. _consolidate_trades merges same-position
+        # legs into one logical trade for every stat computed from here on;
+        # `trades_data` below still returns the raw, per-fill rows verbatim
+        # so the trade-list UI keeps showing both legs for full audit detail.
+        stat_trades = _consolidate_trades(trades)
+
+        wins   = [t for t in stat_trades if t["outcome"] == "win"]
+        losses = [t for t in stat_trades if t["outcome"] == "loss"]
 
         final_capital = equity[-1]
         net_profit    = final_capital - initial_capital
         net_pct       = (net_profit / initial_capital) * 100
-        win_rate      = len(wins) / len(trades) * 100
+        win_rate      = len(wins) / len(stat_trades) * 100
 
         avg_win  = float(np.mean([t["pnl_pct"] for t in wins]))   if wins   else 0
         avg_loss = float(np.mean([t["pnl_pct"] for t in losses]))  if losses else 0
@@ -444,9 +471,12 @@ class BacktestEngine:
         gross_losses = abs(sum(t["pnl"] for t in losses))
         profit_factor = (gross_wins / gross_losses) if gross_losses > 0 else 999.0
 
+        # Commission/slippage are additive regardless of how a position's
+        # fills get grouped, so summing the raw per-fill rows here gives the
+        # identical (and simpler-to-verify) total to summing stat_trades.
         total_comm     = sum(t.get("commission", 0)    for t in trades)
         total_slippage = sum(t.get("slippage_cost", 0) for t in trades)
-        avg_hold       = float(np.mean([t.get("bars_held", 0) for t in trades]))
+        avg_hold       = float(np.mean([t.get("bars_held", 0) for t in stat_trades]))
 
         # Equity drawdown
         eq = pd.Series(equity)
@@ -454,14 +484,17 @@ class BacktestEngine:
         drawdown     = (eq - rolling_max) / rolling_max
         max_drawdown = float(drawdown.min() * 100)
 
-        # Exit reason breakdown
+        # Exit reason breakdown — per consolidated signal (a signal that
+        # took a T1 partial then hit its final stop is "stop_loss", the
+        # reason it actually finished on, not double-counted as both
+        # "target1_partial" and "stop_loss").
         reasons: dict[str, int] = {}
-        for t in trades:
+        for t in stat_trades:
             r = t.get("exit_reason", "unknown")
             reasons[r] = reasons.get(r, 0) + 1
 
-        # Annualised Sharpe and Sortino
-        ret_series = pd.Series([t["pnl_pct"] for t in trades])
+        # Annualised Sharpe and Sortino — per-signal returns, not per-fill.
+        ret_series = pd.Series([t["pnl_pct"] for t in stat_trades])
         bars_per_year = _bars_per_year(timeframe)
         if len(ret_series) > 1 and ret_series.std() > 0:
             sharpe = float(ret_series.mean() / ret_series.std()) * np.sqrt(bars_per_year)
@@ -474,7 +507,7 @@ class BacktestEngine:
             sortino = 0.0
 
         return {
-            "total_trades":     len(trades),
+            "total_trades":     len(stat_trades),
             "winning_trades":   len(wins),
             "losing_trades":    len(losses),
             "win_rate":         round(win_rate, 1),
@@ -498,6 +531,53 @@ class BacktestEngine:
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
+
+def _consolidate_trades(trades: list[dict]) -> list[dict]:
+    """Merge a T1-partial-exit leg with its eventual final-close leg (same
+    `entry_bar_index` — set on every trade dict appended in run_backtest())
+    into one logical trade, so aggregate stats describe signals rather than
+    fills. A trade with no partial exit (the common case) has exactly one
+    leg and passes through unchanged. Rows with no `entry_bar_index` at all
+    (should not happen for trades produced by this engine, but tolerated
+    defensively) are each treated as their own single-leg trade rather than
+    silently dropped or incorrectly grouped together under a shared `None` key.
+    """
+    by_position: dict[Any, list[dict]] = {}
+    solo: list[dict] = []
+    for t in trades:
+        key = t.get("entry_bar_index")
+        if key is None:
+            solo.append(t)
+        else:
+            by_position.setdefault(key, []).append(t)
+
+    consolidated: list[dict] = list(solo)
+    for legs in by_position.values():
+        if len(legs) == 1:
+            consolidated.append(legs[0])
+            continue
+        total_pnl  = sum(l["pnl"] for l in legs)
+        total_comm = sum(l.get("commission", 0) for l in legs)
+        total_slip = sum(l.get("slippage_cost", 0) for l in legs)
+        total_units = sum(l.get("leg_units", 0) for l in legs) or 1
+        entry_price = legs[0]["entry"]  # identical across every leg of one position
+        final_leg = legs[-1]            # last-appended leg is the one that actually closed the position
+        consolidated.append({
+            "entry":        entry_price,
+            "exit":         final_leg["exit"],
+            "type":         final_leg["type"],
+            "bars_held":    max(l["bars_held"] for l in legs),
+            "exit_reason":  final_leg["exit_reason"],
+            "pnl_pct":      round(total_pnl / (entry_price * total_units) * 100, 3) if entry_price else 0.0,
+            "pnl":          round(total_pnl, 2),
+            "commission":   round(total_comm, 2),
+            "slippage_cost":round(total_slip, 2),
+            "outcome":      "win" if total_pnl > 0 else "loss",
+            "date":         final_leg["date"],
+            "had_partial_exit": True,
+        })
+    return consolidated
+
 
 def _opposite(direction: str) -> str:
     return "SELL" if direction == "BUY" else "BUY"

@@ -108,7 +108,19 @@ def run_backtest():
             setattr(bt, k, v)
 
     db.session.commit()
-    return jsonify(bt.to_dict()), 200
+    # equity_curve/trades_data are stored on the row (assigned via the
+    # setattr loop above) but deliberately excluded from to_dict() — see
+    # Backtest.to_dict()'s comment — since list_backtests() uses the same
+    # method for up to 50 history rows. This is the single-result-just-ran
+    # response the Backtesting page's chart and trade table read directly,
+    # so it needs the detail fields the same way get_backtest() already
+    # bolts them on for a saved backtest's detail view. Without this, both
+    # were silently always empty for every non-live/strategy-config
+    # backtest despite the data existing in the database the whole time.
+    response = bt.to_dict()
+    response["equity_curve"] = bt.equity_curve
+    response["trades_data"] = bt.trades_data
+    return jsonify(response), 200
 
 
 @backtesting_bp.route("/walk-forward", methods=["POST"])

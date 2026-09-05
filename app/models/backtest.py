@@ -54,6 +54,17 @@ class Backtest(db.Model):
             "timeframe": self.timeframe,
             "status": self.status,
             "total_trades": self.total_trades,
+            # winning_trades/losing_trades are cheap scalars, safe to always
+            # include. equity_curve/trades_data are NOT included here on
+            # purpose — list_backtests() (up to 50 rows) calls this same
+            # to_dict(), and each history row would otherwise carry a full
+            # ~500-point equity curve + ~100-trade array it never displays.
+            # Those two heavy fields are bolted onto the response only where
+            # a caller actually shows chart/trade detail for ONE backtest —
+            # see get_backtest() below (pre-existing pattern) and
+            # POST /backtesting/run (fixed alongside this).
+            "winning_trades": self.winning_trades,
+            "losing_trades": self.losing_trades,
             "win_rate": self.win_rate,
             "net_profit": self.net_profit,
             "net_profit_pct": self.net_profit_pct,
