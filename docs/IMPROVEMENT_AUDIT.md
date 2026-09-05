@@ -430,6 +430,14 @@ Signal listing now normalizes `min_confidence` to a finite `0..100` range, while
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `f0c25bc`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **173 passed** in 45.60s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 6.4 IMPLEMENTED — Add keyboard-accessible dashboard navigation
+
+The primary dashboard shell now provides a skip-to-content link, a labeled navigation landmark, semantic button controls for all six collapsible sidebar groups, and synchronized `aria-expanded` state as groups open/close. The notification bell and toast container also expose explicit accessible semantics. This improves keyboard navigation and makes navigation/state changes discoverable to assistive technology without changing the visual workflow.
+
+**Risk level:** Low (semantic/accessibility markup and state attributes; existing click behavior is preserved). **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/app.js`, `frontend/static/css/main.css`, `tests/unit/test_dashboard_accessibility.py`. **Migration:** none.
+
+**Regression evidence:** Jinja template parsing, JavaScript syntax validation, static accessibility checks, and whitespace validation passed locally. Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
