@@ -147,7 +147,7 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 
 **Risk level:** Low (rejects invalid input and normalizes new records only). **Affected modules:** `app/auth/routes.py`, `tests/unit/test_registration_validation.py`. **Migration:** none.
 
-**Regression evidence:** Four unit tests cover normalization, invalid usernames, short passwords, malformed emails, missing fields and the no-write behavior for invalid input. Production deployment verification is pending for this Phase 1 change.
+**Regression evidence:** Four unit tests cover normalization, invalid usernames, short passwords, malformed emails, missing fields and the no-write behavior for invalid input. Production deployment verification completed on 2026-09-05: the app container's full suite reported `154 passed`, the live health endpoint returned `HTTP 200`, the root page returned `HTTP 200`, and the recent app/worker log scan contained no traceback/error matches. The registration tests use isolated client IPs so Redis-backed rate limiting cannot mask validation responses.
 
 ---
 
