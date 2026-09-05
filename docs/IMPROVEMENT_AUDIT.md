@@ -806,6 +806,14 @@ Admin Assets now escapes symbols, names, exchange/source values and catalog labe
 
 **Regression evidence:** Admin Assets, Dashboard and shared widget safety checks passed (**6 passed**), shared JavaScript passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**295 passed** in 120.60s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.56 IMPLEMENTED — Harden admin User Management rendering
+
+Admin User Management now escapes usernames, emails, roles, plans and approval values before rendering. User action buttons carry only validated IDs and dataset values, so delete/edit/toggle/trial actions no longer embed a database username inside inline JavaScript; existing super-admin/view-only permissions and API calls remain unchanged.
+
+**Risk level:** High admin-session security value, low behavior/API risk (actions retain their existing targets and confirmation flows). **Affected modules:** `frontend/templates/admin/users.html`, `tests/unit/test_admin_users_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Admin Users, Assets, Dashboard and shared widget safety checks passed (**4 passed**), shared JavaScript passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**297 passed** in 111.44s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -977,5 +985,9 @@ Admin Assets now escapes symbols, names, exchange/source values and catalog labe
 **Session 34 (UI security — admin Assets rendering safety):**
 - `frontend/templates/admin/assets.html` — escape provider/catalog values and replace inline asset/catalog/search handlers with dataset-backed event listeners.
 - `tests/unit/test_admin_assets_template_safety.py` — protect the admin Assets rendering and control-binding contract.
+
+**Session 35 (UI security — admin User Management rendering safety):**
+- `frontend/templates/admin/users.html` — escape account values and replace username-bearing inline actions with dataset-backed event listeners.
+- `tests/unit/test_admin_users_template_safety.py` — protect the admin User Management rendering and control-binding contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
