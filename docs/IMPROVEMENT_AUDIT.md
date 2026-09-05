@@ -406,6 +406,14 @@ Portfolio add/update routes now require JSON objects, normalize symbols, and val
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `174862c`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **170 passed** in 45.20s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.7 IMPLEMENTED — Bound OHLCV market-data limits
+
+The authenticated OHLCV endpoint now normalizes invalid `limit` values and clamps them to the existing maximum of 1,000 candles. This avoids 500 responses from malformed query parameters and prevents invalid negative fetch ranges while preserving the default of 200 candles.
+
+**Risk level:** Low (valid requests and the previous maximum are unchanged). **Affected modules:** `app/api/v1/market_data.py`, `tests/unit/test_pagination.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

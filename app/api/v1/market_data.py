@@ -6,6 +6,7 @@ from app.auth.decorators import login_required, subscription_feature_required
 from app.services.data.fetcher import market_fetcher, blocked_data_markets
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.sentiment.engine import calculate_sentiment
+from app.services.pagination import bounded_per_page
 from sqlalchemy.orm import joinedload
 import pandas as pd
 
@@ -18,7 +19,7 @@ market_data_bp = Blueprint("market_data", __name__)
 def get_ohlcv(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     timeframe = request.args.get("timeframe", "1h")
-    limit = min(int(request.args.get("limit", 200)), 1000)
+    limit = bounded_per_page(request.args.get("limit", 200), default=200, maximum=1000)
 
     df = market_fetcher.fetch(asset, timeframe, limit)
     if df is None:
