@@ -323,7 +323,7 @@ The signal-history endpoint duplicated the old unbounded `int()` parsing used by
 
 **Risk level:** Low (shared input normalization; default page size remains 20). **Affected modules:** `app/api/v1/signals.py`, `app/services/pagination.py`, `tests/unit/test_pagination.py`. **Migration:** none.
 
-**Regression evidence:** The shared pagination tests and full local unit baseline passed with **122 tests**. Production deployment verification is pending for this change.
+**Regression evidence:** The shared pagination tests and full local unit baseline passed with **122 tests**. Production verification completed on 2026-09-05 after rebuilding the app service from `3aa65c6`: the full suite reported **159 passed**, health and root endpoints returned `HTTP 200`, the app remained healthy, and the fresh app/worker log scan contained no traceback/error matches.
 
 ---
 
