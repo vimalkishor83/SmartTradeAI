@@ -346,7 +346,12 @@ class BacktestEngine:
                 "type": position["type"], "bars_held": len(df_r) - position["bar_index"],
                 "exit_reason": "end_of_data", "pnl_pct": round(pnl_pct, 3),
                 "pnl": round(net_pnl, 2), "commission": round(comm_cost + position["entry_commission"], 2),
-                "slippage_cost": 0.0, "outcome": "win" if net_pnl > 0 else "loss",
+                "slippage_cost": round(
+                    position["slippage_cost"]
+                    + abs(exit_fill - last_price) * position["units"],
+                    2,
+                ),
+                "outcome": "win" if net_pnl > 0 else "loss",
                 "date": str(df.index[-1]),
                 "entry_bar_index": position["bar_index"],
                 "leg_units":       position["units"],

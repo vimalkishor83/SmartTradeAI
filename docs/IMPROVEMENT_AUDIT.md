@@ -558,6 +558,14 @@ The authenticated `/journal/stats` endpoint no longer loads every journal row an
 
 **Regression evidence:** The journal stats route and adjacent analytics tests passed locally (**5 passed**); the full local suite passed with **222 passed** in 91.68s. Production deployment completed on 2026-09-06 from `af34e87`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: journal-stats-20260906`, the deployed journal, history, performance, export and prediction tests passed (**7 passed** in 6.25s), and the fresh app/worker error scan had no error, traceback, critical, or exception output. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.25 IMPLEMENTED — Account for exit slippage on end-of-data backtest closes
+
+The strategy-config backtest engine now includes the exit fill impact when it force-closes an open position at the final candle. Normal target, stop, reversal, timeout, and partial fills already reported entry plus exit slippage; the end-of-data branch incorrectly stored `slippage_cost: 0.0`, understating total slippage and making the cost audit inconsistent for positions still open at the data boundary.
+
+**Risk level:** High measurement-integrity value, low compatibility risk (backtest reporting only; simulated fill prices, capital, commission, and trading behavior are unchanged). **Affected modules:** `app/services/backtesting/engine.py`, `tests/unit/test_backtest_partial_exit_consolidation.py`. **Migration:** none.
+
+**Regression evidence:** Backtest correctness and request-boundary tests passed locally (**44 passed**); the full local suite passed with **223 passed** in 90.65s. Production deployment and endpoint verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

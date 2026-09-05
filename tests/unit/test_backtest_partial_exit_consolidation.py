@@ -16,6 +16,8 @@ entry_bar_index) into one logical trade for every aggregate stat, while
 the raw per-fill rows are still returned verbatim in trades_data for
 full audit detail.
 """
+import pandas as pd
+
 from app.services.backtesting.engine import BacktestEngine, _consolidate_trades
 
 engine = BacktestEngine()
@@ -116,3 +118,42 @@ class TestComputeStatsWithPartialExits:
         stats = engine._compute_stats([], [10_000.0], 10_000.0, 0.001, 0.0005, "1h")
         assert stats["total_trades"] == 0
         assert stats["win_rate"] == 0
+
+
+def test_end_of_data_close_includes_entry_and_exit_slippage(monkeypatch):
+    """A forced final-bar exit must report both sides of slippage."""
+    frame = pd.DataFrame(
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1.0},
+        index=pd.date_range("2026-01-01", periods=100, freq="h"),
+    )
+
+    monkeypatch.setattr(
+        engine,
+        "_signal_rsi",
+        lambda closes, rsi, index: "BUY" if index == 60 else None,
+    )
+    monkeypatch.setattr(
+        engine,
+        "_manage_position",
+        lambda *args: (False, 0.0, "", 0.0),
+    )
+
+    result = engine.run(
+        frame,
+        asset=None,
+        timeframe="1h",
+        initial_capital=10_000,
+        strategy="rsi",
+        commission=0.0,
+        slippage=0.0005,
+    )
+
+    trade = result["trades_data"][0]
+    expected = round(
+        (abs(trade["entry"] - 100.0) + abs(trade["exit"] - 100.0))
+        * trade["leg_units"],
+        2,
+    )
+    assert trade["exit_reason"] == "end_of_data"
+    assert trade["slippage_cost"] == expected
+    assert result["total_slippage"] == expected
