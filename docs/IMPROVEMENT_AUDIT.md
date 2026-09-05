@@ -2,7 +2,7 @@
 
 **Status:** Living document. Started as Phase 0 of a structured production-hardening pass; updated as each subsequent phase's investigation and fixes land. Every entry below is based on reading the actual code and, where marked, verifying behavior live on the production server — not on the platform's design intent or documentation claims.
 
-**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 initial pass)
+**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 + Phase 3 initial pass)
 
 ---
 
@@ -166,13 +166,65 @@ A second, related bug in the same function: the checklist's `['AI Model Agreemen
 
 ---
 
-## 4. Remaining P0/P1 items from the full 16-phase spec (not started)
+## 4. Phase 3 — Data Quality Engine: findings and fixes
 
-This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), and one concrete, well-scoped Phase 2 item (fabricated per-model attribution). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+### 4.1 Investigation summary
+
+Before writing anything, the fetch-to-signal path was traced end-to-end (`app/services/data/fetcher.py`, `app/services/signals/engine.py`, `app/models/api_config.py`, the Admin API Configs page). Findings:
+
+- **Already solid, deliberately not touched:** per-provider circuit breakers (`_CircuitBreaker`, Redis-backed, cross-process, consecutive-failure threshold + recovery timeout), retry-with-backoff, the admin market-pause gate (`blocked_data_markets()` / `APIConfig.status`), and the live trading-session gate (`_session_gate` / `_SESSIONS`). These handle *availability* (can we reach the provider) correctly.
+- **The real gap:** none of the above check the *content* of a technically-successful fetch. A provider can return 200 OK with stale, gapped, duplicated, or OHLC-inconsistent candles, and it sails through `fetch()` → cache → `generate_signal()` with only a bare `len(df) >= 60` row-count check — no timestamp-age check, no OHLC sanity check, no duplicate/gap detection anywhere in the entire path.
+- **A timezone landmine:** Delta/Binance return tz-naive UTC timestamps; Yahoo Finance returns tz-aware timestamps localized per-instrument (confirmed live on production: NSE → `Asia/Kolkata`, US equities → `America/New_York`, forex → `Europe/London`). No normalization existed anywhere. A naive "now − last candle time" staleness check would either raise `TypeError` (naive vs. aware) or silently misjudge the gap by the zone offset depending on which provider's data it happened to receive.
+- **Admin API Configs' health fields are cosmetic, not live:** they're updated only by a manual "Test Connection" click, not by the real background fetcher — flagged for Phase 6/9 (Admin UX/RBAC), not fixed here (out of scope for the data-quality check itself; wiring it in is a separate, larger change to the admin page).
+- **Operational finding, not a defect in this codebase:** live-checking this on production revealed Yahoo Finance is currently **admin-paused** for all four markets that depend on it — `commodity`, `forex`, `index`, and `indian_stock` (`APIConfig.status = "paused"`, `error_count: 0`, i.e. manually paused, not a circuit-breaker trip). Only `crypto` (Delta Exchange) is currently live. This means signal generation is currently producing zero output for indian_stock/commodity/index/forex platform-wide, independent of anything in this Phase 3 change. Worth the user's attention as a separate follow-up; not touched here since toggling live provider state wasn't requested and is a business/operational decision, not a Phase 3 correctness fix.
+
+### 4.2 Fix: `app/services/data/quality.py` (new) — data quality gate
+
+New pure, dependency-free module (no DB/network/Flask — reusable from the signal engine, both backtest engines, TA Summary, AI Insights, and eventually the Admin API Configs page) exposing `assess_data_quality(df, market, timeframe) -> dict`:
+
+- `_normalize_utc()` converts both tz-naive (assumed UTC) and tz-aware (any zone) timestamps to a common UTC `datetime` before any age comparison — the fix for the timezone landmine above.
+- Checks: timestamp freshness (GREEN/YELLOW/RED by bar-width multiples), duplicate timestamps, gaps larger than 2 bar-widths, invalid OHLC relationships (`high < low`, non-positive prices, etc.), negative/anomalous volume.
+- Returns `{"status": "GREEN"|"YELLOW"|"RED", "issues": [...], "last_candle_age_seconds": float|None, "hard_invalid": bool}`. `hard_invalid` distinguishes genuine data corruption (bad OHLC, duplicate candles, missing columns/rows — wrong regardless of context) from staleness/gaps/volume-spikes, which are only meaningful for *live* signal generation — a backtest deliberately replays historical candles, and comparing their timestamp to wall-clock "now" would flag every single one as stale.
+
+### 4.3 Fix: `app/services/signals/engine.py` — wired as a new gate
+
+Added immediately before Stage 1 (the existing session gate), inside `generate_signal()`'s `try` block:
+
+```python
+quality = assess_data_quality(df, market, timeframe)
+if quality["hard_invalid"] or (not force and quality["status"] == "RED"):
+    logger.warning("Data quality gate blocked signal for %s %s: %s", ...)
+    return None
+```
+
+This mirrors the codebase's own existing precedent for every other live-only gate in this function (`if not force and not self._session_gate(market): return None`) so staleness-based blocking is correctly bypassed during backtesting (`force=True`) exactly the way the session gate already is, while hard data-integrity problems block unconditionally in both live and backtest paths, since corrupt data is never valid to trade or backtest on.
+
+### 4.4 Tests: `tests/unit/test_data_quality.py` (new, 22 tests)
+
+Covers: `_normalize_utc()` on naive/aware/equivalent-instant inputs; GREEN on fresh data for all four timezone shapes actually seen in production (naive/crypto, `Asia/Kolkata`, `Europe/London`, `America/New_York`); RED on stale data for both naive and aware inputs (the specific case that would previously raise `TypeError` or misjudge the age — now proven not to); YELLOW at the borderline threshold; every `hard_invalid` case (empty/`None` df, missing column, duplicate timestamps, invalid OHLC, negative price, negative volume) confirmed to set `hard_invalid=True`; soft anomalies (gap, volume spike) confirmed `hard_invalid=False`; never-raises on a single-row df and an unknown timeframe.
+
+### 4.5 Live verification
+
+- Full suite: **148 passed** (up from 126 pre-Phase-3; the delta is the 22 new tests), run inside the `app` container on production after `docker compose restart app worker`.
+- Crypto (tz-naive), real production data: `XAUTUSDT` → `{'status': 'GREEN', 'issues': [], 'last_candle_age_seconds': 534.0, 'hard_invalid': False}` — confirms the naive-timestamp path works correctly against real live data.
+- Yahoo-sourced (tz-aware) assets could not be exercised against *live* production data in this pass because Yahoo is currently admin-paused for all four markets that use it (§4.1 finding above) — even a direct `YahooFetcher.fetch_ohlcv()` call (bypassing the admin pause) returned no data, suggesting Yahoo itself is currently unreachable/rate-limited from this server, which is plausibly *why* it was paused. The tz-aware path is instead verified via the unit tests in §4.4, which test the exact same `_normalize_utc()` function against real timezone data matching what Yahoo returns for each market (`Asia/Kolkata`, `Europe/London`, `America/New_York`).
+- No tracebacks in `app`/`worker` logs since restart despite continued real signal-generation/feature-engineering activity, confirming the new gate doesn't error on the live code path.
+
+### 4.6 Remaining Phase 3 items (not done in this pass)
+
+- Wiring real `assess_data_quality()` output into the Admin API Configs page's health display (currently only updated by manual "Test Connection" clicks) — a larger, separate change to that admin page, overlaps Phase 6/9.
+- Persisting a `data_quality` status per generated `Signal` (would need a new DB column/migration — deliberately not added speculatively; the current fix enforces correctness via the gate itself without requiring a schema change) — worth doing once Phase 6 (Dashboard UX) needs to *display* freshness per signal.
+- The Yahoo-paused-for-all-4-non-crypto-markets operational finding above needs the user's decision, not a code fix.
+
+---
+
+## 5. Remaining P0/P1 items from the full 16-phase spec (not started)
+
+This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), one concrete, well-scoped Phase 2 item (fabricated per-model attribution), and the core Phase 3 item (the data quality gate). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
 
 - Phase 1 (remainder): commission/slippage/spread modeling audit, Sharpe/Sortino/recovery-factor calculation audit, reproducibility metadata (backtest ID, engine version, model version) on every result, walk-forward's unweighted window averaging (§2.8).
 - Phase 2 (remainder): see §3.3 above.
-- Phase 3: Data Quality engine (GREEN/YELLOW/RED provider health states).
+- Phase 3 (remainder): see §4.6 above.
 - Phase 4: Signal-lifecycle metadata/versioning.
 - Phases 5–16: as specified, untouched.
 
@@ -180,7 +232,7 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 
 ---
 
-## 5. Files changed this pass
+## 6. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
 - `frontend/templates/dashboard/backtesting.html` — win-rate double-multiplication fix, `sample_trades`/`trades_data` key fix, zero-trade empty state, min-sample-size warning.
@@ -198,6 +250,11 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 - `frontend/templates/dashboard/ai_insights.html`, `frontend/templates/dashboard/ta_summary.html` — removed false "LSTM" claim from ensemble-description copy (3 occurrences).
 - `scripts/build_pitch_document.py` — removed false "LSTM" claim from the pitch-document generator (3 occurrences).
 
+**Session 4 (Phase 3 — Data Quality Engine, §4):**
+- `app/services/data/quality.py` — new module: `assess_data_quality()` + `_normalize_utc()`.
+- `app/services/signals/engine.py` — new data-quality gate wired in immediately before the Stage 1 session gate, using the existing `if not force` precedent pattern.
+- `tests/unit/test_data_quality.py` — new, 22 tests.
+
 - `docs/IMPROVEMENT_AUDIT.md` — this file.
 
-**Database changes:** none across all three sessions; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. **No destructive migration. No new credentials or secrets introduced.**
+**Database changes:** none across all four sessions; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**

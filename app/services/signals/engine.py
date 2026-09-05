@@ -18,6 +18,7 @@ import pandas as pd
 
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.indicators.patterns import detect_patterns
+from app.services.data.quality import assess_data_quality
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,22 @@ class SignalEngine:
         market = getattr(asset, "market", "crypto")
 
         try:
+            # ── Data quality gate ──────────────────────────────────
+            # Hard integrity problems (corrupt OHLC, duplicate candles, bad
+            # columns) are never OK, live or backtest, so they always block.
+            # Staleness is only meaningful for live generation — a backtest
+            # deliberately replays historical candles, and comparing their
+            # timestamp to wall-clock "now" would flag every single one as
+            # stale. Mirrors the existing `if not force` session-gate pattern
+            # immediately below so it's bypassed the same way during replay.
+            quality = assess_data_quality(df, market, timeframe)
+            if quality["hard_invalid"] or (not force and quality["status"] == "RED"):
+                logger.warning(
+                    "Data quality gate blocked signal for %s %s: %s",
+                    getattr(asset, "symbol", "?"), timeframe, quality["issues"],
+                )
+                return None
+
             # ── Stage 1: Session gate (skipped for manual/forced generation) ──
             if not force and not self._session_gate(market):
                 return None
