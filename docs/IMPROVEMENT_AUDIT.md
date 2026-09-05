@@ -380,7 +380,7 @@ The live order route previously used Python truthiness for `reduce_only`, which 
 
 **Risk level:** High safety value, low compatibility risk (valid booleans and common explicit string values are preserved). **Affected modules:** `app/api/v1/trading.py`, `tests/unit/test_delta_trading_signing.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `ebcf986`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **162 passed** in 42.97s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
