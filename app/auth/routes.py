@@ -52,16 +52,25 @@ def register():
             "message": "Registration successful — your account is pending admin approval.",
         }), 201
 
-    required = ["username", "email", "password"]
-    if not all(k in data for k in required):
-        return jsonify({"error": "Missing required fields"}), 400
+    username = str(data.get("username") or "").strip()
+    email = str(data.get("email") or "").strip().lower()
+    password = data.get("password") or ""
+    if not username or not email or not password:
+        return jsonify({"error": "Username, email and password are required"}), 400
+
+    if len(username) < 3 or len(username) > 80 or not username.replace("_", "").replace("-", "").isalnum():
+        return jsonify({"error": "Username must be 3-80 characters using letters, numbers, _ or -"}), 400
+    if len(password) < 8 or len(password) > 256:
+        return jsonify({"error": "Password must be between 8 and 256 characters"}), 400
+    if "@" not in email or email.startswith("@") or email.endswith("@"):
+        return jsonify({"error": "Enter a valid email address"}), 400
 
     if not data.get("accept_terms"):
         return jsonify({"error": "You must accept the Terms of Service and Privacy Policy"}), 400
 
-    if User.query.filter_by(username=data["username"]).first():
+    if User.query.filter_by(username=username).first():
         return jsonify({"error": "Username already taken"}), 409
-    if User.query.filter_by(email=data["email"]).first():
+    if User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already registered"}), 409
 
     broker_id_raw = data.get("broker_id")
@@ -96,8 +105,8 @@ def register():
     )
 
     user = User(
-        username=data["username"],
-        email=data["email"],
+        username=username,
+        email=email,
         first_name=data.get("first_name", ""),
         last_name=data.get("last_name", ""),
         broker_id=broker.id if broker else None,
@@ -111,7 +120,7 @@ def register():
         # tier the account lands in once approved.
         approval_status="pending",
     )
-    user.set_password(data["password"])
+    user.set_password(password)
     db.session.add(user)
 
     if referral:

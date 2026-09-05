@@ -139,6 +139,16 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 
 **Regression evidence:** Unit tests cover a 1-trade 0% window plus a 9-trade 100% window, proving the aggregate is 90% rather than the old 50%, and cover the legacy-result fallback. Production hot-copy verification completed on 2026-09-05: the app container's full suite reported `150 passed`, the live health endpoint returned `HTTP 200`, and the recent app/worker log scan contained no traceback/error matches. The containers were restarted before these checks; the change is API-only and the module is not imported by `app/tasks/`.
 
+### 2.9 FIXED — Registration input was not normalized or validated before persistence
+
+**Root cause:** The public registration route checked only whether the three keys existed. It accepted whitespace-padded usernames, stored email addresses with inconsistent casing, accepted malformed email strings, and allowed passwords shorter than the application's stated minimum. This created avoidable duplicate-account behavior and weak-input risk at the public boundary.
+
+**Fix:** Registration now trims usernames, lowercases emails, validates username length/characters, enforces an 8-256 character password range, and rejects obviously malformed email values before uniqueness checks or database writes. Existing terms acceptance, broker validation, referral handling and pending-approval behavior are unchanged.
+
+**Risk level:** Low (rejects invalid input and normalizes new records only). **Affected modules:** `app/auth/routes.py`, `tests/unit/test_registration_validation.py`. **Migration:** none.
+
+**Regression evidence:** Four unit tests cover normalization, invalid usernames, short passwords, malformed emails, missing fields and the no-write behavior for invalid input. Production deployment verification is pending for this Phase 1 change.
+
 ---
 
 ## 3. Phase 2 — AI Confidence & Model Accountability: findings and fixes
