@@ -237,6 +237,14 @@ function loadInspector(s) {
   document.getElementById('inspHeader').textContent = `${s.asset} · ${s.signal_type} · ${conf.toFixed(0)}%`;
   const cur = s.current_price || s.entry_price;
   const riskPct = (s.entry_price && s.stop_loss) ? Math.abs((s.entry_price - s.stop_loss) / s.entry_price * 100) : null;
+  const quality = s.data_quality || {};
+  const qualityStatus = ['GREEN', 'YELLOW', 'RED'].includes(quality.status) ? quality.status : 'UNKNOWN';
+  const qualityClass = qualityStatus.toLowerCase();
+  const qualityAge = Number.isFinite(Number(quality.last_candle_age_seconds))
+    ? `${Math.max(0, Math.round(Number(quality.last_candle_age_seconds) / 60))} min ago`
+    : 'timestamp unavailable';
+  const qualityProvider = String(quality.provider || 'provider unavailable')
+    .replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   // "AI Model Agreement" removed from this checklist: ai_score is a
   // hardcoded placeholder (10) for every automatically-generated signal --
   // the real ML ensemble is never invoked for these -- and even for the
@@ -294,6 +302,14 @@ function loadInspector(s) {
       <div><div class="insp-k">Take Profit 2</div><div class="insp-v" style="color:var(--green)">${s.target2 ? formatPrice(s.target2, s.market) : '—'}</div></div>
       <div><div class="insp-k">R:R</div><div class="insp-v">${s.risk_reward ? '1:' + parseFloat(s.risk_reward).toFixed(1) : '—'}</div></div>
       <div><div class="insp-k">Risk</div><div class="insp-v">${riskPct != null ? riskPct.toFixed(2) + '%' : '—'}</div></div>
+    </div>
+    <div class="insp-context insp-quality-${qualityClass}" role="status">
+      <div class="insp-context-main"><i class="bi bi-database-check"></i><strong>Data ${qualityStatus}</strong><span>${qualityAge}</span></div>
+      <div class="insp-context-meta">${qualityProvider} · ${quality.candle_count ?? '—'} candles</div>
+    </div>
+    <div class="insp-context insp-regime" role="status">
+      <div class="insp-context-main"><i class="bi bi-activity"></i><strong>Market regime</strong><span>${s.regime || 'Not classified'}</span></div>
+      <div class="insp-context-meta">This describes the observed environment, not a profit prediction.</div>
     </div>
     <div class="insp-section-title">Why AI Chose ${s.signal_type}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>

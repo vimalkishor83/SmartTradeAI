@@ -4051,6 +4051,31 @@ select option {
   font-variant-numeric: tabular-nums
 }
 
+.insp-context {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-muted);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 8px 0;
+  background: var(--bg-card);
+  font-size: 11px
+}
+
+.insp-context-main,
+.insp-context-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px
+}
+
+.insp-context-main span { color: var(--text-secondary); margin-left: auto }
+.insp-context-meta { color: var(--text-muted); margin-top: 4px; font-size: 10px }
+.insp-quality-green { border-left-color: var(--green) }
+.insp-quality-yellow { border-left-color: var(--yellow) }
+.insp-quality-red { border-left-color: var(--red) }
+.insp-quality-unknown { border-left-color: var(--text-muted) }
+.insp-regime { border-left-color: var(--accent) }
+
 .insp-section-title {
   font-size: 11px;
   font-weight: 800;
