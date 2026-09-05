@@ -381,7 +381,7 @@ async function loadSignals(page = 1) {
 /* ── shared per-signal derivations (match dashboard) ── */
 function _regimeOf(s){const t=s.trend_score||0,m=s.momentum_score||0;if(t>=60)return'Trending';if(m>=65&&t<45)return'Volatile';return'Ranging';}
 function _statusOf(s){const age=s.generated_at?(Date.now()-new Date(s.generated_at))/60000:999;const cur=s.current_price,entry=s.entry_price;if(cur&&entry){if((s.signal_type==='BUY'&&cur>=entry)||(s.signal_type==='SELL'&&cur<=entry))return{t:'ENTRY HIT',c:'var(--green)'};}if(age<30)return{t:'NEW',c:'var(--accent-light)'};return{t:'WATCHING',c:'var(--yellow)'};}
-function _modelBars(s){const dir=s.signal_type==='SELL'?'var(--red)':'var(--green)';const sc=[s.trend_score,s.momentum_score,s.volume_score,s.pattern_score,s.ai_score];const lb=['Trend','Momentum','Volume','Pattern','AI'];return`<div class="model-bars" title="${lb.map((l,i)=>l+' '+Math.round(sc[i]||0)).join(' · ')}">`+sc.map(v=>{const h=Math.max(3,Math.min(100,v||0));const c=(v||0)>=50?dir:'rgba(148,163,184,.45)';return`<span class="mbar" style="height:${h}%;background:${c}"></span>`;}).join('')+'</div>';}
+function _modelBars(s){const dir=s.signal_type==='SELL'?'var(--red)':'var(--green)';const sc=[s.trend_score,s.momentum_score,s.volume_score,s.pattern_score];const lb=['Trend','Momentum','Volume','Pattern'];return`<div class="model-bars" title="${lb.map((l,i)=>l+' '+Math.round(sc[i]||0)).join(' · ')}">`+sc.map(v=>{const h=Math.max(3,Math.min(100,v||0));const c=(v||0)>=50?dir:'rgba(148,163,184,.45)';return`<span class="mbar" style="height:${h}%;background:${c}"></span>`;}).join('')+'</div>';}
 
 /* ── Market-state strip (heatmap-derived) ── */
 async function loadSignalsMarketState(){

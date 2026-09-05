@@ -860,7 +860,10 @@ class SignalEngine:
         # Each entry is (category, text) — category drives which lane
         # (technical/flow) a reason is grouped under in _lane_verdicts().
         reasons = []
-        scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 10}
+        # Automatic signals do not invoke the ML predictor. Keep the legacy
+        # field at zero rather than awarding a fabricated confidence bonus;
+        # the manual admin path adds a real AI score only after prediction.
+        scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 0}
 
         close    = float(df["close"].iloc[-1])
         ema9     = ind.get("ema9") or 0

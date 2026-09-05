@@ -1,6 +1,6 @@
 """Unit coverage for live-signal provenance without invoking the market feed."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pandas as pd
 

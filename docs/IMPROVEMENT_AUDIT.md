@@ -157,7 +157,7 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 
 - **Real, trained ML models genuinely exist**: `app/services/ai/predictor.py` trains and persists RandomForest + XGBoost + LightGBM classifiers (each wrapped in `CalibratedClassifierCV(method="isotonic")`), pickled via `joblib` — confirmed 291 real `.pkl` files on disk in `data/models/`. A rule-based `_heuristic_fallback()` (probability in `[0.35, 0.65]`) covers the case where no ML library is importable. This is not aspirational code.
 - **"LSTM" was false** — it appeared in UI copy and a build script's pitch-document generator ("Random Forest + XGBoost + LightGBM + LSTM") but no LSTM/tensorflow/keras code exists anywhere in the repository. Fixed — see §3.2.
-- **The `confidence_score` shown on every regular, automatically-generated signal is 100% rule-based technical scoring — it is not, and never was, ML model output.** `SignalEngine._score_signal()` initializes `scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 10}` — `ai` is a hardcoded constant, never updated by any model, for every signal the scheduled/automatic pipeline generates (`app/tasks/signal_tasks.py`). The real ML ensemble is only invoked by a separate, manual, super-admin-only endpoint (`POST /signals/generate`), which adds a small "AI boost" scaled to a 0–20 range (`prediction.confidence * 0.2`) — at most ~2 points of the final `confidence_score`. This is a genuine, important gap between what "AI-powered" branding implies and what actually drives the number a regular user sees — **not fixed this pass** (a full redesign of `_compute_confidence`'s AI-weighting is a larger, separate decision — see §3.4 remaining items — this pass focused on removing active misrepresentation, not redesigning the underlying formula).
+- **The `confidence_score` shown on every regular, automatically-generated signal is rule-based technical scoring — it is not ML model output.** The real ML ensemble is only invoked by a separate, manual, super-admin-only endpoint (`POST /signals/generate`), which adds a small, explicitly labeled AI boost only when a real calibrated prediction is available. The former automatic `ai=10` placeholder was removed in §7.30 so automatic confidence is no longer inflated by a fabricated model component.
 - **A confidence-calibration system already exists** and is more mature than expected: `app/api/v1/signals.py::_confidence_calibration_bands()` buckets closed signals into Weak/Moderate/Strong/Very Strong bands and compares actual vs. expected win rate, rendered as a chart on the main dashboard. Separately, `/model-performance` tracks the AI predictor's own directional accuracy (not bucketed by confidence). **Important nuance for future work**: the calibration chart evaluates the *rule-based* `confidence_score`, which per the point above isn't an ML probability to begin with — worth keeping in mind before extending it further.
 - `/ai-insights` (the real ML-ensemble-backed page) shows a bare confidence percentage with zero accuracy-history or uncertainty context — not fixed this pass (flagged for §3.4).
 
@@ -182,7 +182,7 @@ A second, related bug in the same function: the checklist's `['AI Model Agreemen
 
 - Evidence/Counter-Evidence/Data-Quality/Uncertainty sections for `/ai-insights` and the AI Decision Inspector (the spec's core ask) — not yet designed or built.
 - Historical-accuracy context alongside `/ai-insights`' bare confidence % (the existing `/model-performance` accuracy data could plausibly feed this without a new data pipeline — worth investigating first before building anything new).
-- Whether/how to redesign `_compute_confidence`'s AI-weighting (currently a token +10 constant for 99%+ of signals) is a real product decision, not just a bug fix — flagged for discussion rather than acted on unilaterally.
+- Whether/how to redesign `_compute_confidence`'s broader weighting remains a product decision; the fabricated automatic AI component itself is removed in §7.30.
 - Model agreement (RF vs. XGBoost vs. LightGBM individually, not just the ensemble average) is not currently exposed anywhere — would require exposing `_ensemble_predict`'s per-model `predict_proba` outputs, not just the averaged result.
 - Market-regime confidence and data-freshness indicators near signals/AI insights — genuinely absent everywhere (confirmed via search), overlaps with Phase 3 (Data Quality) and Phase 4 (Signal lifecycle) — better tackled there.
 
@@ -345,10 +345,10 @@ Admin user, session, audit-log and system-log endpoints now reuse the shared pag
 
 ## 7. Remaining P0/P1 items from the full 16-phase spec (not started)
 
-This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), the strategy backtest cost and risk-metric audit, signal-lifecycle provenance, one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix), and one concrete Phase 5 item (Evidence/Counter-Evidence in the AI Decision Inspector). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), the strategy backtest cost and risk-metric audit, signal-lifecycle provenance, removal of the fabricated automatic AI confidence component, one concrete, well-scoped Phase 2 item (fabricated per-model attribution), the core Phase 3 item (the data quality gate), one concrete Phase 4 item (the LiveReadLog non-comparable-accuracy-claim fix), and one concrete Phase 5 item (Evidence/Counter-Evidence in the AI Decision Inspector). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
 
-- Phase 1 (remainder): remaining high-impact calculation decisions not covered by the strategy-config engine audit. Signal-lifecycle reproducibility metadata is now covered by §7.29.
-- Phase 2 (remainder): see §3.3 above.
+- Phase 1 (remainder): remaining high-impact calculation decisions not covered by the strategy-config engine audit.
+- Phase 2 (remainder): broader confidence weighting and AI accountability items in §3.3 above.
 - Phase 3 (remainder): see §4.6 above.
 - Phase 4 (remainder): see §5.3 above.
 - Phase 5 (remainder): see §6.2 above.
@@ -598,6 +598,14 @@ Persisted signals now record whether they came from the automatic scheduler or t
 
 **Regression evidence:** Focused local provenance/serialization tests passed (**5 passed**); production verification completed on 2026-09-06 from `31674bc`: Alembic reported `9b3c4d5e6f7a (head)`, the app health endpoint returned `HTTP 200` with `X-Request-ID: signal-provenance-20260906`, app/db/Redis/worker services were healthy or running, and the safe deployed provenance, quality and backtest-risk subset passed (**8 passed**). The standalone Flask CLI inspection still emits the previously observed Eventlet context warnings, but they are outside the Gunicorn app/worker logs and did not prevent the migration from reaching head. A full production integration suite was not run because it could mutate live services or data.
 
+### 7.30 IMPLEMENTED — Remove fabricated automatic AI confidence bonus
+
+Automatic signal generation now uses only the rule-based trend, momentum, volume and pattern components. The legacy `ai_score=10` value was a hardcoded placeholder even though the scheduled pipeline never invoked the ML predictor, so it increased `confidence_score` without evidence and was also displayed as an AI bar on the Signals page. The field remains in the response for compatibility but is now zero for automatic signals. Manual super-admin generation retains its separate AI boost only when the predictor returns a real calibrated ensemble version; neutral predictor fallbacks no longer change the score.
+
+**Risk level:** High honesty and measurement-integrity value, medium behavioral impact (some automatic signals near the threshold will no longer qualify; this intentionally favors fewer evidence-backed alerts over inflated signal volume). **Affected modules:** `app/services/signals/engine.py`, `frontend/templates/dashboard/signals.html`, `tests/unit/test_signal_engine_confidence.py`, `tests/unit/test_signal_provenance.py`, `app/api/v1/signals.py`, `app/services/ai/predictor.py`. **Migration:** none.
+
+**Regression evidence:** Local targeted signal-confidence, provenance and serialization tests passed (**7 passed**); JavaScript syntax/whitespace validation passed. Production app verification completed on 2026-09-06 from `3b9cb54` after the backend provenance release: the app health endpoint returned `HTTP 200` with `X-Request-ID: signal-provenance-ui-20260906`, the app was healthy, and the deployed Signals page source no longer contains the fabricated AI bar. No live signal was manually generated for verification because that endpoint writes production data and can invoke real model training.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -641,5 +649,10 @@ Persisted signals now record whether they came from the automatic scheduler or t
 - `frontend/static/js/pages/dashboard.js` — show provenance context in the Decision Inspector and avoid implying every signal was selected by AI.
 - `migrations/versions/9b3c4d5e6f7a_add_signal_reproducibility_metadata.py` — additive nullable signal provenance migration.
 - `tests/unit/test_signal_provenance.py`, `tests/unit/test_signal_quality_contract.py` — provenance and serialization regression coverage.
+
+**Session 9 (Phase 2 — automatic confidence honesty, §7.30):**
+- `app/services/signals/engine.py` — remove the hardcoded automatic AI confidence component while preserving the legacy field at zero.
+- `frontend/templates/dashboard/signals.html` — remove the duplicate fabricated AI score bar.
+- `tests/unit/test_signal_engine_confidence.py` — verify automatic scores exclude the placeholder and real manual AI input remains separate.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows also gained additive cost, reproducibility and risk fields. **API contract changes:** none breaking — `POST /backtesting/run` and `Signal.to_dict()` gained additive fields; no field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**
