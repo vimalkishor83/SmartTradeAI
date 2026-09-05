@@ -6,11 +6,29 @@ from app.models.asset import Asset
 from app.auth.decorators import login_required
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime
+import math
 import pandas as pd
 import csv
 import io
 
 portfolio_bp = Blueprint("portfolio", __name__)
+
+
+def _positive_float(value, field_name):
+    """Return a finite positive number for portfolio financial fields."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a number")
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"{field_name} must be greater than zero")
+    return number
+
+
+def _optional_positive_float(value, field_name):
+    if value in (None, ""):
+        return None
+    return _positive_float(value, field_name)
 
 
 def _get_user_portfolio(user_id):
@@ -98,29 +116,31 @@ def get_portfolio():
 @login_required
 def add_position():
     user_id = get_jwt_identity()
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     portfolio = _get_user_portfolio(user_id)
 
-    asset = Asset.query.filter_by(symbol=data.get("symbol")).first()
+    symbol = (data.get("symbol") or "").strip().upper()
+    asset = Asset.query.filter_by(symbol=symbol).first()
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
 
     try:
-        quantity = float(data.get("quantity"))
-        buy_price = float(data.get("buy_price"))
-    except (TypeError, ValueError):
-        return jsonify({"error": "quantity and buy_price must be numbers"}), 400
-
-    if quantity <= 0 or buy_price <= 0:
-        return jsonify({"error": "quantity and buy_price must be greater than zero"}), 400
+        quantity = _positive_float(data.get("quantity"), "quantity")
+        buy_price = _positive_float(data.get("buy_price"), "buy_price")
+        stop_loss = _optional_positive_float(data.get("stop_loss"), "stop_loss")
+        target = _optional_positive_float(data.get("target"), "target")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     item = PortfolioItem(
         portfolio_id=portfolio.id,
         asset_id=asset.id,
         quantity=quantity,
         buy_price=buy_price,
-        stop_loss=data.get("stop_loss"),
-        target=data.get("target"),
+        stop_loss=stop_loss,
+        target=target,
         notes=data.get("notes"),
     )
     db.session.add(item)
@@ -140,13 +160,19 @@ def update_position(item_id):
         PortfolioItem.id == item_id, Portfolio.user_id == user_id
     ).first_or_404()
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     if "stop_loss" in data:
-        sl = data["stop_loss"]
-        item.stop_loss = float(sl) if sl not in (None, "") else None
+        try:
+            item.stop_loss = _optional_positive_float(data["stop_loss"], "stop_loss")
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
     if "target" in data:
-        tgt = data["target"]
-        item.target = float(tgt) if tgt not in (None, "") else None
+        try:
+            item.target = _optional_positive_float(data["target"], "target")
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
     db.session.commit()
     return jsonify(item.to_dict()), 200
 

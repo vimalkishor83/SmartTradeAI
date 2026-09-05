@@ -398,6 +398,14 @@ The risk calculator now rejects non-finite values, non-positive capital/prices/l
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `495d724`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **167 passed** in 44.53s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 5.7 IMPLEMENTED — Validate portfolio position financial fields
+
+Portfolio add/update routes now require JSON objects, normalize symbols, and validate quantity, buy price, stop loss, and target as finite positive numbers. Optional stop/target values can still be cleared explicitly. This prevents `NaN` or invalid levels from corrupting portfolio valuation and open-risk calculations.
+
+**Risk level:** High safety value, low compatibility risk (valid inputs and explicit clearing remain supported). **Affected modules:** `app/api/v1/portfolio.py`, `tests/integration/test_risk_routes.py`, `tests/unit/test_portfolio_input_validation.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

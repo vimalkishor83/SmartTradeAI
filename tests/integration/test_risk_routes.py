@@ -101,3 +101,11 @@ class TestPortfolioRiskRoute:
         body = resp.get_json()
         assert body["holdings"] == 0
         assert body["correlation"]["symbols"] == []
+
+
+class TestPortfolioInputValidation:
+    def test_add_position_requires_json_object(self, authed_client):
+        client, headers = authed_client
+        resp = client.post("/api/v1/portfolio/add", headers=headers, json=[])
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "request body must be a JSON object"
