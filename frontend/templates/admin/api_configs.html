@@ -54,6 +54,17 @@
   </div>
 </div>
 
+<div class="provider-health-strip mb-4" id="providerHealthStrip">
+  <div>
+    <div class="provider-health-title"><i class="bi bi-shield-check me-2"></i>Provider verification</div>
+    <div class="provider-health-copy">Read-only status based on the last successful connection test. It does not claim that a provider is continuously healthy between checks.</div>
+  </div>
+  <div class="provider-health-counts" aria-live="polite">
+    <span class="provider-health-count healthy" id="healthHealthy">— verified</span>
+    <span class="provider-health-count warning" id="healthAttention">— need attention</span>
+  </div>
+</div>
+
 <!-- Market Tabs -->
 <div class="section-card mb-0">
   <div class="section-card-header p-0" style="border-bottom:1px solid var(--border);padding:0!important">
@@ -492,6 +503,18 @@
 
 /* Alert hint */
 #providerHint { color:var(--text-primary)!important; }
+.provider-health-strip {
+  display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;
+  padding:1rem 1.15rem; border:1px solid var(--border); border-left:3px solid var(--accent);
+  border-radius:10px; background:var(--bg-secondary);
+}
+.provider-health-title { font-size:13px; font-weight:800; }
+.provider-health-copy { color:var(--text-muted); font-size:11px; margin-top:3px; }
+.provider-health-counts { display:flex; gap:.7rem; flex-wrap:wrap; font-size:11px; font-weight:700; }
+.provider-health-count { padding:5px 9px; border-radius:999px; white-space:nowrap; }
+.provider-health-count.healthy { color:var(--green); background:rgba(34,197,94,.1); }
+.provider-health-count.warning { color:var(--yellow); background:rgba(245,166,35,.1); }
+.provider-health-badge { font-size:10px; font-weight:800; letter-spacing:.2px; }
 </style>
 {% endblock %}
 
@@ -509,6 +532,13 @@ const MARKET_LABELS = {
 };
 const STATUS_COLOR = { active:'bg-success', paused:'bg-warning text-dark', error:'bg-danger', unknown:'bg-secondary' };
 const CONN_DOT = { ok:'var(--green)', error:'var(--red)', unknown:'var(--text-muted)' };
+const HEALTH_COLOR = { HEALTHY:'bg-success', STALE:'bg-warning text-dark', ERROR:'bg-danger', UNTESTED:'bg-secondary', PAUSED:'bg-secondary' };
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
 
 async function init() {
   isSuperAdmin = !!Auth.user?.is_super_admin;
@@ -534,6 +564,10 @@ function updateKPIs(configs) {
   document.getElementById('kpiActive').textContent = configs.filter(c => c.status === 'active').length;
   document.getElementById('kpiPaused').textContent = configs.filter(c => c.status === 'paused').length;
   document.getElementById('kpiError').textContent  = configs.filter(c => c.status === 'error').length;
+  const healthy = configs.filter(c => c.health?.state === 'HEALTHY').length;
+  const attention = configs.filter(c => ['STALE', 'ERROR', 'UNTESTED'].includes(c.health?.state)).length;
+  document.getElementById('healthHealthy').textContent = `${healthy} verified`;
+  document.getElementById('healthAttention').textContent = `${attention} need attention`;
 }
 
 function switchTab(btn, market) {
@@ -570,9 +604,11 @@ function renderTable(market) {
 
 function configRow(c) {
   const dot   = `<span class="status-dot me-1" style="background:${CONN_DOT[c.connection_status]||'var(--text-muted)'}"></span>`;
-  const badge = `<span class="badge ${STATUS_COLOR[c.status]||'bg-secondary'}" style="font-size:10px">${c.status}</span>`;
+  const badge = `<span class="badge ${STATUS_COLOR[c.status]||'bg-secondary'}" style="font-size:10px">${escapeHtml(c.status || 'unknown')}</span>`;
+  const health = c.health || { state:'UNTESTED', label:'Not verified', detail:'Run a connection test to verify this provider' };
+  const healthBadge = `<span class="badge ${HEALTH_COLOR[health.state]||'bg-secondary'} provider-health-badge" title="${escapeHtml(health.detail)}">${escapeHtml(health.label || health.state || 'Unknown')}</span>`;
   const def   = c.is_default ? '<span class="badge bg-accent ms-1" style="font-size:10px;background:var(--accent)!important">DEFAULT</span>' : '';
-  const lastSync = c.last_sync ? `<span title="Last sync">${timeAgo(c.last_sync)}</span>` : '<span class="text-muted">Never</span>';
+  const lastSync = c.last_sync ? `<span title="Last successful connection test">Verified ${timeAgo(c.last_sync)}</span>` : '<span class="text-muted">Never verified</span>';
   const latency  = c.last_latency_ms ? `<span class="text-muted ms-1">${c.last_latency_ms}ms</span>` : '';
   const errBadge = c.error_count > 0 ? `<span class="badge bg-danger ms-1" style="font-size:10px">${c.error_count} err</span>` : '';
   const key_icon = c.has_key ? '<i class="bi bi-key-fill text-warning" title="API Key set"></i>' : '';
@@ -581,17 +617,18 @@ function configRow(c) {
     <!-- Identity -->
     <div style="min-width:200px;flex:1">
       <div class="d-flex align-items-center gap-2">
-        ${dot}<strong>${c.name}</strong>${def}${errBadge}
+        ${dot}<strong>${escapeHtml(c.name)}</strong>${def}${errBadge}
       </div>
       <div class="text-muted mt-1" style="font-size:11px">
-        <span class="me-2"><i class="bi bi-plugin me-1"></i>${c.provider||'—'}</span>
-        <span class="me-2"><i class="bi bi-globe me-1"></i>${MARKET_LABELS[c.market]||c.market||'—'}</span>
+        <span class="me-2"><i class="bi bi-plugin me-1"></i>${escapeHtml(c.provider || '—')}</span>
+        <span class="me-2"><i class="bi bi-globe me-1"></i>${escapeHtml(MARKET_LABELS[c.market]||c.market||'—')}</span>
         ${key_icon}
       </div>
     </div>
     <!-- Status -->
     <div style="min-width:120px">
       ${badge}
+      <div class="mt-1">${healthBadge}</div>
       <div class="text-muted mt-1" style="font-size:11px">${lastSync}${latency}</div>
     </div>
     <!-- Meta -->
@@ -609,15 +646,15 @@ function configRow(c) {
     <div class="d-flex gap-1 flex-wrap">
       ${isSuperAdmin ? `
       <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openEditModal(${c.id})"><i class="bi bi-pencil"></i></button>
-      <button class="btn btn-sm btn-outline-info"  title="Test Connection" onclick="testConfig(${c.id},'${c.name}')"><i class="bi bi-wifi"></i></button>
+      <button class="btn btn-sm btn-outline-info"  title="Test Connection" onclick="testConfig(${c.id})"><i class="bi bi-wifi"></i></button>
       ${c.status === 'paused'
         ? `<button class="btn btn-sm btn-outline-success" title="Resume" onclick="doAction(${c.id},'resume')"><i class="bi bi-play-fill"></i></button>`
         : `<button class="btn btn-sm btn-outline-warning" title="Pause"  onclick="doAction(${c.id},'pause')"><i class="bi bi-pause-fill"></i></button>`
       }
       ${!c.is_default ? `<button class="btn btn-sm btn-outline-secondary" title="Set as Default" onclick="doAction(${c.id},'set-default')"><i class="bi bi-star"></i></button>` : `<button class="btn btn-sm btn-warning" title="Default" disabled><i class="bi bi-star-fill"></i></button>`}
       <button class="btn btn-sm btn-outline-secondary" title="Duplicate" onclick="doAction(${c.id},'duplicate')"><i class="bi bi-copy"></i></button>` : ''}
-      <button class="btn btn-sm btn-outline-secondary" title="View Logs"  onclick="viewLogs(${c.id},'${c.name}')"><i class="bi bi-list-ul"></i></button>
-      ${isSuperAdmin ? `<button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id},'${c.name}')"><i class="bi bi-trash"></i></button>` : ''}
+      <button class="btn btn-sm btn-outline-secondary" title="View Logs"  onclick="viewLogs(${c.id})"><i class="bi bi-list-ul"></i></button>
+      ${isSuperAdmin ? `<button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id})"><i class="bi bi-trash"></i></button>` : ''}
     </div>
   </div>`;
 }
@@ -779,13 +816,15 @@ async function doAction(id, action) {
   if (res) { Toast.show(res.message || 'Done', 'success'); loadConfigs(); }
 }
 
-async function deleteConfig(id, name) {
+async function deleteConfig(id) {
+  const config = allConfigs.find(x => x.id === id);
+  const name = config?.name || 'this configuration';
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   const res = await API.delete(`/admin/api-configs/${id}`);
   if (res !== null) { Toast.show(`"${name}" deleted`, 'success'); loadConfigs(); }
 }
 
-async function testConfig(id, name) {
+async function testConfig(id) {
   // Open the cfg panel for the given config, then trigger test inline
   const c = allConfigs.find(x => x.id === id);
   if (c) {
@@ -837,9 +876,10 @@ function renderTestResult(r) {
       <span class="test-check-detail">${detail}</span>
     </div>`;
 
+  const safeError = escapeHtml(r.error || '');
   const banner = r.success
     ? `<div class="test-success-banner"><i class="bi bi-check-circle-fill me-2"></i>Connection Successful${r.latency_ms ? ` — ${r.latency_ms}ms` : ''}</div>`
-    : `<div class="test-fail-banner"><i class="bi bi-x-circle-fill me-2"></i>Connection Failed${r.error ? ': ' + r.error : ''}</div>`;
+    : `<div class="test-fail-banner"><i class="bi bi-x-circle-fill me-2"></i>Connection Failed${safeError ? ': ' + safeError : ''}</div>`;
 
   return `${banner}
     <div class="test-checks mt-3">
@@ -851,7 +891,9 @@ function renderTestResult(r) {
     </div>`;
 }
 
-async function viewLogs(id, name) {
+async function viewLogs(id) {
+  const config = allConfigs.find(x => x.id === id);
+  const name = config?.name || 'Configuration';
   const modal = new bootstrap.Modal(document.getElementById('logsModal'));
   document.getElementById('logsModalTitle').textContent = `Logs — ${name}`;
   document.getElementById('logsModalBody').innerHTML = '<div class="text-center py-3 text-muted">Loading…</div>';
@@ -868,10 +910,10 @@ async function viewLogs(id, name) {
       </thead>
       <tbody>${data.logs.map(l => `
         <tr>
-          <td class="px-3"><code style="font-size:11px">${l.action}</code></td>
-          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${l.status}</span></td>
+          <td class="px-3"><code style="font-size:11px">${escapeHtml(l.action)}</code></td>
+          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${escapeHtml(l.status)}</span></td>
           <td class="text-muted small">${l.response_time_ms ? l.response_time_ms+'ms' : '—'}</td>
-          <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${l.error_message||'—'}</td>
+          <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.error_message || '—')}</td>
           <td class="text-muted small">${timeAgo(l.created_at)}</td>
         </tr>`).join('')}
       </tbody>

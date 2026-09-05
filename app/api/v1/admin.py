@@ -628,12 +628,13 @@ def list_api_configs():
     if market:
         query = query.filter_by(market=market)
     configs = query.order_by(APIConfig.market, APIConfig.priority.desc(), APIConfig.name).all()
+    serialized = [c.to_dict() for c in configs]
     # Group by market
     grouped = {}
-    for c in configs:
+    for c, payload in zip(configs, serialized):
         mk = c.market or "other"
-        grouped.setdefault(mk, []).append(c.to_dict())
-    return jsonify({"configs": [c.to_dict() for c in configs], "grouped": grouped}), 200
+        grouped.setdefault(mk, []).append(payload)
+    return jsonify({"configs": serialized, "grouped": grouped}), 200
 
 
 @admin_bp.route("/api-configs/<int:cfg_id>", methods=["GET"])

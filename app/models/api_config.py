@@ -1,6 +1,7 @@
 from datetime import datetime
 from app.extensions import db
 from app.services.markets import MARKET_KEYS
+from app.services.provider_health import summarize_provider_health
 
 
 class APIConfig(db.Model):
@@ -129,6 +130,7 @@ class APIConfig(db.Model):
             "last_sync":        self.last_sync.isoformat()  if self.last_sync  else None,
             "last_latency_ms":  self.last_latency_ms,
             "error_count":      self.error_count,
+            "health":           summarize_provider_health(self),
             "created_at":       self.created_at.isoformat() if self.created_at else None,
             "updated_at":       self.updated_at.isoformat() if self.updated_at else None,
             # Never expose raw keys unless explicitly requested (admin test only)

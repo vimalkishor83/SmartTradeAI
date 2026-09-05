@@ -660,7 +660,15 @@ The model-performance endpoint now reports evaluated-row coverage separately fro
 
 **Risk level:** Low to medium (additive SQL aggregates and reporting/UI hardening; no prediction, signal, threshold or outcome logic changed). **Affected modules:** `app/api/v1/predictions.py`, `frontend/templates/dashboard/model_performance.html`, `tests/integration/test_model_performance_route.py`. **Migration:** none.
 
-**Regression evidence:** Focused model-performance tests passed (**2 passed**), Python compilation, JavaScript syntax validation and whitespace checks passed, and the full local regression suite is being re-run before commit. Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
+**Regression evidence:** Focused model-performance tests passed (**2 passed**), Python compilation, JavaScript syntax validation and whitespace checks passed, and the full local regression suite passed (**251 passed** in 131.25s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
+
+### 7.38 IMPLEMENTED — Surface provider verification freshness in Admin
+
+API configuration responses now include a side-effect-free provider-health contract derived from the existing status, connection status, refresh interval and last successful connection test. Admins can distinguish recently verified, stale, untested, failed and intentionally paused configurations without triggering network calls. The API-config list also serializes each row once instead of repeating the same conversion for the flat and grouped payloads. The admin UI adds a verification summary, row-level health labels and an explicit caveat that this is last-test evidence rather than continuous provider telemetry; database-backed labels and test-log content are escaped before insertion.
+
+**Risk level:** Low (read-only derived metadata and admin rendering hardening; no credentials, provider calls, trading or fetch behavior changed). **Affected modules:** `app/services/provider_health.py`, `app/models/api_config.py`, `app/api/v1/admin.py`, `frontend/templates/admin/api_configs.html`, `tests/unit/test_provider_health.py`. **Migration:** none.
+
+**Regression evidence:** Provider-health tests passed (**6 passed**), Python compilation, JavaScript syntax validation and whitespace checks passed, and the full local regression suite passed (**257 passed** in 134.14s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
 
 ## 8. Files changed this pass
 
@@ -753,5 +761,11 @@ The model-performance endpoint now reports evaluated-row coverage separately fro
 - `app/api/v1/predictions.py` — add SQL-aggregated versioned/legacy coverage and model-version accuracy without loading prediction rows into Python.
 - `frontend/templates/dashboard/model_performance.html` — show evaluation scope and version accuracy, preserve the chart canvas across empty-state refreshes, clamp numeric bars and escape database-backed labels.
 - `tests/integration/test_model_performance_route.py` — verify versioned coverage, legacy grouping and the additive empty response contract.
+
+**Session 17 (operations/security — provider verification freshness, §7.38):**
+- `app/services/provider_health.py`, `app/models/api_config.py` — expose a side-effect-free health state based on the last successful connection test and safe timestamp handling.
+- `app/api/v1/admin.py` — remove duplicate API-config serialization for flat/grouped responses.
+- `frontend/templates/admin/api_configs.html` — show verification state and attention counts, remove name-bearing inline arguments and escape admin-rendered provider/test-log data.
+- `tests/unit/test_provider_health.py` — cover all health states, stale thresholds, aware timestamps and model serialization.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
