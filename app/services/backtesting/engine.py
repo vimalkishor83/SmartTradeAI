@@ -13,6 +13,7 @@ Improvements over original:
   8. ATR pre-computed once for the full DataFrame (not per-window)
   9. Separate MAE/MFE tracked per trade (max adverse / max favourable excursion)
  10. Sortino ratio added to stats (penalises only downside volatility)
+ 11. Optional full bid/ask spread applied as half-spread adverse movement per fill
 """
 from __future__ import annotations
 
@@ -29,6 +30,7 @@ logger = logging.getLogger(__name__)
 # ── Realistic defaults ──────────────────────────────────────────────────────
 DEFAULT_COMMISSION  = 0.001   # 0.10% per side (entry + exit)
 DEFAULT_SLIPPAGE    = 0.0005  # 0.05% of price — market-order assumption
+DEFAULT_SPREAD      = 0.0     # full bid/ask spread; half applied on each fill
 
 # Max candles a trade can stay open before force-closing
 MAX_HOLD_BARS: dict[str, int] = {
@@ -117,11 +119,12 @@ class BacktestEngine:
     # ── Fill price with slippage ────────────────────────────────────────────
 
     @staticmethod
-    def _fill_price(price: float, direction: str, slippage: float) -> float:
-        """Apply slippage: BUY fills higher, SELL fills lower."""
+    def _fill_price(price: float, direction: str, slippage: float, spread: float = 0.0) -> float:
+        """Apply adverse impact plus half the configured full spread."""
+        execution_impact = slippage + spread / 2
         if direction == "BUY":
-            return price * (1 + slippage)
-        return price * (1 - slippage)
+            return price * (1 + execution_impact)
+        return price * (1 - execution_impact)
 
     # ── Volatility regime scalar ────────────────────────────────────────────
 
@@ -149,6 +152,7 @@ class BacktestEngine:
         strategy: str = "multi_factor",
         commission: float = DEFAULT_COMMISSION,
         slippage: float = DEFAULT_SLIPPAGE,
+        spread: float = DEFAULT_SPREAD,
     ) -> dict:
         if df is None or len(df) < 100:
             return {"error": "Insufficient data for backtesting (need ≥100 candles)"}
@@ -233,14 +237,19 @@ class BacktestEngine:
                     # tells users to expect ("50% closed at T1"). Every
                     # win-rate/profit-factor number reported from a backtest
                     # was silently overstating the T1->T2 leg's contribution.
-                    partial_fill = self._fill_price(exit_price, _opposite(position["type"]), slippage)
+                    partial_fill = self._fill_price(
+                        exit_price, _opposite(position["type"]), slippage, spread,
+                    )
                     partial_comm = partial_fill * partial_units * commission
                     if position["type"] == "BUY":
                         partial_gross = (partial_fill - position["fill"]) * partial_units
                     else:
                         partial_gross = (position["fill"] - partial_fill) * partial_units
                     # Entry commission is prorated to the portion being closed now.
-                    partial_entry_comm = position["entry_commission"] * (partial_units / position["units"])
+                    partial_ratio = partial_units / position["units"]
+                    partial_entry_comm = position["entry_commission"] * partial_ratio
+                    partial_entry_slippage = position["slippage_cost"] * partial_ratio
+                    partial_entry_spread = position["spread_cost"] * partial_ratio
                     partial_net = partial_gross - partial_comm - partial_entry_comm
                     capital += partial_net
                     trades.append({
@@ -252,7 +261,16 @@ class BacktestEngine:
                         "pnl_pct":      round(partial_net / (position["fill"] * partial_units) * 100, 3),
                         "pnl":          round(partial_net, 2),
                         "commission":   round(partial_comm + partial_entry_comm, 2),
-                        "slippage_cost":round(abs(partial_fill - exit_price) * partial_units, 2),
+                        "slippage_cost": round(
+                            partial_entry_slippage
+                            + abs(partial_fill - exit_price) * partial_units,
+                            2,
+                        ),
+                        "spread_cost": round(
+                            partial_entry_spread
+                            + exit_price * spread / 2 * partial_units,
+                            2,
+                        ),
                         "outcome":      "win" if partial_net > 0 else "loss",
                         "date":         str(df.index[i]) if hasattr(df.index[i], "__str__") else str(i),
                         # Links this leg to its eventual final-close leg (same
@@ -269,9 +287,13 @@ class BacktestEngine:
                     # toward T2/breakeven-SL/timeout with the smaller size.
                     position["units"] -= partial_units
                     position["entry_commission"] -= partial_entry_comm
+                    position["slippage_cost"] -= partial_entry_slippage
+                    position["spread_cost"] -= partial_entry_spread
 
                 if closed:
-                    exit_fill = self._fill_price(exit_price, _opposite(position["type"]), slippage)
+                    exit_fill = self._fill_price(
+                        exit_price, _opposite(position["type"]), slippage, spread,
+                    )
                     comm_cost = exit_fill * position["units"] * commission
                     if position["type"] == "BUY":
                         gross_pnl = (exit_fill - position["fill"]) * position["units"]
@@ -291,7 +313,12 @@ class BacktestEngine:
                         "pnl_pct":      round(pnl_pct, 3),
                         "pnl":          round(net_pnl, 2),
                         "commission":   round(comm_cost + position["entry_commission"], 2),
-                        "slippage_cost":round(position["slippage_cost"] + abs(exit_fill - exit_price) * position["units"], 2),
+                        "slippage_cost": round(position["slippage_cost"] + abs(exit_fill - exit_price) * position["units"], 2),
+                        "spread_cost": round(
+                            position["spread_cost"]
+                            + exit_price * spread / 2 * position["units"],
+                            2,
+                        ),
                         "outcome":      "win" if net_pnl > 0 else "loss",
                         "date":         str(df.index[i]) if hasattr(df.index[i], "__str__") else str(i),
                         "entry_bar_index": position["bar_index"],
@@ -301,7 +328,7 @@ class BacktestEngine:
 
             # ── Open new position ──────────────────────────────────────────
             if position is None and direction and sl and t1 and t2 and i != last_close_bar:
-                fill   = self._fill_price(price, direction, slippage)
+                fill = self._fill_price(price, direction, slippage, spread)
                 # Risk 1% of capital per trade, scaled by volatility regime
                 risk_amt  = capital * 0.01 * vol_s
                 risk_unit = abs(fill - sl)
@@ -325,6 +352,7 @@ class BacktestEngine:
                     "bar_index":          i,
                     "entry_commission":   entry_comm,
                     "slippage_cost":      slippage_pct,
+                    "spread_cost":         price * spread / 2 * units,
                     "sl_moved_to_be":     False,   # breakeven flag
                     "partial_taken":      False,    # T1 partial exit flag
                 }
@@ -334,7 +362,9 @@ class BacktestEngine:
         # Force-close any open position at last available price
         if position:
             last_price = float(closes.iloc[-1])
-            exit_fill  = self._fill_price(last_price, _opposite(position["type"]), slippage)
+            exit_fill = self._fill_price(
+                last_price, _opposite(position["type"]), slippage, spread,
+            )
             comm_cost  = exit_fill * position["units"] * commission
             if position["type"] == "BUY":
                 gross_pnl = (exit_fill - position["fill"]) * position["units"]
@@ -353,6 +383,11 @@ class BacktestEngine:
                     + abs(exit_fill - last_price) * position["units"],
                     2,
                 ),
+                "spread_cost": round(
+                    position["spread_cost"]
+                    + last_price * spread / 2 * position["units"],
+                    2,
+                ),
                 "outcome": "win" if net_pnl > 0 else "loss",
                 "date": str(df.index[-1]),
                 "entry_bar_index": position["bar_index"],
@@ -361,7 +396,7 @@ class BacktestEngine:
             equity.append(round(capital, 2))
 
         result = self._compute_stats(
-            trades, equity, initial_capital, commission, slippage, timeframe
+            trades, equity, initial_capital, commission, slippage, timeframe, spread
         )
         result["reproducibility"] = build_reproducibility_metadata(
             df,
@@ -370,6 +405,7 @@ class BacktestEngine:
             initial_capital=initial_capital,
             commission=commission,
             slippage=slippage,
+            spread=spread,
         )
         return result
 
@@ -446,6 +482,7 @@ class BacktestEngine:
         commission: float,
         slippage: float,
         timeframe: str,
+        spread: float = DEFAULT_SPREAD,
     ) -> dict:
         if not trades:
             return {
@@ -454,7 +491,8 @@ class BacktestEngine:
                 "max_drawdown": 0, "sharpe_ratio": 0, "sortino_ratio": 0,
                 "profit_factor": 0, "avg_win": 0, "avg_loss": 0,
                 "avg_bars_held": 0, "total_commission": 0, "total_slippage": 0,
-                "commission_pct": commission * 100, "slippage_pct": slippage * 100,
+                "total_spread": 0, "commission_pct": commission * 100,
+                "slippage_pct": slippage * 100, "spread_pct": spread * 100,
                 "equity_curve": equity[-500:], "trades_data": [],
             }
 
@@ -492,6 +530,7 @@ class BacktestEngine:
         # identical (and simpler-to-verify) total to summing stat_trades.
         total_comm     = sum(t.get("commission", 0)    for t in trades)
         total_slippage = sum(t.get("slippage_cost", 0) for t in trades)
+        total_spread   = sum(t.get("spread_cost", 0) for t in trades)
         avg_hold       = float(np.mean([t.get("bars_held", 0) for t in stat_trades]))
 
         # Equity drawdown
@@ -538,8 +577,10 @@ class BacktestEngine:
             "avg_bars_held":    round(avg_hold, 1),
             "total_commission": round(total_comm, 2),
             "total_slippage":   round(total_slippage, 2),
+            "total_spread":     round(total_spread, 2),
             "commission_pct":   round(commission * 100, 3),
             "slippage_pct":     round(slippage * 100, 3),
+            "spread_pct":       round(spread * 100, 3),
             "exit_reasons":     reasons,
             "equity_curve":     [round(e, 2) for e in equity[-500:]],
             "trades_data":      trades[-100:],
@@ -575,6 +616,7 @@ def _consolidate_trades(trades: list[dict]) -> list[dict]:
         total_pnl  = sum(l["pnl"] for l in legs)
         total_comm = sum(l.get("commission", 0) for l in legs)
         total_slip = sum(l.get("slippage_cost", 0) for l in legs)
+        total_spread = sum(l.get("spread_cost", 0) for l in legs)
         total_units = sum(l.get("leg_units", 0) for l in legs) or 1
         entry_price = legs[0]["entry"]  # identical across every leg of one position
         final_leg = legs[-1]            # last-appended leg is the one that actually closed the position
@@ -588,6 +630,7 @@ def _consolidate_trades(trades: list[dict]) -> list[dict]:
             "pnl":          round(total_pnl, 2),
             "commission":   round(total_comm, 2),
             "slippage_cost":round(total_slip, 2),
+            "spread_cost":  round(total_spread, 2),
             "outcome":      "win" if total_pnl > 0 else "loss",
             "date":         final_leg["date"],
             "had_partial_exit": True,

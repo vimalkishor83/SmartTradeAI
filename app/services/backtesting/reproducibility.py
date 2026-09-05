@@ -30,6 +30,7 @@ def config_fingerprint(
     initial_capital: float,
     commission: float,
     slippage: float,
+    spread: float = 0.0,
     extra: dict | None = None,
 ) -> str:
     """Hash only canonical inputs that affect a backtest calculation."""
@@ -39,6 +40,7 @@ def config_fingerprint(
         "initial_capital": float(initial_capital),
         "commission": float(commission),
         "slippage": float(slippage),
+        "spread": float(spread),
         **(extra or {}),
     }
     return _fingerprint(payload)
@@ -70,6 +72,7 @@ def build_reproducibility_metadata(
     initial_capital: float,
     commission: float,
     slippage: float,
+    spread: float = 0.0,
     extra_config: dict | None = None,
     engine_version: str = BACKTEST_ENGINE_VERSION,
     model_version: str = MODEL_VERSION,
@@ -85,6 +88,7 @@ def build_reproducibility_metadata(
             initial_capital=initial_capital,
             commission=commission,
             slippage=slippage,
+            spread=spread,
             extra=extra_config,
         ),
         "data_fingerprint": data_fingerprint(df),

@@ -12,6 +12,7 @@ MAX_BACKTEST_DAYS = 3650
 MAX_INITIAL_CAPITAL = 1_000_000_000.0
 MAX_PORTFOLIO_ASSETS = 50
 MAX_BACKTEST_COST = 0.01
+MAX_BACKTEST_SPREAD = 0.02
 
 
 def _integer(value, field: str, *, default: int, minimum: int, maximum: int) -> int:
@@ -68,6 +69,12 @@ def parse_cost(value: object, field: str, *, default: float) -> float:
     return _number(value, field, default=default, minimum=0.0, maximum=MAX_BACKTEST_COST)
 
 
+def parse_spread(value: object = None, *, default: float = 0.0) -> float:
+    return _number(
+        value, "spread", default=default, minimum=0.0, maximum=MAX_BACKTEST_SPREAD,
+    )
+
+
 def parse_asset_id(value: object = None) -> int | None:
     if value in (None, ""):
         return None
@@ -119,6 +126,7 @@ def parse_strategy_payload(data: object, *, include_windows: bool = False) -> di
         "strategy": strategy.strip(),
         "commission": parse_cost(data.get("commission"), "commission", default=0.001),
         "slippage": parse_cost(data.get("slippage"), "slippage", default=0.0005),
+        "spread": parse_spread(data.get("spread")),
     }
     if include_windows:
         parsed["n_windows"] = _integer(

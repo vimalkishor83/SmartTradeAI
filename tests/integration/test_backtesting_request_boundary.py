@@ -40,6 +40,7 @@ def test_non_object_body_returns_400_before_expensive_work(client, premium_heade
     ({"symbol": "BTC", "timeframe": "10h"}, "timeframe must be one of"),
     ({"symbol": "BTC", "initial_capital": "NaN"}, "initial_capital must be finite"),
     ({"symbol": "BTC", "commission": 0.02}, "commission must be between"),
+    ({"symbol": "BTC", "spread": 0.03}, "spread must be between"),
     ({"symbol": "BTC", "n_windows": 1}, "n_windows must be between"),
 ])
 def test_invalid_config_returns_400_before_asset_lookup(client, premium_headers, payload, message):

@@ -56,6 +56,7 @@ def test_backtest_persists_reproducibility_metadata(
             "timeframe": "1h",
             "strategy": "rsi",
             "initial_capital": 10_000,
+            "spread": 0.002,
         },
         headers=premium_headers,
     )
@@ -71,6 +72,7 @@ def test_backtest_persists_reproducibility_metadata(
     assert provenance["data_candles"] == 120
     assert provenance["data_start"] == datetime(2026, 1, 1).isoformat()
     assert provenance["data_end"] == datetime(2026, 1, 5, 23).isoformat()
+    assert payload["spread_pct"] == 0.2
 
     with app.app_context():
         saved = db.session.get(Backtest, payload["id"])
@@ -79,3 +81,4 @@ def test_backtest_persists_reproducibility_metadata(
         assert saved.config_fingerprint == provenance["config_fingerprint"]
         assert saved.data_fingerprint == provenance["data_fingerprint"]
         assert saved.data_candles == 120
+        assert saved.spread_pct == 0.2

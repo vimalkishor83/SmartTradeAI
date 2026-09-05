@@ -35,8 +35,10 @@ class Backtest(db.Model):
     avg_bars_held = db.Column(db.Float, default=0)
     total_commission = db.Column(db.Float, default=0)
     total_slippage = db.Column(db.Float, default=0)
+    total_spread = db.Column(db.Float, default=0)
     commission_pct = db.Column(db.Float, default=0.1)
     slippage_pct = db.Column(db.Float, default=0.05)
+    spread_pct = db.Column(db.Float, default=0)
     exit_reasons = db.Column(db.JSON, default=dict)
     equity_curve = db.Column(db.JSON, default=list)
     trades_data = db.Column(db.JSON, default=list)
@@ -85,8 +87,10 @@ class Backtest(db.Model):
             "avg_bars_held":   self.avg_bars_held,
             "total_commission":self.total_commission,
             "total_slippage":  self.total_slippage,
+            "total_spread":     self.total_spread,
             "commission_pct":  self.commission_pct,
             "slippage_pct":    self.slippage_pct,
+            "spread_pct":      self.spread_pct,
             "exit_reasons":    self.exit_reasons,
             "reproducibility": {
                 "backtest_id": self.id,

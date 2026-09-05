@@ -19,7 +19,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from app.services.backtesting.engine import backtest_engine
+from app.services.backtesting.engine import DEFAULT_SPREAD, backtest_engine
 from app.services.backtesting.reproducibility import build_reproducibility_metadata
 
 _MIN_WINDOW_BARS = 150  # below this, indicator warmup dominates and results are noise
@@ -33,6 +33,7 @@ def run_walk_forward(
     strategy: str = "multi_factor",
     commission: float = 0.001,
     slippage: float = 0.0005,
+    spread: float = DEFAULT_SPREAD,
     n_windows: int = 5,
 ) -> dict:
     """
@@ -72,6 +73,7 @@ def run_walk_forward(
         result = backtest_engine.run(
             segment, asset, timeframe, initial_capital,
             strategy=strategy, commission=commission, slippage=slippage,
+            spread=spread,
         )
         if "error" in result:
             continue
@@ -129,6 +131,7 @@ def run_walk_forward(
             initial_capital=initial_capital,
             commission=commission,
             slippage=slippage,
+            spread=spread,
             extra_config={"n_windows": len(windows)},
         ),
     }

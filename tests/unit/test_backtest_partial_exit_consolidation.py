@@ -157,3 +157,46 @@ def test_end_of_data_close_includes_entry_and_exit_slippage(monkeypatch):
     assert trade["exit_reason"] == "end_of_data"
     assert trade["slippage_cost"] == expected
     assert result["total_slippage"] == expected
+
+
+def test_full_spread_is_applied_as_half_on_each_fill():
+    assert engine._fill_price(100.0, "BUY", 0.0, 0.002) == 100.1
+    assert engine._fill_price(100.0, "SELL", 0.0, 0.002) == 99.9
+
+
+def test_partial_exit_allocates_entry_spread_once(monkeypatch):
+    """A consolidated signal must not duplicate entry spread on its legs."""
+    frame = pd.DataFrame(
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1.0},
+        index=pd.date_range("2026-01-01", periods=100, freq="h"),
+    )
+    partial_seen = False
+
+    monkeypatch.setattr(
+        engine,
+        "_signal_rsi",
+        lambda closes, rsi, index: "BUY" if index == 60 else None,
+    )
+
+    def manage_position(pos, *args):
+        nonlocal partial_seen
+        if not partial_seen:
+            partial_seen = True
+            return False, 101.0, "target1_partial", pos["units"] * 0.5
+        return True, 100.0, "stop_loss", 0.0
+
+    monkeypatch.setattr(engine, "_manage_position", manage_position)
+    result = engine.run(
+        frame,
+        asset=None,
+        timeframe="1h",
+        initial_capital=10_000,
+        strategy="rsi",
+        commission=0.0,
+        slippage=0.0,
+        spread=0.002,
+    )
+
+    units = result["trades_data"][0]["leg_units"]
+    expected = round((2 * 100.0 * 0.001 + 101.0 * 0.001 + 100.0 * 0.001) * units, 2)
+    assert result["total_spread"] == expected

@@ -24,6 +24,7 @@ def test_strategy_payload_normalizes_symbol_and_keeps_valid_defaults():
         "strategy": "Default Multi-Indicator",
         "commission": 0.001,
         "slippage": 0.0005,
+        "spread": 0.0,
     }
 
 
@@ -54,6 +55,8 @@ def test_numeric_inputs_reject_non_finite_and_unsafe_values():
         parse_strategy_payload({"symbol": "BTC", "commission": 0.02})
     with pytest.raises(ValueError, match="between"):
         parse_strategy_payload({"symbol": "BTC", "slippage": -0.01})
+    with pytest.raises(ValueError, match="spread must be between"):
+        parse_strategy_payload({"symbol": "BTC", "spread": 0.03})
 
 
 def test_optional_filters_are_validated_and_normalized():

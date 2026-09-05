@@ -92,12 +92,14 @@ def run_backtest():
 
     commission = config["commission"]
     slippage = config["slippage"]
+    spread = config["spread"]
 
     result = backtest_engine.run(
         df, asset, timeframe, initial_capital,
         strategy=engine_strategy,
         commission=commission,
         slippage=slippage,
+        spread=spread,
     )
 
     if "error" in result:
@@ -188,10 +190,12 @@ def walk_forward():
         return jsonify({"error": "Failed to fetch data"}), 503
     commission = config["commission"]
     slippage = config["slippage"]
+    spread = config["spread"]
 
     result = run_walk_forward(
         df, asset, timeframe, initial_capital,
         strategy=engine_strategy, commission=commission, slippage=slippage,
+        spread=spread,
         n_windows=n_windows,
     )
     if "error" in result:
