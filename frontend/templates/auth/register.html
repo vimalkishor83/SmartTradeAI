@@ -299,6 +299,20 @@
   }
   .referral-hint.ok { color: var(--green); }
   .referral-hint.bad { color: var(--text-muted); }
+
+  .pwd-strength-track {
+    height: 4px;
+    border-radius: 2px;
+    background: var(--border);
+    overflow: hidden;
+  }
+  .pwd-strength-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    background: var(--red);
+    transition: width 0.2s ease, background-color 0.2s ease;
+  }
 </style>
 {% endblock %}
 
@@ -384,7 +398,14 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Password</label>
-          <input type="password" class="form-control" id="password" placeholder="••••••••" required minlength="8" />
+          <div class="input-group">
+            <input type="password" class="form-control" id="password" placeholder="••••••••" required minlength="8" autocomplete="new-password" />
+            <button class="btn btn-outline-light" type="button" id="toggleRegPwd"><i class="bi bi-eye"></i></button>
+          </div>
+          <div class="pwd-strength-track mt-2">
+            <div class="pwd-strength-bar" id="pwdStrengthBar"></div>
+          </div>
+          <div class="small mt-1" id="pwdStrengthLabel" style="color:var(--text-muted, var(--text3))">At least 8 characters</div>
         </div>
 
         <!-- Broker + referral code — a valid referral unlocks Premium free -->
@@ -588,6 +609,48 @@
   input.addEventListener('blur', checkCode);
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); checkCode(); } });
 })();
+
+document.getElementById('toggleRegPwd').addEventListener('click', () => {
+  const pwd  = document.getElementById('password');
+  const icon = document.querySelector('#toggleRegPwd i');
+  if (pwd.type === 'password') { pwd.type = 'text';     icon.className = 'bi bi-eye-slash'; }
+  else                         { pwd.type = 'password'; icon.className = 'bi bi-eye'; }
+});
+
+// Lightweight client-side strength meter — purely a UX nudge alongside the
+// server's own minlength=8 requirement, not a substitute for it.
+document.getElementById('password').addEventListener('input', (e) => {
+  const val = e.target.value;
+  const bar = document.getElementById('pwdStrengthBar');
+  const label = document.getElementById('pwdStrengthLabel');
+
+  if (!val) {
+    bar.style.width = '0%';
+    label.textContent = 'At least 8 characters';
+    label.style.color = 'var(--text-muted, var(--text3))';
+    return;
+  }
+
+  let score = 0;
+  if (val.length >= 8)  score++;
+  if (val.length >= 12) score++;
+  if (/[a-z]/.test(val) && /[A-Z]/.test(val)) score++;
+  if (/\d/.test(val)) score++;
+  if (/[^A-Za-z0-9]/.test(val)) score++;
+
+  const levels = [
+    { pct: 20,  color: 'var(--red)',    text: 'Weak — try adding numbers or symbols' },
+    { pct: 40,  color: 'var(--red)',    text: 'Weak — try adding numbers or symbols' },
+    { pct: 60,  color: '#f5a623',       text: 'Okay — a mix of cases and numbers helps' },
+    { pct: 80,  color: '#f5a623',       text: 'Good' },
+    { pct: 100, color: 'var(--green)',  text: 'Strong' },
+  ];
+  const lvl = levels[Math.min(score, levels.length - 1)];
+  bar.style.width = lvl.pct + '%';
+  bar.style.background = lvl.color;
+  label.textContent = val.length < 8 ? `${val.length}/8 characters minimum` : lvl.text;
+  label.style.color = val.length < 8 ? 'var(--red)' : lvl.color;
+});
 
 document.getElementById('registerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
