@@ -121,7 +121,7 @@
     <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
       <div>
         <div class="section-card-title fw-700">Evaluation scope</div>
-        <div class="scope-copy mt-1">Overall accuracy includes every evaluated prediction for continuity. Versioned coverage identifies rows produced by a reproducible model contract; legacy or unspecified rows are shown separately and should not be used to compare current model releases.</div>
+        <div class="scope-copy mt-1">Overall accuracy includes every evaluated prediction for continuity and may count neutral outcomes as correct under the existing evaluator contract. Versioned coverage identifies rows produced by a reproducible model contract; legacy or unspecified rows are shown separately and should not be used to compare current model releases.</div>
       </div>
       <span class="badge-model" id="coverageBadge">Loading…</span>
     </div>
@@ -130,6 +130,8 @@
       <div class="scope-item"><span class="scope-item-label">Versioned rows</span><span class="scope-item-value" id="coverageVersioned">—</span></div>
       <div class="scope-item"><span class="scope-item-label">Legacy rows</span><span class="scope-item-value" id="coverageLegacy">—</span></div>
       <div class="scope-item"><span class="scope-item-label">Versioned accuracy</span><span class="scope-item-value" id="coverageAccuracy">—</span></div>
+      <div class="scope-item"><span class="scope-item-label">Neutral outcomes</span><span class="scope-item-value" id="coverageNeutral">—</span></div>
+      <div class="scope-item"><span class="scope-item-label">Decisive accuracy</span><span class="scope-item-value" id="coverageDecisiveAccuracy">—</span></div>
     </div>
   </div>
 </div>
@@ -282,7 +284,7 @@ async function loadPerf() {
     renderTfTable(data.by_timeframe || {});
     renderModelTable(data.by_model || {});
     renderVersionTable(data.by_model_version || {});
-    renderCoverage(data.coverage || {});
+    renderCoverage(data);
     _allAssets = data.by_asset || [];
     renderAssetTable(_allAssets);
   } catch (e) {
@@ -314,11 +316,15 @@ function renderStats(d) {
 }
 
 function renderCoverage(c) {
-  const evaluated = Number(c.evaluated || 0);
-  const versioned = Number(c.versioned || 0);
-  const legacy = Number(c.legacy || 0);
-  const versionedPct = safeAccuracy(c.versioned_pct);
-  const versionedAccuracy = c.versioned_accuracy == null ? null : safeAccuracy(c.versioned_accuracy);
+  const coverage = c.coverage || {};
+  const evaluated = Number(coverage.evaluated || 0);
+  const versioned = Number(coverage.versioned || 0);
+  const legacy = Number(coverage.legacy || 0);
+  const versionedPct = safeAccuracy(coverage.versioned_pct);
+  const versionedAccuracy = coverage.versioned_accuracy == null ? null : safeAccuracy(coverage.versioned_accuracy);
+  const outcomes = c.outcomes || {};
+  const decisive = c.decisive || {};
+  const decisiveAccuracy = decisive.accuracy == null ? null : safeAccuracy(decisive.accuracy);
   document.getElementById('coverageBadge').textContent = evaluated
     ? `${versionedPct}% versioned coverage`
     : 'No evaluated data';
@@ -326,6 +332,10 @@ function renderCoverage(c) {
   document.getElementById('coverageVersioned').textContent = `${versioned.toLocaleString()} (${versionedPct}%)`;
   document.getElementById('coverageLegacy').textContent = legacy.toLocaleString();
   document.getElementById('coverageAccuracy').textContent = versionedAccuracy == null ? 'No sample' : `${versionedAccuracy}%`;
+  document.getElementById('coverageNeutral').textContent = Number(outcomes.neutral || 0).toLocaleString();
+  document.getElementById('coverageDecisiveAccuracy').textContent = decisiveAccuracy == null
+    ? 'No sample'
+    : `${decisiveAccuracy}% (${Number(decisive.correct || 0)}/${Number(decisive.total || 0)})`;
 }
 
 function renderTrend(trend) {

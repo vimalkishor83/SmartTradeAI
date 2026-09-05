@@ -8,7 +8,7 @@ from app.services.ai.prediction_records import build_prediction_record
 from app.services.data.fetcher import market_fetcher
 from app.services.data.quality import assess_data_quality
 from app.services.backtest.validation import parse_timeframe
-from sqlalchemy import case, func
+from sqlalchemy import and_, case, func
 from datetime import datetime, timedelta
 
 predictions_bp = Blueprint("predictions", __name__)
@@ -138,6 +138,8 @@ def _empty_model_performance() -> dict:
             "versioned_pct": 0,
             "versioned_accuracy": None,
         },
+        "outcomes": {"bullish": 0, "bearish": 0, "neutral": 0, "unknown": 0},
+        "decisive": {"total": 0, "correct": 0, "accuracy": None},
         "by_timeframe": {},
         "by_asset": [],
         "by_model": {},
@@ -201,6 +203,32 @@ def model_performance():
         "versioned_accuracy": (
             round(versioned_correct / versioned_total * 100, 1)
             if versioned_total else None
+        ),
+    }
+
+    outcome_rows = (db.session.query(
+        Prediction.actual_direction.label("direction"),
+        func.count(Prediction.id).label("total"),
+        func.coalesce(func.sum(case((and_(
+            Prediction.actual_direction.in_(["bullish", "bearish"]),
+            Prediction.actual_direction == Prediction.predicted_direction,
+        ), 1), else_=0)), 0).label("decisive_correct"),
+    ).filter(resolved)
+     .group_by(Prediction.actual_direction)
+     .all())
+    outcomes = {"bullish": 0, "bearish": 0, "neutral": 0, "unknown": 0}
+    decisive_correct = 0
+    for row in outcome_rows:
+        direction = row.direction if row.direction in outcomes else "unknown"
+        outcomes[direction] += int(row.total or 0)
+        decisive_correct += int(row.decisive_correct or 0)
+    decisive_total = outcomes["bullish"] + outcomes["bearish"]
+    decisive = {
+        "total": decisive_total,
+        "correct": decisive_correct,
+        "accuracy": (
+            round(decisive_correct / decisive_total * 100, 1)
+            if decisive_total else None
         ),
     }
 
@@ -326,6 +354,8 @@ def model_performance():
             "accuracy": round(correct / total * 100, 1) if total else 0,
         },
         "coverage": coverage,
+        "outcomes": outcomes,
+        "decisive": decisive,
         "by_timeframe": by_timeframe,
         "by_asset": by_asset,
         "by_model": by_model,

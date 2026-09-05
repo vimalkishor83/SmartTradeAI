@@ -45,18 +45,18 @@ def test_model_performance_aggregates_without_loading_prediction_rows(
             Prediction(
                 asset_id=asset_a.id, timeframe="1h", model_name="rf",
                 model_version="ensemble-calibrated-v1",
-                predicted_direction="bullish", was_correct=True,
+                predicted_direction="bullish", actual_direction="bullish", was_correct=True,
                 evaluated_at=now - timedelta(days=1),
             ),
             Prediction(
                 asset_id=asset_a.id, timeframe="1h", model_name="rf",
                 model_version="ensemble-calibrated-v1",
-                predicted_direction="bearish", was_correct=False,
+                predicted_direction="bearish", actual_direction="bullish", was_correct=False,
                 evaluated_at=now - timedelta(days=2),
             ),
             Prediction(
                 asset_id=asset_b.id, timeframe="4h", model_name=None,
-                predicted_direction="bullish", was_correct=True,
+                predicted_direction="bullish", actual_direction="neutral", was_correct=True,
                 evaluated_at=now - timedelta(days=31),
             ),
             Prediction(
@@ -79,6 +79,8 @@ def test_model_performance_aggregates_without_loading_prediction_rows(
         "versioned_pct": 66.7,
         "versioned_accuracy": 50.0,
     }
+    assert payload["outcomes"] == {"bullish": 2, "bearish": 0, "neutral": 1, "unknown": 0}
+    assert payload["decisive"] == {"total": 2, "correct": 1, "accuracy": 50.0}
     assert payload["by_timeframe"] == {
         "1h": {"total": 2, "correct": 1, "accuracy": 50.0},
         "4h": {"total": 1, "correct": 1, "accuracy": 100.0},
@@ -116,6 +118,8 @@ def test_empty_model_performance_is_cached_contract(app, client, login_headers):
             "versioned_pct": 0,
             "versioned_accuracy": None,
         },
+        "outcomes": {"bullish": 0, "bearish": 0, "neutral": 0, "unknown": 0},
+        "decisive": {"total": 0, "correct": 0, "accuracy": None},
         "by_timeframe": {},
         "by_asset": [],
         "by_model": {},

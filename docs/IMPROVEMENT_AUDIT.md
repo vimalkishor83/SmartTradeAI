@@ -702,6 +702,14 @@ Admin provider-configuration create/update payloads now share one validator. It 
 
 **Regression evidence:** Focused validation tests passed (**14 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**275 passed** in 105.75s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.43 IMPLEMENTED — Show neutral and decisive AI evaluation outcomes
+
+The model-performance response now reports the evaluated actual-outcome mix (bullish, bearish, neutral and unknown) plus a separate decisive directional accuracy that excludes neutral outcomes. The existing overall `was_correct` accuracy remains unchanged for continuity, while the UI explicitly explains that neutral outcomes may be counted by the legacy evaluator contract; this prevents a strong-looking aggregate from hiding how much of the sample was non-directional.
+
+**Risk level:** High accountability value, low runtime/API risk (two additive response objects and one SQL aggregate; no prediction evaluation semantics changed). **Affected modules:** `app/api/v1/predictions.py`, `frontend/templates/dashboard/model_performance.html`, `tests/integration/test_model_performance_route.py`. **Migration:** none.
+
+**Regression evidence:** Focused model-performance tests passed (**2 passed**), Python compilation, JavaScript syntax and whitespace validation passed, and the full local regression suite passed (**275 passed** in 109.63s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -816,5 +824,10 @@ Admin provider-configuration create/update payloads now share one validator. It 
 - `app/services/api_config_validation.py` — centralize create/update normalization and validation for provider configuration payloads.
 - `app/api/v1/admin.py` — apply the shared validator before configuration writes.
 - `tests/unit/test_api_config_validation.py` — cover valid normalization, malformed bodies, incompatible providers, partial updates and ambiguous values.
+
+**Session 22 (AI accountability — outcome composition, §7.43):**
+- `app/api/v1/predictions.py` — aggregate evaluated bullish/bearish/neutral/unknown outcomes and decisive directional accuracy in SQL.
+- `frontend/templates/dashboard/model_performance.html` — show neutral sample count and decisive accuracy alongside the existing coverage caveat.
+- `tests/integration/test_model_performance_route.py` — verify outcome composition, decisive accuracy and the empty response contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
