@@ -2277,8 +2277,14 @@ def backtest():
     if asset_id:
         asset = Asset.query.get_or_404(asset_id)
         result = run_backtest(asset, timeframe, days=days)
-        # Normalise trade keys for the UI (add 'r' field)
-        for t in result.get("trades_data", []):
+        # Normalise trade keys for the UI (add 'r' field). run_backtest()
+        # returns its trade sample under "sample_trades" — this was
+        # previously reading "trades_data" (a key that belongs to the
+        # other, strategy-config backtest engine and never exists on this
+        # result), which silently made this loop a no-op and left the
+        # frontend's equity-curve chart and trade table permanently empty
+        # for every live-engine backtest.
+        for t in result.get("sample_trades", []):
             if "r" not in t and t.get("pnl_pct") is not None:
                 t["r"] = round(t["pnl_pct"] / 100, 4)
         return jsonify(result), 200

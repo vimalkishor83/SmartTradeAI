@@ -220,14 +220,49 @@ function showUpgradePrompt(message) {
     </div>`;
 }
 
+// Below this many decided trades, a win rate is too noisy to treat as a
+// reliable estimate of the strategy's real edge — flagged, not hidden,
+// since the number itself is still mathematically correct.
+const MIN_SAMPLE_TRADES = 20;
+
 function showResults(data, isLive) {
   document.getElementById('btPlaceholder').style.display = 'none';
   document.getElementById('btResults').style.display = 'block';
 
   // Normalize fields — live engine uses different keys
   const totalTrades  = data.total_trades || data.trades || 0;
-  const winRate      = isLive ? (data.win_rate * 100 || 0).toFixed(1) : (data.win_rate || 0);
-  const trueWinRate  = isLive ? ((data.true_win_rate || 0) * 100).toFixed(1) : null;
+
+  // Ran successfully (no data.error — that's handled by the caller before
+  // showResults is ever invoked) but generated zero signals in the window.
+  // Previously this fell through to the KPI grid below and displayed
+  // "0.0% Win Rate" — indistinguishable from "traded and lost every time".
+  if (totalTrades === 0) {
+    document.getElementById('btKpis').innerHTML = `
+      <div class="col-12">
+        <div class="section-card">
+          <div class="section-card-body text-center py-4">
+            <i class="bi bi-search text-muted" style="font-size:22px"></i>
+            <p class="mb-0 mt-2 text-muted">No trades — the strategy generated no signals in this window.</p>
+            <p class="mb-0 fs-xs text-muted">Try a longer date range, a different timeframe, or a different asset.</p>
+          </div>
+        </div>
+      </div>`;
+    const ctx0 = document.getElementById('equityChart').getContext('2d');
+    if (equityChart) { equityChart.destroy(); equityChart = null; }
+    ctx0.clearRect(0, 0, ctx0.canvas.width, ctx0.canvas.height);
+    document.getElementById('btTrades').innerHTML = '';
+    return;
+  }
+
+  // win_rate/raw_win_rate arrive from the backend already on a 0-100 scale
+  // (see app/services/backtest/runner.py::_summarize) — do NOT multiply by
+  // 100 again here. That double-multiplication (47.4% -> 4740%) was the
+  // reported "impossible win rate" bug; win_rate is bounded 0-100 by
+  // construction (wins / decided trades) once this isn't applied twice.
+  const winRate      = (data.win_rate || 0).toFixed(1);
+  const rawWinRate   = isLive ? (data.raw_win_rate || 0).toFixed(1) : null;
+  const decidedTrades = isLive ? (data.wins || 0) + (data.losses || 0) : totalTrades;
+  const lowSample    = decidedTrades > 0 && decidedTrades < MIN_SAMPLE_TRADES;
   const profitFactor = parseFloat(data.profit_factor || 0);
   const avgR         = isLive ? parseFloat(data.avg_r || 0) : null;
   const maxDD        = data.max_drawdown || 0;
@@ -235,11 +270,12 @@ function showResults(data, isLive) {
   const netPct       = data.net_profit_pct || 0;
 
   const kpis = [
-    { label: 'Total Trades',  value: totalTrades, cls: '' },
-    { label: isLive ? 'True Win Rate' : 'Win Rate',
+    { label: 'Total Trades',  value: totalTrades, cls: '',
+      sub: lowSample ? `Small sample (<${MIN_SAMPLE_TRADES}) — low confidence` : null },
+    { label: isLive ? 'Win Rate (decided)' : 'Win Rate',
       value: `${winRate}%`,
       cls: parseFloat(winRate) >= 50 ? 'text-green' : 'text-red',
-      sub: isLive && trueWinRate ? `Raw: ${((data.raw_win_rate||0)*100).toFixed(1)}%` : null },
+      sub: isLive ? `Raw (incl. expired): ${rawWinRate}%` : null },
     { label: 'Profit Factor', value: profitFactor.toFixed(2), cls: profitFactor >= 1.5 ? 'text-green' : profitFactor >= 1 ? 'text-yellow' : 'text-red' },
     { label: isLive ? 'Avg R' : 'Net Profit',
       value: isLive ? (avgR >= 0 ? '+' : '') + avgR.toFixed(3) + 'R' : `${netPct >= 0 ? '+' : ''}${netPct}%`,
@@ -264,10 +300,15 @@ function showResults(data, isLive) {
   if (equityChart) equityChart.destroy();
 
   const datasets = [];
-  if (isLive && data.trades_data?.length) {
+  // The walk-forward ("Live Engine") backtest returns its trade sample
+  // under sample_trades, not trades_data (trades_data is the OTHER,
+  // strategy-config backtest engine's key — app/services/backtesting/
+  // engine.py). Reading the wrong key here silently left this chart and
+  // the trade table below always empty for every live-engine backtest.
+  if (isLive && data.sample_trades?.length) {
     // Build cumulative R curve from walk-forward trades
     let cumR = 0;
-    const rCurve = data.trades_data.map(t => { cumR += (t.r || 0); return parseFloat(cumR.toFixed(3)); });
+    const rCurve = data.sample_trades.map(t => { cumR += (t.r || 0); return parseFloat(cumR.toFixed(3)); });
     datasets.push({ label: 'Cumulative R', data: rCurve, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
     // Zero benchmark
     const _breakevenClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || 'rgba(148,163,184,0.4)';
@@ -295,8 +336,8 @@ function showResults(data, isLive) {
     },
   });
 
-  // Trades table
-  const trades = data.trades_data || [];
+  // Trades table — same sample_trades/trades_data key split as the chart above.
+  const trades = isLive ? (data.sample_trades || []) : (data.trades_data || []);
   document.getElementById('btTrades').innerHTML = trades.slice(0, 100).map((t, i) => `
     <tr>
       <td>${i + 1}</td>
