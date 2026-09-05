@@ -454,6 +454,14 @@ Auto Generate save, start and run-once routes now require JSON objects, validate
 
 **Regression evidence:** Focused Auto Generate integration tests passed locally (**7 passed**); the full local suite passed with **185 passed** in 116.42s. Production deployment completed on 2026-09-05 from `7691d30`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the deployed Auto Generate integration module passed (**7 passed**), and the recent app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.12 IMPLEMENTED — Harden backtesting request boundaries
+
+The strategy backtest, walk-forward, and live-engine backtest routes now share one validator for JSON/query inputs. It rejects malformed bodies, unsupported timeframes/markets, missing or oversized symbols, non-finite or unsafe capital/cost values, invalid window counts, invalid asset IDs, negative lookbacks, and oversized portfolio limits before database creation or market-data work. Valid symbols are normalized consistently, while valid existing UI defaults remain unchanged.
+
+**Risk level:** Medium reliability and performance value, low compatibility risk (valid UI requests remain supported; malformed or unsafe requests now receive clear `400` responses). **Affected modules:** `app/services/backtest/validation.py`, `app/api/v1/backtesting.py`, `app/api/v1/signals.py`, `tests/unit/test_backtest_request_validation.py`, `tests/integration/test_backtesting_request_boundary.py`. **Migration:** none.
+
+**Regression evidence:** Focused boundary tests passed locally (**24 passed**); the full local suite passed with **209 passed** in 114.61s. Production deployment and production smoke verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

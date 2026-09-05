@@ -9,6 +9,9 @@ from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.data.fetcher import market_fetcher
 from app.services.pagination import bounded_float, bounded_int, bounded_page, bounded_per_page
+from app.services.backtest.validation import (
+    parse_asset_id, parse_days, parse_market, parse_portfolio_limit, parse_timeframe, parse_symbol,
+)
 from datetime import datetime, timedelta
 from sqlalchemy import and_, case, func
 from sqlalchemy.exc import IntegrityError
@@ -2366,10 +2369,16 @@ def backtest():
     """
     from app.services.backtest import run_backtest, backtest_portfolio
 
-    timeframe = request.args.get("timeframe", "1h")
-    days      = request.args.get("days", default=60, type=int)
-    asset_id  = request.args.get("asset_id", type=int)
-    symbol    = request.args.get("symbol", "").upper().strip()
+    try:
+        timeframe = parse_timeframe(request.args.get("timeframe"))
+        days = parse_days(request.args.get("days"))
+        asset_id = parse_asset_id(request.args.get("asset_id"))
+        symbol_raw = request.args.get("symbol", "")
+        symbol = parse_symbol(symbol_raw) if symbol_raw else ""
+        market = parse_market(request.args.get("market"))
+        limit = parse_portfolio_limit(request.args.get("limit"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # Allow lookup by symbol string (used by the backtesting UI)
     if not asset_id and symbol:
@@ -2394,8 +2403,6 @@ def backtest():
         return jsonify(result), 200
 
     # Portfolio backtest — bounded to keep runtime reasonable.
-    market = request.args.get("market")
-    limit  = request.args.get("limit", default=15, type=int)
     q = Asset.query.filter_by(is_active=True)
     if market:
         q = q.filter_by(market=market)

@@ -7,6 +7,7 @@ from app.auth.decorators import login_required, premium_required, subscription_f
 from app.services.backtesting.engine import backtest_engine
 from app.services.backtesting.walk_forward import run_walk_forward
 from app.services.data.fetcher import market_fetcher
+from app.services.backtest.validation import parse_strategy_payload
 from datetime import datetime
 
 # Shared across /run and /walk-forward — keeps strategy-name normalization
@@ -45,11 +46,14 @@ def list_backtests():
 @subscription_feature_required("backtesting_enabled")
 def run_backtest():
     user_id = get_jwt_identity()
-    data = request.get_json()
+    try:
+        config = parse_strategy_payload(request.get_json(silent=True))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    symbol = data.get("symbol")
-    timeframe = data.get("timeframe", "1h")
-    initial_capital = float(data.get("initial_capital", 100000))
+    symbol = config["symbol"]
+    timeframe = config["timeframe"]
+    initial_capital = config["initial_capital"]
 
     asset = Asset.query.filter_by(symbol=symbol, is_active=True).first()
     if not asset:
@@ -58,7 +62,7 @@ def run_backtest():
     bt = Backtest(
         user_id=user_id,
         asset_id=asset.id,
-        strategy_name=data.get("strategy", "Default Multi-Indicator"),
+        strategy_name=config["strategy"],
         timeframe=timeframe,
         initial_capital=initial_capital,
         status="running",
@@ -66,7 +70,7 @@ def run_backtest():
     db.session.add(bt)
     db.session.commit()
 
-    engine_strategy = _resolve_strategy(data.get("strategy"))
+    engine_strategy = _resolve_strategy(config["strategy"])
 
     # multi_factor calls signal_engine.generate_signal() once per bar (a full
     # 7-stage pipeline including calculate_all_indicators + pattern
@@ -85,9 +89,8 @@ def run_backtest():
         db.session.commit()
         return jsonify({"error": "Failed to fetch data"}), 503
 
-    # Allow caller to override defaults; clamp to sane ranges
-    commission = max(0.0, min(0.01, float(data.get("commission", 0.001))))
-    slippage   = max(0.0, min(0.01, float(data.get("slippage",   0.0005))))
+    commission = config["commission"]
+    slippage = config["slippage"]
 
     result = backtest_engine.run(
         df, asset, timeframe, initial_capital,
@@ -135,18 +138,21 @@ def walk_forward():
     lucky (or unlucky) regime. Not persisted as a Backtest row — this is
     a diagnostic view, not a single canonical result the way /run is.
     """
-    data = request.get_json() or {}
+    try:
+        config = parse_strategy_payload(request.get_json(silent=True), include_windows=True)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    symbol = data.get("symbol")
-    timeframe = data.get("timeframe", "1h")
-    initial_capital = float(data.get("initial_capital", 100000))
-    n_windows = max(2, min(10, int(data.get("n_windows", 5))))
+    symbol = config["symbol"]
+    timeframe = config["timeframe"]
+    initial_capital = config["initial_capital"]
+    n_windows = config["n_windows"]
 
     asset = Asset.query.filter_by(symbol=symbol, is_active=True).first()
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
 
-    engine_strategy = _resolve_strategy(data.get("strategy"))
+    engine_strategy = _resolve_strategy(config["strategy"])
 
     # multi_factor calls signal_engine.generate_signal() once per bar
     # (a full 7-stage pipeline including calculate_all_indicators +
@@ -168,8 +174,8 @@ def walk_forward():
     df = market_fetcher.fetch(asset, timeframe, candle_target)
     if df is None:
         return jsonify({"error": "Failed to fetch data"}), 503
-    commission = max(0.0, min(0.01, float(data.get("commission", 0.001))))
-    slippage   = max(0.0, min(0.01, float(data.get("slippage",   0.0005))))
+    commission = config["commission"]
+    slippage = config["slippage"]
 
     result = run_walk_forward(
         df, asset, timeframe, initial_capital,
