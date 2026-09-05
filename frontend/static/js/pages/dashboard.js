@@ -203,7 +203,7 @@ function _renderSignals(signals) {
   const minConf = window.MIN_CONFIDENCE || 0;
   const filtered = signals.filter(s => (s.confidence_score || 0) >= minConf);
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-5"><i class="bi bi-inbox d-block mb-2" style="font-size:26px"></i>No signals yet — generate one from a market page.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No signals yet — generate one from a market page.</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(s => {
