@@ -428,7 +428,7 @@ Signal listing now normalizes `min_confidence` to a finite `0..100` range, while
 
 **Risk level:** Low (valid requests remain equivalent; only invalid/out-of-range inputs are normalized). **Affected modules:** `app/services/pagination.py`, `app/api/v1/signals.py`, `tests/unit/test_pagination.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `f0c25bc`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **173 passed** in 45.60s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
