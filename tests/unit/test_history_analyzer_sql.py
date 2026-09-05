@@ -7,8 +7,10 @@ from app.models.asset import Asset
 from app.models.signal import SignalHistory
 
 
-def test_history_analytics_preserves_aggregate_contract(app):
+def test_history_analytics_preserves_aggregate_contract(app, client):
     from app.services.backtest import analyze_history, whatif_expiry
+    from app.models.user import User
+    from flask_jwt_extended import create_access_token
 
     with app.app_context():
         asset = Asset(
@@ -101,3 +103,12 @@ def test_history_analytics_preserves_aggregate_contract(app):
         assert expiry["current_raw_win_rate"] == 25.0
         assert expiry["win_rate_if_neutral_profit_counted"] == 50.0
         assert expiry["interpretation"].startswith("If a high share of neutral signals")
+
+        token = create_access_token(identity=str(User.query.filter_by(username="admin").first().id))
+
+    response = client.get(
+        "/api/v1/signals/history-stats",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["stats"]["overall"]["total"] == 4

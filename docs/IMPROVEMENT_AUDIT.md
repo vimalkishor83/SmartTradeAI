@@ -548,7 +548,7 @@ The cached `/signals/history-stats` endpoint no longer materializes the entire `
 
 **Risk level:** Medium scalability value, low API compatibility risk (existing response keys and calculations are preserved; no model or schema change). **Affected modules:** `app/services/backtest/analyzer.py`, `app/api/v1/signals.py`, `tests/unit/test_history_analyzer_sql.py`. **Migration:** none.
 
-**Regression evidence:** The SQL history contract and related performance/export route tests passed locally (**6 passed**); the full local suite passed with **221 passed** in 98.55s. Production deployment and endpoint verification are pending for this slice.
+**Regression evidence:** The SQL history contract, authenticated route, and related performance/export route tests passed locally (**6 passed**); the full local suite passed with **221 passed** in 114.77s. Production deployment completed on 2026-09-06 from `3eaa745`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: history-sql-20260906`, the deployed history, performance, export and prediction tests passed (**6 passed** in 5.62s), and the fresh app/worker error scan had no error, traceback, critical, or exception output. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
