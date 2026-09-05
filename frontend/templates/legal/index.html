@@ -3,15 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Privacy Policy — SmartTrade AI</title>
-  <meta name="description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
-  <link rel="canonical" href="https://smarttradeai.online/privacy" />
+  <title>Legal Center — SmartTrade AI</title>
+  <meta name="description" content="Every legal and policy document for SmartTrade AI in one place — Terms of Service, Privacy Policy, Financial Disclaimer, Risk Disclosure and more." />
+  <link rel="canonical" href="https://smarttradeai.online/legal" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
-  <meta property="og:title" content="Privacy Policy — SmartTrade AI" />
-  <meta property="og:description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
-  <meta property="og:url" content="https://smarttradeai.online/privacy" />
+  <meta property="og:title" content="Legal Center — SmartTrade AI" />
+  <meta property="og:description" content="Every legal and policy document for SmartTrade AI in one place." />
+  <meta property="og:url" content="https://smarttradeai.online/legal" />
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
   <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
@@ -50,45 +50,23 @@
       font-size: 15px;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
-      /* No overflow-x here — html already clips it. Setting it on both
-         html and body breaks position:sticky for body's children. */
     }
     a { color: inherit; text-decoration: none; }
     .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-    a:focus-visible, button:focus-visible, summary:focus-visible {
-      outline: 2px solid var(--accent);
-      outline-offset: 2px;
-      border-radius: 4px;
-    }
+    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
     .skip-link {
-      position: absolute;
-      left: 12px; top: -48px;
-      background: var(--accent);
-      color: #14100a;
-      font-weight: 700;
-      font-size: 13px;
-      padding: 10px 16px;
-      border-radius: 8px;
-      z-index: 1000;
-      transition: top 0.15s;
+      position: absolute; left: 12px; top: -48px; background: var(--accent); color: #14100a;
+      font-weight: 700; font-size: 13px; padding: 10px 16px; border-radius: 8px; z-index: 1000; transition: top 0.15s;
     }
     .skip-link:focus { top: 12px; }
 
-    /* ── LIVE TICKER STRIP — identical to /home ────────────── */
     :root { --ticker-h: 43px; }
     .ticker-wrap {
-      position: sticky;
-      top: 0;
-      z-index: 101;
-      height: var(--ticker-h);
-      box-sizing: border-box;
-      border-top: 1px solid var(--border);
-      border-bottom: 1px solid var(--border);
-      background: var(--bg3);
-      overflow: hidden;
-      padding: 12px 0;
+      position: sticky; top: 0; z-index: 101; height: var(--ticker-h); box-sizing: border-box;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      background: var(--bg3); overflow: hidden; padding: 12px 0;
     }
     .ticker-track { display: flex; gap: 40px; width: max-content; animation: scrollTicker 32s linear infinite; }
     @keyframes scrollTicker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
@@ -101,25 +79,14 @@
     .ticker-chip.hold { background: rgba(245,166,35,0.14); color: var(--accent); }
 
     .navbar {
-      position: sticky;
-      top: var(--ticker-h);
-      z-index: 100;
-      background: rgba(8,11,18,0.88);
-      backdrop-filter: blur(16px);
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 5%;
-      height: 64px;
+      position: sticky; top: var(--ticker-h); z-index: 100;
+      background: rgba(8,11,18,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; padding: 0 5%; height: 64px;
     }
     .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
     .nav-brand .brand-icon {
-      width: 36px; height: 36px;
-      background: linear-gradient(135deg, var(--accent), #d97f0a);
-      border-radius: 9px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 18px;
+      width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent), #d97f0a); border-radius: 9px;
+      display: flex; align-items: center; justify-content: center; font-size: 18px;
       box-shadow: 0 0 0 1px rgba(245,166,35,0.35), 0 4px 16px rgba(245,166,35,0.25);
     }
     .nav-brand .ai-part { color: var(--accent); }
@@ -128,9 +95,8 @@
     .nav-links a:hover { color: var(--text); }
     .nav-cta { display: flex; align-items: center; gap: 12px; }
     .btn {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 9px 22px; border-radius: 8px; font-size: 14px; font-weight: 600;
-      cursor: pointer; transition: all 0.2s; border: none;
+      display: inline-flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 8px;
+      font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;
     }
     .btn-ghost { background: none; color: var(--text2); border: 1px solid transparent; }
     .btn-ghost:hover { color: var(--text); border-color: var(--border); }
@@ -147,89 +113,41 @@
       .nav-cta-name { display: none; }
     }
 
-    .legal-hero { max-width: 880px; margin: 0 auto; padding: 52px 5% 20px; text-align: center; }
+    .legal-hero { max-width: 720px; margin: 0 auto; padding: 56px 5% 40px; text-align: center; }
     .legal-eyebrow {
       display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px;
       text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
     }
-    .legal-hero h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
-    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; max-width: 620px; margin: 0 auto 22px; }
-    .legal-badge-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
-    .legal-badge {
-      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-      color: var(--text2); background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px;
+    .legal-hero h1 { font-size: clamp(30px, 4vw, 40px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
+    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; }
+
+    .legal-index { max-width: 880px; margin: 0 auto; padding: 0 5% 90px; }
+    .legal-index-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    @media (max-width: 700px) { .legal-index-grid { grid-template-columns: 1fr; } }
+
+    .legal-index-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 22px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s, transform 0.2s;
     }
-    .legal-badge.accent { color: var(--accent2); border-color: rgba(245,166,35,0.3); background: var(--accent-dim); }
-
-    .legal-meta {
-      max-width: 880px; margin: 0 auto; padding: 0 5% 8px;
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
-      background: var(--border); border: 1px solid var(--border); border-radius: var(--radius);
-      overflow: hidden; margin-bottom: 32px;
+    a.legal-index-card:hover { border-color: rgba(245,166,35,0.35); transform: translateY(-2px); }
+    .legal-index-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .legal-index-card-icon {
+      width: 38px; height: 38px; border-radius: 10px; background: var(--accent-dim);
+      display: flex; align-items: center; justify-content: center; font-size: 17px; color: var(--accent2); flex-shrink: 0;
     }
-    .legal-meta-item { background: var(--card); padding: 14px 16px; text-align: center; }
-    .legal-meta-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
-    .legal-meta-value { font-size: 13.5px; font-weight: 700; color: var(--text); }
-    @media (max-width: 640px) { .legal-meta { grid-template-columns: 1fr; margin: 0 4% 28px; } }
-
-    .legal-notices { max-width: 880px; margin: 0 auto; padding: 0 5%; }
-    .notice-status {
-      background: rgba(255,255,255,0.02); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 16px 20px; margin-bottom: 40px; font-size: 13px; line-height: 1.7; color: var(--text2);
+    .legal-index-card-title { font-size: 15.5px; font-weight: 700; color: var(--text); }
+    .legal-index-card-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
+    .legal-index-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px; }
+    .legal-index-badge {
+      font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+      padding: 3px 9px; border-radius: 6px;
     }
-    .notice-status strong { color: var(--text); }
-
-    .legal-layout {
-      max-width: 1080px; margin: 0 auto; padding: 0 5% 80px;
-      display: grid; grid-template-columns: 220px 1fr; gap: 56px; align-items: start;
-    }
-    .toc-desktop { position: sticky; top: 127px; }
-    .toc-desktop h2 { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
-    .toc-desktop ol { list-style: none; display: flex; flex-direction: column; gap: 2px; }
-    .toc-desktop a {
-      display: flex; gap: 10px; align-items: baseline; font-size: 13px; color: var(--text2);
-      padding: 7px 10px; border-radius: 7px; line-height: 1.4; transition: background 0.15s, color 0.15s;
-    }
-    .toc-desktop a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
-    .toc-desktop a.active { color: var(--accent2); background: var(--accent-dim); }
-    .toc-desktop a .toc-num { font-family: var(--font-mono); color: var(--text3); flex-shrink: 0; }
-    .toc-desktop a.active .toc-num { color: var(--accent); }
-    .toc-mobile { display: none; }
-
-    @media (max-width: 900px) {
-      .legal-layout { grid-template-columns: 1fr; gap: 0; }
-      .toc-desktop { display: none; }
-      .toc-mobile { display: block; margin-bottom: 28px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-      .toc-mobile summary {
-        cursor: pointer; padding: 14px 16px; font-size: 13.5px; font-weight: 700; color: var(--text);
-        display: flex; align-items: center; justify-content: space-between; list-style: none;
-      }
-      .toc-mobile summary::-webkit-details-marker { display: none; }
-      .toc-mobile summary::after { content: '▾'; color: var(--text3); }
-      .toc-mobile[open] summary::after { content: '▴'; }
-      .toc-mobile ol { list-style: none; padding: 4px 8px 12px; display: flex; flex-direction: column; }
-      .toc-mobile a { display: flex; gap: 10px; font-size: 13.5px; color: var(--text2); padding: 9px 10px; min-height: 40px; align-items: center; }
-      .toc-mobile a .toc-num { font-family: var(--font-mono); color: var(--text3); }
-    }
-
-    .legal-doc { min-width: 0; max-width: 680px; }
-    .legal-section { padding: 26px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 127px; }
-    .legal-section:last-child { border-bottom: none; }
-    .legal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
-    .legal-section-num { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
-    .legal-section h2 { font-size: 17.5px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
-    .legal-section p { font-size: 14.5px; line-height: 1.8; color: var(--text2); }
-
-    .related-docs { margin-top: 8px; padding-top: 32px; }
-    .related-docs h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
-    .related-docs-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
-    .related-doc { background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; font-size: 13.5px; font-weight: 600; color: var(--text); transition: background 0.15s; }
-    a.related-doc:hover { background: var(--card2); color: var(--accent2); }
-    .related-doc-disabled { color: var(--text3); cursor: default; }
-    .related-doc-soon { font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; color: var(--text3); background: rgba(255,255,255,0.04); padding: 3px 8px; border-radius: 6px; }
-
-    .legal-cta { margin-top: 44px; padding: 28px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
-    .legal-cta p { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
+    .legal-index-badge.available { color: var(--green); background: rgba(34,217,127,0.12); }
+    .legal-index-badge.draft { color: var(--accent2); background: var(--accent-dim); }
+    .legal-index-badge.soon { color: var(--text3); background: rgba(255,255,255,0.04); }
+    .legal-index-arrow { color: var(--text3); font-size: 14px; }
+    a.legal-index-card:hover .legal-index-arrow { color: var(--accent2); }
+    .legal-index-card.disabled { opacity: 0.6; cursor: default; }
 
     .footer { background: var(--bg3); border-top: 1px solid var(--border); padding: 40px 5%; text-align: center; }
     .footer-brand { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
@@ -299,129 +217,80 @@
 
   <div class="legal-hero">
     <span class="legal-eyebrow">Legal &amp; Transparency</span>
-    <h1>Privacy Policy</h1>
+    <h1>Legal Center</h1>
     <p class="legal-hero-sub">
-      What SmartTrade AI collects, how broker API keys are protected, and the rights you have
-      over your own account data.
+      Every legal and policy document that governs your use of SmartTrade AI, in one place.
     </p>
-    <div class="legal-badge-row">
-      <span class="legal-badge accent">📄 Privacy Policy</span>
-    </div>
   </div>
 
-  <div class="legal-meta">
-    <div class="legal-meta-item">
-      <div class="legal-meta-label">Document</div>
-      <div class="legal-meta-value">Privacy Policy</div>
-    </div>
-    <div class="legal-meta-item">
-      <div class="legal-meta-label">Version</div>
-      <div class="legal-meta-value">Current</div>
-    </div>
-    <div class="legal-meta-item">
-      <div class="legal-meta-label">Status</div>
-      <div class="legal-meta-value">Informational</div>
-    </div>
-  </div>
+  <div class="legal-index">
+    <div class="legal-index-grid">
 
-  <div class="legal-notices">
-    <div class="notice-status">
-      <strong>Placeholder document — this is not a legally reviewed Privacy Policy.</strong>
-      Replace this page with a real policy drafted or reviewed by a lawyer before taking real users
-      or payments in production, and adjust it to match your actual data handling practices and
-      applicable regulations (e.g. GDPR, CCPA) for the regions you serve.
-    </div>
-  </div>
-
-  <div class="legal-layout">
-
-    <details class="toc-mobile">
-      <summary>On this page</summary>
-      <ol>
-        <li><a href="#sec-01"><span class="toc-num mono">01</span>What We Collect</a></li>
-        <li><a href="#sec-02"><span class="toc-num mono">02</span>Broker API Keys</a></li>
-        <li><a href="#sec-03"><span class="toc-num mono">03</span>How We Use Data</a></li>
-        <li><a href="#sec-04"><span class="toc-num mono">04</span>Data Sharing</a></li>
-        <li><a href="#sec-05"><span class="toc-num mono">05</span>Your Rights</a></li>
-      </ol>
-    </details>
-
-    <nav class="toc-desktop" aria-label="Table of contents" id="tocDesktop">
-      <h2>On This Page</h2>
-      <ol>
-        <li><a href="#sec-01" data-toc><span class="toc-num mono">01</span>What We Collect</a></li>
-        <li><a href="#sec-02" data-toc><span class="toc-num mono">02</span>Broker API Keys</a></li>
-        <li><a href="#sec-03" data-toc><span class="toc-num mono">03</span>How We Use Data</a></li>
-        <li><a href="#sec-04" data-toc><span class="toc-num mono">04</span>Data Sharing</a></li>
-        <li><a href="#sec-05" data-toc><span class="toc-num mono">05</span>Your Rights</a></li>
-      </ol>
-    </nav>
-
-    <div class="legal-doc">
-
-      <section class="legal-section" id="sec-01">
-        <div class="legal-section-head">
-          <span class="legal-section-num mono">01</span>
-          <h2>What We Collect</h2>
+      <a class="legal-index-card" href="/terms">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-file-earmark-text"></i></div>
+          <span class="legal-index-arrow">→</span>
         </div>
-        <p>Account details you provide (username, email, name), trading preferences and settings,
-          and usage data (login times, IP address, audit trail of actions) needed to operate and
-          secure the platform.</p>
-      </section>
+        <div class="legal-index-card-title">Terms of Service</div>
+        <p class="legal-index-card-desc">The terms that govern your use of the platform — account approval, broker connections, and warranty.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
+      </a>
 
-      <section class="legal-section" id="sec-02">
-        <div class="legal-section-head">
-          <span class="legal-section-num mono">02</span>
-          <h2>Broker API Keys</h2>
+      <a class="legal-index-card" href="/privacy">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-shield-check"></i></div>
+          <span class="legal-index-arrow">→</span>
         </div>
-        <p>If you connect a broker/exchange account, API credentials are encrypted at rest and used
-          solely to place orders and fetch data on your behalf, per your configuration.</p>
-      </section>
+        <div class="legal-index-card-title">Privacy Policy</div>
+        <p class="legal-index-card-desc">What we collect, how broker API keys are protected, and your rights over your account data.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
+      </a>
 
-      <section class="legal-section" id="sec-03">
-        <div class="legal-section-head">
-          <span class="legal-section-num mono">03</span>
-          <h2>How We Use Data</h2>
+      <a class="legal-index-card" href="/disclaimer">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-exclamation-triangle"></i></div>
+          <span class="legal-index-arrow">→</span>
         </div>
-        <p>To provide the service, secure your account, improve signal accuracy, and communicate
-          important account or security notices.</p>
-      </section>
+        <div class="legal-index-card-title">Financial Disclaimer</div>
+        <p class="legal-index-card-desc">Not financial advice, no guaranteed returns, AI-generated content limitations, and platform risk.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
+      </a>
 
-      <section class="legal-section" id="sec-04">
-        <div class="legal-section-head">
-          <span class="legal-section-num mono">04</span>
-          <h2>Data Sharing</h2>
+      <a class="legal-index-card" href="/risk-disclosure">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-graph-down-arrow"></i></div>
+          <span class="legal-index-arrow">→</span>
         </div>
-        <p>We do not sell your personal data. Data is not shared with third parties except as needed
-          to operate the service (e.g. email delivery) or as required by law.</p>
-      </section>
+        <div class="legal-index-card-title">Risk Disclosure</div>
+        <p class="legal-index-card-desc">An educational look at the risk profile of Crypto, Forex, Indian Stocks, Commodities and leverage.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
+      </a>
 
-      <section class="legal-section" id="sec-05">
-        <div class="legal-section-head">
-          <span class="legal-section-num mono">05</span>
-          <h2>Your Rights</h2>
+      <div class="legal-index-card disabled">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-receipt"></i></div>
         </div>
-        <p>You may request access to, correction of, or deletion of your account data at any time by
-          contacting support.</p>
-      </section>
-
-      <div class="related-docs">
-        <h2>Related Legal Documents</h2>
-        <div class="related-docs-list">
-          <a class="related-doc" href="/terms">Terms of Service</a>
-          <a class="related-doc" href="/disclaimer">Financial Disclaimer</a>
-          <a class="related-doc" href="/risk-disclosure">Risk Disclosure</a>
-          <a class="related-doc" href="/legal">All Legal Documents</a>
-          <div class="related-doc related-doc-disabled">
-            Cookie Policy
-            <span class="related-doc-soon">Coming Soon</span>
-          </div>
-        </div>
+        <div class="legal-index-card-title">Refund &amp; Cancellation Policy</div>
+        <p class="legal-index-card-desc">Billing, cancellation and refund terms — published once the commercial policy is finalized.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge soon">Coming Soon</span></div>
       </div>
 
-      <div class="legal-cta">
-        <p>Ready to explore SmartTrade AI?</p>
-        <a href="/home" class="btn btn-accent">← Return to SmartTrade AI</a>
+      <div class="legal-index-card disabled">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-cookie"></i></div>
+        </div>
+        <div class="legal-index-card-title">Cookie Policy</div>
+        <p class="legal-index-card-desc">What cookies and similar technologies this site uses and why.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge soon">Coming Soon</span></div>
+      </div>
+
+      <div class="legal-index-card disabled">
+        <div class="legal-index-card-head">
+          <div class="legal-index-card-icon"><i class="bi bi-list-check"></i></div>
+        </div>
+        <div class="legal-index-card-title">Acceptable Use Policy</div>
+        <p class="legal-index-card-desc">What's and isn't allowed when using the platform and API access.</p>
+        <div class="legal-index-card-foot"><span class="legal-index-badge soon">Coming Soon</span></div>
       </div>
 
     </div>
@@ -468,7 +337,6 @@
         <li><a href="/terms">Terms of Service</a></li>
         <li><a href="/privacy">Privacy Policy</a></li>
         <li><a href="/disclaimer">Financial Disclaimer</a></li>
-        <li><a href="/risk-disclosure">Risk Disclosure</a></li>
       </ul>
     </div>
     <div class="footer-col">
@@ -494,7 +362,6 @@
 <button id="backToTop" title="Back to top" aria-label="Back to top">↑</button>
 
 <script>
-// Live ticker strip — same public, unauthenticated endpoint /home uses.
 async function loadLegalTicker() {
   const track = document.getElementById('legalTickerTrack');
   if (!track) return;
@@ -528,8 +395,6 @@ setInterval(loadLegalTicker, 5000);
 </script>
 
 <script>
-// Footer social icons — only shows a platform an admin has actually
-// configured with a real URL; nothing hardcoded.
 (async function () {
   const wrap = document.getElementById('footerSocial');
   if (!wrap) return;
@@ -581,25 +446,6 @@ setInterval(loadLegalTicker, 5000);
         : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
     }
   } catch (e) { /* network error — leave logged-out nav as-is */ }
-})();
-</script>
-
-<script>
-(function () {
-  const links = Array.from(document.querySelectorAll('#tocDesktop a[data-toc]'));
-  if (!links.length || !('IntersectionObserver' in window)) return;
-  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      const link = byId.get(entry.target.id);
-      if (!link) return;
-      if (entry.isIntersecting) {
-        links.forEach(a => a.classList.remove('active'));
-        link.classList.add('active');
-      }
-    });
-  }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
-  document.querySelectorAll('.legal-section[id^="sec-"]').forEach(sec => observer.observe(sec));
 })();
 </script>
 

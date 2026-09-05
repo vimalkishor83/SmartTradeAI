@@ -16,6 +16,8 @@ _PUBLIC_PAGES = [
     ("/terms", "0.2", "yearly"),
     ("/privacy", "0.2", "yearly"),
     ("/disclaimer", "0.2", "yearly"),
+    ("/legal", "0.2", "monthly"),
+    ("/risk-disclosure", "0.2", "yearly"),
 ]
 
 
@@ -35,6 +37,8 @@ def robots_txt():
         "Allow: /terms",
         "Allow: /privacy",
         "Allow: /disclaimer",
+        "Allow: /legal",
+        "Allow: /risk-disclosure",
         "Disallow: /dashboard",
         "Disallow: /admin",
         "Disallow: /asset/",
@@ -106,6 +110,16 @@ def privacy():
 @views_bp.route("/disclaimer")
 def disclaimer():
     return render_template("legal/disclaimer.html")
+
+
+@views_bp.route("/legal")
+def legal_index():
+    return render_template("legal/index.html")
+
+
+@views_bp.route("/risk-disclosure")
+def risk_disclosure():
+    return render_template("legal/risk_disclosure.html")
 
 
 @views_bp.route("/markets/<market>")
