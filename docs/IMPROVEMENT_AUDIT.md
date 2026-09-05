@@ -245,7 +245,7 @@ The data-quality gate previously made the correct allow/block decision but disca
 
 **Risk level:** Medium (nullable JSON migration plus additive API field; existing rows and response fields remain compatible). **Affected modules:** `app/models/signal.py`, `app/services/signals/engine.py`, `app/api/v1/signals.py`, `migrations/versions/3b7c9d1e2f4a_add_data_quality_to_signals.py`, `tests/unit/test_signal_quality_contract.py`. **Migration:** add nullable `signals.data_quality`.
 
-**Regression evidence:** Full local unit baseline passed with **120 tests**. Production deployment verification is pending for this change.
+**Regression evidence:** Full local unit baseline passed with **120 tests**. Production verification completed on 2026-09-05 after the migration-backed app/worker rebuild: the full suite reported **157 passed**, both app and worker were running with app healthy, the health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ---
 
