@@ -484,7 +484,7 @@ The model-performance endpoint now calculates overall, timeframe, asset, model, 
 
 **Risk level:** Medium performance and freshness value, low API compatibility risk (response keys and calculations are preserved; no model or schema change). **Affected modules:** `app/api/v1/predictions.py`, `app/tasks/data_tasks.py`, `tests/integration/test_model_performance_route.py`. **Migration:** none.
 
-**Regression evidence:** Focused model-performance tests passed locally (**2 passed**); the full local suite and production verification are pending for this slice.
+**Regression evidence:** Focused model-performance tests passed locally (**2 passed**); the full local suite passed with **215 passed** in 122.38s. Production deployment completed on 2026-09-05 from `e0b5d9e`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: model-performance-20260905`, the deployed model-performance and prediction-context tests passed (**6 passed** in 4.37s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
