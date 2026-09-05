@@ -510,6 +510,7 @@ def prewarm_ai_cache(app):
                         "direction":    p["predicted_direction"],
                         "model_version": p.get("model_version"),
                         "data_quality": p.get("data_quality"),
+                        "model_outputs": p.get("model_outputs") or {},
                         "confidence":   round(float(p["confidence"]), 1),
                         "bullish_prob": round(float(p["bullish_probability"]), 1),
                         "bearish_prob": round(float(p["bearish_probability"]), 1),
@@ -533,13 +534,14 @@ def prewarm_ai_cache(app):
                         "direction":    result["predicted_direction"],
                         "model_version": result.get("model_version"),
                         "data_quality": data_quality,
+                        "model_outputs": result.get("model_outputs") or {},
                         "confidence":   round(float(result["confidence"]), 1),
                         "bullish_prob": round(float(result["bullish_probability"]), 1),
                         "bearish_prob": round(float(result["bearish_probability"]), 1),
                     }
                 except Exception as e:
                     logger.error(f"AI prewarm failed {asset.symbol}/{tf}: {e}", exc_info=True)
-                    row["tf"][tf] = {"direction": "neutral", "model_version": None, "data_quality": None, "confidence": 50.0,
+                    row["tf"][tf] = {"direction": "neutral", "model_version": None, "data_quality": None, "model_outputs": {}, "confidence": 50.0,
                                      "bullish_prob": 50.0, "bearish_prob": 50.0}
             return row
 
@@ -558,7 +560,7 @@ def prewarm_ai_cache(app):
         # Matches ta_summary's fix above — was exactly equal to this job's
         # 30-min scheduler interval (no slack at all for scheduler jitter),
         # now comfortably exceeds it.
-        cache.set("ai_summary_all:v3", {"assets": rows, "timeframes": tfs}, timeout=1980)
+        cache.set("ai_summary_all:v4", {"assets": rows, "timeframes": tfs}, timeout=1980)
         logger.info(f"AI cache pre-warmed for {len(assets)} assets × {len(tfs)} timeframes")
 
 

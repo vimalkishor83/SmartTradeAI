@@ -210,6 +210,29 @@ function buildResultCard(tf, data) {
   const modelVersion = data.model_version
     ? escapePredictionMeta(data.model_version)
     : 'unavailable (legacy or fallback)';
+  const modelOutputs = data.model_outputs && typeof data.model_outputs === 'object' ? data.model_outputs : {};
+  const memberEntries = Object.entries(modelOutputs)
+    .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
+    .map(([name, value]) => [name, Math.max(0, Math.min(100, Number(value)))]);
+  const memberSpread = memberEntries.length > 1
+    ? Math.max(...memberEntries.map(([, value]) => value)) - Math.min(...memberEntries.map(([, value]) => value))
+    : null;
+  const memberOutputsHtml = memberEntries.length ? `
+    <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)">
+      <div class="d-flex justify-content-between align-items-center">
+        <span>Independent member outputs (bullish)</span>
+        <span style="font-weight:800;color:var(--text-secondary)">${memberEntries.length}/3 · spread ${memberSpread == null ? 'n/a' : `${memberSpread.toFixed(1)} pts`}</span>
+      </div>
+      ${memberEntries.map(([name, value]) => `
+        <div class="d-flex align-items-center gap-2 mt-1">
+          <span style="width:74px">${escapePredictionMeta(({random_forest:'Random Forest',xgboost:'XGBoost',lightgbm:'LightGBM'}[name] || name))}</span>
+          <div class="prob-bar-wrap flex-grow-1" style="height:5px"><div class="prob-bar-fill" style="width:${value}%;background:var(--blue)"></div></div>
+          <span style="width:38px;text-align:right">${value.toFixed(1)}%</span>
+        </div>`).join('')}
+    </div>` : (modelOutputs.heuristic != null ? `
+    <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--yellow)">
+      Heuristic fallback active; no trained ensemble member output is available.
+    </div>` : '');
   const quality = data.data_quality;
   const qualityStatus = String(quality?.status || 'UNKNOWN').toUpperCase();
   const qualityColor = qualityStatus === 'GREEN' ? 'var(--green)' : qualityStatus === 'YELLOW' ? 'var(--yellow)' : qualityStatus === 'RED' ? 'var(--red)' : 'var(--text-muted)';
@@ -278,6 +301,8 @@ function buildResultCard(tf, data) {
         </div>
       </div>` : ''}
     </div>` : ''}
+
+    ${memberOutputsHtml}
 
     <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)">
       <span>Input quality</span>

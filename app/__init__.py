@@ -457,6 +457,7 @@ def _migrate_columns(app):
         ("predictions", "entry_price", "REAL"),
         ("predictions", "model_version", "TEXT"),
         ("predictions", "data_quality", "TEXT"),
+        ("predictions", "model_outputs", "TEXT"),
         ("user_broker_credentials", "passphrase_encrypted", "TEXT"),
         ("watchlists",      "updated_at", "DATETIME"),
         ("watchlist_items", "updated_at", "DATETIME"),

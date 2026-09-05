@@ -26,12 +26,14 @@ def test_prediction_record_maps_model_version_from_predictor_result():
         result=_result(),
         entry_price=100.0,
         valid_until=datetime(2026, 9, 6, 12, 0),
+        data_quality={"status": "GREEN", "candle_count": 220},
     )
 
     assert prediction.model_version == "ensemble-calibrated-v1"
-    prediction.data_quality = {"status": "GREEN", "candle_count": 220}
+    prediction.model_outputs = {"random_forest": 62.0, "xgboost": 68.0}
     assert prediction.to_dict()["model_version"] == "ensemble-calibrated-v1"
     assert prediction.to_dict()["data_quality"]["status"] == "GREEN"
+    assert prediction.to_dict()["model_outputs"]["xgboost"] == 68.0
 
 
 def test_legacy_prediction_serializes_missing_model_version_explicitly():
@@ -44,3 +46,4 @@ def test_legacy_prediction_serializes_missing_model_version_explicitly():
 
     assert prediction.to_dict()["model_version"] is None
     assert prediction.to_dict()["data_quality"] is None
+    assert prediction.to_dict()["model_outputs"] is None

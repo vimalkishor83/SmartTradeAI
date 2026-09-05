@@ -18,6 +18,8 @@ class Prediction(db.Model):
     model_version = db.Column(db.String(50))
     # Snapshot of the candles' integrity/freshness at prediction time.
     data_quality = db.Column(db.JSON)
+    # Raw bullish probability returned by each available ensemble member.
+    model_outputs = db.Column(db.JSON)
     bullish_probability = db.Column(db.Float)
     bearish_probability = db.Column(db.Float)
     predicted_direction = db.Column(db.String(10))  # bullish, bearish, neutral
@@ -57,6 +59,7 @@ class Prediction(db.Model):
             "model_name": self.model_name,
             "model_version": self.model_version,
             "data_quality": self.data_quality,
+            "model_outputs": self.model_outputs,
             "bullish_probability": self.bullish_probability,
             "bearish_probability": self.bearish_probability,
             "predicted_direction": self.predicted_direction,

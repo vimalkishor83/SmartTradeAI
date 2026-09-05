@@ -350,7 +350,7 @@ def _save_model(key: str, model):
 # ─────────────────────────────────────────────────────────────────────────────
 class AIPredictor:
 
-    # In-process prediction cache: key → (bull_prob, ts). Guarded by
+    # In-process prediction cache: key → (bull_prob, member_outputs, ts). Guarded by
     # _cache_lock since this is read/written from both APScheduler
     # background threads (prewarm jobs) and Flask request threads —
     # unsynchronized check-then-set let concurrent threads both miss the
@@ -358,7 +358,7 @@ class AIPredictor:
     # once (wasted CPU, not a correctness bug in the value itself, since
     # dict get/set are individually GIL-atomic — but worth locking properly
     # to match the pattern already used by _OHLCVCache in fetcher.py).
-    _pred_cache: dict[str, tuple[float, float]] = {}
+    _pred_cache: dict[str, tuple[float, dict[str, float], float]] = {}
     _cache_lock = threading.Lock()
 
     def predict(self, df: pd.DataFrame, asset_symbol: str, timeframe: str) -> dict:
@@ -370,6 +370,7 @@ class AIPredictor:
             "confidence": 50.0,
             "model_name": "ensemble",
             "model_version": None,
+            "model_outputs": {},
             "predicted_target": None,
             "predicted_stop": None,
         }
@@ -382,16 +383,20 @@ class AIPredictor:
         ttl = _PRED_TTL.get(timeframe, 3600)
         with self._cache_lock:
             cached = self._pred_cache.get(cache_key)
-        if cached and (time.time() - cached[1]) < ttl:
+        if cached and (time.time() - cached[2]) < ttl:
             bull_prob = cached[0]
+            model_outputs = cached[1]
         else:
             try:
                 feat = _build_features(df)
                 X_pred = feat.values[[-1]]
 
                 bull_prob = None
+                model_outputs = {}
                 if _models_ready(cache_key):
-                    bull_prob = self._ensemble_predict_inference_only(X_pred, cache_key)
+                    inference = self._ensemble_predict_inference_only(X_pred, cache_key)
+                    if inference is not None:
+                        bull_prob, model_outputs = inference
 
                 if bull_prob is None:
                     # No fresh cached model for at least one ensemble member
@@ -418,10 +423,12 @@ class AIPredictor:
                     if len(X_train) < _MIN_TRAIN_ROWS:
                         return _default
 
-                    bull_prob = self._ensemble_predict(X_train, y_train, X_pred, asset_symbol, timeframe)
+                    bull_prob, model_outputs = self._ensemble_predict(
+                        X_train, y_train, X_pred, asset_symbol, timeframe,
+                    )
 
                 with self._cache_lock:
-                    self._pred_cache[cache_key] = (bull_prob, time.time())
+                    self._pred_cache[cache_key] = (bull_prob, model_outputs, time.time())
 
             except Exception as e:
                 logger.error(f"AI prediction error [{asset_symbol}/{timeframe}]: {e}")
@@ -441,14 +448,26 @@ class AIPredictor:
 
         close = float(df["close"].iloc[-1])
         atr   = float((df["high"].iloc[-20:] - df["low"].iloc[-20:]).mean())
+        model_outputs_pct = {
+            name: round(float(prob) * 100, 1)
+            for name, prob in model_outputs.items()
+        }
+        has_ml_output = any(name != "heuristic" for name in model_outputs)
+        if has_ml_output:
+            model_name = "ensemble+cal" if len(model_outputs) > 1 else "partial-ensemble"
+            model_version = AI_MODEL_VERSION
+        else:
+            model_name = "heuristic"
+            model_version = None
 
         return {
             "bullish_probability": bull_prob,
             "bearish_probability": bear_prob,
             "predicted_direction": direction,
             "confidence":          confidence,
-            "model_name":          "ensemble+cal",
-            "model_version":       AI_MODEL_VERSION,
+            "model_name":          model_name,
+            "model_version":       model_version,
+            "model_outputs":       model_outputs_pct,
             "predicted_target":    round(close + atr * 1.5, 6) if direction == "bullish" else round(close - atr * 1.5, 6),
             "predicted_stop":      round(close - atr,       6) if direction == "bullish" else round(close + atr,       6),
         }
@@ -460,14 +479,15 @@ class AIPredictor:
         X_pred:  np.ndarray,
         symbol:  str,
         timeframe: str,
-    ) -> float:
+    ) -> tuple[float, dict[str, float]]:
         """
         Train (or load cached) RF + XGB + LGB, each wrapped in isotonic calibration
         fitted on a held-out walk-forward fold.
-        Returns mean calibrated bullish probability.
+        Returns the mean calibrated bullish probability and each available
+        member's raw bullish probability.
         """
         cache_key = f"{symbol}_{timeframe}"
-        probs: list[float] = []
+        probs: dict[str, float] = {}
 
         # Walk-forward: use last fold's val set for calibration
         splits = _walk_forward_split(X_train, y_train, n_splits=4)
@@ -507,7 +527,7 @@ class AIPredictor:
                 else:
                     m = base
                 _save_model(key, m)
-            probs.append(m.predict_proba(X_pred)[0][1])
+            probs["random_forest"] = float(m.predict_proba(X_pred)[0][1])
         except ImportError:
             pass
         except Exception as e:
@@ -536,7 +556,7 @@ class AIPredictor:
                 else:
                     m = base
                 _save_model(key, m)
-            probs.append(m.predict_proba(X_pred)[0][1])
+            probs["xgboost"] = float(m.predict_proba(X_pred)[0][1])
         except ImportError:
             pass
         except Exception as e:
@@ -565,35 +585,39 @@ class AIPredictor:
                 else:
                     m = base
                 _save_model(key, m)
-            probs.append(m.predict_proba(X_pred)[0][1])
+            probs["lightgbm"] = float(m.predict_proba(X_pred)[0][1])
         except ImportError:
             pass
         except Exception as e:
             logger.error(f"LGB predict error [{cache_key}]: {e}", exc_info=True)
 
         if probs:
-            return float(np.mean(probs))
+            return float(np.mean(list(probs.values()))), probs
 
-        return self._heuristic_fallback(X_pred[0])
+        heuristic = self._heuristic_fallback(X_pred[0])
+        return heuristic, {"heuristic": heuristic}
 
-    def _ensemble_predict_inference_only(self, X_pred: np.ndarray, cache_key: str) -> float | None:
+    def _ensemble_predict_inference_only(
+        self, X_pred: np.ndarray, cache_key: str,
+    ) -> tuple[float, dict[str, float]] | None:
         """Companion to _ensemble_predict() for the _models_ready() fast
-        path: loads whatever cached model files exist and averages their
+        path: loads whatever cached model files exist, returns each member,
+        and averages their
         predict_proba() -- no training, no calibration fitting, since
         _models_ready() already confirmed every installed member has a
         fresh file. Returns None (never a guess) if a file goes missing
         between the _models_ready() check and here (e.g. force_retrain()
         racing in), so the caller falls back to the full train/predict path."""
-        probs: list[float] = []
-        for prefix in ("rf_", "xgb_", "lgb_"):
+        probs: dict[str, float] = {}
+        for prefix, name in (("rf_", "random_forest"), ("xgb_", "xgboost"), ("lgb_", "lightgbm")):
             m = _load_model(f"{prefix}{cache_key}")
             if m is None:
                 continue
             try:
-                probs.append(m.predict_proba(X_pred)[0][1])
+                probs[name] = float(m.predict_proba(X_pred)[0][1])
             except Exception as e:
                 logger.error(f"Inference-only predict error [{prefix}{cache_key}]: {e}")
-        return float(np.mean(probs)) if probs else None
+        return (float(np.mean(list(probs.values()))), probs) if probs else None
 
     def _heuristic_fallback(self, features: np.ndarray) -> float:
         """
@@ -636,7 +660,7 @@ class AIPredictor:
         cache_key = f"{asset_symbol}_{timeframe}"
         with self._cache_lock:
             cached = self._pred_cache.get(cache_key)
-        if cached and (time.time() - cached[1]) < _PRED_TTL.get(timeframe, 3600):
+        if cached and (time.time() - cached[2]) < _PRED_TTL.get(timeframe, 3600):
             return True
         for prefix in ("rf_", "xgb_", "lgb_"):
             p = _model_path(f"{prefix}{cache_key}")

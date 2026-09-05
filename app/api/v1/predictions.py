@@ -84,6 +84,7 @@ def get_prediction(asset_id):
             "timeframe":           timeframe,
             "model_name":          "warming_up",
             "model_version":       None,
+            "model_outputs":       {},
             "predicted_direction": "neutral",
             "bullish_probability": 50.0,
             "bearish_probability": 50.0,

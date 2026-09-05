@@ -21,6 +21,7 @@ def build_prediction_record(
         model_name=result["model_name"],
         model_version=result.get("model_version"),
         data_quality=data_quality,
+        model_outputs=result.get("model_outputs"),
         bullish_probability=result["bullish_probability"],
         bearish_probability=result["bearish_probability"],
         predicted_direction=result["predicted_direction"],

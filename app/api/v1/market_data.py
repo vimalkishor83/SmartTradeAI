@@ -468,9 +468,9 @@ def ai_summary():
     market = request.args.get("market") or "all"
 
     # ── Serve from pre-warmed global cache (near-instant) ────────
-    # v3 prevents Redis from serving payloads created before data-quality
-    # context was added to each AI summary cell.
-    global_ai = cache.get("ai_summary_all:v3")
+    # v4 prevents Redis from serving payloads created before member outputs
+    # were retained for truthful ensemble-agreement context.
+    global_ai = cache.get("ai_summary_all:v4")
     if global_ai:
         prefs = {p.asset_id: p.enabled
                  for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
@@ -534,6 +534,7 @@ def ai_summary():
                     "direction":    p["predicted_direction"],
                     "model_version": p.get("model_version"),
                     "data_quality": p.get("data_quality"),
+                    "model_outputs": p.get("model_outputs") or {},
                     "confidence":   round(float(p["confidence"]),          1),
                     "bullish_prob": round(float(p["bullish_probability"]),  1),
                     "bearish_prob": round(float(p["bearish_probability"]),  1),
@@ -561,13 +562,14 @@ def ai_summary():
                     "direction":    result["predicted_direction"],
                     "model_version": result.get("model_version"),
                     "data_quality": data_quality,
+                    "model_outputs": result.get("model_outputs") or {},
                     "confidence":   round(float(result["confidence"]),         1),
                     "bullish_prob": round(float(result["bullish_probability"]), 1),
                     "bearish_prob": round(float(result["bearish_probability"]), 1),
                 }
             except Exception as e:
                 logger.error(f"AI summary cell failed [{asset.symbol}/{tf}]: {e}", exc_info=True)
-                row["tf"][tf] = {"direction": "neutral", "model_version": None, "data_quality": None, "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
+                row["tf"][tf] = {"direction": "neutral", "model_version": None, "data_quality": None, "model_outputs": {}, "confidence": 50.0, "bullish_prob": 50.0, "bearish_prob": 50.0}
         return row
 
     # Sequential, not ThreadPoolExecutor — cached sklearn model objects
@@ -592,7 +594,7 @@ def ai_summary():
     # cold-path re-cache (hit on a miss before the scheduler first runs)
     # was still using the old 150s, undoing that fix until the next
     # scheduled prewarm ran.
-    cache.set("ai_summary_all:v3", payload, timeout=1980)
+    cache.set("ai_summary_all:v4", payload, timeout=1980)
     return jsonify(payload), 200
 
 
