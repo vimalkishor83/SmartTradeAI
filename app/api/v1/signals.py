@@ -3,7 +3,7 @@ from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
 from app.models.user import User
-from app.extensions import db, cache
+from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
@@ -1385,9 +1385,20 @@ _PUBLIC_SIGNAL_SYMBOLS = ["BTCUSDT", "NIFTY50", "XAUUSD", "USDJPY"]
 
 
 @signals_bp.route("/public-ticker", methods=["GET"])
+@limiter.limit("90 per minute", override_defaults=True)
 def public_ticker():
     """Unauthenticated live ticker strip for the landing page — symbol,
-    price, % change only. No signal/entry/target data (that's paid detail)."""
+    price, % change only. No signal/entry/target data (that's paid detail).
+
+    Polled every 5s by every public page's ticker widget (matches the 5s
+    TTL of the underlying non-crypto price cache — see _TickerCache in
+    app/services/data/fetcher.py) — that's 12 requests/minute from a
+    single open tab, which blew straight through the app-wide default
+    limit (500/hour) inside about 42 minutes for any real visitor who
+    left the homepage open, not just under test load. override_defaults
+    replaces the default tiers here rather than stacking on top of them,
+    since 90/minute is already well above what any single visitor's
+    ticker(s) can generate."""
     assets = Asset.query.filter(Asset.symbol.in_(_PUBLIC_TICKER_SYMBOLS)).all()
     by_symbol = {a.symbol: a for a in assets}
 

@@ -8,16 +8,21 @@ _SITE_URL = "https://smarttradeai.online"
 
 # Only genuinely public, indexable pages — everything under /dashboard,
 # /admin, /asset, etc. requires auth and has nothing for a crawler to index.
+# /login, /register and /forgot-password are deliberately excluded: they're
+# public and crawlable (see robots.txt), but carry a noindex,follow tag
+# (see partials/base.html's seo_meta block overrides) since a login/signup
+# form has no unique content value as a search result — listing a noindexed
+# URL in the sitemap is a real, flaggable inconsistency in Search Console.
 _PUBLIC_PAGES = [
     ("/home", "1.0", "weekly"),
-    ("/login", "0.3", "monthly"),
-    ("/register", "0.5", "monthly"),
-    ("/forgot-password", "0.2", "monthly"),
     ("/terms", "0.2", "yearly"),
     ("/privacy", "0.2", "yearly"),
     ("/disclaimer", "0.2", "yearly"),
     ("/legal", "0.2", "monthly"),
     ("/risk-disclosure", "0.2", "yearly"),
+    ("/cookie-policy", "0.2", "yearly"),
+    ("/acceptable-use", "0.2", "yearly"),
+    ("/refund-policy", "0.2", "yearly"),
 ]
 
 
@@ -39,6 +44,9 @@ def robots_txt():
         "Allow: /disclaimer",
         "Allow: /legal",
         "Allow: /risk-disclosure",
+        "Allow: /cookie-policy",
+        "Allow: /acceptable-use",
+        "Allow: /refund-policy",
         "Disallow: /dashboard",
         "Disallow: /admin",
         "Disallow: /asset/",
@@ -120,6 +128,21 @@ def legal_index():
 @views_bp.route("/risk-disclosure")
 def risk_disclosure():
     return render_template("legal/risk_disclosure.html")
+
+
+@views_bp.route("/cookie-policy")
+def cookie_policy():
+    return render_template("legal/cookie_policy.html")
+
+
+@views_bp.route("/acceptable-use")
+def acceptable_use():
+    return render_template("legal/acceptable_use.html")
+
+
+@views_bp.route("/refund-policy")
+def refund_policy():
+    return render_template("legal/refund_policy.html")
 
 
 @views_bp.route("/markets/<market>")

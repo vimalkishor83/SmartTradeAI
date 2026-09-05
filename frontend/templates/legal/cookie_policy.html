@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Legal Center — SmartTrade AI</title>
-  <meta name="description" content="Every legal and policy document for SmartTrade AI in one place — Terms of Service, Privacy Policy, Financial Disclaimer, Risk Disclosure and more." />
-  <link rel="canonical" href="https://smarttradeai.online/legal" />
+  <title>Cookie Policy — SmartTrade AI</title>
+  <meta name="description" content="What cookies and local storage SmartTrade AI actually uses — authentication, display preferences, and nothing more." />
+  <link rel="canonical" href="https://smarttradeai.online/cookie-policy" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
-  <meta property="og:title" content="Legal Center — SmartTrade AI" />
-  <meta property="og:description" content="Every legal and policy document for SmartTrade AI in one place." />
-  <meta property="og:url" content="https://smarttradeai.online/legal" />
+  <meta property="og:title" content="Cookie Policy — SmartTrade AI" />
+  <meta property="og:description" content="What cookies and local storage SmartTrade AI actually uses — authentication, display preferences, and nothing more." />
+  <meta property="og:url" content="https://smarttradeai.online/cookie-policy" />
 
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@type": "WebPage",
-    "name": "Legal Center",
-    "description": "Every legal and policy document for SmartTrade AI in one place.",
-    "url": "https://smarttradeai.online/legal",
+    "name": "Cookie Policy",
+    "description": "What cookies and local storage SmartTrade AI actually uses.",
+    "url": "https://smarttradeai.online/cookie-policy",
     "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "https://smarttradeai.online/home" }
   }
   </script>
@@ -29,7 +29,8 @@
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://smarttradeai.online/home" },
-      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" }
+      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" },
+      { "@type": "ListItem", "position": 3, "name": "Cookie Policy", "item": "https://smarttradeai.online/cookie-policy" }
     ]
   }
   </script>
@@ -75,11 +76,23 @@
     a { color: inherit; text-decoration: none; }
     .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
-    a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
 
     .skip-link {
-      position: absolute; left: 12px; top: -48px; background: var(--accent); color: #14100a;
-      font-weight: 700; font-size: 13px; padding: 10px 16px; border-radius: 8px; z-index: 1000; transition: top 0.15s;
+      position: absolute;
+      left: 12px; top: -48px;
+      background: var(--accent);
+      color: #14100a;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      z-index: 1000;
+      transition: top 0.15s;
     }
     .skip-link:focus { top: 12px; }
 
@@ -140,41 +153,84 @@
     .breadcrumb-trail .sep { margin: 0 6px; }
     .breadcrumb-trail .current { color: var(--text2); }
 
-    .legal-hero { max-width: 720px; margin: 0 auto; padding: 56px 5% 40px; text-align: center; }
+    .legal-hero { max-width: 880px; margin: 0 auto; padding: 52px 5% 20px; text-align: center; }
     .legal-eyebrow {
       display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px;
       text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
     }
-    .legal-hero h1 { font-size: clamp(30px, 4vw, 40px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
-    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; }
+    .legal-hero h1 { font-size: clamp(28px, 4vw, 38px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
+    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; max-width: 620px; margin: 0 auto 22px; }
+    .legal-badge-row { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; }
+    .legal-badge {
+      display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+      color: var(--text2); background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px;
+    }
+    .legal-badge.accent { color: var(--accent2); border-color: rgba(245,166,35,0.3); background: var(--accent-dim); }
 
-    .legal-index { max-width: 880px; margin: 0 auto; padding: 0 5% 90px; }
-    .legal-index-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    @media (max-width: 700px) { .legal-index-grid { grid-template-columns: 1fr; } }
+    .legal-meta {
+      max-width: 880px; margin: 0 auto; padding: 0 5% 8px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+      background: var(--border); border: 1px solid var(--border); border-radius: var(--radius);
+      overflow: hidden; margin-bottom: 32px;
+    }
+    .legal-meta-item { background: var(--card); padding: 14px 16px; text-align: center; }
+    .legal-meta-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 4px; }
+    .legal-meta-value { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    @media (max-width: 640px) { .legal-meta { grid-template-columns: 1fr; margin: 0 4% 28px; } }
 
-    .legal-index-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 22px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s, transform 0.2s;
+    .legal-notices { max-width: 880px; margin: 0 auto; padding: 0 5%; }
+    .notice-status { font-size: 11.5px; line-height: 1.6; color: var(--text3); margin-bottom: 32px; }
+    .notice-status a { color: var(--text2); text-decoration: underline; text-underline-offset: 2px; }
+
+    .legal-layout {
+      max-width: 1080px; margin: 0 auto; padding: 0 5% 80px;
+      display: grid; grid-template-columns: 220px 1fr; gap: 56px; align-items: start;
     }
-    a.legal-index-card:hover { border-color: rgba(245,166,35,0.35); transform: translateY(-2px); }
-    .legal-index-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-    .legal-index-card-icon {
-      width: 38px; height: 38px; border-radius: 10px; background: var(--accent-dim);
-      display: flex; align-items: center; justify-content: center; font-size: 17px; color: var(--accent2); flex-shrink: 0;
+    .toc-desktop { position: sticky; top: 127px; }
+    .toc-desktop h2 { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+    .toc-desktop ol { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .toc-desktop a {
+      display: flex; gap: 10px; align-items: baseline; font-size: 13px; color: var(--text2);
+      padding: 7px 10px; border-radius: 7px; line-height: 1.4; transition: background 0.15s, color 0.15s;
     }
-    .legal-index-card-title { font-size: 15.5px; font-weight: 700; color: var(--text); }
-    .legal-index-card-desc { font-size: 13px; color: var(--text2); line-height: 1.6; }
-    .legal-index-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 6px; }
-    .legal-index-badge {
-      font-size: 10.5px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
-      padding: 3px 9px; border-radius: 6px;
+    .toc-desktop a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .toc-desktop a.active { color: var(--accent2); background: var(--accent-dim); }
+    .toc-desktop a .toc-num { font-family: var(--font-mono); color: var(--text3); flex-shrink: 0; }
+    .toc-desktop a.active .toc-num { color: var(--accent); }
+    .toc-mobile { display: none; }
+
+    @media (max-width: 900px) {
+      .legal-layout { grid-template-columns: 1fr; gap: 0; }
+      .toc-desktop { display: none; }
+      .toc-mobile { display: block; margin-bottom: 28px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+      .toc-mobile summary {
+        cursor: pointer; padding: 14px 16px; font-size: 13.5px; font-weight: 700; color: var(--text);
+        display: flex; align-items: center; justify-content: space-between; list-style: none;
+      }
+      .toc-mobile summary::-webkit-details-marker { display: none; }
+      .toc-mobile summary::after { content: '▾'; color: var(--text3); }
+      .toc-mobile[open] summary::after { content: '▴'; }
+      .toc-mobile ol { list-style: none; padding: 4px 8px 12px; display: flex; flex-direction: column; }
+      .toc-mobile a { display: flex; gap: 10px; font-size: 13.5px; color: var(--text2); padding: 9px 10px; min-height: 40px; align-items: center; }
+      .toc-mobile a .toc-num { font-family: var(--font-mono); color: var(--text3); }
     }
-    .legal-index-badge.available { color: var(--green); background: rgba(34,217,127,0.12); }
-    .legal-index-badge.draft { color: var(--accent2); background: var(--accent-dim); }
-    .legal-index-badge.soon { color: var(--text3); background: rgba(255,255,255,0.04); }
-    .legal-index-arrow { color: var(--text3); font-size: 14px; }
-    a.legal-index-card:hover .legal-index-arrow { color: var(--accent2); }
-    .legal-index-card.disabled { opacity: 0.6; cursor: default; }
+
+    .legal-doc { min-width: 0; max-width: 680px; }
+    .legal-section { padding: 26px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 127px; }
+    .legal-section:last-child { border-bottom: none; }
+    .legal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .legal-section-num { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
+    .legal-section h2 { font-size: 17.5px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
+    .legal-section p { font-size: 14.5px; line-height: 1.8; color: var(--text2); }
+
+    .related-docs { margin-top: 8px; padding-top: 32px; }
+    .related-docs h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
+    .related-docs-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+    .related-doc { background: var(--card); display: flex; align-items: center; justify-content: space-between; padding: 13px 16px; font-size: 13.5px; font-weight: 600; color: var(--text); transition: background 0.15s; }
+    a.related-doc:hover { background: var(--card2); color: var(--accent2); }
+
+    .legal-cta { margin-top: 44px; padding: 28px; text-align: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); }
+    .legal-cta p { font-size: 15px; font-weight: 600; color: var(--text); margin-bottom: 16px; }
 
     .footer { background: var(--bg3); border-top: 1px solid var(--border); padding: 40px 5%; text-align: center; }
     .footer-brand { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
@@ -243,89 +299,173 @@
 <main id="main-content">
 
   <nav class="breadcrumb-trail" aria-label="Breadcrumb">
-    <a href="/home">Home</a><span class="sep">/</span><span class="current">Legal</span>
+    <a href="/home">Home</a><span class="sep">/</span><a href="/legal">Legal</a><span class="sep">/</span><span class="current">Cookie Policy</span>
   </nav>
 
   <div class="legal-hero">
     <span class="legal-eyebrow">Legal &amp; Transparency</span>
-    <h1>Legal Center</h1>
+    <h1>Cookie Policy</h1>
     <p class="legal-hero-sub">
-      Every legal and policy document that governs your use of SmartTrade AI, in one place.
+      What cookies and browser local storage SmartTrade AI actually uses — nothing more, nothing hidden.
     </p>
+    <div class="legal-badge-row">
+      <span class="legal-badge accent">📄 Cookie Policy</span>
+    </div>
   </div>
 
-  <div class="legal-index">
-    <div class="legal-index-grid">
+  <div class="legal-meta">
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Document</div>
+      <div class="legal-meta-value">Cookie Policy</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Version</div>
+      <div class="legal-meta-value">Current</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Status</div>
+      <div class="legal-meta-value">Informational</div>
+    </div>
+  </div>
 
-      <a class="legal-index-card" href="/terms">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-file-earmark-text"></i></div>
-          <span class="legal-index-arrow">→</span>
-        </div>
-        <div class="legal-index-card-title">Terms of Service</div>
-        <p class="legal-index-card-desc">The terms that govern your use of the platform — account approval, broker connections, and warranty.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+  <div class="legal-notices">
+    <div class="notice-status">
+      This document has not yet been reviewed by outside legal counsel. Questions? Contact
+      <a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a>.
+    </div>
+  </div>
 
-      <a class="legal-index-card" href="/privacy">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-shield-check"></i></div>
-          <span class="legal-index-arrow">→</span>
-        </div>
-        <div class="legal-index-card-title">Privacy Policy</div>
-        <p class="legal-index-card-desc">What we collect, how broker API keys are protected, and your rights over your account data.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+  <div class="legal-layout">
 
-      <a class="legal-index-card" href="/disclaimer">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-exclamation-triangle"></i></div>
-          <span class="legal-index-arrow">→</span>
-        </div>
-        <div class="legal-index-card-title">Financial Disclaimer</div>
-        <p class="legal-index-card-desc">Not financial advice, no guaranteed returns, AI-generated content limitations, and platform risk.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+    <details class="toc-mobile">
+      <summary>On this page</summary>
+      <ol>
+        <li><a href="#sec-01"><span class="toc-num mono">01</span>What This Policy Covers</a></li>
+        <li><a href="#sec-02"><span class="toc-num mono">02</span>Authentication (Strictly Necessary)</a></li>
+        <li><a href="#sec-03"><span class="toc-num mono">03</span>Display Preferences</a></li>
+        <li><a href="#sec-04"><span class="toc-num mono">04</span>Analytics &amp; Advertising</a></li>
+        <li><a href="#sec-05"><span class="toc-num mono">05</span>Third-Party Content</a></li>
+        <li><a href="#sec-06"><span class="toc-num mono">06</span>Managing Cookies &amp; Local Storage</a></li>
+        <li><a href="#sec-07"><span class="toc-num mono">07</span>Changes to This Policy</a></li>
+      </ol>
+    </details>
 
-      <a class="legal-index-card" href="/risk-disclosure">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-graph-down-arrow"></i></div>
-          <span class="legal-index-arrow">→</span>
-        </div>
-        <div class="legal-index-card-title">Risk Disclosure</div>
-        <p class="legal-index-card-desc">An educational look at the risk profile of Crypto, Forex, Indian Stocks, Commodities and leverage.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+    <nav class="toc-desktop" aria-label="Table of contents" id="tocDesktop">
+      <h2>On This Page</h2>
+      <ol>
+        <li><a href="#sec-01" data-toc><span class="toc-num mono">01</span>What This Policy Covers</a></li>
+        <li><a href="#sec-02" data-toc><span class="toc-num mono">02</span>Authentication (Strictly Necessary)</a></li>
+        <li><a href="#sec-03" data-toc><span class="toc-num mono">03</span>Display Preferences</a></li>
+        <li><a href="#sec-04" data-toc><span class="toc-num mono">04</span>Analytics &amp; Advertising</a></li>
+        <li><a href="#sec-05" data-toc><span class="toc-num mono">05</span>Third-Party Content</a></li>
+        <li><a href="#sec-06" data-toc><span class="toc-num mono">06</span>Managing Cookies &amp; Local Storage</a></li>
+        <li><a href="#sec-07" data-toc><span class="toc-num mono">07</span>Changes to This Policy</a></li>
+      </ol>
+    </nav>
 
-      <a class="legal-index-card" href="/refund-policy">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-receipt"></i></div>
-          <span class="legal-index-arrow">→</span>
-        </div>
-        <div class="legal-index-card-title">Refund &amp; Cancellation Policy</div>
-        <p class="legal-index-card-desc">Billing, cancellation and refund terms for paid subscriptions.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+    <div class="legal-doc">
 
-      <a class="legal-index-card" href="/cookie-policy">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-cookie"></i></div>
-          <span class="legal-index-arrow">→</span>
+      <section class="legal-section" id="sec-01">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">01</span>
+          <h2>What This Policy Covers</h2>
         </div>
-        <div class="legal-index-card-title">Cookie Policy</div>
-        <p class="legal-index-card-desc">What cookies and local storage this site actually uses and why.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+        <p>
+          Cookies and browser local storage are small pieces of data a website stores in your browser.
+          This policy explains both, since SmartTrade AI uses each for a specific, functional purpose —
+          it does not cover any separate policy you may have with a broker or exchange you choose to
+          connect.
+        </p>
+      </section>
 
-      <a class="legal-index-card" href="/acceptable-use">
-        <div class="legal-index-card-head">
-          <div class="legal-index-card-icon"><i class="bi bi-list-check"></i></div>
-          <span class="legal-index-arrow">→</span>
+      <section class="legal-section" id="sec-02">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">02</span>
+          <h2>Authentication (Strictly Necessary)</h2>
         </div>
-        <div class="legal-index-card-title">Acceptable Use Policy</div>
-        <p class="legal-index-card-desc">What's and isn't allowed when using the platform.</p>
-        <div class="legal-index-card-foot"><span class="legal-index-badge draft">Draft</span></div>
-      </a>
+        <p>
+          When you log in, SmartTrade AI stores an authentication token in a secure, HTTP-only cookie
+          and in your browser's local storage, so you stay signed in as you move between pages. These
+          are essential to the platform working at all — they can't be disabled without signing out, and
+          they're never used to track you across other websites.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-03">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">03</span>
+          <h2>Display Preferences</h2>
+        </div>
+        <p>
+          We store a small number of interface preferences in local storage — your light/dark theme
+          choice, whether the sidebar or price ticker is collapsed, your last-selected chart timeframe,
+          and similar display settings. These make the platform remember how you left it between visits
+          and are never sent to any third party.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-04">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">04</span>
+          <h2>Analytics &amp; Advertising</h2>
+        </div>
+        <p>
+          SmartTrade AI does not currently use Google Analytics, advertising pixels, or any third-party
+          analytics or advertising cookies. If that changes in the future, this policy will be updated
+          first, and where required by law we'll ask for your consent before anything non-essential is
+          set.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-05">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">05</span>
+          <h2>Third-Party Content</h2>
+        </div>
+        <p>
+          Some pages load fonts from Google Fonts and icon assets from a content-delivery network. These
+          providers may set their own technical cookies as part of delivering that content to your
+          browser; SmartTrade AI does not control, read, or receive data from them.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-06">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">06</span>
+          <h2>Managing Cookies &amp; Local Storage</h2>
+        </div>
+        <p>
+          You can clear cookies and local storage at any time from your browser's settings. Doing so
+          will sign you out and reset any saved display preferences, but will not affect your account,
+          your subscription, or any data stored on our servers.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-07">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">07</span>
+          <h2>Changes to This Policy</h2>
+        </div>
+        <p>
+          This policy may be updated as the product evolves — for example, if we introduce analytics or
+          third-party integrations in the future. Continued use of the platform after a change
+          constitutes acceptance of the updated policy.
+        </p>
+      </section>
+
+      <div class="related-docs">
+        <h2>Related Legal Documents</h2>
+        <div class="related-docs-list">
+          <a class="related-doc" href="/privacy">Privacy Policy</a>
+          <a class="related-doc" href="/terms">Terms of Service</a>
+          <a class="related-doc" href="/legal">All Legal Documents</a>
+        </div>
+      </div>
+
+      <div class="legal-cta">
+        <p>Ready to explore SmartTrade AI?</p>
+        <a href="/home" class="btn btn-accent">← Return to SmartTrade AI</a>
+      </div>
 
     </div>
   </div>
@@ -371,6 +511,7 @@
         <li><a href="/terms">Terms of Service</a></li>
         <li><a href="/privacy">Privacy Policy</a></li>
         <li><a href="/disclaimer">Financial Disclaimer</a></li>
+        <li><a href="/risk-disclosure">Risk Disclosure</a></li>
       </ul>
     </div>
     <div class="footer-col">
@@ -480,6 +621,25 @@ setInterval(loadLegalTicker, 5000);
         : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
     }
   } catch (e) { /* network error — leave logged-out nav as-is */ }
+})();
+</script>
+
+<script>
+(function () {
+  const links = Array.from(document.querySelectorAll('#tocDesktop a[data-toc]'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const link = byId.get(entry.target.id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        links.forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('.legal-section[id^="sec-"]').forEach(sec => observer.observe(sec));
 })();
 </script>
 

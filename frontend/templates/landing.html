@@ -25,7 +25,7 @@
        further down this page). Helps search engines understand what the
        product is and can surface FAQ rich results; it is not a ranking
        shortcut, just an accurate machine-readable description. -->
-  <script type="application/ld+json">
+  <script type="application/ld+json" id="orgSchema">
   {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -1681,6 +1681,18 @@ setInterval(loadLandingTicker, 5000);
     const data = await res.json();
     const links = data.social_links || {};
     const entries = Object.entries(links).filter(([k]) => ICONS[k]);
+
+    // Organization schema's sameAs — only the accounts an admin has
+    // actually configured, never a fabricated or placeholder profile.
+    const orgSchema = document.getElementById('orgSchema');
+    if (orgSchema && entries.length) {
+      try {
+        const org = JSON.parse(orgSchema.textContent);
+        org.sameAs = entries.map(([, url]) => url);
+        orgSchema.textContent = JSON.stringify(org);
+      } catch (e) { /* leave schema as-is */ }
+    }
+
     if (!entries.length) return;
     wrap.innerHTML = entries.map(([k, url]) =>
       `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${k}"><i class="bi ${ICONS[k]}"></i></a>`
