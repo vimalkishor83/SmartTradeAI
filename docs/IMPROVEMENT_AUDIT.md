@@ -476,7 +476,7 @@ The per-asset AI prediction endpoint now validates its timeframe against the can
 
 **Risk level:** Medium correctness value, low compatibility risk (all supported `1m` through `1d` timeframes remain available; unsupported intervals now receive a clear `400`). **Affected modules:** `app/api/v1/predictions.py`, `tests/integration/test_prediction_history_route.py`. **Migration:** none.
 
-**Regression evidence:** Focused prediction tests passed locally (**4 passed**); the full local suite passed with **213 passed** in 119.47s. Production verification is pending for this slice.
+**Regression evidence:** Focused prediction tests passed locally (**4 passed**); the full local suite passed with **213 passed** in 119.47s. Production deployment completed on 2026-09-05 from `61684f2`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: prediction-timeframe-20260905`, the deployed prediction tests passed (**4 passed** in 7.31s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
