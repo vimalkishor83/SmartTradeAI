@@ -75,9 +75,33 @@
     }
     .skip-link:focus { top: 12px; }
 
-    .navbar {
+    /* ── LIVE TICKER STRIP — identical to /home ────────────── */
+    :root { --ticker-h: 43px; }
+    .ticker-wrap {
       position: sticky;
       top: 0;
+      z-index: 101;
+      height: var(--ticker-h);
+      box-sizing: border-box;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+      overflow: hidden;
+      padding: 12px 0;
+    }
+    .ticker-track { display: flex; gap: 40px; width: max-content; animation: scrollTicker 32s linear infinite; }
+    @keyframes scrollTicker { 0% { transform: translateX(0); } 100% { transform: translateX(-50%); } }
+    .ticker-item { display: flex; align-items: center; gap: 8px; font-size: 13px; white-space: nowrap; }
+    .ticker-sym { font-weight: 700; color: var(--text); }
+    .ticker-price { font-family: var(--font-mono); color: var(--text2); }
+    .ticker-chip { font-family: var(--font-mono); font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
+    .ticker-chip.buy  { background: rgba(34,217,127,0.14); color: var(--green); }
+    .ticker-chip.sell { background: rgba(255,90,106,0.14); color: var(--red); }
+    .ticker-chip.hold { background: rgba(245,166,35,0.14); color: var(--accent); }
+
+    .navbar {
+      position: sticky;
+      top: var(--ticker-h);
       z-index: 100;
       background: rgba(8,11,18,0.88);
       backdrop-filter: blur(16px);
@@ -158,7 +182,7 @@
       max-width: 1080px; margin: 0 auto; padding: 0 5% 80px;
       display: grid; grid-template-columns: 220px 1fr; gap: 56px; align-items: start;
     }
-    .toc-desktop { position: sticky; top: 84px; }
+    .toc-desktop { position: sticky; top: 127px; }
     .toc-desktop h2 { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); margin-bottom: 14px; }
     .toc-desktop ol { list-style: none; display: flex; flex-direction: column; gap: 2px; }
     .toc-desktop a {
@@ -188,7 +212,7 @@
     }
 
     .legal-doc { min-width: 0; max-width: 680px; }
-    .legal-section { padding: 26px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 84px; }
+    .legal-section { padding: 26px 0; border-bottom: 1px solid var(--border); scroll-margin-top: 127px; }
     .legal-section:last-child { border-bottom: none; }
     .legal-section-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 10px; }
     .legal-section-num { font-family: var(--font-mono); font-size: 13px; font-weight: 700; color: var(--accent); flex-shrink: 0; }
@@ -236,6 +260,12 @@
 <body>
 
 <a href="#main-content" class="skip-link">Skip to content</a>
+
+<div class="ticker-wrap">
+  <div class="ticker-track" id="legalTickerTrack">
+    <div class="ticker-item"><span class="ticker-sym">Loading live prices…</span></div>
+  </div>
+</div>
 
 <nav class="navbar">
   <a href="/home" class="nav-brand">
@@ -448,6 +478,40 @@
 </footer>
 
 <button id="backToTop" title="Back to top" aria-label="Back to top">↑</button>
+
+<script>
+// Live ticker strip — same public, unauthenticated endpoint /home uses.
+async function loadLegalTicker() {
+  const track = document.getElementById('legalTickerTrack');
+  if (!track) return;
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
+    clearTimeout(timeout);
+    const data = await res.json();
+    const items = data.items || [];
+    if (items.length) {
+      const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
+      const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
+      const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
+      const rowHtml = items.map(it => `
+        <div class="ticker-item">
+          <span class="ticker-sym">${it.symbol}</span>
+          <span class="ticker-price mono">${fmt(it.price)}</span>
+          <span class="ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
+        </div>`).join('');
+      track.innerHTML = rowHtml + rowHtml;
+    } else {
+      track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
+    }
+  } catch (e) {
+    track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
+  }
+}
+loadLegalTicker();
+setInterval(loadLegalTicker, 5000);
+</script>
 
 <script>
 (function () {
