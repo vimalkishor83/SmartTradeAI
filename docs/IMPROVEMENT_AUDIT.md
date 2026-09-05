@@ -486,6 +486,14 @@ The model-performance endpoint now calculates overall, timeframe, asset, model, 
 
 **Regression evidence:** Focused model-performance tests passed locally (**2 passed**); the full local suite passed with **215 passed** in 122.38s. Production deployment completed on 2026-09-05 from `e0b5d9e`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: model-performance-20260905`, the deployed model-performance and prediction-context tests passed (**6 passed** in 4.37s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.16 IMPLEMENTED — Remove full-history materialization from signal performance
+
+The main signal-performance endpoint no longer loads the complete closed-signal table a second time for confidence calibration. Calibration bands now use conditional SQL aggregation, and timezone-aware hourly bucketing iterates query results in batches of 1,000 rows, preserving the existing dashboard contract while reducing peak Python memory on large histories.
+
+**Risk level:** Medium performance value, low API compatibility risk (existing calculations and null-confidence Weak-bucket behavior are preserved). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_performance_queries.py`. **Migration:** none.
+
+**Regression evidence:** Focused signal-performance tests passed locally (**1 passed**); the full local suite passed with **216 passed** in 121.36s. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

@@ -2093,7 +2093,7 @@ def get_performance():
         closed_rows = (
             db.session.query(SignalHistory.closed_at, SignalHistory.outcome)
             .filter(SignalHistory.closed_at.isnot(None))
-            .all()
+            .yield_per(1000)
         )
         hourly_buckets = {}
         for closed_at, outcome in closed_rows:
@@ -2149,17 +2149,36 @@ def _confidence_calibration_bands():
     expected midpoint — the key measure of whether the confidence score is
     trustworthy. Extracted from the old signal_performance() so it can feed
     both /performance and any future dedicated endpoint."""
-    rows = SignalHistory.query.all()
     conf_bands = [(0, 60, "Weak"), (60, 75, "Moderate"), (75, 90, "Strong"), (90, 101, "Very Strong")]
+    score_expr = func.coalesce(SignalHistory.confidence_score, 0)
+    band_expr = case(
+        *[(and_(score_expr >= lo, score_expr < hi), label)
+          for lo, hi, label in conf_bands],
+        else_=None,
+    )
+    decisive_expr = case(
+        (SignalHistory.outcome.in_(("win", "loss")), 1),
+        else_=0,
+    )
+    wins_expr = case((SignalHistory.outcome == "win", 1), else_=0)
+    grouped = db.session.query(
+        band_expr.label("band"),
+        func.count(SignalHistory.id).label("signals"),
+        func.sum(decisive_expr).label("decisive"),
+        func.sum(wins_expr).label("wins"),
+    ).filter(band_expr.isnot(None)).group_by(band_expr).all()
+    grouped = {
+        row.band: (int(row.signals or 0), int(row.decisive or 0), int(row.wins or 0))
+        for row in grouped
+    }
+
     calibration = []
     for lo, hi, label in conf_bands:
-        band = [r for r in rows if lo <= (r.confidence_score or 0) < hi]
-        decisive = [r for r in band if r.outcome in ("win", "loss")]
-        actual_win = round(sum(1 for r in decisive if r.outcome == "win") / len(decisive) * 100, 1) \
-                     if decisive else None
+        signals, decisive, wins = grouped.get(label, (0, 0, 0))
+        actual_win = round(wins / decisive * 100, 1) if decisive else None
         calibration.append({
             "band": label, "range": f"{lo}-{hi - 1}",
-            "signals": len(band),
+            "signals": signals,
             "actual_win_rate": actual_win,
             "expected_win_rate": (lo + hi) // 2,
         })
