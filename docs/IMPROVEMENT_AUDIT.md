@@ -390,6 +390,14 @@ The risk calculators and live order route now require a JSON object body and ret
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `e3cc4ee`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **164 passed** in 44.34s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 5.6 IMPLEMENTED — Validate position-sizing financial inputs
+
+The risk calculator now rejects non-finite values, non-positive capital/prices/lot sizes, and risk percentages outside `(0, 100]` before calculating units. Volatility sizing also validates ATR and lookback values, preventing negative, infinite, or `NaN` results from reaching the UI or influencing a trade decision.
+
+**Risk level:** High safety value, low compatibility risk (valid calculations and the zero-ATR fallback remain unchanged). **Affected modules:** `app/services/risk/calculator.py`, `tests/unit/test_risk_calculator.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

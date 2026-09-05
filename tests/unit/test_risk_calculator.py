@@ -37,6 +37,15 @@ class TestCalculatePosition:
         result = calculate_position(capital=100_000, risk_pct=1, entry=100, stop_loss=100)
         assert "error" in result
 
+    def test_rejects_non_positive_risk_inputs(self):
+        assert "error" in calculate_position(capital=-1, risk_pct=1, entry=100, stop_loss=95)
+        assert "error" in calculate_position(capital=100_000, risk_pct=0, entry=100, stop_loss=95)
+        assert "error" in calculate_position(capital=100_000, risk_pct=1, entry=100, stop_loss=95, lot_size=0)
+
+    def test_rejects_non_finite_inputs(self):
+        result = calculate_position(capital=float("nan"), risk_pct=1, entry=100, stop_loss=95)
+        assert result["error"] == "Position inputs must be finite numbers"
+
     def test_lot_size_divides_units_into_lots(self):
         result = calculate_position(capital=100_000, risk_pct=1, entry=100, stop_loss=95, lot_size=50)
         assert result["units"] == 200.0
@@ -97,6 +106,13 @@ class TestCalculatePositionVolatility:
     def test_zero_risk_distance_returns_error(self):
         result = calculate_position_volatility(
             capital=100_000, risk_pct=1, entry=100, stop_loss=100, atr=5.0,
+        )
+        assert "error" in result
+
+    def test_rejects_invalid_atr_lookback_values(self):
+        result = calculate_position_volatility(
+            capital=100_000, risk_pct=1, entry=100, stop_loss=95, atr=5,
+            atr_lookback_values=[1, 2, 3, 4, float("nan")],
         )
         assert "error" in result
 
