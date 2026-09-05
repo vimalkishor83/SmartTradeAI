@@ -364,7 +364,7 @@ The news, journal, and notifications collection routes now use the shared pagina
 
 **Risk level:** Low (normal defaults and valid requests are unchanged). **Affected modules:** `app/api/v1/news.py`, `app/api/v1/journal.py`, `app/api/v1/notifications.py`. **Migration:** none.
 
-**Regression evidence:** Local syntax validation, whitespace validation, and the unit pagination regression suite passed. Production deployment verification is pending for this change.
+**Regression evidence:** Local syntax validation, whitespace validation, and the unit pagination regression suite passed. Production deployment completed on 2026-09-05 from commit `391f382`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **159 passed** in 43.52s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
@@ -395,6 +395,10 @@ The news, journal, and notifications collection routes now use the shared pagina
 
 **Session 6 (Phase 5 — Evidence/Counter-Evidence in the AI Decision Inspector, §6.1):**
 - `frontend/static/js/pages/dashboard.js` — `loadInspector()` now renders "Evidence Supporting {direction}" and "Counter-Evidence (outweighed)" sections from the already-computed `reasoning_detail` field.
+
+**Session 7 (performance — frontend GET coalescing and collection pagination, §7.4–7.5):**
+- `frontend/static/js/app.js` — coalesces identical concurrent dashboard GET requests without adding stale caching.
+- `app/api/v1/news.py`, `app/api/v1/journal.py`, `app/api/v1/notifications.py` — apply shared page and page-size bounds to collection endpoints.
 
 - `docs/IMPROVEMENT_AUDIT.md` — this file.
 
