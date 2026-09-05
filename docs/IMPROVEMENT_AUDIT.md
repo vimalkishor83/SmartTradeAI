@@ -396,7 +396,7 @@ The risk calculator now rejects non-finite values, non-positive capital/prices/l
 
 **Risk level:** High safety value, low compatibility risk (valid calculations and the zero-ATR fallback remain unchanged). **Affected modules:** `app/services/risk/calculator.py`, `tests/unit/test_risk_calculator.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `495d724`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **167 passed** in 44.53s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
