@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta
 from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import get_jwt_identity
-from sqlalchemy import func
+from sqlalchemy import Integer, case, cast, func
 from app.extensions import db
 from app.models.journal import JournalEntry
 from app.auth.decorators import login_required
@@ -173,17 +173,28 @@ def delete_entry(entry_id):
 @login_required
 def stats():
     user_id = get_jwt_identity()
-    # Only pull the columns stats actually uses — avoids hydrating full
-    # JournalEntry ORM objects (all columns incl. notes/prices/etc.) for
-    # what may be thousands of rows.
-    entries = (JournalEntry.query
-               .filter_by(user_id=user_id)
-               .with_entities(JournalEntry.outcome, JournalEntry.pnl_amount,
-                               JournalEntry.emotion_tag, JournalEntry.market,
-                               JournalEntry.trade_date)
-               .all())
+    user_filter = JournalEntry.user_id == user_id
+    overall = db.session.query(
+        func.count(JournalEntry.id).label("total"),
+        func.coalesce(func.sum(case((JournalEntry.outcome == "win", 1), else_=0)), 0).label("wins"),
+        func.coalesce(func.sum(case((JournalEntry.outcome == "loss", 1), else_=0)), 0).label("losses"),
+        func.sum(JournalEntry.pnl_amount).label("total_pnl"),
+        func.max(JournalEntry.pnl_amount).label("best_trade"),
+        func.min(JournalEntry.pnl_amount).label("worst_trade"),
+        func.avg(case((JournalEntry.outcome == "win", JournalEntry.pnl_amount), else_=None)).label("avg_win"),
+        func.avg(case((JournalEntry.outcome == "loss", JournalEntry.pnl_amount), else_=None)).label("avg_loss"),
+        func.coalesce(
+            func.sum(case((JournalEntry.pnl_amount > 0, JournalEntry.pnl_amount), else_=0)),
+            0,
+        ).label("gross_profit"),
+        func.coalesce(
+            func.sum(case((JournalEntry.pnl_amount < 0, JournalEntry.pnl_amount), else_=0)),
+            0,
+        ).label("gross_loss"),
+    ).filter(user_filter).one()
 
-    if not entries:
+    total = int(overall.total or 0)
+    if not total:
         return jsonify({
             "total_trades": 0, "win_rate": 0, "total_pnl": 0,
             "avg_pnl_per_trade": 0, "best_trade": 0, "worst_trade": 0,
@@ -191,24 +202,17 @@ def stats():
             "by_emotion": {}, "by_market": {}, "by_day_of_week": {},
         }), 200
 
-    total = len(entries)
-    wins   = [e for e in entries if e.outcome == "win"]
-    losses = [e for e in entries if e.outcome == "loss"]
-    pnls   = [e.pnl_amount for e in entries if e.pnl_amount is not None]
-
-    win_rate = round(len(wins) / total * 100, 1) if total else 0
-    total_pnl = round(sum(pnls), 2) if pnls else 0
+    wins = int(overall.wins or 0)
+    losses = int(overall.losses or 0)
+    total_pnl = round(float(overall.total_pnl or 0), 2)
     avg_pnl   = round(total_pnl / total, 2) if total else 0
-    best_trade  = max(pnls) if pnls else 0
-    worst_trade = min(pnls) if pnls else 0
+    best_trade = float(overall.best_trade) if overall.best_trade is not None else 0
+    worst_trade = float(overall.worst_trade) if overall.worst_trade is not None else 0
+    avg_win = round(float(overall.avg_win), 2) if overall.avg_win is not None else 0
+    avg_loss = round(float(overall.avg_loss), 2) if overall.avg_loss is not None else 0
 
-    win_pnls  = [e.pnl_amount for e in wins  if e.pnl_amount is not None]
-    loss_pnls = [e.pnl_amount for e in losses if e.pnl_amount is not None]
-    avg_win  = round(sum(win_pnls)  / len(win_pnls),  2) if win_pnls  else 0
-    avg_loss = round(sum(loss_pnls) / len(loss_pnls), 2) if loss_pnls else 0
-
-    gross_profit = sum(p for p in pnls if p > 0)
-    gross_loss   = abs(sum(p for p in pnls if p < 0))
+    gross_profit = float(overall.gross_profit or 0)
+    gross_loss = abs(float(overall.gross_loss or 0))
     # None (not float("inf")) when every trade is a winner: Python's json
     # module happily serializes inf as the bare token `Infinity`, which
     # isn't valid JSON -- the browser's JSON.parse() rejects it outright,
@@ -217,61 +221,72 @@ def stats():
     # journal so far has zero losing trades.
     profit_factor = round(gross_profit / gross_loss, 2) if gross_loss else (None if gross_profit else 0)
 
-    # by_emotion
-    emotion_map = {}
-    for e in entries:
-        tag = e.emotion_tag or "unknown"
-        if tag not in emotion_map:
-            emotion_map[tag] = {"trades": 0, "wins": 0}
-        emotion_map[tag]["trades"] += 1
-        if e.outcome == "win":
-            emotion_map[tag]["wins"] += 1
+    # Keep grouped result sets small; the raw journal rows never enter Python.
+    emotion_expr = func.coalesce(func.nullif(JournalEntry.emotion_tag, ""), "unknown")
+    emotion_rows = db.session.query(
+        emotion_expr.label("emotion"),
+        func.count(JournalEntry.id).label("trades"),
+        func.coalesce(func.sum(case((JournalEntry.outcome == "win", 1), else_=0)), 0).label("wins"),
+    ).filter(user_filter).group_by(emotion_expr).all()
     by_emotion = {
-        tag: {"trades": v["trades"], "win_rate": round(v["wins"] / v["trades"] * 100, 1)}
-        for tag, v in emotion_map.items()
-    }
-
-    # by_market
-    market_map = {}
-    for e in entries:
-        mkt = e.market or "unknown"
-        if mkt not in market_map:
-            market_map[mkt] = {"trades": 0, "wins": 0, "pnl": 0}
-        market_map[mkt]["trades"] += 1
-        if e.outcome == "win":
-            market_map[mkt]["wins"] += 1
-        if e.pnl_amount is not None:
-            market_map[mkt]["pnl"] += e.pnl_amount
-    by_market = {
-        mkt: {
-            "trades": v["trades"],
-            "win_rate": round(v["wins"] / v["trades"] * 100, 1),
-            "pnl": round(v["pnl"], 2),
+        row.emotion: {
+            "trades": int(row.trades),
+            "win_rate": round(int(row.wins or 0) / int(row.trades) * 100, 1),
         }
-        for mkt, v in market_map.items()
+        for row in emotion_rows
     }
 
-    # by_day_of_week
+    market_expr = func.coalesce(func.nullif(JournalEntry.market, ""), "unknown")
+    market_rows = db.session.query(
+        market_expr.label("market"),
+        func.count(JournalEntry.id).label("trades"),
+        func.coalesce(func.sum(case((JournalEntry.outcome == "win", 1), else_=0)), 0).label("wins"),
+        func.coalesce(func.sum(JournalEntry.pnl_amount), 0).label("pnl"),
+    ).filter(user_filter).group_by(market_expr).all()
+    by_market = {
+        row.market: {
+            "trades": int(row.trades),
+            "win_rate": round(int(row.wins or 0) / int(row.trades) * 100, 1),
+            "pnl": round(float(row.pnl or 0), 2),
+        }
+        for row in market_rows
+    }
+
+    # PostgreSQL EXTRACT and SQLite strftime both use Sunday=0; normalize to
+    # the Monday-first labels historically returned by this endpoint.
+    if db.engine.dialect.name == "sqlite":
+        dow_expr = cast(func.strftime("%w", JournalEntry.trade_date), Integer)
+    else:
+        dow_expr = func.extract("dow", JournalEntry.trade_date)
+    day_rows = db.session.query(
+        dow_expr.label("day_number"),
+        func.count(JournalEntry.id).label("trades"),
+        func.coalesce(func.sum(case((JournalEntry.outcome == "win", 1), else_=0)), 0).label("wins"),
+    ).filter(user_filter, JournalEntry.trade_date.isnot(None)).group_by(dow_expr).all()
+    day_map = {
+        int(row.day_number): {
+            "trades": int(row.trades),
+            "wins": int(row.wins or 0),
+        }
+        for row in day_rows
+    }
     day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    dow_map = {d: {"trades": 0, "wins": 0} for d in day_names}
-    for e in entries:
-        if e.trade_date:
-            dow = day_names[e.trade_date.weekday()]
-            dow_map[dow]["trades"] += 1
-            if e.outcome == "win":
-                dow_map[dow]["wins"] += 1
     by_day_of_week = {
         day: {
-            "trades": v["trades"],
-            "win_rate": round(v["wins"] / v["trades"] * 100, 1) if v["trades"] else 0,
+            "trades": day_map[(day_index + 1) % 7]["trades"],
+            "win_rate": round(
+                day_map[(day_index + 1) % 7]["wins"]
+                / day_map[(day_index + 1) % 7]["trades"] * 100,
+                1,
+            ),
         }
-        for day, v in dow_map.items()
-        if v["trades"] > 0
+        for day_index, day in enumerate(day_names)
+        if (day_index + 1) % 7 in day_map
     }
 
     return jsonify({
         "total_trades": total,
-        "win_rate": win_rate,
+        "win_rate": round(wins / total * 100, 1) if total else 0,
         "total_pnl": total_pnl,
         "avg_pnl_per_trade": avg_pnl,
         "best_trade": best_trade,

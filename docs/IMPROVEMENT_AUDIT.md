@@ -550,6 +550,14 @@ The cached `/signals/history-stats` endpoint no longer materializes the entire `
 
 **Regression evidence:** The SQL history contract, authenticated route, and related performance/export route tests passed locally (**6 passed**); the full local suite passed with **221 passed** in 114.77s. Production deployment completed on 2026-09-06 from `166ecae`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: history-sql-route-20260906`, the deployed history, performance, export and prediction tests passed (**6 passed** in 5.72s), and the fresh app/worker error scan had no error, traceback, critical, or exception output. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.24 IMPLEMENTED — Aggregate journal statistics in SQL
+
+The authenticated `/journal/stats` endpoint no longer loads every journal row and groups it in Python. Overall financial totals, averages, profit factor, emotion, market, and weekday breakdowns now use database aggregates with a portable PostgreSQL/SQLite weekday mapping, preserving the existing JSON contract and `unknown` handling for empty metadata.
+
+**Risk level:** Medium scalability value, low API compatibility risk (existing response keys and calculations are preserved; journal writes, pagination, and tax exports are unchanged; no model or schema change). **Affected modules:** `app/api/v1/journal.py`, `tests/integration/test_journal_stats_aggregate.py`. **Migration:** none.
+
+**Regression evidence:** The journal stats route and adjacent analytics tests passed locally (**5 passed**); the full local suite passed with **222 passed** in 91.68s. Production deployment and endpoint verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
