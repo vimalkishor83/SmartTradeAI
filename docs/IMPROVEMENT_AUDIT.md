@@ -524,7 +524,7 @@ The data-quality persistence change for generated signals also passed data_quali
 
 **Risk level:** High auditability value, low compatibility risk (nullable additive column; existing rows and live-read response behavior remain valid). **Affected modules:** app/models/live_read_log.py, app/__init__.py, migrations/versions/4c8d9e0f1a2b_add_data_quality_to_live_read_logs.py, tests/unit/test_live_read_log_contract.py. **Migration:** required; the application startup migration runner applies it automatically in the deployed topology.
 
-**Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production migration and verification are pending for this slice.
+**Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production deployment completed on 2026-09-05 from \`e7353ba\`: Alembic reported \`4c8d9e0f1a2b (head)\`, the app, PostgreSQL, Redis and worker were healthy, \`/api/v1/system/health\` returned \`HTTP 200\` with \`X-Request-ID: live-read-quality-20260905\`, the deployed persistence, Terminal freeze, export, performance and prediction tests passed (**14 passed** in 8.68s), and the ten-minute app/worker error scan contained no app error matches. A full integration suite was not run against production because it could mutate live services or data.
 
 ### 7.21 IMPLEMENTED — Serialize PostgreSQL startup migrations
 
@@ -532,7 +532,7 @@ The split Gunicorn web tier can initialize several workers concurrently. Alembic
 
 **Risk level:** High deployment-reliability value, low runtime compatibility risk (migration startup only; no request or trading behavior changes). **Affected modules:** migrations/env.py. **Migration:** none beyond the existing Alembic revisions.
 
-**Regression evidence:** Migration syntax, Terminal persistence/freeze tests (**5 passed**), and the full local suite (**219 passed** in 104.65s) passed. Production verification is pending for this slice.
+**Regression evidence:** Migration syntax, Terminal persistence/freeze tests (**5 passed**), and the full local suite (**219 passed** in 104.65s) passed. Production deployment completed on 2026-09-05 from \`2555882\`: all services were healthy, the deployed Alembic revision remained \`4c8d9e0f1a2b (head)\`, \`/api/v1/system/health\` returned \`HTTP 200\` with \`X-Request-ID: migration-lock-20260905\`, the focused deployed suite passed (**14 passed** in 8.63s), and a fresh app/worker log scan had no migration fallback, duplicate-column, traceback, or error output. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
