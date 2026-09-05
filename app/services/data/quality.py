@@ -58,7 +58,12 @@ def _normalize_utc(ts) -> datetime:
     return dt.tz_convert("UTC").to_pydatetime()
 
 
-def assess_data_quality(df: pd.DataFrame, market: str, timeframe: str) -> dict:
+def assess_data_quality(
+    df: pd.DataFrame,
+    market: str,
+    timeframe: str,
+    provider: str | None = None,
+) -> dict:
     """Evaluate one OHLCV DataFrame for the checks Phase 3 calls out:
     timestamp age, missing/duplicate candles, invalid OHLC relationships,
     and volume anomalies. Never raises.
@@ -67,6 +72,14 @@ def assess_data_quality(df: pd.DataFrame, market: str, timeframe: str) -> dict:
         status: "GREEN" | "YELLOW" | "RED"
         issues: list of human-readable findings (empty when GREEN)
         last_candle_age_seconds: float | None
+        provider: source provider when known, otherwise None
+        market: normalized market identifier supplied by the caller
+        timeframe: timeframe supplied by the caller
+        candle_count: number of rows assessed
+        expected_interval_seconds: expected candle spacing
+        last_candle_at: last timestamp normalized to UTC, when available
+        warnings: copy of non-fatal issues for consumers that distinguish
+            warnings from hard validation failures
         hard_invalid: True if a genuine data-integrity problem was found
             (missing columns, no rows, invalid OHLC, duplicate timestamps,
             negative prices/volume) — this kind of corruption is a bug in
@@ -77,23 +90,32 @@ def assess_data_quality(df: pd.DataFrame, market: str, timeframe: str) -> dict:
             comparing them to "now" would always look stale) — see
             SignalEngine.generate_signal()'s use of this via `force`.
     """
+    bar_minutes = _TF_MINUTES.get(timeframe, 60)
+    metadata = {
+        "provider": provider,
+        "market": market,
+        "timeframe": timeframe,
+        "candle_count": int(len(df)) if df is not None else 0,
+        "expected_interval_seconds": bar_minutes * 60,
+        "last_candle_at": None,
+    }
     if df is None or len(df) == 0:
-        return {"status": "RED", "issues": ["no data returned"],
-                "last_candle_age_seconds": None, "hard_invalid": True}
+        return {**metadata, "status": "RED", "issues": ["no data returned"],
+                "warnings": [], "last_candle_age_seconds": None, "hard_invalid": True}
 
     required_cols = {"open", "high", "low", "close"}
     missing_cols = required_cols - set(df.columns)
     if missing_cols:
-        return {"status": "RED", "issues": [f"missing required column(s): {sorted(missing_cols)}"],
+        issue = f"missing required column(s): {sorted(missing_cols)}"
+        return {**metadata, "status": "RED", "issues": [issue], "warnings": [],
                 "last_candle_age_seconds": None, "hard_invalid": True}
 
     issues: list[str] = []
     status = "GREEN"
     hard_invalid = False
-    bar_minutes = _TF_MINUTES.get(timeframe, 60)
-
     # ── Timestamp freshness (soft — see hard_invalid docstring above) ────
     last_ts = _normalize_utc(df.index[-1])
+    metadata["last_candle_at"] = last_ts.isoformat()
     age_seconds = (datetime.now(timezone.utc) - last_ts).total_seconds()
     stale_after = bar_minutes * 60 * _STALE_AFTER_BARS
     if age_seconds > stale_after:
@@ -150,8 +172,14 @@ def assess_data_quality(df: pd.DataFrame, market: str, timeframe: str) -> dict:
                 issues.append(f"latest volume is {vol.iloc[-1] / median_vol:.0f}x the recent 20-bar median (possible data glitch)")
 
     return {
+        **metadata,
         "status": status,
         "issues": issues,
+        "warnings": list(issues) if not hard_invalid else [
+            issue for issue in issues
+            if "duplicate" not in issue and "invalid OHLC" not in issue
+            and "negative volume" not in issue and "missing required" not in issue
+        ],
         "last_candle_age_seconds": round(age_seconds, 1),
         "hard_invalid": hard_invalid,
     }

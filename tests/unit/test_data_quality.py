@@ -57,10 +57,31 @@ class TestNormalizeUtc:
 class TestFreshData:
     def test_fresh_naive_crypto_data_is_green(self):
         df = _make_df(n=60, freq_minutes=60, tz=None)
-        result = assess_data_quality(df, market="crypto", timeframe="1h")
+        result = assess_data_quality(df, market="crypto", timeframe="1h", provider="delta_exchange")
         assert result["status"] == "GREEN"
         assert result["issues"] == []
+        assert result["warnings"] == []
+        assert result["provider"] == "delta_exchange"
+        assert result["market"] == "crypto"
+        assert result["timeframe"] == "1h"
+        assert result["candle_count"] == 60
+        assert result["expected_interval_seconds"] == 3600
+        assert result["last_candle_at"].endswith("+00:00")
         assert result["hard_invalid"] is False
+
+    def test_metadata_is_stable_when_provider_is_unknown(self):
+        result = assess_data_quality(_make_df(n=3), market="index", timeframe="15m")
+        assert result["provider"] is None
+        assert result["candle_count"] == 3
+        assert result["expected_interval_seconds"] == 900
+
+    def test_empty_result_keeps_contract_metadata(self):
+        result = assess_data_quality(pd.DataFrame(), market="crypto", timeframe="1h", provider="binance")
+        assert result["status"] == "RED"
+        assert result["provider"] == "binance"
+        assert result["candle_count"] == 0
+        assert result["last_candle_at"] is None
+        assert result["warnings"] == []
 
     def test_fresh_aware_nse_data_is_green(self):
         df = _make_df(n=60, freq_minutes=60, tz="Asia/Kolkata")
@@ -86,6 +107,7 @@ class TestStaleness:
         result = assess_data_quality(df, market="crypto", timeframe="1h")
         assert result["status"] == "RED"
         assert any("old" in i for i in result["issues"])
+        assert result["warnings"] == result["issues"]
         # Staleness alone is not a hard-data-integrity problem.
         assert result["hard_invalid"] is False
 

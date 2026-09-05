@@ -206,7 +206,7 @@ New pure, dependency-free module (no DB/network/Flask — reusable from the sign
 
 - `_normalize_utc()` converts both tz-naive (assumed UTC) and tz-aware (any zone) timestamps to a common UTC `datetime` before any age comparison — the fix for the timezone landmine above.
 - Checks: timestamp freshness (GREEN/YELLOW/RED by bar-width multiples), duplicate timestamps, gaps larger than 2 bar-widths, invalid OHLC relationships (`high < low`, non-positive prices, etc.), negative/anomalous volume.
-- Returns `{"status": "GREEN"|"YELLOW"|"RED", "issues": [...], "last_candle_age_seconds": float|None, "hard_invalid": bool}`. `hard_invalid` distinguishes genuine data corruption (bad OHLC, duplicate candles, missing columns/rows — wrong regardless of context) from staleness/gaps/volume-spikes, which are only meaningful for *live* signal generation — a backtest deliberately replays historical candles, and comparing their timestamp to wall-clock "now" would flag every single one as stale.
+- Returns the original status/issue fields plus a stable metadata contract: `provider`, `market`, `timeframe`, `candle_count`, `expected_interval_seconds`, `last_candle_at` (UTC ISO-8601), and `warnings`. `hard_invalid` distinguishes genuine data corruption (bad OHLC, duplicate candles, missing columns/rows — wrong regardless of context) from staleness/gaps/volume-spikes, which are only meaningful for *live* signal generation — a backtest deliberately replays historical candles, and comparing their timestamp to wall-clock "now" would flag every single one as stale. The optional `provider` argument is backward-compatible for existing callers that only know the market.
 
 ### 4.3 Fix: `app/services/signals/engine.py` — wired as a new gate
 
@@ -221,13 +221,14 @@ if quality["hard_invalid"] or (not force and quality["status"] == "RED"):
 
 This mirrors the codebase's own existing precedent for every other live-only gate in this function (`if not force and not self._session_gate(market): return None`) so staleness-based blocking is correctly bypassed during backtesting (`force=True`) exactly the way the session gate already is, while hard data-integrity problems block unconditionally in both live and backtest paths, since corrupt data is never valid to trade or backtest on.
 
-### 4.4 Tests: `tests/unit/test_data_quality.py` (new, 22 tests)
+### 4.4 Tests: `tests/unit/test_data_quality.py` (24 tests)
 
-Covers: `_normalize_utc()` on naive/aware/equivalent-instant inputs; GREEN on fresh data for all four timezone shapes actually seen in production (naive/crypto, `Asia/Kolkata`, `Europe/London`, `America/New_York`); RED on stale data for both naive and aware inputs (the specific case that would previously raise `TypeError` or misjudge the age — now proven not to); YELLOW at the borderline threshold; every `hard_invalid` case (empty/`None` df, missing column, duplicate timestamps, invalid OHLC, negative price, negative volume) confirmed to set `hard_invalid=True`; soft anomalies (gap, volume spike) confirmed `hard_invalid=False`; never-raises on a single-row df and an unknown timeframe.
+Covers: `_normalize_utc()` on naive/aware/equivalent-instant inputs; GREEN on fresh data for all four timezone shapes actually seen in production (naive/crypto, `Asia/Kolkata`, `Europe/London`, `America/New_York`); RED on stale data for both naive and aware inputs (the specific case that would previously raise `TypeError` or misjudge the age — now proven not to); stable metadata for known and unknown providers plus empty responses; YELLOW at the borderline threshold; every `hard_invalid` case (empty/`None` df, missing column, duplicate timestamps, invalid OHLC, negative price, negative volume) confirmed to set `hard_invalid=True`; soft anomalies (gap, volume spike) confirmed `hard_invalid=False`; never-raises on a single-row df and an unknown timeframe.
 
 ### 4.5 Live verification
 
-- Full suite: **148 passed** (up from 126 pre-Phase-3; the delta is the 22 new tests), run inside the `app` container on production after `docker compose restart app worker`.
+- Local unit baseline: **119 passed** (24 data-quality tests, including the new metadata contract).
+- Production full suite verification is pending for this contract-only change.
 - Crypto (tz-naive), real production data: `XAUTUSDT` → `{'status': 'GREEN', 'issues': [], 'last_candle_age_seconds': 534.0, 'hard_invalid': False}` — confirms the naive-timestamp path works correctly against real live data.
 - Yahoo-sourced (tz-aware) assets could not be exercised against *live* production data in this pass because Yahoo is currently admin-paused for all four markets that use it (§4.1 finding above) — even a direct `YahooFetcher.fetch_ohlcv()` call (bypassing the admin pause) returned no data, suggesting Yahoo itself is currently unreachable/rate-limited from this server, which is plausibly *why* it was paused. The tz-aware path is instead verified via the unit tests in §4.4, which test the exact same `_normalize_utc()` function against real timezone data matching what Yahoo returns for each market (`Asia/Kolkata`, `Europe/London`, `America/New_York`).
 - No tracebacks in `app`/`worker` logs since restart despite continued real signal-generation/feature-engineering activity, confirming the new gate doesn't error on the live code path.
