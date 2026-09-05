@@ -388,7 +388,7 @@ The risk calculators and live order route now require a JSON object body and ret
 
 **Risk level:** Medium safety/reliability value, low compatibility risk (valid object requests are unchanged). **Affected modules:** `app/api/v1/risk.py`, `app/api/v1/trading.py`, `tests/integration/test_risk_routes.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `e3cc4ee`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **164 passed** in 44.34s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
