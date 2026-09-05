@@ -1,6 +1,14 @@
 """Regression coverage for public registration input validation."""
 
+import pytest
+
 from app.models.user import User
+
+
+@pytest.fixture(autouse=True)
+def disable_rate_limit_for_validation_tests(app):
+    """Keep shared Redis rate-limit state from masking validation responses."""
+    app.config["RATELIMIT_ENABLED"] = False
 
 
 def _payload(**overrides):
