@@ -1,256 +1,1016 @@
-{% extends "partials/base.html" %}
-{% set hide_sidebar = true %}
-{% block title %}Financial Disclaimer — SmartTrade AI{% endblock %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Financial Disclaimer — SmartTrade AI</title>
+  <meta name="description" content="Important information about SmartTrade AI's use of market data, AI-generated analysis, trading signals and the risks of trading and investing." />
+  <link rel="canonical" href="https://smarttradeai.online/disclaimer" />
 
-{% block extra_css %}
-<style>
-  .legal-page {
-    min-height: 100vh;
-    background: var(--bg-primary, #0a0d13);
-    padding: 56px 24px 80px;
-  }
-  .legal-doc {
-    max-width: 1100px;
-    width: 60%;
-    margin: 0 auto;
-  }
-  @media (max-width: 1100px) {
-    .legal-doc { width: 100%; }
-  }
-  .legal-doc-header {
-    margin-bottom: 28px;
-  }
-  .legal-doc-eyebrow {
-    display: inline-block;
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 10px;
-  }
-  .legal-doc-title {
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    color: var(--text-primary);
-    margin-bottom: 6px;
-  }
-  .legal-doc-updated {
-    font-size: 13px;
-    color: var(--text-muted);
-  }
-  .legal-notice {
-    background: rgba(245, 166, 35, 0.08);
-    border: 1px solid rgba(245, 166, 35, 0.25);
-    border-radius: 10px;
-    padding: 16px 18px;
-    margin: 24px 0 32px;
-    font-size: 14px;
-    line-height: 1.65;
-    color: var(--text-primary);
-    opacity: 0.85;
-  }
-  .legal-notice strong {
-    color: var(--text-primary);
-    opacity: 1;
-  }
-  .legal-section {
-    margin-bottom: 28px;
-  }
-  .legal-section h3 {
-    font-size: 17px;
-    font-weight: 700;
-    color: var(--text-primary);
-    margin-bottom: 10px;
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-  }
-  .legal-section h3 .num {
-    font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--accent);
-    flex-shrink: 0;
-  }
-  .legal-section p {
-    font-size: 14.5px;
-    line-height: 1.75;
-    color: var(--text-primary);
-    opacity: 0.88;
-    margin: 0;
-  }
-  .legal-doc-footer {
-    margin-top: 44px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border);
-    text-align: center;
-  }
-  .legal-doc-footer a {
-    color: var(--accent);
-    font-size: 14px;
-    font-weight: 600;
-    text-decoration: none;
-  }
-  .legal-doc-footer a:hover {
-    color: var(--accent-light);
-  }
-</style>
-{% endblock %}
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="SmartTrade AI" />
+  <meta property="og:title" content="Financial Disclaimer — SmartTrade AI" />
+  <meta property="og:description" content="Important information about SmartTrade AI's use of market data, AI-generated analysis, trading signals and the risks of trading and investing." />
+  <meta property="og:url" content="https://smarttradeai.online/disclaimer" />
 
-{% block auth_content %}
-<div class="legal-page">
-  <div class="legal-doc">
-    <div class="legal-doc-header">
-      <span class="legal-doc-eyebrow">Legal</span>
-      <h1 class="legal-doc-title">Financial Disclaimer</h1>
-      <div class="legal-doc-updated">Last updated August 2026</div>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; overflow-x: hidden; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      * { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+    }
+
+    /* ── Same design tokens as /home — this page must feel like the same
+         product, not a bolted-on legal template. ─────────────────────── */
+    :root {
+      --bg:       #080b12;
+      --bg2:      #10141c;
+      --bg3:      #060810;
+      --card:     #10141c;
+      --card2:    #161d29;
+      --accent:   #f5a623;
+      --accent2:  #ffc861;
+      --accent-dim: rgba(245,166,35,0.12);
+      --green:    #22d97f;
+      --red:      #ff5a6a;
+      --blue:     #5b9dff;
+      --text:     #eef1f8;
+      --text2:    #94a3b8;
+      --text3:    #64748b;
+      --border:   rgba(255,255,255,0.07);
+      --border-hover: rgba(255,255,255,0.14);
+      --radius:   12px;
+      --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: inherit; text-decoration: none; }
+    .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+    a:focus-visible, button:focus-visible, summary:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+
+    .skip-link {
+      position: absolute;
+      left: 12px; top: -48px;
+      background: var(--accent);
+      color: #14100a;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 10px 16px;
+      border-radius: 8px;
+      z-index: 1000;
+      transition: top 0.15s;
+    }
+    .skip-link:focus { top: 12px; }
+
+    /* ── NAVBAR — identical to /home ───────────────────── */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(8,11,18,0.88);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 5%;
+      height: 64px;
+    }
+    .nav-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.4px;
+    }
+    .nav-brand .brand-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 0 1px rgba(245,166,35,0.35), 0 4px 16px rgba(245,166,35,0.25);
+    }
+    .nav-brand .ai-part { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 30px;
+      list-style: none;
+    }
+    .nav-links a {
+      color: var(--text2);
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-cta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 22px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: none;
+    }
+    .btn-ghost { background: none; color: var(--text2); border: 1px solid transparent; }
+    .btn-ghost:hover { color: var(--text); border-color: var(--border); }
+    .btn-accent {
+      background: linear-gradient(135deg, var(--accent), #d97f0a);
+      color: #14100a;
+      box-shadow: 0 4px 14px rgba(245,166,35,0.3);
+    }
+    .btn-accent:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(245,166,35,0.4); }
+    .btn-outline { background: none; color: var(--text); border: 1px solid var(--border); }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-lg { padding: 13px 30px; font-size: 15px; border-radius: 10px; }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .navbar { padding: 0 4%; }
+      .nav-brand { font-size: 15px; gap: 7px; }
+      .nav-brand .brand-icon { width: 30px; height: 30px; font-size: 15px; }
+      .nav-cta { gap: 8px; }
+      .nav-cta .btn { padding: 7px 12px; font-size: 12.5px; }
+      .nav-cta-name { display: none; }
+    }
+
+    /* ── LEGAL HERO — compact, readability-first ───────────────── */
+    .legal-hero {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 52px 5% 20px;
+      text-align: center;
+    }
+    .legal-eyebrow {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 14px;
+    }
+    .legal-hero h1 {
+      font-size: clamp(28px, 4vw, 38px);
+      font-weight: 900;
+      letter-spacing: -0.8px;
+      margin-bottom: 14px;
+    }
+    .legal-hero-sub {
+      color: var(--text2);
+      font-size: 15.5px;
+      line-height: 1.7;
+      max-width: 620px;
+      margin: 0 auto 22px;
+    }
+    .legal-badge-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .legal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text2);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 6px 14px;
+    }
+    .legal-badge.accent { color: var(--accent2); border-color: rgba(245,166,35,0.3); background: var(--accent-dim); }
+
+    /* ── Metadata strip (Document / Version / Updated / Status) ── */
+    .legal-meta {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 0 5% 8px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    .legal-meta-item {
+      background: var(--card);
+      padding: 14px 16px;
+      text-align: center;
+    }
+    .legal-meta-label {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 4px;
+    }
+    .legal-meta-value {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    @media (max-width: 640px) {
+      .legal-meta { grid-template-columns: repeat(2, 1fr); margin: 0 4% 28px; }
+    }
+
+    /* ── Notices ─────────────────────────────────────────── */
+    .legal-notices {
+      max-width: 880px;
+      margin: 0 auto;
+      padding: 0 5%;
+    }
+    .notice-important {
+      background: linear-gradient(180deg, rgba(255,90,106,0.08), rgba(255,90,106,0.03));
+      border: 1px solid rgba(255,90,106,0.28);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      margin-bottom: 18px;
+    }
+    .notice-important-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #ff8f9a;
+      margin-bottom: 8px;
+    }
+    .notice-important p {
+      font-size: 14px;
+      line-height: 1.7;
+      color: var(--text);
+      opacity: 0.92;
+    }
+    .notice-important p + p { margin-top: 8px; }
+
+    .notice-status {
+      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin-bottom: 40px;
+      font-size: 13px;
+      line-height: 1.7;
+      color: var(--text2);
+    }
+    .notice-status strong { color: var(--text); }
+
+    /* ── Two-column legal layout ───────────────────────────── */
+    .legal-layout {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 0 5% 80px;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 56px;
+      align-items: start;
+    }
+
+    .toc-desktop {
+      position: sticky;
+      top: 84px;
+    }
+    .toc-desktop h2 {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 14px;
+    }
+    .toc-desktop ol {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .toc-desktop a {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      font-size: 13px;
+      color: var(--text2);
+      padding: 7px 10px;
+      border-radius: 7px;
+      line-height: 1.4;
+      transition: background 0.15s, color 0.15s;
+    }
+    .toc-desktop a:hover { color: var(--text); background: rgba(255,255,255,0.03); }
+    .toc-desktop a.active { color: var(--accent2); background: var(--accent-dim); }
+    .toc-desktop a .toc-num { font-family: var(--font-mono); color: var(--text3); flex-shrink: 0; }
+    .toc-desktop a.active .toc-num { color: var(--accent); }
+
+    .toc-mobile { display: none; }
+
+    @media (max-width: 900px) {
+      .legal-layout { grid-template-columns: 1fr; gap: 0; }
+      .toc-desktop { display: none; }
+      .toc-mobile {
+        display: block;
+        margin-bottom: 28px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .toc-mobile summary {
+        cursor: pointer;
+        padding: 14px 16px;
+        font-size: 13.5px;
+        font-weight: 700;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        list-style: none;
+      }
+      .toc-mobile summary::-webkit-details-marker { display: none; }
+      .toc-mobile summary::after { content: '▾'; color: var(--text3); }
+      .toc-mobile[open] summary::after { content: '▴'; }
+      .toc-mobile ol {
+        list-style: none;
+        padding: 4px 8px 12px;
+        display: flex;
+        flex-direction: column;
+      }
+      .toc-mobile a {
+        display: flex;
+        gap: 10px;
+        font-size: 13.5px;
+        color: var(--text2);
+        padding: 9px 10px;
+        min-height: 40px;
+        align-items: center;
+      }
+      .toc-mobile a .toc-num { font-family: var(--font-mono); color: var(--text3); }
+    }
+
+    .legal-doc {
+      min-width: 0;
+      max-width: 680px;
+    }
+
+    .legal-section {
+      padding: 26px 0;
+      border-bottom: 1px solid var(--border);
+      scroll-margin-top: 84px;
+    }
+    .legal-section:last-child { border-bottom: none; }
+    .legal-section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .legal-section-num {
+      font-family: var(--font-mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+    .legal-section h2 {
+      font-size: 17.5px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.2px;
+    }
+    .legal-section p {
+      font-size: 14.5px;
+      line-height: 1.8;
+      color: var(--text2);
+    }
+    .legal-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      padding: 3px 8px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+    .legal-tag.ai { color: var(--blue); background: rgba(91,157,255,0.12); }
+    .legal-tag.risk { color: var(--accent2); background: var(--accent-dim); }
+
+    /* Subtle left-rail tint on the AI-disclosure section only — the one
+       place the spec asks for visual distinction beyond the standard
+       section treatment. */
+    #sec-05 { border-left: 2px solid rgba(91,157,255,0.35); padding-left: 18px; margin-left: -18px; }
+
+    /* ── Related documents ──────────────────────────────────── */
+    .related-docs {
+      margin-top: 8px;
+      padding-top: 32px;
+    }
+    .related-docs h2 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 14px;
+    }
+    .related-docs-list {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .related-doc {
+      background: var(--card);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 13px 16px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text);
+      transition: background 0.15s;
+    }
+    a.related-doc:hover { background: var(--card2); color: var(--accent2); }
+    .related-doc-disabled {
+      color: var(--text3);
+      cursor: default;
+    }
+    .related-doc-soon {
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      color: var(--text3);
+      background: rgba(255,255,255,0.04);
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+
+    /* ── Back-to-product CTA ─────────────────────────────────── */
+    .legal-cta {
+      margin-top: 44px;
+      padding: 28px;
+      text-align: center;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+    }
+    .legal-cta p {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+
+    /* ── FOOTER — identical to /home ───────────────────────── */
+    .footer {
+      background: var(--bg3);
+      border-top: 1px solid var(--border);
+      padding: 40px 5%;
+      text-align: center;
+    }
+    .footer-brand { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
+    .footer-brand .ai { color: var(--accent); }
+    .footer-tagline { color: var(--text2); font-size: 13.5px; margin-bottom: 22px; }
+    .footer-columns {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto 30px;
+      text-align: left;
+    }
+    .footer-col-title {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
+      color: var(--text3); margin-bottom: 12px;
+    }
+    .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
+    .footer-col a { color: var(--text2); font-size: 13px; font-weight: 500; transition: color 0.2s; }
+    .footer-col a:hover { color: var(--accent); }
+    @media (max-width: 768px) {
+      .footer-columns { grid-template-columns: repeat(2, 1fr); text-align: center; }
+      .footer-col ul { align-items: center; }
+    }
+    .financial-disclaimer {
+      max-width: 780px; margin: 0 auto 20px; padding: 14px 18px;
+      border: 1px solid var(--border); border-radius: 10px;
+      background: rgba(255,255,255,0.02); color: var(--text3);
+      font-size: 11.5px; line-height: 1.6; text-align: left;
+    }
+    .financial-disclaimer strong { color: var(--text2); }
+    .footer-copy { color: var(--text3); font-size: 12.5px; }
+
+    #backToTop {
+      position: fixed;
+      bottom: 28px; right: 28px;
+      width: 44px; height: 44px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #14100a;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      opacity: 0; visibility: hidden;
+      transform: translateY(8px);
+      transition: all 0.25s;
+      z-index: 90;
+      border: none;
+      cursor: pointer;
+    }
+    #backToTop.show { opacity: 1; visibility: visible; transform: translateY(0); }
+    #backToTop:hover { opacity: 0.9; transform: translateY(-2px); }
+  </style>
+</head>
+<body>
+
+<a href="#main-content" class="skip-link">Skip to content</a>
+
+<!-- ═══ NAVBAR — same as /home ══════════════════════════════ -->
+<nav class="navbar">
+  <a href="/home" class="nav-brand">
+    <div class="brand-icon">📈</div>
+    SmartTrade <span class="ai-part">AI</span>
+  </a>
+
+  <ul class="nav-links">
+    <li><a href="/home">Home</a></li>
+    <li><a href="/home#features">Features</a></li>
+    <li><a href="/home#how-it-works">How It Works</a></li>
+    <li><a href="/home#signals">Live Signals</a></li>
+    <li><a href="/home#pricing">Pricing</a></li>
+    <li><a href="/home#faq">FAQ</a></li>
+    <li><a href="/home#about">About</a></li>
+  </ul>
+
+  <div class="nav-cta" id="navCta">
+    <a href="/login" class="btn btn-ghost" id="navLoginBtn">Login</a>
+    <a href="/register" class="btn btn-accent" id="navSignupBtn">Sign Up Free</a>
+  </div>
+</nav>
+
+<main id="main-content">
+
+  <!-- ═══ LEGAL HERO ═══════════════════════════════════════ -->
+  <div class="legal-hero">
+    <span class="legal-eyebrow">Legal &amp; Transparency</span>
+    <h1>Financial Disclaimer</h1>
+    <p class="legal-hero-sub">
+      Important information about the use of SmartTrade AI, AI-generated analysis, market data,
+      trading signals and the risks involved in trading and investing.
+    </p>
+    <div class="legal-badge-row">
+      <span class="legal-badge accent">📄 Financial Disclaimer</span>
+      <span class="legal-badge">Last Updated: August 2026</span>
+    </div>
+  </div>
+
+  <!-- ═══ METADATA ═════════════════════════════════════════ -->
+  <div class="legal-meta">
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Document</div>
+      <div class="legal-meta-value">Financial Disclaimer</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Version</div>
+      <div class="legal-meta-value">Current</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Last Updated</div>
+      <div class="legal-meta-value">August 2026</div>
+    </div>
+    <div class="legal-meta-item">
+      <div class="legal-meta-label">Status</div>
+      <div class="legal-meta-value">Informational</div>
+    </div>
+  </div>
+
+  <!-- ═══ NOTICES ══════════════════════════════════════════ -->
+  <div class="legal-notices">
+    <div class="notice-important">
+      <div class="notice-important-head">⚠ Important</div>
+      <p>
+        SmartTrade AI provides technology, market information and analytical tools. It does not
+        provide personalized financial or investment advice.
+      </p>
+      <p>
+        Trading and investing involve significant risk, including the risk of losing your entire
+        principal. Always independently evaluate information before making financial decisions.
+      </p>
     </div>
 
-    <div class="legal-notice">
+    <div class="notice-status">
       <strong>Placeholder document — this is not a legally reviewed disclaimer.</strong>
       Replace this page with disclaimer language drafted or reviewed by a securities/financial-services
       lawyer, tailored to the jurisdictions you operate in, before taking real users or payments in
       production. This draft is written to be thorough and directionally correct, not as a substitute
       for professional legal review.
     </div>
+  </div>
 
-    <div class="legal-section">
-      <h3><span class="num">01</span>Not Financial, Investment, or Trading Advice</h3>
-      <p>
-        SmartTrade AI ("the Platform") provides financial education, market information, and
-        analytical/algorithmic tools. Nothing on the Platform — including signals, confidence scores,
-        entry/target/stop-loss levels, AI predictions, backtests, or any other content — constitutes
-        personalised investment advice, a recommendation to buy or sell any security or instrument, or
-        a solicitation of any kind. We are not a registered investment adviser, broker-dealer, or
-        financial planner in any jurisdiction, and nothing here is tailored to your individual financial
-        situation, objectives, or risk tolerance.
-      </p>
-    </div>
+  <!-- ═══ TWO-COLUMN LAYOUT ════════════════════════════════ -->
+  <div class="legal-layout">
 
-    <div class="legal-section">
-      <h3><span class="num">02</span>No Guaranteed Returns or Predictions</h3>
-      <p>
-        Trading and investing in financial markets involves substantial risk, including the risk of
-        losing your entire principal. No signal, confidence score, or AI-generated prediction shown on
-        the Platform guarantees any particular outcome, return, or level of accuracy. Confidence scores
-        reflect the output of a statistical model at a point in time — they are not a probability of
-        profit and should never be treated as one. Markets are unpredictable, and even historically
-        reliable strategies can fail without warning due to changing conditions.
-      </p>
-    </div>
+    <!-- Mobile: collapsible TOC dropdown, sits above the content -->
+    <details class="toc-mobile">
+      <summary>On this page</summary>
+      <ol>
+        <li><a href="#sec-01"><span class="toc-num mono">01</span>Not Financial, Investment, or Trading Advice</a></li>
+        <li><a href="#sec-02"><span class="toc-num mono">02</span>No Guaranteed Returns or Predictions</a></li>
+        <li><a href="#sec-03"><span class="toc-num mono">03</span>Past Performance</a></li>
+        <li><a href="#sec-04"><span class="toc-num mono">04</span>Market Data Accuracy</a></li>
+        <li><a href="#sec-05"><span class="toc-num mono">05</span>AI-Generated Content</a></li>
+        <li><a href="#sec-06"><span class="toc-num mono">06</span>User Responsibility</a></li>
+        <li><a href="#sec-07"><span class="toc-num mono">07</span>Broker Connections</a></li>
+        <li><a href="#sec-08"><span class="toc-num mono">08</span>Leverage &amp; High-Risk Instruments</a></li>
+        <li><a href="#sec-09"><span class="toc-num mono">09</span>No Fiduciary Relationship</a></li>
+        <li><a href="#sec-10"><span class="toc-num mono">10</span>Regulatory Status</a></li>
+        <li><a href="#sec-11"><span class="toc-num mono">11</span>Limitation of Liability</a></li>
+        <li><a href="#sec-12"><span class="toc-num mono">12</span>Changes to This Disclaimer</a></li>
+      </ol>
+    </details>
 
-    <div class="legal-section">
-      <h3><span class="num">03</span>Past Performance Is Not Indicative of Future Results</h3>
-      <p>
-        Any backtested results, historical win rates, equity curves, or performance statistics shown on
-        the Platform reflect how a strategy would have performed on historical data under specific
-        assumptions (fees, slippage, execution timing, data availability). Backtested performance is
-        inherently limited by hindsight and does not account for every real-world condition. Past
-        performance — whether live or simulated — is not a reliable indicator of future results, and
-        actual results may differ materially.
-      </p>
-    </div>
+    <!-- Desktop: sticky sidebar TOC -->
+    <nav class="toc-desktop" aria-label="Table of contents" id="tocDesktop">
+      <h2>On This Page</h2>
+      <ol>
+        <li><a href="#sec-01" data-toc><span class="toc-num mono">01</span>Not Financial, Investment, or Trading Advice</a></li>
+        <li><a href="#sec-02" data-toc><span class="toc-num mono">02</span>No Guaranteed Returns or Predictions</a></li>
+        <li><a href="#sec-03" data-toc><span class="toc-num mono">03</span>Past Performance</a></li>
+        <li><a href="#sec-04" data-toc><span class="toc-num mono">04</span>Market Data Accuracy</a></li>
+        <li><a href="#sec-05" data-toc><span class="toc-num mono">05</span>AI-Generated Content</a></li>
+        <li><a href="#sec-06" data-toc><span class="toc-num mono">06</span>User Responsibility</a></li>
+        <li><a href="#sec-07" data-toc><span class="toc-num mono">07</span>Broker Connections</a></li>
+        <li><a href="#sec-08" data-toc><span class="toc-num mono">08</span>Leverage &amp; High-Risk Instruments</a></li>
+        <li><a href="#sec-09" data-toc><span class="toc-num mono">09</span>No Fiduciary Relationship</a></li>
+        <li><a href="#sec-10" data-toc><span class="toc-num mono">10</span>Regulatory Status</a></li>
+        <li><a href="#sec-11" data-toc><span class="toc-num mono">11</span>Limitation of Liability</a></li>
+        <li><a href="#sec-12" data-toc><span class="toc-num mono">12</span>Changes to This Disclaimer</a></li>
+      </ol>
+    </nav>
 
-    <div class="legal-section">
-      <h3><span class="num">04</span>Market Data Accuracy and Availability</h3>
-      <p>
-        Market data, prices, and signals displayed on the Platform are sourced from third-party data
-        providers and may be delayed, incomplete, inaccurate, or temporarily unavailable due to factors
-        outside our control (exchange outages, API rate limits, network issues, provider errors).
-        Signal delay varies by subscription tier. Do not rely on the Platform as your sole source of
-        market data for time-sensitive decisions — always cross-check against your broker or exchange's
-        live data before acting.
-      </p>
-    </div>
+    <!-- Content -->
+    <div class="legal-doc">
 
-    <div class="legal-section">
-      <h3><span class="num">05</span>Automated and AI-Generated Content</h3>
-      <p>
-        Signals and analysis on the Platform are generated by automated systems and machine-learning
-        models. These systems can and do produce incorrect, misleading, or unexpected output, including
-        but not limited to model errors, data-quality issues, and edge cases the underlying models were
-        not trained to handle. AI-generated reasoning accompanying a signal is a model's best attempt at
-        an explanation, not a guarantee that the stated logic is complete, correct, or the true cause of
-        any market movement.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-01">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">01</span>
+          <h2>Not Financial, Investment, or Trading Advice</h2>
+        </div>
+        <p>
+          SmartTrade AI ("the Platform") provides financial education, market information, and
+          analytical/algorithmic tools. Nothing on the Platform — including signals, confidence scores,
+          entry/target/stop-loss levels, AI predictions, backtests, or any other content — constitutes
+          personalised investment advice, a recommendation to buy or sell any security or instrument, or
+          a solicitation of any kind. We are not a registered investment adviser, broker-dealer, or
+          financial planner in any jurisdiction, and nothing here is tailored to your individual financial
+          situation, objectives, or risk tolerance.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">06</span>Your Trading Decisions Are Your Own Responsibility</h3>
-      <p>
-        You are solely responsible for evaluating the merits and risks of any trade, investment, or
-        strategy before acting, and for any resulting gains or losses. This includes decisions made
-        using signals, backtests, risk-management tools (position sizing, stop-loss calculators), or any
-        other feature of the Platform. Always conduct your own independent research and, where
-        appropriate, consult a qualified, licensed financial professional before making financial
-        decisions — especially with money you cannot afford to lose.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-02">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">02</span>
+          <h2>No Guaranteed Returns or Predictions</h2>
+          <span class="legal-tag risk">Risk</span>
+        </div>
+        <p>
+          Trading and investing in financial markets involves substantial risk, including the risk of
+          losing your entire principal. No signal, confidence score, or AI-generated prediction shown on
+          the Platform guarantees any particular outcome, return, or level of accuracy. Confidence scores
+          reflect the output of a statistical model at a point in time — they are not a probability of
+          profit and should never be treated as one. Markets are unpredictable, and even historically
+          reliable strategies can fail without warning due to changing conditions.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">07</span>Broker Connections and Order Execution</h3>
-      <p>
-        If you connect a broker or exchange account, any orders placed through the Platform — whether
-        manually or via automated execution features — are subject to that broker/exchange's own
-        execution, latency, slippage, and fee conditions, which the Platform does not control. We are
-        not responsible for order rejections, partial fills, execution delays, or losses arising from
-        your broker's infrastructure, policies, or downtime.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-03">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">03</span>
+          <h2>Past Performance Is Not Indicative of Future Results</h2>
+          <span class="legal-tag risk">Risk</span>
+        </div>
+        <p>
+          Any backtested results, historical win rates, equity curves, or performance statistics shown on
+          the Platform reflect how a strategy would have performed on historical data under specific
+          assumptions (fees, slippage, execution timing, data availability). Backtested performance is
+          inherently limited by hindsight and does not account for every real-world condition. Past
+          performance — whether live or simulated — is not a reliable indicator of future results, and
+          actual results may differ materially.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">08</span>Leverage and High-Risk Instruments</h3>
-      <p>
-        Some markets and instruments referenced on the Platform (including but not limited to
-        cryptocurrency, forex, and derivatives) may involve leverage, margin, or other features that can
-        amplify both gains and losses. These instruments are not suitable for all investors. You should
-        fully understand how a given instrument works and the maximum loss you could realistically incur
-        before trading it.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-04">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">04</span>
+          <h2>Market Data Accuracy and Availability</h2>
+        </div>
+        <p>
+          Market data, prices, and signals displayed on the Platform are sourced from third-party data
+          providers and may be delayed, incomplete, inaccurate, or temporarily unavailable due to factors
+          outside our control (exchange outages, API rate limits, network issues, provider errors).
+          Signal delay varies by subscription tier. Do not rely on the Platform as your sole source of
+          market data for time-sensitive decisions — always cross-check against your broker or exchange's
+          live data before acting.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">09</span>No Fiduciary Relationship</h3>
-      <p>
-        Use of the Platform does not create a fiduciary, advisory, or agency relationship between you
-        and SmartTrade AI. We do not act on your behalf in any capacity other than, where applicable,
-        relaying your own explicit instructions to a broker/exchange you have separately connected.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-05">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">05</span>
+          <h2>Automated and AI-Generated Content</h2>
+          <span class="legal-tag ai">🤖 AI</span>
+        </div>
+        <p>
+          Signals and analysis on the Platform are generated by automated systems and machine-learning
+          models. These systems can and do produce incorrect, misleading, or unexpected output, including
+          but not limited to model errors, data-quality issues, and edge cases the underlying models were
+          not trained to handle. AI-generated reasoning accompanying a signal is a model's best attempt at
+          an explanation, not a guarantee that the stated logic is complete, correct, or the true cause of
+          any market movement.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">10</span>Regulatory Status</h3>
-      <p>
-        SmartTrade AI is not registered with, licensed by, or endorsed by any securities regulator,
-        commodities regulator, or financial markets authority. Availability of the Platform in your
-        jurisdiction does not imply regulatory approval. It is your responsibility to determine whether
-        your use of the Platform complies with the laws and regulations applicable to you.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-06">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">06</span>
+          <h2>Your Trading Decisions Are Your Own Responsibility</h2>
+          <span class="legal-tag risk">Risk</span>
+        </div>
+        <p>
+          You are solely responsible for evaluating the merits and risks of any trade, investment, or
+          strategy before acting, and for any resulting gains or losses. This includes decisions made
+          using signals, backtests, risk-management tools (position sizing, stop-loss calculators), or any
+          other feature of the Platform. Always conduct your own independent research and, where
+          appropriate, consult a qualified, licensed financial professional before making financial
+          decisions — especially with money you cannot afford to lose.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">11</span>Limitation of Liability</h3>
-      <p>
-        To the maximum extent permitted by law, SmartTrade AI and its operators disclaim all liability
-        for any direct, indirect, incidental, or consequential losses arising from your use of, or
-        reliance on, the Platform, including trading losses, missed opportunities, or data inaccuracies.
-        The Platform is provided "as is" without warranty of any kind, express or implied.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-07">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">07</span>
+          <h2>Broker Connections and Order Execution</h2>
+        </div>
+        <p>
+          If you connect a broker or exchange account, any orders placed through the Platform — whether
+          manually or via automated execution features — are subject to that broker/exchange's own
+          execution, latency, slippage, and fee conditions, which the Platform does not control. We are
+          not responsible for order rejections, partial fills, execution delays, or losses arising from
+          your broker's infrastructure, policies, or downtime.
+        </p>
+      </section>
 
-    <div class="legal-section">
-      <h3><span class="num">12</span>Changes to This Disclaimer</h3>
-      <p>
-        This disclaimer may be updated as the product evolves or as required by applicable law.
-        Continued use of the Platform after a change constitutes acceptance of the updated disclaimer.
-      </p>
-    </div>
+      <section class="legal-section" id="sec-08">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">08</span>
+          <h2>Leverage and High-Risk Instruments</h2>
+          <span class="legal-tag risk">Risk</span>
+        </div>
+        <p>
+          Some markets and instruments referenced on the Platform (including but not limited to
+          cryptocurrency, forex, and derivatives) may involve leverage, margin, or other features that can
+          amplify both gains and losses. These instruments are not suitable for all investors. You should
+          fully understand how a given instrument works and the maximum loss you could realistically incur
+          before trading it.
+        </p>
+      </section>
 
-    <div class="legal-doc-footer">
-      <a href="/home">&larr; Back to Home</a>
+      <section class="legal-section" id="sec-09">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">09</span>
+          <h2>No Fiduciary Relationship</h2>
+        </div>
+        <p>
+          Use of the Platform does not create a fiduciary, advisory, or agency relationship between you
+          and SmartTrade AI. We do not act on your behalf in any capacity other than, where applicable,
+          relaying your own explicit instructions to a broker/exchange you have separately connected.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-10">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">10</span>
+          <h2>Regulatory Status</h2>
+        </div>
+        <p>
+          SmartTrade AI is not registered with, licensed by, or endorsed by any securities regulator,
+          commodities regulator, or financial markets authority. Availability of the Platform in your
+          jurisdiction does not imply regulatory approval. It is your responsibility to determine whether
+          your use of the Platform complies with the laws and regulations applicable to you.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-11">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">11</span>
+          <h2>Limitation of Liability</h2>
+          <span class="legal-tag risk">Risk</span>
+        </div>
+        <p>
+          To the maximum extent permitted by law, SmartTrade AI and its operators disclaim all liability
+          for any direct, indirect, incidental, or consequential losses arising from your use of, or
+          reliance on, the Platform, including trading losses, missed opportunities, or data inaccuracies.
+          The Platform is provided "as is" without warranty of any kind, express or implied.
+        </p>
+      </section>
+
+      <section class="legal-section" id="sec-12">
+        <div class="legal-section-head">
+          <span class="legal-section-num mono">12</span>
+          <h2>Changes to This Disclaimer</h2>
+        </div>
+        <p>
+          This disclaimer may be updated as the product evolves or as required by applicable law.
+          Continued use of the Platform after a change constitutes acceptance of the updated disclaimer.
+        </p>
+      </section>
+
+      <!-- ═══ RELATED LEGAL DOCUMENTS ═══════════════════════ -->
+      <div class="related-docs">
+        <h2>Related Legal Documents</h2>
+        <div class="related-docs-list">
+          <a class="related-doc" href="/terms">Terms of Service</a>
+          <a class="related-doc" href="/privacy">Privacy Policy</a>
+          <div class="related-doc related-doc-disabled">
+            Refund &amp; Cancellation Policy
+            <span class="related-doc-soon">Coming Soon</span>
+          </div>
+          <div class="related-doc related-doc-disabled">
+            Cookie Policy
+            <span class="related-doc-soon">Coming Soon</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══ BACK TO PRODUCT ═══════════════════════════════ -->
+      <div class="legal-cta">
+        <p>Ready to explore SmartTrade AI?</p>
+        <a href="/home" class="btn btn-accent">← Return to SmartTrade AI</a>
+      </div>
+
     </div>
   </div>
-</div>
-{% endblock %}
+
+</main>
+
+<!-- ═══ FOOTER — same as /home ══════════════════════════════ -->
+<footer class="footer">
+  <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
+  <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
+
+  <div class="footer-columns">
+    <div class="footer-col">
+      <div class="footer-col-title">Product</div>
+      <ul>
+        <li><a href="/home#features">Features</a></li>
+        <li><a href="/home#how-it-works">How It Works</a></li>
+        <li><a href="/home#signals">Live Signals</a></li>
+        <li><a href="/home#pricing">Pricing</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Account</div>
+      <ul>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li id="footerLoginItem"><a href="/login">Login</a></li>
+        <li id="footerRegisterItem"><a href="/register">Register</a></li>
+        <li><a href="/forgot-password">Forgot Password</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Company</div>
+      <ul>
+        <li><a href="/home#about">About Us</a></li>
+        <li><a href="/home#contact">Contact Us</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Legal</div>
+      <ul>
+        <li><a href="/terms">Terms of Service</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/disclaimer">Financial Disclaimer</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Support</div>
+      <ul>
+        <li><a href="/home#contact">Contact Support</a></li>
+        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="financial-disclaimer">
+    <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
+    analytical/algorithmic tools. It does not provide personalised investment advice, guaranteed predictions, or
+    assured returns. Trading and investing in financial markets involves substantial risk, including loss of
+    principal. Signals and analysis shown here are for informational purposes only — always conduct independent
+    research and consult a qualified financial professional before making financial decisions.
+  </div>
+
+  <div class="footer-copy">Built with ❤️ for traders everywhere &nbsp;·&nbsp; © 2026 SmartTrade AI. All rights reserved.</div>
+</footer>
+
+<!-- Back to top -->
+<button id="backToTop" title="Back to top" aria-label="Back to top">↑</button>
+
+<script>
+(function () {
+  const btn = document.getElementById('backToTop');
+  if (!btn) return;
+  const sync = () => btn.classList.toggle('show', window.scrollY > 500);
+  sync();
+  window.addEventListener('scroll', sync, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+
+<script>
+// If the visitor already has a valid session, swap the logged-out
+// Login/Sign-Up CTAs for a direct link into the dashboard — same behavior
+// as /home, so the header doesn't feel like a different site.
+(async function () {
+  const token = localStorage.getItem('access_token');
+  if (!token) return;
+  try {
+    const res = await fetch('/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); return; }
+    const me = await res.json();
+    const name = (me.full_name || me.username || '').trim().split(' ')[0] || null;
+
+    document.getElementById('footerLoginItem')?.remove();
+    document.getElementById('footerRegisterItem')?.remove();
+
+    const cta = document.getElementById('navCta');
+    if (cta) {
+      cta.innerHTML = name
+        ? '<a href="/dashboard" class="btn btn-accent">👤 <span class="nav-cta-name">' + name + ' </span>→ Dashboard</a>'
+        : '<a href="/dashboard" class="btn btn-accent">Go to Dashboard →</a>';
+    }
+  } catch (e) { /* network error — leave logged-out nav as-is */ }
+})();
+</script>
+
+<script>
+// Highlight the active section in the sticky "On this page" nav as the
+// reader scrolls — a plain class toggle, not motion, so it needs no
+// prefers-reduced-motion guard.
+(function () {
+  const links = Array.from(document.querySelectorAll('#tocDesktop a[data-toc]'));
+  if (!links.length || !('IntersectionObserver' in window)) return;
+  const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      const link = byId.get(entry.target.id);
+      if (!link) return;
+      if (entry.isIntersecting) {
+        links.forEach(a => a.classList.remove('active'));
+        link.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+  document.querySelectorAll('.legal-section[id^="sec-"]').forEach(sec => observer.observe(sec));
+})();
+</script>
+
+</body>
+</html>
