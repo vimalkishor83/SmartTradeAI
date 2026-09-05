@@ -34,6 +34,12 @@ def authed_client(app, client):
 
 
 class TestPositionSizeRoute:
+    def test_non_object_json_body_returns_400(self, authed_client):
+        client, headers = authed_client
+        resp = client.post("/api/v1/risk/position-size", headers=headers, json=[])
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "request body must be a JSON object"
+
     def test_valid_request_returns_position_size(self, authed_client):
         client, headers = authed_client
         resp = client.post("/api/v1/risk/position-size", headers=headers, json={
@@ -70,6 +76,12 @@ class TestPositionSizeRoute:
 
 
 class TestRiskRewardRoute:
+    def test_non_object_json_body_returns_400(self, authed_client):
+        client, headers = authed_client
+        resp = client.post("/api/v1/risk/risk-reward", headers=headers, json=None)
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "request body must be a JSON object"
+
     def test_valid_request_returns_ratio(self, authed_client):
         client, headers = authed_client
         resp = client.post("/api/v1/risk/risk-reward", headers=headers, json={

@@ -111,7 +111,9 @@ def broker_connect():
     supported broker — provider is now a request field, not hardcoded."""
     from app.models.api_config import UserBrokerCredential
     user_id = get_jwt_identity()
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     provider = (data.get("provider") or "delta_exchange").strip()
 
     meta = get_broker(provider)

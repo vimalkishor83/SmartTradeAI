@@ -382,6 +382,14 @@ The live order route previously used Python truthiness for `reduce_only`, which 
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `ebcf986`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **162 passed** in 42.97s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 5.5 IMPLEMENTED — Reject malformed trading/risk request bodies safely
+
+The risk calculators and live order route now require a JSON object body and return a clear `400` response for arrays, null bodies, and invalid JSON instead of raising an uncaught `TypeError`/`AttributeError`. This protects API reliability at the boundary before any calculation or broker operation begins.
+
+**Risk level:** Medium safety/reliability value, low compatibility risk (valid object requests are unchanged). **Affected modules:** `app/api/v1/risk.py`, `app/api/v1/trading.py`, `tests/integration/test_risk_routes.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

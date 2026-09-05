@@ -22,7 +22,9 @@ def position_size():
     If `atr` is supplied, uses volatility-adjusted sizing (recommended).
     Optional `atr_history` list of recent ATR values enables percentile-based regime detection.
     """
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     try:
         capital   = float(data["capital"])
         risk_pct  = float(data["risk_pct"])
@@ -50,7 +52,9 @@ def position_size():
 @risk_bp.route("/risk-reward", methods=["POST"])
 @login_required
 def risk_reward():
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     try:
         result = calculate_risk_reward(
             entry=float(data["entry"]),
