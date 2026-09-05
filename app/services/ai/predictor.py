@@ -388,14 +388,17 @@ class AIPredictor:
 
     # In-process prediction cache: key → (bull_prob, member_outputs, ts). Guarded by
     # _cache_lock since this is read/written from both APScheduler
-    # background threads (prewarm jobs) and Flask request threads —
-    # unsynchronized check-then-set let concurrent threads both miss the
-    # cache and redundantly retrain/predict the same symbol+timeframe at
-    # once (wasted CPU, not a correctness bug in the value itself, since
-    # dict get/set are individually GIL-atomic — but worth locking properly
-    # to match the pattern already used by _OHLCVCache in fetcher.py).
+    # background threads (prewarm jobs) and Flask request threads.
     _pred_cache: dict[str, tuple[float, dict[str, float], float]] = {}
     _cache_lock = threading.Lock()
+    _prediction_locks: dict[str, threading.Lock] = {}
+    _prediction_locks_guard = threading.Lock()
+
+    @classmethod
+    def _prediction_lock_for(cls, cache_key: str) -> threading.Lock:
+        """Return the single-flight lock for one symbol/timeframe key."""
+        with cls._prediction_locks_guard:
+            return cls._prediction_locks.setdefault(cache_key, threading.Lock())
 
     def predict(self, df: pd.DataFrame, asset_symbol: str, timeframe: str) -> dict:
         """Return ensemble prediction for the latest candle."""
@@ -423,52 +426,65 @@ class AIPredictor:
             bull_prob = cached[0]
             model_outputs = cached[1]
         else:
-            try:
-                feat = _build_features(df)
-                X_pred = feat.values[[-1]]
-
-                bull_prob = None
-                model_outputs = {}
-                if _models_ready(cache_key):
-                    inference = self._ensemble_predict_inference_only(X_pred, cache_key)
-                    if inference is not None:
-                        bull_prob, model_outputs = inference
-
-                if bull_prob is None:
-                    # No fresh cached model for at least one ensemble member
-                    # (first run for this symbol+TF, or past _RETRAIN_AFTER)
-                    # -- build real training data and let _ensemble_predict
-                    # train/calibrate whatever's missing.
-                    from app.services.indicators.calculator import calculate_atr
-
-                    atr    = calculate_atr(df["high"], df["low"], df["close"]).loc[feat.index]
-                    labels = _make_triple_barrier_labels(df.loc[feat.index], atr)
-
-                    X_all = feat.values
-                    y_all = labels.values
-                    # Triple-barrier labels are NaN for the trailing _TB_MAX_HOLD
-                    # bars (not enough forward data to resolve a barrier touch)
-                    # and for the very last row (used only for X_pred) --
-                    # exclude both from training rather than assuming a fixed
-                    # drop count.
-                    valid = ~np.isnan(y_all)
-                    valid[-1] = False  # last row's own label is never used for training
-                    X_train = X_all[valid]
-                    y_train = y_all[valid].astype(int)
-
-                    if len(X_train) < _MIN_TRAIN_ROWS:
-                        return _default
-
-                    bull_prob, model_outputs = self._ensemble_predict(
-                        X_train, y_train, X_pred, asset_symbol, timeframe,
-                    )
-
+            # Keep different assets parallel, but collapse concurrent misses for
+            # one key so a request and the prewarm job cannot retrain together.
+            with self._prediction_lock_for(cache_key):
                 with self._cache_lock:
-                    self._pred_cache[cache_key] = (bull_prob, model_outputs, time.time())
+                    cached = self._pred_cache.get(cache_key)
+                if cached and (time.time() - cached[2]) < ttl:
+                    bull_prob = cached[0]
+                    model_outputs = cached[1]
+                else:
+                    try:
+                        feat = _build_features(df)
+                        X_pred = feat.values[[-1]]
 
-            except Exception as e:
-                logger.error(f"AI prediction error [{asset_symbol}/{timeframe}]: {e}")
-                return _default
+                        bull_prob = None
+                        model_outputs = {}
+                        if _models_ready(cache_key):
+                            inference = self._ensemble_predict_inference_only(X_pred, cache_key)
+                            if inference is not None:
+                                bull_prob, model_outputs = inference
+
+                        if bull_prob is None:
+                            # No fresh cached model for at least one ensemble member
+                            # (first run for this symbol+TF, or past _RETRAIN_AFTER)
+                            # -- build real training data and let _ensemble_predict
+                            # train/calibrate whatever's missing.
+                            from app.services.indicators.calculator import calculate_atr
+
+                            atr = calculate_atr(
+                                df["high"], df["low"], df["close"],
+                            ).loc[feat.index]
+                            labels = _make_triple_barrier_labels(df.loc[feat.index], atr)
+
+                            X_all = feat.values
+                            y_all = labels.values
+                            # Triple-barrier labels are NaN for the trailing _TB_MAX_HOLD
+                            # bars (not enough forward data to resolve a barrier touch)
+                            # and for the very last row (used only for X_pred) --
+                            # exclude both from training rather than assuming a fixed
+                            # drop count.
+                            valid = ~np.isnan(y_all)
+                            valid[-1] = False  # last row's own label is never used for training
+                            X_train = X_all[valid]
+                            y_train = y_all[valid].astype(int)
+
+                            if len(X_train) < _MIN_TRAIN_ROWS:
+                                return _default
+
+                            bull_prob, model_outputs = self._ensemble_predict(
+                                X_train, y_train, X_pred, asset_symbol, timeframe,
+                            )
+
+                        with self._cache_lock:
+                            self._pred_cache[cache_key] = (
+                                bull_prob, model_outputs, time.time(),
+                            )
+
+                    except Exception as e:
+                        logger.error(f"AI prediction error [{asset_symbol}/{timeframe}]: {e}")
+                        return _default
 
         bull_prob = round(bull_prob * 100, 1)
         bear_prob = round(100 - bull_prob, 1)
@@ -705,14 +721,15 @@ class AIPredictor:
     def force_retrain(self, asset_symbol: str, timeframe: str):
         """Delete cached model files for a symbol+TF, forcing retrain on next predict()."""
         cache_key = f"{asset_symbol}_{timeframe}"
-        for prefix in ("rf_", "xgb_", "lgb_"):
-            p = _model_path(f"{prefix}{cache_key}")
-            try:
-                if p.exists():
-                    p.unlink()
-            except Exception:
-                pass
-        self.invalidate_cache(asset_symbol, timeframe)
+        with self._prediction_lock_for(cache_key):
+            for prefix in ("rf_", "xgb_", "lgb_"):
+                p = _model_path(f"{prefix}{cache_key}")
+                try:
+                    if p.exists():
+                        p.unlink()
+                except Exception:
+                    pass
+            self.invalidate_cache(asset_symbol, timeframe)
 
 
 ai_predictor = AIPredictor()

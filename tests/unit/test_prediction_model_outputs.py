@@ -1,6 +1,9 @@
 """Tests for truthful ensemble-member probability output."""
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+import threading
+import time
 
 import numpy as np
 import pandas as pd
@@ -113,3 +116,50 @@ def test_model_save_cleans_temporary_artifact_after_serialization_failure(
 
     assert target.read_bytes() == b"existing-artifact"
     assert list(tmp_path.glob(f".{target.name}.*.tmp")) == []
+
+
+def test_prediction_cache_collapses_concurrent_misses(monkeypatch):
+    predictor = AIPredictor()
+    predictor.invalidate_cache()
+    frame = pd.DataFrame({
+        "high": [101.0] * 120,
+        "low": [99.0] * 120,
+        "close": [100.0] * 120,
+    })
+    features = pd.DataFrame(
+        np.ones((120, 2)), index=frame.index, columns=["feature_a", "feature_b"],
+    )
+    monkeypatch.setattr(predictor_module, "_build_features", lambda _df: features)
+    monkeypatch.setattr(predictor_module, "_models_ready", lambda _key: False)
+    monkeypatch.setattr(
+        predictor_module,
+        "_make_triple_barrier_labels",
+        lambda data, _atr: pd.Series(np.zeros(len(data)), index=data.index),
+    )
+
+    calls = 0
+    calls_lock = threading.Lock()
+
+    def fake_ensemble(_x_train, _y_train, _x_pred, _symbol, _timeframe):
+        nonlocal calls
+        with calls_lock:
+            calls += 1
+        time.sleep(0.05)
+        return 0.62, {"random_forest": 0.62}
+
+    monkeypatch.setattr(predictor, "_ensemble_predict", fake_ensemble)
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(
+                lambda _index: predictor.predict(frame, "SINGLEFLIGHT", "1h"),
+                range(2),
+            ))
+    finally:
+        predictor.invalidate_cache("SINGLEFLIGHT", "1h")
+
+    assert calls == 1
+    assert results[0]["bullish_probability"] == results[1]["bullish_probability"] == 62.0
+    assert results[0]["model_outputs"] == results[1]["model_outputs"] == {
+        "random_forest": 62.0,
+    }

@@ -718,6 +718,14 @@ AI model saves now serialize to a same-directory temporary file and publish with
 
 **Regression evidence:** Focused predictor/readiness/split tests passed (**8 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**277 passed** in 108.32s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.45 IMPLEMENTED — Collapse concurrent AI prediction cache misses
+
+Prediction cache misses now use a per-symbol/timeframe single-flight lock. The first caller performs the expensive feature/training/inference work and fills the cache; concurrent callers for the same key re-check the cache and reuse that result, while unrelated keys remain able to run in parallel. Forced retraining uses the same key lock so it cannot delete artifacts in the middle of an in-process prediction.
+
+**Risk level:** High performance/reliability value, low output/API risk (only duplicate work is removed; prediction values and cache TTLs are unchanged). **Affected modules:** `app/services/ai/predictor.py`, `tests/unit/test_prediction_model_outputs.py`. **Migration:** none.
+
+**Regression evidence:** Focused predictor/readiness/split tests passed (**9 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**278 passed** in 108.98s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -841,5 +849,9 @@ AI model saves now serialize to a same-directory temporary file and publish with
 **Session 23 (ML reliability — atomic model artifact publication):**
 - `app/services/ai/predictor.py` — serialize models to a same-directory temporary file and publish with `os.replace`, preserving the last good artifact when serialization fails.
 - `tests/unit/test_prediction_model_outputs.py` — verify completed-file publication, target replacement and temporary-file cleanup on failure.
+
+**Session 24 (ML performance — prediction single-flight):**
+- `app/services/ai/predictor.py` — add per-key locks around cache-miss computation and forced retraining, with a second cache check for waiting callers.
+- `tests/unit/test_prediction_model_outputs.py` — verify concurrent identical misses invoke the expensive ensemble computation once and share the cached result.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
