@@ -1290,8 +1290,12 @@ def position_analysis(asset_id):
 
     df = market_fetcher.fetch(asset, timeframe)
     if df is None:
-        return jsonify({"available": False,
-                         "message": "Market data unavailable for this asset/timeframe."}), 200
+        return jsonify({
+            "available": False,
+            "analysis_state": "UNAVAILABLE",
+            "reason": "market_data_unavailable",
+            "message": "Market data unavailable for this asset/timeframe.",
+        }), 200
 
     # analyze() (unlike generate_signal) never returns None just because the
     # setup is too weak to alert on — it always packages lane scores/reasoning
@@ -1309,7 +1313,12 @@ def position_analysis(asset_id):
             "Volatility is outside a tradeable range right now."
             if reason.startswith("volatility_") else "No analysis available right now."
         )
-        return jsonify({"available": False, "message": message}), 200
+        return jsonify({
+            "available": False,
+            "analysis_state": result.get("analysis_state", "UNAVAILABLE"),
+            "reason": reason,
+            "message": message,
+        }), 200
 
     try:
         ctx = fetch_context_data()
@@ -1522,7 +1531,12 @@ def market_board():
         else:
             df = df_by_asset.get(a.id)
             if df is None:
-                payload = {"available": False, "message": "Market data unavailable."}
+                payload = {
+                    "available": False,
+                    "analysis_state": "UNAVAILABLE",
+                    "reason": "market_data_unavailable",
+                    "message": "Market data unavailable.",
+                }
             else:
                 # Sequential, not parallel: analyze() reads the same shared
                 # sklearn model cache used elsewhere in this codebase

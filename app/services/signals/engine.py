@@ -251,21 +251,35 @@ class SignalEngine:
 
         Returns {"available": False, "reason": ...} when there's truly
         nothing to show, otherwise a dict shaped like generate_signal()'s
-        but with "qualifies_as_signal" added and signal_type possibly "HOLD"
-        (in which case entry/stop/targets/invalidation are all None/empty).
+        but with "qualifies_as_signal" and an explicit analysis_state added.
+        A usable read is either SIGNAL or NO_SIGNAL; the latter includes a
+        reason code/message instead of making HOLD and low-confidence reads
+        indistinguishable.
         """
         if df is None or len(df) < _MIN_CANDLES:
-            return {"available": False, "reason": "insufficient_data"}
+            return {
+                "available": False,
+                "analysis_state": "UNAVAILABLE",
+                "reason": "insufficient_data",
+            }
 
         market = getattr(asset, "market", "crypto")
 
         try:
             if not self._session_gate(market):
-                return {"available": False, "reason": "market_closed"}
+                return {
+                    "available": False,
+                    "analysis_state": "UNAVAILABLE",
+                    "reason": "market_closed",
+                }
 
             indicators = calculate_all_indicators(df)
             if not indicators:
-                return {"available": False, "reason": "no_indicators"}
+                return {
+                    "available": False,
+                    "analysis_state": "UNAVAILABLE",
+                    "reason": "no_indicators",
+                }
 
             atr     = indicators.get("atr") or 0
             close   = float(df["close"].iloc[-1])
@@ -273,7 +287,11 @@ class SignalEngine:
 
             vol_ok, vol_regime = self._volatility_gate(atr_pct)
             if not vol_ok:
-                return {"available": False, "reason": f"volatility_{vol_regime}"}
+                return {
+                    "available": False,
+                    "analysis_state": "UNAVAILABLE",
+                    "reason": f"volatility_{vol_regime}",
+                }
 
             higher_bias = self._mtf_gate(higher_tf_df)
             mtf_confirmations = self._mtf_supertrend_confirmation(asset, timeframe)
@@ -287,12 +305,16 @@ class SignalEngine:
             # downgrades to HOLD rather than {"available": False}, since a
             # failed structure check is "no qualifying setup", not "no data",
             # matching this function's own HOLD-producing gates above.
+            no_signal_reason = None
             if raw_direction != "HOLD" and self._smc_gate_enabled() and not self._smc_order_block_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
+                no_signal_reason = "order_block_not_confirmed"
             if raw_direction != "HOLD" and self._smc_liquidity_enabled() and not self._smc_liquidity_sweep_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
+                no_signal_reason = "liquidity_sweep_not_confirmed"
             if raw_direction != "HOLD" and self._smc_sr_enabled() and not self._smc_support_resistance_gate(df, raw_direction, atr):
                 raw_direction = "HOLD"
+                no_signal_reason = "support_resistance_not_confirmed"
 
             confidence = (
                 self._compute_confidence(raw_scores, higher_bias, raw_direction)
@@ -309,12 +331,34 @@ class SignalEngine:
                 [text for cat, text, _ in reasons if cat == "volume"],
             )
 
+            if raw_direction == "HOLD":
+                no_signal_reason = no_signal_reason or "no_clear_direction"
+                no_signal_message = {
+                    "no_clear_direction": "No clear directional consensus on this timeframe.",
+                    "order_block_not_confirmed": "Directional bias exists, but the order-block check is not confirmed.",
+                    "liquidity_sweep_not_confirmed": "Directional bias exists, but a confirming liquidity sweep was not found.",
+                    "support_resistance_not_confirmed": "Directional bias exists, but nearby support/resistance does not confirm it.",
+                }[no_signal_reason]
+            elif confidence < 70:
+                no_signal_reason = "below_confidence_threshold"
+                no_signal_message = (
+                    f"Directional bias is present, but confidence is {confidence:.1f}% "
+                    "below the 70% auto-alert threshold."
+                )
+            else:
+                no_signal_reason = None
+                no_signal_message = None
+            qualifies_as_signal = raw_direction != "HOLD" and confidence >= 70
+
             result = {
                 "available":         True,
+                "analysis_state":    "SIGNAL" if qualifies_as_signal else "NO_SIGNAL",
                 "signal_type":       raw_direction,  # may be "HOLD"
                 "confidence_score":  round(confidence, 1),
                 "confidence_label":  self._confidence_label(confidence) if raw_direction != "HOLD" else "Neutral",
-                "qualifies_as_signal": raw_direction != "HOLD" and confidence >= 70,
+                "qualifies_as_signal": qualifies_as_signal,
+                "no_signal_reason":  no_signal_reason,
+                "no_signal_message": no_signal_message,
                 "trend_score":       raw_scores.get("trend", 0),
                 "momentum_score":    raw_scores.get("momentum", 0),
                 "volume_score":      raw_scores.get("volume", 0),
@@ -357,7 +401,11 @@ class SignalEngine:
 
         except Exception as e:
             logger.error(f"Position analysis error [{getattr(asset, 'symbol', '?')}/{timeframe}]: {e}")
-            return {"available": False, "reason": "error"}
+            return {
+                "available": False,
+                "analysis_state": "UNAVAILABLE",
+                "reason": "error",
+            }
 
     # ──────────────────────────────────────────────────────
     # Stage 1 — Market session gate

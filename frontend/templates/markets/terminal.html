@@ -344,7 +344,7 @@ function renderTerminalCard(s) {
             <div class="signal-card-price">
               Current: <span class="tabular fw-700" style="color:var(--text-primary)">${s.current_price ? formatPrice(s.current_price, mkt) : '—'}</span>
             </div>
-            <div class="text-muted fs-xs">No qualifying setup on this timeframe right now — sitting out.</div>
+            <div class="text-muted fs-xs">${_escHtmlLocal(s.no_signal_message || 'No qualifying setup on this timeframe right now — sitting out.')}</div>
             ${_timeAgo(s.generated_at, s.persisted)}
             ${whyHtml}
           </div>

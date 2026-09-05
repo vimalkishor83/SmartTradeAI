@@ -1705,14 +1705,14 @@ async function loadPositionAnalysis() {
   }
 
   const belowThresholdNote = (!isHold && data.qualifies_as_signal === false)
-    ? `<div class="text-muted fs-xs mb-2" style="font-style:italic">Below the ${'70'}% auto-alert threshold — informational only.</div>`
+    ? `<div class="text-muted fs-xs mb-2" style="font-style:italic">${_escHtml(data.no_signal_message || 'Below the 70% auto-alert threshold — informational only.')}</div>`
     : '';
 
   let tradeSectionHtml = '';
   if (isHold) {
     tradeSectionHtml = `
       <div class="text-muted fs-xs mb-3" style="border-top:1px solid var(--border);padding-top:10px">
-        No confirmed direction on this timeframe right now — factor breakdown below still reflects live conditions.
+        ${_escHtml(data.no_signal_message || 'No confirmed direction on this timeframe right now — factor breakdown below still reflects live conditions.')}
       </div>`;
   } else {
     const invalidationHtml = (data.invalidation_conditions || []).map(c =>

@@ -278,7 +278,7 @@ This surfaces as a real, user-facing accuracy claim: `GET /signals/live-read-per
 
 - **Completed in §7.22:** `LiveReadLog` now has its own `expires_at`, a migration/backfill, and a scheduled sweep that marks timed-out-without-resolving rows `outcome="expired"` (neutral). The remaining product decision is whether `live_read_performance()` should change its win condition to `target1` to become comparable to real-signal win rate, or keep the harder `target3` bar as a separately labeled metric. The implementation keeps target3 because changing the definition of an existing metric requires an explicit product decision.
 - Signal-lifecycle reproducibility metadata (engine version / model version stamped on each generated `Signal`) — overlaps the Phase 1 item already flagged in §2.8/§5-remainder; still not started.
-- The rest of Phase 4 as specified (signal versioning at the schema level) beyond the one concrete defect found and fixed above.
+- Signal versioning at the schema level remains future work; read-only position analysis now returns an explicit `analysis_state` and no-signal reason (§7.35) without changing persisted signal behavior.
 
 ---
 
@@ -636,7 +636,15 @@ Active signal list and detail responses now include grouped historical context f
 
 **Risk level:** Low (read-only additive API metadata and UI context; no signal selection, confidence, execution or outcome calculation changed). **Affected modules:** `app/api/v1/signals.py`, `frontend/static/js/pages/dashboard.js`, `tests/integration/test_signal_history_context.py`. **Migration:** none.
 
-**Regression evidence:** Focused history-context and prediction-context integration tests passed (**4 passed**), JavaScript syntax validation, Python compilation and whitespace validation passed, and the full local regression suite passed (**246 passed**). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
+**Regression evidence:** Focused history-context and prediction-context integration tests passed (**4 passed**), JavaScript syntax validation, Python compilation and whitespace validation passed, and the full local regression suite passed (**249 passed**). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
+
+### 7.35 IMPLEMENTED — Return explicit analysis state and no-signal reasons
+
+The read-only signal-analysis pipeline now distinguishes `SIGNAL`, `NO_SIGNAL` and `UNAVAILABLE` through an additive `analysis_state` field. HOLD reads and directional reads below the 70% auto-alert threshold carry stable reason codes and user-facing explanations, while market-closed, insufficient-data, indicator-failure, volatility-blocked and market-data-unavailable responses carry `UNAVAILABLE` context. Terminal and asset-analysis UI surfaces now render the actual reason instead of using one generic “no setup” message. Signal thresholds, gating decisions, persistence and execution behavior are unchanged.
+
+**Risk level:** Low (additive read-response metadata and UI copy; no scoring or trade lifecycle changes). **Affected modules:** `app/services/signals/engine.py`, `app/api/v1/signals.py`, `frontend/templates/markets/terminal.html`, `frontend/templates/asset/detail.html`, `tests/unit/test_signal_analysis_state.py`. **Migration:** none.
+
+**Regression evidence:** Focused state, confidence and terminal lifecycle tests passed (**9 passed**), dashboard JavaScript syntax validation, Python compilation and whitespace validation passed, and the full local regression suite passed (**249 passed**). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
 
 ## 8. Files changed this pass
 
@@ -714,5 +722,11 @@ Active signal list and detail responses now include grouped historical context f
 - `app/api/v1/signals.py` — one grouped asset/timeframe history query for active signal list/detail responses.
 - `frontend/static/js/pages/dashboard.js` — show decisive accuracy, sample composition and average P&L with explicit non-forecast wording.
 - `tests/integration/test_signal_history_context.py` — mixed-outcome and empty-history response coverage.
+
+**Session 14 (Phase 4 — explicit no-signal state, §7.35):**
+- `app/services/signals/engine.py` — add `SIGNAL`/`NO_SIGNAL`/`UNAVAILABLE` analysis states and stable no-signal reasons.
+- `app/api/v1/signals.py` — preserve reason metadata for position-analysis and market-board unavailable responses.
+- `frontend/templates/markets/terminal.html`, `frontend/templates/asset/detail.html` — render concrete no-signal explanations.
+- `tests/unit/test_signal_analysis_state.py` — cover HOLD, below-threshold and unavailable analysis states.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**
