@@ -452,7 +452,7 @@ Auto Generate save, start and run-once routes now require JSON objects, validate
 
 **Risk level:** Medium reliability and operational-safety value, low compatibility risk (valid UI configuration remains supported; only malformed, unsupported or excessive values are rejected/normalized). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_auto_generate_config.py`. **Migration:** none.
 
-**Regression evidence:** Focused Auto Generate integration tests passed locally (**7 passed**); the full local suite passed with **185 passed** in 116.42s. Production deployment and production smoke verification are pending for this slice.
+**Regression evidence:** Focused Auto Generate integration tests passed locally (**7 passed**); the full local suite passed with **185 passed** in 116.42s. Production deployment completed on 2026-09-05 from `7691d30`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the deployed Auto Generate integration module passed (**7 passed**), and the recent app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
