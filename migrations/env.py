@@ -4,6 +4,7 @@ from logging.config import fileConfig
 from flask import current_app
 
 from alembic import context
+import sqlalchemy as sa
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -13,6 +14,11 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 logger = logging.getLogger('alembic.env')
+
+# Gunicorn workers import the app concurrently. Without a database-level
+# lock, multiple workers can run the same startup migration at once and turn
+# a successful first upgrade into duplicate-column warnings in the others.
+_POSTGRES_MIGRATION_LOCK_KEY = 72618403
 
 
 def get_engine():
@@ -97,14 +103,34 @@ def run_migrations_online():
     connectable = get_engine()
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection,
-            target_metadata=get_metadata(),
-            **conf_args
-        )
+        lock_held = False
+        try:
+            if connection.dialect.name == "postgresql":
+                # A session advisory lock is held on this exact connection
+                # while Alembic upgrades, so concurrent app workers queue
+                # instead of racing on the same revision.
+                connection.execute(
+                    sa.text("SELECT pg_advisory_lock(:lock_key)"),
+                    {"lock_key": _POSTGRES_MIGRATION_LOCK_KEY},
+                )
+                connection.commit()
+                lock_held = True
 
-        with context.begin_transaction():
-            context.run_migrations()
+            context.configure(
+                connection=connection,
+                target_metadata=get_metadata(),
+                **conf_args
+            )
+
+            with context.begin_transaction():
+                context.run_migrations()
+        finally:
+            if lock_held:
+                connection.execute(
+                    sa.text("SELECT pg_advisory_unlock(:lock_key)"),
+                    {"lock_key": _POSTGRES_MIGRATION_LOCK_KEY},
+                )
+                connection.commit()
 
 
 if context.is_offline_mode():

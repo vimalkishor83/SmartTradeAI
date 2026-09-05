@@ -526,6 +526,14 @@ The data-quality persistence change for generated signals also passed data_quali
 
 **Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production migration and verification are pending for this slice.
 
+### 7.21 IMPLEMENTED — Serialize PostgreSQL startup migrations
+
+The split Gunicorn web tier can initialize several workers concurrently. Alembic startup migrations now take a PostgreSQL session advisory lock on the same connection used for the upgrade, preventing duplicate-column races and fallback warnings when multiple workers start together. SQLite and offline migration behavior is unchanged, and the lock is released even when an upgrade fails.
+
+**Risk level:** High deployment-reliability value, low runtime compatibility risk (migration startup only; no request or trading behavior changes). **Affected modules:** migrations/env.py. **Migration:** none beyond the existing Alembic revisions.
+
+**Regression evidence:** Migration syntax, Terminal persistence/freeze tests (**5 passed**), and the full local suite (**219 passed** in 104.65s) passed. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
