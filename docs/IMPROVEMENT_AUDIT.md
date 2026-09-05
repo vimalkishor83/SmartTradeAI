@@ -516,7 +516,7 @@ The live-signal and signal-history export endpoints now apply an endpoint-specif
 
 **Risk level:** Medium abuse-resistance value, low compatibility risk (normal users can continue to export; only repeated bulk requests receive `429`). **Affected modules:** `app/api/v1/signals.py`. **Migration:** none.
 
-**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 89.83s. Production verification is pending for this slice.
+**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 89.83s. Production deployment completed on 2026-09-05 from `1396e07`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: csv-rate-limit-20260905`, the deployed export, performance and prediction tests passed (**9 passed** in 6.62s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
