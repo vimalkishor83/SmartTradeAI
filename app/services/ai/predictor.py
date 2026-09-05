@@ -28,7 +28,10 @@ _MODEL_DIR.mkdir(parents=True, exist_ok=True)
 _RETRAIN_AFTER      = 86400   # 24 h — retrain if model file older than this
 _MIN_TRAIN_ROWS     = 100     # minimum rows after feature engineering
 _DIRECTION_THRESHOLD = 0.60   # bull/bear prob must exceed this to fire
-AI_MODEL_VERSION    = "ensemble-calibrated-v1"
+# Bump this whenever feature, label or calibration semantics change. The
+# version is part of the artifact key below, so old pickles cannot silently
+# survive a training-contract change.
+AI_MODEL_VERSION    = "ensemble-calibrated-v2"
 
 # In-process prediction cache TTL per timeframe (seconds)
 _PRED_TTL = {"1m":60,"5m":300,"15m":900,"30m":1800,"1h":3600,"2h":7200,"4h":14400,"1d":86400}
@@ -281,7 +284,8 @@ def _walk_forward_split(
 # Model persistence
 # ─────────────────────────────────────────────────────────────────────────────
 def _model_path(key: str) -> Path:
-    safe = hashlib.md5(key.encode()).hexdigest()[:12]
+    artifact_key = f"{AI_MODEL_VERSION}:{key}"
+    safe = hashlib.md5(artifact_key.encode()).hexdigest()[:12]
     return _MODEL_DIR / f"{safe}.pkl"
 
 

@@ -686,6 +686,14 @@ The chronological calibration splitter now removes a 10-bar gap, matching the ma
 
 **Regression evidence:** Focused split, readiness, member-output and model-version tests passed (**7 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**260 passed** in 121.59s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.41 IMPLEMENTED — Version AI artifacts with the training contract
+
+The calibrated predictor contract is now `ensemble-calibrated-v2`, and the model artifact hash includes that version. Existing v1 pickles therefore cannot be silently reused after the purged calibration change; the next background prewarm creates fresh v2 artifacts before they can be persisted as new predictions. This keeps stored model provenance aligned with the actual feature, label and calibration semantics while leaving the probability threshold and response shape unchanged.
+
+**Risk level:** High model-provenance value, medium rollout/runtime impact (old artifacts are intentionally ignored and require a fresh background training pass; user requests remain non-blocking and return warming-up status until ready). **Affected modules:** `app/services/ai/predictor.py`, `tests/unit/test_prediction_model_outputs.py`. **Migration:** none; old artifact files are left untouched and simply no longer selected by the versioned key.
+
+**Regression evidence:** Focused predictor contract tests passed (**8 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**261 passed** in 104.36s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -791,5 +799,9 @@ The chronological calibration splitter now removes a 10-bar gap, matching the ma
 **Session 19 (ML integrity — purged calibration folds, §7.40):**
 - `app/services/ai/predictor.py` — purge the triple-barrier label horizon before each chronological validation fold.
 - `tests/unit/test_predictor_splits.py` — verify temporal ordering, purge distance and last-row protection.
+
+**Session 20 (ML deployment integrity — versioned artifacts, §7.41):**
+- `app/services/ai/predictor.py` — bump the calibrated contract to v2 and include it in model artifact keys.
+- `tests/unit/test_prediction_model_outputs.py` — verify output provenance and artifact-key invalidation when the contract changes.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

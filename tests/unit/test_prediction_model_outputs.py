@@ -58,5 +58,12 @@ def test_prediction_cache_keeps_member_outputs_on_fast_path():
     finally:
         predictor.invalidate_cache("CACHEASSET", "1h")
 
-    assert result["model_version"] == "ensemble-calibrated-v1"
+    assert result["model_version"] == "ensemble-calibrated-v2"
     assert result["model_outputs"] == {"random_forest": 60.0, "xgboost": 64.0}
+
+
+def test_model_artifact_path_changes_with_training_contract(monkeypatch):
+    original_path = predictor_module._model_path("rf_SYMBOL_1h")
+    monkeypatch.setattr(predictor_module, "AI_MODEL_VERSION", "test-contract-v3")
+
+    assert predictor_module._model_path("rf_SYMBOL_1h") != original_path
