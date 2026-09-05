@@ -5,6 +5,7 @@ from sqlalchemy import func
 from app.extensions import db
 from app.models.journal import JournalEntry
 from app.auth.decorators import login_required
+from app.services.pagination import bounded_page, bounded_per_page
 import csv
 import io
 
@@ -66,8 +67,8 @@ def _parse_date(val):
 @login_required
 def list_entries():
     user_id = get_jwt_identity()
-    page     = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
+    page     = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 20))
     outcome  = request.args.get("outcome")
     market   = request.args.get("market")
     date_from = request.args.get("date_from")

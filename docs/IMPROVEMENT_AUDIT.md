@@ -358,6 +358,14 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 
 ---
 
+### 7.5 IMPLEMENTED — Bound remaining collection pagination
+
+The news, journal, and notifications collection routes now use the shared pagination guards. Invalid page values normalize to page 1, invalid page sizes use the documented defaults, and requested page sizes are capped at 100 records. This closes the same input-safety and response-budget gap previously found in signal history and admin collections.
+
+**Risk level:** Low (normal defaults and valid requests are unchanged). **Affected modules:** `app/api/v1/news.py`, `app/api/v1/journal.py`, `app/api/v1/notifications.py`. **Migration:** none.
+
+**Regression evidence:** Local syntax validation, whitespace validation, and the unit pagination regression suite passed. Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

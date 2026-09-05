@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify, current_app
 from app.models.news import News
 from app.models.economic import EconomicEvent
 from app.extensions import cache
+from app.services.pagination import bounded_page, bounded_per_page
 import logging
 
 logger = logging.getLogger(__name__)
@@ -12,8 +13,8 @@ news_bp = Blueprint("news", __name__)
 def get_news():
     """Public/no-auth: read-only news feed, matches the reference site's
     free "Desk Notes" dashboard tier."""
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
+    page = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 20))
     sentiment = request.args.get("sentiment")
     market = request.args.get("market")
 

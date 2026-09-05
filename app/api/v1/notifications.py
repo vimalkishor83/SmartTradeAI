@@ -3,6 +3,7 @@ from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
 from app.models.notification import Notification
 from app.auth.decorators import login_required
+from app.services.pagination import bounded_page
 
 notifications_bp = Blueprint("notifications", __name__)
 
@@ -11,7 +12,7 @@ notifications_bp = Blueprint("notifications", __name__)
 @login_required
 def get_notifications():
     user_id = get_jwt_identity()
-    page = int(request.args.get("page", 1))
+    page = bounded_page(request.args.get("page", 1))
     unread_only = request.args.get("unread") == "true"
 
     query = Notification.query.filter_by(user_id=user_id)
