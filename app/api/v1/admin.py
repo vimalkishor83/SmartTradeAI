@@ -9,6 +9,7 @@ from app.models.api_config import APIConfig, APILog
 from app.models.audit import AuditLog, SystemLog
 from app.models.signal import Signal, SignalHistory
 from app.auth.decorators import admin_required, super_admin_required
+from app.services.pagination import bounded_page, bounded_per_page
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint("admin", __name__)
@@ -344,7 +345,6 @@ def telegram_security_test():
 @admin_bp.route("/users", methods=["GET"])
 @admin_required
 def list_users():
-    page   = int(request.args.get("page", 1))
     search = request.args.get("search", "")
     status = request.args.get("approval_status", "")
     query  = User.query
@@ -354,6 +354,7 @@ def list_users():
         )
     if status:
         query = query.filter(User.approval_status == status)
+    page = bounded_page(request.args.get("page", 1))
     users = query.order_by(User.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
     return jsonify({"users": [u.to_dict() for u in users.items], "total": users.total, "pages": users.pages}), 200
 
@@ -846,7 +847,7 @@ def list_sessions():
     from app.models.user_session import UserSession
     from datetime import datetime as _dt
 
-    page = int(request.args.get("page", 1))
+    page = bounded_page(request.args.get("page", 1))
     query = UserSession.query
     user_id = request.args.get("user_id")
     if user_id:
@@ -915,8 +916,8 @@ def revoke_all_user_sessions(user_id):
 @admin_bp.route("/audit-logs", methods=["GET"])
 @admin_required
 def audit_logs():
-    page = int(request.args.get("page", 1))
-    per_page = min(int(request.args.get("per_page", 50)), 200)
+    page = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 50), maximum=200)
     logs = AuditLog.query.order_by(AuditLog.created_at.desc()) \
         .paginate(page=page, per_page=per_page, error_out=False)
     return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total, "pages": logs.pages}), 200
@@ -1077,7 +1078,7 @@ def delete_referral_code(code_id):
 @admin_bp.route("/system-logs", methods=["GET"])
 @admin_required
 def system_logs():
-    page  = int(request.args.get("page", 1))
+    page  = bounded_page(request.args.get("page", 1))
     level = request.args.get("level")
     query = SystemLog.query
     if level:

@@ -325,6 +325,14 @@ The signal-history endpoint duplicated the old unbounded `int()` parsing used by
 
 **Regression evidence:** The shared pagination tests and full local unit baseline passed with **122 tests**. Production verification completed on 2026-09-05 after rebuilding the app service from `3aa65c6`: the full suite reported **159 passed**, health and root endpoints returned `HTTP 200`, the app remained healthy, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.3 IMPLEMENTED — Standardize admin collection pagination
+
+Admin user, session, audit-log and system-log endpoints now reuse the shared pagination guard. Invalid page values no longer raise conversion errors, and audit-log page sizes retain their existing default of 50 while remaining capped at 200. This removes another set of duplicate pagination rules and protects administrative screens from accidental oversized responses.
+
+**Risk level:** Low (input normalization; default response sizes are unchanged). **Affected modules:** `app/api/v1/admin.py`, `app/services/pagination.py`, `tests/unit/test_pagination.py`. **Migration:** none.
+
+**Regression evidence:** Targeted pagination tests and the full local unit baseline passed before this change. Production deployment verification is pending for this change.
+
 ---
 
 ## 7. Remaining P0/P1 items from the full 16-phase spec (not started)
