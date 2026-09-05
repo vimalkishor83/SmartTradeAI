@@ -44,11 +44,13 @@ def test_model_performance_aggregates_without_loading_prediction_rows(
         db.session.add_all([
             Prediction(
                 asset_id=asset_a.id, timeframe="1h", model_name="rf",
+                model_version="ensemble-calibrated-v1",
                 predicted_direction="bullish", was_correct=True,
                 evaluated_at=now - timedelta(days=1),
             ),
             Prediction(
                 asset_id=asset_a.id, timeframe="1h", model_name="rf",
+                model_version="ensemble-calibrated-v1",
                 predicted_direction="bearish", was_correct=False,
                 evaluated_at=now - timedelta(days=2),
             ),
@@ -70,6 +72,13 @@ def test_model_performance_aggregates_without_loading_prediction_rows(
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["overall"] == {"total": 3, "correct": 2, "accuracy": 66.7}
+    assert payload["coverage"] == {
+        "evaluated": 3,
+        "versioned": 2,
+        "legacy": 1,
+        "versioned_pct": 66.7,
+        "versioned_accuracy": 50.0,
+    }
     assert payload["by_timeframe"] == {
         "1h": {"total": 2, "correct": 1, "accuracy": 50.0},
         "4h": {"total": 1, "correct": 1, "accuracy": 100.0},
@@ -77,6 +86,10 @@ def test_model_performance_aggregates_without_loading_prediction_rows(
     assert payload["by_model"] == {
         "rf": {"total": 2, "correct": 1, "accuracy": 50.0},
         "unknown": {"total": 1, "correct": 1, "accuracy": 100.0},
+    }
+    assert payload["by_model_version"] == {
+        "ensemble-calibrated-v1": {"total": 2, "correct": 1, "accuracy": 50.0},
+        "legacy/unspecified": {"total": 1, "correct": 1, "accuracy": 100.0},
     }
     assert [row["symbol"] for row in payload["by_asset"]] == ["PERFA", "PERFB"]
     assert payload["by_asset"][0]["total"] == 2
@@ -96,8 +109,16 @@ def test_empty_model_performance_is_cached_contract(app, client, login_headers):
     assert response.status_code == 200
     assert response.get_json() == {
         "overall": {"total": 0, "correct": 0, "accuracy": 0},
+        "coverage": {
+            "evaluated": 0,
+            "versioned": 0,
+            "legacy": 0,
+            "versioned_pct": 0,
+            "versioned_accuracy": None,
+        },
         "by_timeframe": {},
         "by_asset": [],
         "by_model": {},
+        "by_model_version": {},
         "trend": [],
     }

@@ -49,6 +49,14 @@
   display:inline-block; padding:2px 9px; border-radius:5px; font-size:10.5px; font-weight:700;
   letter-spacing:.3px; background:rgba(245, 166, 35, 0.14); color:var(--accent);
 }
+.perf-scope { border-left:3px solid var(--accent); }
+.scope-copy { color:var(--text-muted); font-size:12px; line-height:1.55; max-width:760px; }
+.scope-grid { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+.scope-item { min-width:130px; padding:9px 12px; border:1px solid var(--border); border-radius:9px; background:var(--bg-tertiary); }
+.scope-item-label { display:block; color:var(--text-muted); font-size:10px; font-weight:800; letter-spacing:.65px; text-transform:uppercase; }
+.scope-item-value { display:block; margin-top:3px; font-size:15px; font-weight:800; }
+.perf-subsection { margin-top:18px; padding-top:14px; border-top:1px solid var(--border); }
+.perf-subsection-title { margin-bottom:8px; color:var(--text-muted); font-size:10px; font-weight:800; letter-spacing:.8px; text-transform:uppercase; }
 </style>
 {% endblock %}
 
@@ -108,6 +116,24 @@
   </div>
 </div>
 
+<div class="section-card perf-scope mb-4">
+  <div class="section-card-body">
+    <div class="d-flex justify-content-between align-items-start gap-3 flex-wrap">
+      <div>
+        <div class="section-card-title fw-700">Evaluation scope</div>
+        <div class="scope-copy mt-1">Overall accuracy includes every evaluated prediction for continuity. Versioned coverage identifies rows produced by a reproducible model contract; legacy or unspecified rows are shown separately and should not be used to compare current model releases.</div>
+      </div>
+      <span class="badge-model" id="coverageBadge">Loading…</span>
+    </div>
+    <div class="scope-grid">
+      <div class="scope-item"><span class="scope-item-label">Evaluated</span><span class="scope-item-value" id="coverageEvaluated">—</span></div>
+      <div class="scope-item"><span class="scope-item-label">Versioned rows</span><span class="scope-item-value" id="coverageVersioned">—</span></div>
+      <div class="scope-item"><span class="scope-item-label">Legacy rows</span><span class="scope-item-value" id="coverageLegacy">—</span></div>
+      <div class="scope-item"><span class="scope-item-label">Versioned accuracy</span><span class="scope-item-value" id="coverageAccuracy">—</span></div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3 mb-4">
   <!-- Accuracy trend chart -->
   <div class="col-12 col-xl-7">
@@ -117,8 +143,9 @@
         <span class="badge-model" id="trendSampleCount"></span>
       </div>
       <div class="section-card-body">
-        <div class="trend-canvas-wrap">
+        <div class="trend-canvas-wrap" id="trendCanvasWrap">
           <canvas id="trendChart"></canvas>
+          <div class="empty-state" id="trendEmpty" hidden><i class="bi bi-graph-up-arrow"></i>No evaluated predictions yet — accuracy will populate as predictions expire.</div>
         </div>
       </div>
     </div>
@@ -164,6 +191,21 @@
             <tr><td colspan="3" class="empty-state"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
           </tbody>
         </table>
+      </div>
+      <div class="perf-subsection">
+        <div class="perf-subsection-title">Accuracy by model version</div>
+        <div class="table-responsive">
+          <table class="perf-table" id="versionTable">
+            <thead><tr>
+              <th>Version</th>
+              <th>Accuracy</th>
+              <th style="text-align:right">n</th>
+            </tr></thead>
+            <tbody id="versionBody">
+              <tr><td colspan="3" class="empty-state"><i class="bi bi-hourglass-split"></i>Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -213,10 +255,22 @@ function fillClass(acc) {
   return 'fill-low';
 }
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[ch]));
+}
+
+function safeAccuracy(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
+}
+
 function accBar(acc) {
+  const value = safeAccuracy(acc);
   return `<div class="acc-bar-wrap">
-    <div class="acc-bar-bg"><div class="acc-bar-fill ${fillClass(acc)}" style="width:${acc}%"></div></div>
-    <span class="${accClass(acc)} fw-700" style="font-size:12px;min-width:38px">${acc}%</span>
+    <div class="acc-bar-bg"><div class="acc-bar-fill ${fillClass(value)}" style="width:${value}%"></div></div>
+    <span class="${accClass(value)} fw-700" style="font-size:12px;min-width:38px">${value}%</span>
   </div>`;
 }
 
@@ -227,6 +281,8 @@ async function loadPerf() {
     renderTrend(data.trend || []);
     renderTfTable(data.by_timeframe || {});
     renderModelTable(data.by_model || {});
+    renderVersionTable(data.by_model_version || {});
+    renderCoverage(data.coverage || {});
     _allAssets = data.by_asset || [];
     renderAssetTable(_allAssets);
   } catch (e) {
@@ -243,7 +299,7 @@ function renderStats(d) {
   el('statTotal').textContent   = total.toLocaleString();
   el('statCorrect').textContent = (o.correct || 0).toLocaleString();
 
-  const acc = o.accuracy || 0;
+  const acc = safeAccuracy(o.accuracy);
   el('statAcc').innerHTML = `<span class="${accClass(acc)}">${acc}%</span>`;
   el('statAccSub').textContent = `${o.correct || 0} of ${total} correct`;
 
@@ -257,13 +313,29 @@ function renderStats(d) {
   el('statBestSub').textContent = bestAcc ? `${bestAcc}% accuracy` : '';
 }
 
+function renderCoverage(c) {
+  const evaluated = Number(c.evaluated || 0);
+  const versioned = Number(c.versioned || 0);
+  const legacy = Number(c.legacy || 0);
+  const versionedPct = safeAccuracy(c.versioned_pct);
+  const versionedAccuracy = c.versioned_accuracy == null ? null : safeAccuracy(c.versioned_accuracy);
+  document.getElementById('coverageBadge').textContent = evaluated
+    ? `${versionedPct}% versioned coverage`
+    : 'No evaluated data';
+  document.getElementById('coverageEvaluated').textContent = evaluated.toLocaleString();
+  document.getElementById('coverageVersioned').textContent = `${versioned.toLocaleString()} (${versionedPct}%)`;
+  document.getElementById('coverageLegacy').textContent = legacy.toLocaleString();
+  document.getElementById('coverageAccuracy').textContent = versionedAccuracy == null ? 'No sample' : `${versionedAccuracy}%`;
+}
+
 function renderTrend(trend) {
   const labels = trend.map(t => t.date.slice(5));     // MM-DD
-  const data   = trend.map(t => t.accuracy);
+  const data   = trend.map(t => safeAccuracy(t.accuracy));
   const counts = trend.map(t => t.total);
 
   const ctx = document.getElementById('trendChart');
-  if (!ctx) return;
+  const empty = document.getElementById('trendEmpty');
+  if (!ctx || !empty) return;
 
   const totalSamples = trend.reduce((s, t) => s + t.total, 0);
   document.getElementById('trendSampleCount').textContent =
@@ -272,9 +344,12 @@ function renderTrend(trend) {
   if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
 
   if (!trend.length) {
-    ctx.parentElement.innerHTML = '<div class="empty-state"><i class="bi bi-graph-up-arrow"></i>No evaluated predictions yet — accuracy will populate as predictions expire.</div>';
+    ctx.hidden = true;
+    empty.hidden = false;
     return;
   }
+  ctx.hidden = false;
+  empty.hidden = true;
 
   const _mutedClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#94a3b8';
   const _gridClr  = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || 'rgba(255,255,255,0.04)';
@@ -327,7 +402,7 @@ function renderTfTable(by_tf) {
   body.innerHTML = tfs.map(tf => {
     const s = by_tf[tf];
     return `<tr>
-      <td><span class="tf-pill">${tf}</span></td>
+      <td><span class="tf-pill">${escapeHtml(tf)}</span></td>
       <td>${accBar(s.accuracy)}</td>
       <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
     </tr>`;
@@ -342,7 +417,21 @@ function renderModelTable(by_model) {
     return;
   }
   body.innerHTML = models.map(([m, s]) => `<tr>
-    <td><span class="badge-model">${m}</span></td>
+    <td><span class="badge-model">${escapeHtml(m)}</span></td>
+    <td>${accBar(s.accuracy)}</td>
+    <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+  </tr>`).join('');
+}
+
+function renderVersionTable(by_version) {
+  const body = document.getElementById('versionBody');
+  const versions = Object.entries(by_version).sort((a, b) => b[1].accuracy - a[1].accuracy);
+  if (!versions.length) {
+    body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-cpu"></i>No versioned data yet</td></tr>';
+    return;
+  }
+  body.innerHTML = versions.map(([version, s]) => `<tr>
+    <td><span class="badge-model">${escapeHtml(version)}</span></td>
     <td>${accBar(s.accuracy)}</td>
     <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
   </tr>`).join('');
@@ -355,8 +444,8 @@ function renderAssetTable(assets) {
     return;
   }
   body.innerHTML = assets.map(a => `<tr>
-    <td><strong style="font-size:13px">${a.symbol}</strong><br><span style="font-size:11px;color:var(--text-muted)">${a.name}</span></td>
-    <td><span style="font-size:11px;color:var(--text-muted);text-transform:capitalize">${(a.market||'').replace('_',' ')}</span></td>
+    <td><strong style="font-size:13px">${escapeHtml(a.symbol)}</strong><br><span style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.name)}</span></td>
+    <td><span style="font-size:11px;color:var(--text-muted);text-transform:capitalize">${escapeHtml(String(a.market || '').replace('_',' '))}</span></td>
     <td>${accBar(a.accuracy)}</td>
     <td style="text-align:right;color:var(--text-muted)">${a.total}</td>
   </tr>`).join('');
@@ -364,7 +453,7 @@ function renderAssetTable(assets) {
 
 function filterAssets(q) {
   const filtered = q.trim()
-    ? _allAssets.filter(a => a.symbol.toLowerCase().includes(q.toLowerCase()) || a.name.toLowerCase().includes(q.toLowerCase()))
+    ? _allAssets.filter(a => String(a.symbol || '').toLowerCase().includes(q.toLowerCase()) || String(a.name || '').toLowerCase().includes(q.toLowerCase()))
     : _allAssets;
   renderAssetTable(filtered);
 }

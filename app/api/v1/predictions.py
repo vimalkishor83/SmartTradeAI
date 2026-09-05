@@ -131,9 +131,17 @@ def get_prediction(asset_id):
 def _empty_model_performance() -> dict:
     return {
         "overall": {"total": 0, "correct": 0, "accuracy": 0},
+        "coverage": {
+            "evaluated": 0,
+            "versioned": 0,
+            "legacy": 0,
+            "versioned_pct": 0,
+            "versioned_accuracy": None,
+        },
         "by_timeframe": {},
         "by_asset": [],
         "by_model": {},
+        "by_model_version": {},
         "trend": [],
     }
 
@@ -174,6 +182,27 @@ def model_performance():
         payload = _empty_model_performance()
         cache.set("model_perf_stats", payload, timeout=600)
         return jsonify(payload), 200
+
+    # Versioned rows are the auditable model population. Older rows can still
+    # be useful for continuity, but must not look equivalent to current,
+    # reproducible model output in the dashboard.
+    versioned_expr = func.nullif(Prediction.model_version, "").isnot(None)
+    versioned_row = (db.session.query(
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved, versioned_expr).one())
+    versioned_total = int(versioned_row.total or 0)
+    versioned_correct = int(versioned_row.correct or 0)
+    coverage = {
+        "evaluated": total,
+        "versioned": versioned_total,
+        "legacy": max(0, total - versioned_total),
+        "versioned_pct": round(versioned_total / total * 100, 1) if total else 0,
+        "versioned_accuracy": (
+            round(versioned_correct / versioned_total * 100, 1)
+            if versioned_total else None
+        ),
+    }
 
     by_timeframe = {}
     timeframe_rows = (db.session.query(
@@ -244,6 +273,27 @@ def model_performance():
             "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
         }
 
+    version_expr = func.coalesce(
+        func.nullif(Prediction.model_version, ""), "legacy/unspecified"
+    )
+    by_model_version = {}
+    version_rows = (db.session.query(
+        version_expr.label("model_version"),
+        func.count(Prediction.id).label("total"),
+        _correct_count_expr().label("correct"),
+    ).filter(resolved)
+     .group_by(version_expr)
+     .order_by(version_expr.asc())
+     .all())
+    for row in version_rows:
+        row_total = int(row.total or 0)
+        row_correct = int(row.correct or 0)
+        by_model_version[row.model_version] = {
+            "total": row_total,
+            "correct": row_correct,
+            "accuracy": round(row_correct / row_total * 100, 1) if row_total else 0,
+        }
+
     # Group only the 30-day window needed by the chart instead of transferring
     # the complete history just to discard older rows in Python.
     cutoff = datetime.utcnow() - timedelta(days=30)
@@ -275,9 +325,11 @@ def model_performance():
             "correct": correct,
             "accuracy": round(correct / total * 100, 1) if total else 0,
         },
+        "coverage": coverage,
         "by_timeframe": by_timeframe,
         "by_asset": by_asset,
         "by_model": by_model,
+        "by_model_version": by_model_version,
         "trend": trend,
     }
     cache.set("model_perf_stats", payload, timeout=600)
