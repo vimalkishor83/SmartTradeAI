@@ -444,7 +444,7 @@ The Flask app now preserves a safe inbound `X-Request-ID` or generates one, retu
 
 **Risk level:** Low (response header and INFO-level logging only; route behavior and payloads are unchanged). **Affected modules:** `app/__init__.py`, `tests/integration/test_request_observability.py`. **Migration:** none.
 
-**Regression evidence:** Focused integration tests passed locally. Production deployment and full-suite verification are pending for this slice.
+**Regression evidence:** The focused integration suite passed locally and in the deployed container (**5 passed**); the full local suite passed with **180 passed** in 97.23s. Production deployment completed on 2026-09-05 from `d6dd16c`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the application log contained the expected JSON completion record with duration, and the fresh app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
