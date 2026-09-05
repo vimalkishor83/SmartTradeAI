@@ -496,8 +496,12 @@ def prewarm_ai_cache(app):
             Prediction.asset_id.in_(asset_ids),
             Prediction.timeframe.in_(tfs),
             Prediction.predicted_at >= cutoff,
-        ).all()
-        pred_map = {(p.asset_id, p.timeframe): p.to_dict() for p in recent}
+        ).order_by(Prediction.predicted_at.desc()).all()
+        # Newest-first plus setdefault prevents an older row from replacing
+        # the latest prediction when multiple rows are inside the cutoff.
+        pred_map = {}
+        for p in recent:
+            pred_map.setdefault((p.asset_id, p.timeframe), p.to_dict())
 
         def _process(asset):
             row = {"id": asset.id, "symbol": asset.symbol,
@@ -644,6 +648,11 @@ def evaluate_expired_predictions(app):
             evaluated = sum(1 for p in unevaluated if p.evaluated_at is not None)
             if evaluated:
                 cache.delete("model_perf_stats")
+                for pred in unevaluated:
+                    if pred.evaluated_at is not None:
+                        cache.delete(
+                            f"prediction_history_context:{pred.asset_id}:{pred.timeframe}"
+                        )
                 logger.info(f"Evaluated {evaluated} expired predictions")
         except Exception:
             db.session.rollback()

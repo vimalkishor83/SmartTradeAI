@@ -66,7 +66,9 @@ def get_prediction(asset_id):
     # Return cached prediction if recent
     existing = Prediction.query.filter_by(
         asset_id=asset_id, timeframe=timeframe
-    ).filter(Prediction.predicted_at >= datetime.utcnow() - timedelta(minutes=30)).first()
+    ).filter(
+        Prediction.predicted_at >= datetime.utcnow() - timedelta(minutes=30),
+    ).order_by(Prediction.predicted_at.desc()).first()
 
     if existing:
         return jsonify(_prediction_response(existing)), 200

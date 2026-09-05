@@ -510,11 +510,13 @@ def ai_summary():
         Prediction.asset_id.in_(asset_ids),
         Prediction.timeframe.in_(tfs),
         Prediction.predicted_at >= cache_cutoff,
-    ).all()
+    ).order_by(Prediction.predicted_at.desc()).all()
 
     pred_map = {}
     for p in recent_preds:
-        pred_map[(p.asset_id, p.timeframe)] = p.to_dict()
+        # The query is newest-first; keep the first row for each pair so an
+        # older prediction cannot overwrite the current one in the payload.
+        pred_map.setdefault((p.asset_id, p.timeframe), p.to_dict())
 
     # 350, not 220: after indicator warm-up + triple-barrier label trimming,
     # 220 raw candles leaves as few as ~83 usable training rows for some

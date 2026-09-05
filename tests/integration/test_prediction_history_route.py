@@ -80,3 +80,38 @@ def test_unsupported_prediction_timeframe_returns_400_before_fetch(app, client, 
 
     assert response.status_code == 400
     assert "timeframe must be one of" in response.get_json()["error"]
+
+
+def test_prediction_endpoint_returns_newest_recent_row(app, client, premium_headers):
+    with app.app_context():
+        from app.extensions import db
+        from app.models.asset import Asset
+        from app.models.prediction import Prediction
+
+        asset = Asset(symbol="LATESTCTX", name="Latest Context", market="crypto", is_active=True)
+        db.session.add(asset)
+        db.session.flush()
+        now = datetime.utcnow()
+        db.session.add_all([
+            Prediction(
+                asset_id=asset.id, timeframe="1h", model_name="ensemble+cal",
+                predicted_direction="bearish", bullish_probability=30,
+                bearish_probability=70, confidence=70, entry_price=100,
+                predicted_at=now - timedelta(minutes=15),
+            ),
+            Prediction(
+                asset_id=asset.id, timeframe="1h", model_name="ensemble+cal",
+                predicted_direction="bullish", bullish_probability=80,
+                bearish_probability=20, confidence=80, entry_price=101,
+                predicted_at=now - timedelta(minutes=2),
+            ),
+        ])
+        db.session.commit()
+        asset_id = asset.id
+
+    response = client.get(f"/api/v1/predictions/{asset_id}?timeframe=1h", headers=premium_headers)
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["predicted_direction"] == "bullish"
+    assert payload["bullish_probability"] == 80.0
