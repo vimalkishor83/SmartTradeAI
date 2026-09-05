@@ -46,10 +46,25 @@ const API = {
   },
 
   async get(path, params = {}) {
+    const url = new URL(this.base + path, window.location.origin);
+    Object.entries(params).filter(([,v]) => v !== '' && v !== null && v !== undefined)
+      .forEach(([k, v]) => url.searchParams.set(k, v));
+    const requestKey = `${url.toString()}|${this.token() || ''}`;
+    const existing = this._inflightGets?.get(requestKey);
+    if (existing) return existing;
+
+    const request = this._get(url, path);
+    if (!this._inflightGets) this._inflightGets = new Map();
+    this._inflightGets.set(requestKey, request);
+    request.then(
+      () => this._inflightGets.delete(requestKey),
+      () => this._inflightGets.delete(requestKey),
+    );
+    return request;
+  },
+
+  async _get(url, path) {
     try {
-      const url = new URL(this.base + path, window.location.origin);
-      Object.entries(params).filter(([,v]) => v !== '' && v !== null && v !== undefined)
-        .forEach(([k, v]) => url.searchParams.set(k, v));
       const res = await fetch(url, { headers: this.headers() });
       if (res.status === 401 && !IS_PUBLIC) {
         localStorage.removeItem('access_token');

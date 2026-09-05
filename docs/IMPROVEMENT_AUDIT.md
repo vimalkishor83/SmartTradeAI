@@ -309,6 +309,14 @@ The dashboard Decision Inspector now displays the persisted signal data-quality 
 
 **Regression evidence:** JavaScript syntax validation and whitespace checks passed locally. Production app service was rebuilt and restarted from commit `c4dcbcb`; authenticated visual browser verification remains a follow-up because no browser control surface was available in this session.
 
+### 7.4 IMPLEMENTED — Coalesce duplicate dashboard GET requests
+
+The primary dashboard API client now coalesces identical concurrent `GET` requests by URL and token. This targets the observed pattern where multiple dashboard modules initialize together and request the same summary/performance/market data independently. The map is in-flight only: it is removed when the request settles, so this reduces duplicate network/database work without introducing stale client-side caching or changing response semantics.
+
+**Risk level:** Low (GET-only request coalescing, token included in the key). **Affected modules:** `frontend/static/js/app.js`. **Migration:** none.
+
+**Regression evidence:** JavaScript syntax validation and whitespace checks passed locally. Production deployment verification is pending for this change.
+
 ### 7.1 IMPLEMENTED — Bound signal-list pagination for API performance
 
 The authenticated signal-list endpoint previously converted user-controlled `page` and `per_page` values directly with `int()`. Invalid input could produce a 500 response, while an extremely large page size could trigger an oversized database query and JSON response. A shared pagination helper now normalizes invalid/negative pages and clamps signal-list responses to a maximum of 100 records, protecting database and network budgets without changing normal requests.
