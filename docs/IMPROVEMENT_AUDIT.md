@@ -670,6 +670,14 @@ API configuration responses now include a side-effect-free provider-health contr
 
 **Regression evidence:** Provider-health tests passed (**6 passed**), Python compilation, JavaScript syntax validation and whitespace checks passed, and the full local regression suite passed (**257 passed** in 134.14s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
 
+### 7.39 IMPLEMENTED — Keep AI prediction requests non-blocking when models are partial
+
+The API uses `has_ready_model()` to avoid training inside a user request. That check previously returned ready when any one of the RF, XGBoost or LightGBM files was fresh, while `predict()` required every installed member before it could use inference-only mode. A partially warmed ensemble could therefore enter the request path and train missing members, contradicting the endpoint's fast warming-up contract. Readiness now delegates to the same all-installed-members check used by prediction, while retaining the existing in-process cache fast path.
+
+**Risk level:** Medium performance and reliability value, low decision risk (no model parameters, probabilities, thresholds or labels changed). **Affected modules:** `app/services/ai/predictor.py`, `tests/unit/test_predictor_readiness.py`. **Migration:** none.
+
+**Regression evidence:** Focused predictor readiness/member-output/model-version tests passed (**5 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**258 passed** in 125.64s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -767,5 +775,9 @@ API configuration responses now include a side-effect-free provider-health contr
 - `app/api/v1/admin.py` — remove duplicate API-config serialization for flat/grouped responses.
 - `frontend/templates/admin/api_configs.html` — show verification state and attention counts, remove name-bearing inline arguments and escape admin-rendered provider/test-log data.
 - `tests/unit/test_provider_health.py` — cover all health states, stale thresholds, aware timestamps and model serialization.
+
+**Session 18 (ML/performance — predictor readiness, §7.39):**
+- `app/services/ai/predictor.py` — make the API readiness check use the same all-installed-members contract as inference-only prediction.
+- `tests/unit/test_predictor_readiness.py` — prevent partial model files from being reported as request-safe.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
