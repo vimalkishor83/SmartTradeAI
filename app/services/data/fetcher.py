@@ -267,6 +267,13 @@ class _OHLCVCache:
     def __init__(self):
         self._store: dict[str, tuple[pd.DataFrame, float]] = {}
         self._lock  = threading.Lock()
+        self._miss_locks: dict[str, threading.Lock] = {}
+        self._miss_locks_lock = threading.Lock()
+
+    def lock_for(self, key: str) -> threading.Lock:
+        """Return a per-key lock that collapses concurrent fetch misses."""
+        with self._miss_locks_lock:
+            return self._miss_locks.setdefault(key, threading.Lock())
 
     # TTL by timeframe — shorter TFs need fresher data
     _TTL = {"1m":30,"5m":60,"15m":90,"30m":120,"1h":180,"2h":240,"4h":300,"1d":600}
@@ -527,34 +534,39 @@ class BinanceFetcher:
         if cached is not None:
             return cached
 
-        if not _breaker_binance.allow():
-            return None   # circuit open — avoid hammering a down service
+        with _cache.lock_for(cache_key):
+            cached = _cache.get(cache_key, min_rows=limit)
+            if cached is not None:
+                return cached
 
-        try:
-            interval = self.INTERVAL.get(timeframe, "1h")
-            resp = _http_session.get(
-                f"{self.BASE}/klines",
-                params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            if not data:
-                return None
-            df = pd.DataFrame(data, columns=[
-                "timestamp","open","high","low","close","volume",
-                "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
-            ])
-            df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-            for col in ["open","high","low","close","volume"]:
-                df[col] = df[col].astype(float)
-            df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
-            _cache.set(cache_key, df)
-            _breaker_binance.success()
-            return df
-        except Exception as e:
-            _breaker_binance.failure()
-            raise   # re-raise so @_retry can catch it
+            if not _breaker_binance.allow():
+                return None   # circuit open — avoid hammering a down service
+
+            try:
+                interval = self.INTERVAL.get(timeframe, "1h")
+                resp = _http_session.get(
+                    f"{self.BASE}/klines",
+                    params={"symbol": symbol, "interval": interval, "limit": min(limit, 1000)},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not data:
+                    return None
+                df = pd.DataFrame(data, columns=[
+                    "timestamp","open","high","low","close","volume",
+                    "close_time","quote_volume","trades","taker_buy_base","taker_buy_quote","ignore",
+                ])
+                df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
+                for col in ["open","high","low","close","volume"]:
+                    df[col] = df[col].astype(float)
+                df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
+                _cache.set(cache_key, df)
+                _breaker_binance.success()
+                return df
+            except Exception as e:
+                _breaker_binance.failure()
+                raise   # re-raise so @_retry can catch it
 
     def fetch_ticker(self, symbol: str) -> dict | None:
         if not _breaker_binance.allow():
@@ -601,48 +613,53 @@ class DeltaExchangeFetcher:
         if cached is not None:
             return cached
 
-        if not _breaker_delta.allow():
-            return None   # circuit open — avoid hammering a down service
+        with _cache.lock_for(cache_key):
+            cached = _cache.get(cache_key, min_rows=limit)
+            if cached is not None:
+                return cached
 
-        try:
-            resolution = self.INTERVAL.get(timeframe, "1h")
-            # Candle count → seconds-per-candle, so `start` covers `limit` candles
-            seconds_per_candle = {
-                "1m":60, "5m":300, "15m":900, "30m":1800,
-                "1h":3600, "2h":7200, "4h":14400, "1d":86400,
-            }.get(resolution, 3600)
-            end_ts   = int(time.time())
-            start_ts = end_ts - seconds_per_candle * min(limit, 2000)
+            if not _breaker_delta.allow():
+                return None   # circuit open — avoid hammering a down service
 
-            resp = _http_session.get(
-                f"{self.BASE}/history/candles",
-                params={"symbol": delta_symbol, "resolution": resolution,
-                        "start": start_ts, "end": end_ts},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            payload = resp.json()
-            data = payload.get("result")
-            if not data:
-                return None
+            try:
+                resolution = self.INTERVAL.get(timeframe, "1h")
+                # Candle count → seconds-per-candle, so `start` covers `limit` candles
+                seconds_per_candle = {
+                    "1m":60, "5m":300, "15m":900, "30m":1800,
+                    "1h":3600, "2h":7200, "4h":14400, "1d":86400,
+                }.get(resolution, 3600)
+                end_ts   = int(time.time())
+                start_ts = end_ts - seconds_per_candle * min(limit, 2000)
 
-            df = pd.DataFrame(data)
-            # Vectorize the OHLCV float conversion: one astype() over all five
-            # columns instead of a 5-iteration Python-level loop that built a
-            # new Series + ran a separate dtype cast per column. Same result in
-            # a single C-level cast — Delta returns str/mixed numerics here, so
-            # this runs on every uncached crypto candle fetch.
-            ohlcv_cols = ["open","high","low","close","volume"]
-            df[ohlcv_cols] = df[ohlcv_cols].astype(float)
-            df["timestamp"] = pd.to_datetime(df["time"], unit="s")
-            df = df[["timestamp", *ohlcv_cols]] \
-                    .sort_values("timestamp").set_index("timestamp").tail(limit)
-            _cache.set(cache_key, df)
-            _breaker_delta.success()
-            return df
-        except Exception as e:
-            _breaker_delta.failure()
-            raise   # re-raise so @_retry can catch it
+                resp = _http_session.get(
+                    f"{self.BASE}/history/candles",
+                    params={"symbol": delta_symbol, "resolution": resolution,
+                            "start": start_ts, "end": end_ts},
+                    timeout=10,
+                )
+                resp.raise_for_status()
+                payload = resp.json()
+                data = payload.get("result")
+                if not data:
+                    return None
+
+                df = pd.DataFrame(data)
+                # Vectorize the OHLCV float conversion: one astype() over all five
+                # columns instead of a 5-iteration Python-level loop that built a
+                # new Series + ran a separate dtype cast per column. Same result in
+                # a single C-level cast — Delta returns str/mixed numerics here, so
+                # this runs on every uncached crypto candle fetch.
+                ohlcv_cols = ["open","high","low","close","volume"]
+                df[ohlcv_cols] = df[ohlcv_cols].astype(float)
+                df["timestamp"] = pd.to_datetime(df["time"], unit="s")
+                df = df[["timestamp", *ohlcv_cols]] \
+                        .sort_values("timestamp").set_index("timestamp").tail(limit)
+                _cache.set(cache_key, df)
+                _breaker_delta.success()
+                return df
+            except Exception as e:
+                _breaker_delta.failure()
+                raise   # re-raise so @_retry can catch it
 
     def fetch_ticker(self, symbol: str) -> dict | None:
         delta_symbol = self._delta_symbol(symbol)

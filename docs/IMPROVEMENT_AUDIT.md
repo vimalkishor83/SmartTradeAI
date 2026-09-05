@@ -750,6 +750,14 @@ When the News table is empty, the public endpoint now uses a short shared in-pro
 
 **Regression evidence:** Empty-state throttle test passed (**1 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**281 passed** in 106.09s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.49 IMPLEMENTED — Collapse concurrent market-data cache misses
+
+Direct Delta and Binance OHLCV fetches now use per-symbol/timeframe single-flight locks with a second cache check after lock acquisition. Concurrent requests and collector work for the same uncached candle set therefore share one completed provider response, while unrelated symbols/timeframes remain parallel; Yahoo multi-symbol batches keep their existing coalesced path.
+
+**Risk level:** High upstream-load/performance value, low data/API risk (cache TTLs, provider routing and returned candle values are unchanged). **Affected modules:** `app/services/data/fetcher.py`, `tests/unit/test_market_data_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** Focused market-data, data-quality and prediction-history checks passed (**28 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**282 passed** in 101.77s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -889,5 +897,9 @@ When the News table is empty, the public endpoint now uses a short shared in-pro
 **Session 27 (News reliability — empty-state fetch throttle):**
 - `app/api/v1/news.py` — add a short shared in-progress marker so empty-state refresh bursts do not spawn duplicate provider jobs.
 - `tests/integration/test_news_fetch_throttle.py` — verify repeated empty-state requests start only one background fetch.
+
+**Session 28 (market-data performance — OHLCV single-flight):**
+- `app/services/data/fetcher.py` — add per-key miss locks and double-checked cache reads for direct Delta and Binance candle fetches.
+- `tests/unit/test_market_data_singleflight.py` — verify concurrent identical Delta misses issue one provider request and share the cached frame.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
