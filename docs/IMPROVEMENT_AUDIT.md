@@ -366,6 +366,14 @@ The news, journal, and notifications collection routes now use the shared pagina
 
 **Regression evidence:** Local syntax validation, whitespace validation, and the unit pagination regression suite passed. Production deployment completed on 2026-09-05 from commit `391f382`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **159 passed** in 43.52s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.6 IMPLEMENTED — Harden unified signal journal pagination
+
+The unified `/signals/journal` endpoint already capped page size at 100, but malformed numeric query parameters still raised `ValueError` and could return a 500. It now uses the shared pagination guards, preserving the existing defaults and cap while normalizing invalid input safely.
+
+**Risk level:** Low (valid pagination behavior is unchanged). **Affected modules:** `app/api/v1/signals.py`. **Migration:** none.
+
+**Regression evidence:** Local syntax validation and whitespace validation passed. Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

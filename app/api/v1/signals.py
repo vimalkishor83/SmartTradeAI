@@ -2168,8 +2168,8 @@ def signal_journal():
     on whether that thesis actually held up. This is the "why was this
     taken, and were we right" record, not just another signal list.
     """
-    page = max(int(request.args.get("page", 1)), 1)
-    per_page = min(max(int(request.args.get("per_page", 30)), 1), 100)
+    page = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 30), maximum=100)
     market = request.args.get("market") or None
     timeframe = request.args.get("timeframe") or None
     outcome_filter = request.args.get("outcome") or None   # win, loss, neutral, open
