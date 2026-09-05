@@ -2,7 +2,7 @@
 
 **Status:** Living document. Started as Phase 0 of a structured production-hardening pass; updated as each subsequent phase's investigation and fixes land. Every entry below is based on reading the actual code and, where marked, verifying behavior live on the production server — not on the platform's design intent or documentation claims.
 
-**Last updated:** 2026-09-05 (Phase 0 + Phase 1 pass)
+**Last updated:** 2026-09-05 (Phase 0 + Phase 1 + Phase 2 initial pass)
 
 ---
 
@@ -129,12 +129,49 @@ Explicitly checked and found correctly guarded in both engines: `runner.py` comp
 
 ---
 
-## 3. Remaining P0/P1 items from the full 16-phase spec (not started)
+## 3. Phase 2 — AI Confidence & Model Accountability: findings and fixes
 
-This audit and the fixes above cover Phase 0 (discovery) and the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+### 3.1 Architecture as verified (before any fix)
 
-- Phase 1 (remainder): commission/slippage/spread modeling audit, Sharpe/Sortino/recovery-factor calculation audit, reproducibility metadata (backtest ID, engine version, model version) on every result, the partial-TP double-counting fix (§2.6).
-- Phase 2: AI confidence/calibration architecture, Evidence/Counter-Evidence UI in AI Decision Inspector.
+- **Real, trained ML models genuinely exist**: `app/services/ai/predictor.py` trains and persists RandomForest + XGBoost + LightGBM classifiers (each wrapped in `CalibratedClassifierCV(method="isotonic")`), pickled via `joblib` — confirmed 291 real `.pkl` files on disk in `data/models/`. A rule-based `_heuristic_fallback()` (probability in `[0.35, 0.65]`) covers the case where no ML library is importable. This is not aspirational code.
+- **"LSTM" was false** — it appeared in UI copy and a build script's pitch-document generator ("Random Forest + XGBoost + LightGBM + LSTM") but no LSTM/tensorflow/keras code exists anywhere in the repository. Fixed — see §3.2.
+- **The `confidence_score` shown on every regular, automatically-generated signal is 100% rule-based technical scoring — it is not, and never was, ML model output.** `SignalEngine._score_signal()` initializes `scores = {"trend": 0, "momentum": 0, "volume": 0, "pattern": 0, "ai": 10}` — `ai` is a hardcoded constant, never updated by any model, for every signal the scheduled/automatic pipeline generates (`app/tasks/signal_tasks.py`). The real ML ensemble is only invoked by a separate, manual, super-admin-only endpoint (`POST /signals/generate`), which adds a small "AI boost" scaled to a 0–20 range (`prediction.confidence * 0.2`) — at most ~2 points of the final `confidence_score`. This is a genuine, important gap between what "AI-powered" branding implies and what actually drives the number a regular user sees — **not fixed this pass** (a full redesign of `_compute_confidence`'s AI-weighting is a larger, separate decision — see §3.4 remaining items — this pass focused on removing active misrepresentation, not redesigning the underlying formula).
+- **A confidence-calibration system already exists** and is more mature than expected: `app/api/v1/signals.py::_confidence_calibration_bands()` buckets closed signals into Weak/Moderate/Strong/Very Strong bands and compares actual vs. expected win rate, rendered as a chart on the main dashboard. Separately, `/model-performance` tracks the AI predictor's own directional accuracy (not bucketed by confidence). **Important nuance for future work**: the calibration chart evaluates the *rule-based* `confidence_score`, which per the point above isn't an ML probability to begin with — worth keeping in mind before extending it further.
+- `/ai-insights` (the real ML-ensemble-backed page) shows a bare confidence percentage with zero accuracy-history or uncertainty context — not fixed this pass (flagged for §3.4).
+
+### 3.2 FIXED — Fabricated per-model attribution in the "AI Decision Inspector"
+
+**Root cause:** `frontend/static/js/pages/dashboard.js::loadInspector()` — the actual "AI Decision Inspector" the user's Phase 5 spec refers to (keeps entry/current/stop/targets/R:R/risk, a "Why AI Chose" checklist, warnings) — had a "Model Agreement" section presenting four supposedly-independent model scores:
+```js
+const models = [['XGBoost', s.ai_score], ['LightGBM', (s.trend_score + s.momentum_score) / 2],
+['LSTM', (s.momentum_score + s.volume_score) / 2], ['Rule Engine', (s.trend_score + s.pattern_score) / 2]];
+```
+None of these came from the named models. `s.ai_score` is the hardcoded-10 placeholder from §3.1 (labeled "XGBoost"); "LightGBM" and "LSTM" were ad-hoc averages of the *same* trend/momentum/volume/pattern scores already shown in the checklist directly above, just relabeled with ML brand names; LSTM doesn't exist as a model at all. A user reading "XGBoost: 65%, LightGBM: 72%, LSTM: 58%" would reasonably believe three distinct real machine-learning models had independently analyzed the trade — none had. This is a direct violation of "Never represent model probability as guaranteed real-world probability unless statistically justified" and the broader no-fake-claims principle running through this whole engagement.
+
+A second, related bug in the same function: the checklist's `['AI Model Agreement', (s.ai_score || 0) >= 55]` item could never pass for *any* signal in the system — `ai_score` is either the constant 10 (auto-generated signals) or, for the rare manually-generated signal with the real AI boost, capped at 20 (`prediction.confidence * 0.2`, verified by reading `/signals/generate`'s code) — both permanently below the 55 threshold sized for the *other* checks' 0–100 scale.
+
+**Fix:** replaced the fabricated "Model Agreement" bars with an honestly-labeled "Confidence Factors" section showing the real components (Trend/Momentum/Volume/Pattern — the exact same data already backing the checklist above, just not double-counted under fake names). Removed the always-false "AI Model Agreement" checklist item rather than relabeling it to something equally uninformative, since it could not convey real information in either code path. Also removed "LSTM" from `/ai-insights`, `/ta-summary` (×2), and three lines in `scripts/build_pitch_document.py` (the pitch-document generator — a real, distributed document, so the same honesty standard applies there too).
+
+**Verified live**: with a disposable test account (created, verified, deleted), called `loadInspector()` with a synthetic signal directly in the browser console — confirmed the checklist now shows exactly 4 real items (no "AI Model Agreement"), and "Confidence Factors" shows Trend/Momentum/Volume/Pattern with no ML-brand-name labels anywhere. Confirmed `/ai-insights`' subtitle now reads "Random Forest + XGBoost + LightGBM" with no LSTM claim.
+
+**Risk level:** Low (frontend-only, no calculation logic changed — `confidence_score` itself, `trend_score`/`momentum_score`/etc. are untouched; only how they're *labeled and re-combined for display* changed). **Affected modules:** `frontend/static/js/pages/dashboard.js`, `frontend/templates/dashboard/ai_insights.html`, `frontend/templates/dashboard/ta_summary.html`, `scripts/build_pitch_document.py`. **Migration:** none. **Tests:** none added — this is a pure display/labeling fix with no new calculation logic to regression-test; existing 126 tests confirmed unaffected.
+
+### 3.3 Remaining Phase 2 items (not started)
+
+- Evidence/Counter-Evidence/Data-Quality/Uncertainty sections for `/ai-insights` and the AI Decision Inspector (the spec's core ask) — not yet designed or built.
+- Historical-accuracy context alongside `/ai-insights`' bare confidence % (the existing `/model-performance` accuracy data could plausibly feed this without a new data pipeline — worth investigating first before building anything new).
+- Whether/how to redesign `_compute_confidence`'s AI-weighting (currently a token +10 constant for 99%+ of signals) is a real product decision, not just a bug fix — flagged for discussion rather than acted on unilaterally.
+- Model agreement (RF vs. XGBoost vs. LightGBM individually, not just the ensemble average) is not currently exposed anywhere — would require exposing `_ensemble_predict`'s per-model `predict_proba` outputs, not just the averaged result.
+- Market-regime confidence and data-freshness indicators near signals/AI insights — genuinely absent everywhere (confirmed via search), overlaps with Phase 3 (Data Quality) and Phase 4 (Signal lifecycle) — better tackled there.
+
+---
+
+## 4. Remaining P0/P1 items from the full 16-phase spec (not started)
+
+This audit and the fixes above cover Phase 0 (discovery), the highest-priority item of Phase 1 (win-rate correctness + its immediately adjacent display bugs, including the partial-TP consolidation fix), and one concrete, well-scoped Phase 2 item (fabricated per-model attribution). The full spec's remaining phases are substantial, multi-week-scale work and have **not** been started:
+
+- Phase 1 (remainder): commission/slippage/spread modeling audit, Sharpe/Sortino/recovery-factor calculation audit, reproducibility metadata (backtest ID, engine version, model version) on every result, walk-forward's unweighted window averaging (§2.8).
+- Phase 2 (remainder): see §3.3 above.
 - Phase 3: Data Quality engine (GREEN/YELLOW/RED provider health states).
 - Phase 4: Signal-lifecycle metadata/versioning.
 - Phases 5–16: as specified, untouched.
@@ -143,7 +180,7 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 
 ---
 
-## 4. Files changed this pass
+## 5. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
 - `frontend/templates/dashboard/backtesting.html` — win-rate double-multiplication fix, `sample_trades`/`trades_data` key fix, zero-trade empty state, min-sample-size warning.
@@ -156,6 +193,11 @@ Each should get its own investigation-then-fix pass with the same evidence-based
 - `app/api/v1/backtesting.py` — `POST /run` now includes `equity_curve`/`trades_data` in its response, matching `get_backtest()`'s existing pattern.
 - `tests/unit/test_backtest_partial_exit_consolidation.py` — new, 8 tests.
 
+**Session 3 (Phase 2 — fabricated per-model attribution, §3.2):**
+- `frontend/static/js/pages/dashboard.js` — removed fabricated "Model Agreement" per-model scores from the AI Decision Inspector, replaced with honestly-labeled "Confidence Factors"; removed the always-false "AI Model Agreement" checklist item.
+- `frontend/templates/dashboard/ai_insights.html`, `frontend/templates/dashboard/ta_summary.html` — removed false "LSTM" claim from ensemble-description copy (3 occurrences).
+- `scripts/build_pitch_document.py` — removed false "LSTM" claim from the pitch-document generator (3 occurrences).
+
 - `docs/IMPROVEMENT_AUDIT.md` — this file.
 
-**Database changes:** none — no schema/migration in either session; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. **No destructive migration. No new credentials or secrets introduced.**
+**Database changes:** none across all three sessions; `Backtest` rows already had the `winning_trades`/`losing_trades`/`equity_curve`/`trades_data` columns, they just weren't being serialized. **API contract changes:** none breaking — `POST /backtesting/run`'s response gained fields (`equity_curve`, `trades_data`, `winning_trades`, `losing_trades`) it was always supposed to return per its own `to_dict()`/`get_backtest()` sibling pattern; no field removed or renamed. **No destructive migration. No new credentials or secrets introduced.**

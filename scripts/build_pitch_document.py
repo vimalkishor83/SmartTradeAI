@@ -288,7 +288,7 @@ add_bullets([
     ("Data ingestion — ", "live WebSocket prices from Delta Exchange India for crypto; Yahoo Finance for forex, commodities, Indian equities, and indices. No paid API keys required to run the platform."),
     ("Technical analysis engine — ", "a 7-stage pipeline (session gate, volatility regime, multi-timeframe trend gate, momentum gate, volume gate, confidence scoring, and structure-aware stop/target packaging) evaluates every asset on every timeframe from 1 minute to daily."),
     ("Proprietary EMA 9/21 multi-timeframe confluence — ", "each timeframe's EMA9/EMA21 cross is confirmed (or rejected) by the next-higher timeframe's own EMA9/21 read, with a built-in historical scrubber so the exact same logic can be back-tested bar-by-bar."),
-    ("AI/ML ensemble — ", "Random Forest, XGBoost, LightGBM, and LSTM models vote on direction and confidence; predictions are cached and retrained automatically as new data arrives."),
+    ("AI/ML ensemble — ", "Random Forest, XGBoost, and LightGBM models vote on direction and confidence; predictions are cached and retrained automatically as new data arrives."),
     ("Risk-aware packaging — ", "every signal ships with an entry, stop-loss, and two take-profit levels, a computed risk:reward ratio, and a live confidence score — never a bare buy/sell flag."),
     ("Continuous operation — ", "a background scheduler regenerates signals on your configured schedule, tracks every open signal to its outcome (win/loss/expired), and feeds that history back into the win-rate and calibration analytics shown throughout the app."),
 ])
@@ -401,7 +401,7 @@ add_feature_section(
 add_feature_section(
     "AI Insights", "cpu", "Ensemble machine-learning predictions, explained — not a black box.",
     [
-        "Per-asset, per-timeframe bullish/bearish probability and confidence from the ML ensemble (Random Forest + XGBoost + LightGBM + LSTM).",
+        "Per-asset, per-timeframe bullish/bearish probability and confidence from the ML ensemble (Random Forest + XGBoost + LightGBM).",
         "Confluence summary across multiple selected timeframes — agreement across timeframes is flagged as a high-conviction setup.",
     ],
     "ai_insights.png",
@@ -652,7 +652,7 @@ simple_table(
     ["Layer", "Technology"],
     [
         ("Backend", "Python, Flask, SQLAlchemy, Flask-SocketIO, APScheduler, Flask-JWT-Extended"),
-        ("AI / ML", "scikit-learn (Random Forest), XGBoost, LightGBM, LSTM ensemble"),
+        ("AI / ML", "scikit-learn (Random Forest), XGBoost, LightGBM ensemble"),
         ("Market data", "Delta Exchange India (live crypto WebSocket), Yahoo Finance (forex/commodities/equities/indices) — both free, no API key"),
         ("Frontend", "Server-rendered Jinja templates, Chart.js, vanilla JS, light/dark theme system"),
         ("Database", "SQLite (current), PostgreSQL-ready migration path"),

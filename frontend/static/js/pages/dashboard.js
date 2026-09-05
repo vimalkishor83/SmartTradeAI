@@ -237,20 +237,39 @@ function loadInspector(s) {
   document.getElementById('inspHeader').textContent = `${s.asset} · ${s.signal_type} · ${conf.toFixed(0)}%`;
   const cur = s.current_price || s.entry_price;
   const riskPct = (s.entry_price && s.stop_loss) ? Math.abs((s.entry_price - s.stop_loss) / s.entry_price * 100) : null;
+  // "AI Model Agreement" removed from this checklist: ai_score is a
+  // hardcoded placeholder (10) for every automatically-generated signal --
+  // the real ML ensemble is never invoked for these -- and even for the
+  // rare admin-generated signal where it IS real (see /signals/generate's
+  // "AI boost", app/api/v1/signals.py), it's deliberately scaled to a
+  // 0-20 range (prediction.confidence * 0.2) while this check compared it
+  // against >= 55, a threshold sized for the OTHER checks' 0-100 scale.
+  // The check could not pass for any signal in the system, in either case.
   const checks = [
     ['EMA Trend Alignment', (s.trend_score || 0) >= 55],
     ['RSI / Momentum Recovery', (s.momentum_score || 0) >= 55],
     ['Volume Confirmation', (s.volume_score || 0) >= 50],
     ['Pattern Support', (s.pattern_score || 0) >= 50],
-    ['AI Model Agreement', (s.ai_score || 0) >= 55],
   ];
   const warnings = [];
   if (riskPct != null && riskPct > 3) warnings.push(`Wide stop (${riskPct.toFixed(1)}% risk)`);
   if ((s.volume_score || 0) < 40) warnings.push('Low volume confirmation');
   if (conf < 65) warnings.push('Confidence below 65%');
   const dir = s.signal_type === 'SELL' ? 'var(--red)' : 'var(--green)';
-  const models = [['XGBoost', s.ai_score], ['LightGBM', (s.trend_score + s.momentum_score) / 2],
-  ['LSTM', (s.momentum_score + s.volume_score) / 2], ['Rule Engine', (s.trend_score + s.pattern_score) / 2]];
+  // Honest breakdown of the real components behind confidence_score (see
+  // SignalEngine._compute_confidence) -- this used to be labeled "Model
+  // Agreement" and show ['XGBoost', s.ai_score], ['LightGBM', (trend+
+  // momentum)/2], ['LSTM', (momentum+volume)/2], implying three distinct
+  // real ML models had independently voted on this signal. They hadn't:
+  // "XGBoost" was the same always-10 placeholder described above,
+  // "LightGBM"/"LSTM" were ad-hoc averages of these SAME four numbers
+  // relabeled with ML brand names, and LSTM isn't a model that exists
+  // anywhere in this codebase. This is what the checklist above is
+  // actually built from -- no fabricated per-model attribution.
+  const factors = [
+    ['Trend', s.trend_score], ['Momentum', s.momentum_score],
+    ['Volume', s.volume_score], ['Pattern', s.pattern_score],
+  ];
 
   body.innerHTML = `
     <div class="insp-grid">
@@ -265,8 +284,8 @@ function loadInspector(s) {
     <div class="insp-section-title">Why AI Chose ${s.signal_type}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>
     ${warnings.length ? `<div class="insp-section-title text-yellow">Warnings</div><div class="insp-warns">${warnings.map(w => `<div class="insp-warn"><i class="bi bi-exclamation-triangle-fill text-yellow"></i>${w}</div>`).join('')}</div>` : ''}
-    <div class="insp-section-title">Model Agreement</div>
-    ${models.map(([n, v]) => `<div class="insp-model"><span class="insp-model-n">${n}</span><div class="insp-model-track"><div class="insp-model-fill" style="width:${Math.max(0, Math.min(100, v || 0))}%;background:${dir}"></div></div><span class="insp-model-p">${Math.round(v || 0)}%</span></div>`).join('')}
+    <div class="insp-section-title">Confidence Factors</div>
+    ${factors.map(([n, v]) => `<div class="insp-model"><span class="insp-model-n">${n}</span><div class="insp-model-track"><div class="insp-model-fill" style="width:${Math.max(0, Math.min(100, v || 0))}%;background:${dir}"></div></div><span class="insp-model-p">${Math.round(v || 0)}%</span></div>`).join('')}
   `;
 }
 
