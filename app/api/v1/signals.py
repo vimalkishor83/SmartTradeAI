@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app, Response
+from flask import Blueprint, request, jsonify, current_app, Response, stream_with_context
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
 from app.models.signal import Signal, SignalHistory
 from app.models.asset import Asset
@@ -2430,16 +2430,36 @@ def backtest():
     return jsonify(backtest_portfolio(assets, timeframe, days=days)), 200
 
 
+def _stream_csv_response(headers, rows, filename):
+    """Stream CSV chunks so large exports do not accumulate in process RAM."""
+    def generate():
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+        writer.writerow(headers)
+        yield buf.getvalue()
+        for row in rows:
+            buf.seek(0)
+            buf.truncate(0)
+            writer.writerow(row)
+            yield buf.getvalue()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
 @signals_bp.route("/export/csv", methods=["GET"])
 @login_required
 def export_signals_csv():
-    """Export live signals as CSV."""
+    """Export live signals as a joined, streamed CSV response."""
     market      = request.args.get("market")
     timeframe   = request.args.get("timeframe")
     signal_type = request.args.get("signal_type")
     status      = request.args.get("status", "active")
 
-    query = Signal.query.join(Asset)
+    query = Signal.query.options(joinedload(Signal.asset)).join(Asset)
     if market:
         query = query.filter(Asset.market == market)
     if timeframe:
@@ -2449,71 +2469,68 @@ def export_signals_csv():
     if status:
         query = query.filter(Signal.status == status)
 
-    signals = query.order_by(Signal.generated_at.desc()).all()
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["Date","Asset","Market","Timeframe","Signal","Entry","Stop Loss",
-                     "Target1","Target2","R:R","Confidence","Status","Reasoning"])
-    for s in signals:
-        writer.writerow([
-            s.generated_at.strftime("%Y-%m-%d %H:%M") if s.generated_at else "",
-            s.asset.symbol if s.asset else "",
-            s.asset.market if s.asset else "",
-            s.timeframe,
-            s.signal_type,
-            s.entry_price,
-            s.stop_loss,
-            s.target1,
-            s.target2,
-            round(s.risk_reward, 2) if s.risk_reward else "",
-            round(s.confidence_score, 1) if s.confidence_score else "",
-            s.status,
-            s.reasoning or "",
-        ])
-
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    return Response(
-        buf.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=signals_{today}.csv"},
+    signals = query.order_by(Signal.generated_at.desc()).yield_per(500)
+
+    def rows():
+        for s in signals:
+            yield [
+                s.generated_at.strftime("%Y-%m-%d %H:%M") if s.generated_at else "",
+                s.asset.symbol if s.asset else "",
+                s.asset.market if s.asset else "",
+                s.timeframe,
+                s.signal_type,
+                s.entry_price,
+                s.stop_loss,
+                s.target1,
+                s.target2,
+                round(s.risk_reward, 2) if s.risk_reward else "",
+                round(s.confidence_score, 1) if s.confidence_score else "",
+                s.status,
+                s.reasoning or "",
+            ]
+
+    return _stream_csv_response(
+        ["Date", "Asset", "Market", "Timeframe", "Signal", "Entry", "Stop Loss",
+         "Target1", "Target2", "R:R", "Confidence", "Status", "Reasoning"],
+        rows(),
+        f"signals_{today}.csv",
     )
 
 
 @signals_bp.route("/history/export/csv", methods=["GET"])
 @login_required
 def export_history_csv():
-    """Export signal history as CSV."""
-    records = SignalHistory.query.order_by(SignalHistory.closed_at.desc()).all()
-    asset_ids = {r.asset_id for r in records}
-    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()}
-
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(["Date","Asset","Market","Timeframe","Signal","Entry",
-                     "Outcome","PnL%","Duration(min)","R:R Predicted"])
-    for h in records:
-        asset = assets_map.get(h.asset_id)
-        # Approximate R:R from entry/stop_loss/target1
-        predicted_rr = ""
-        if h.entry_price and h.stop_loss and h.target1 and h.entry_price != h.stop_loss:
-            predicted_rr = round(abs(h.target1 - h.entry_price) / abs(h.entry_price - h.stop_loss), 2)
-        writer.writerow([
-            h.closed_at.strftime("%Y-%m-%d %H:%M") if h.closed_at else "",
-            asset.symbol if asset else "",
-            asset.market if asset else "",
-            h.timeframe,
-            h.signal_type,
-            h.entry_price,
-            h.outcome,
-            round(h.pnl_pct, 2) if h.pnl_pct is not None else "",
-            h.duration_minutes or "",
-            predicted_rr,
-        ])
-
+    """Export signal history as a joined, streamed CSV response."""
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    return Response(
-        buf.getvalue(),
-        mimetype="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=signal_history_{today}.csv"},
+    records = (SignalHistory.query
+               .options(joinedload(SignalHistory.asset))
+               .order_by(SignalHistory.closed_at.desc())
+               .yield_per(500))
+
+    def rows():
+        for h in records:
+            asset = h.asset
+            # Approximate R:R from entry/stop_loss/target1.
+            predicted_rr = ""
+            if h.entry_price and h.stop_loss and h.target1 and h.entry_price != h.stop_loss:
+                predicted_rr = round(abs(h.target1 - h.entry_price) / abs(h.entry_price - h.stop_loss), 2)
+            yield [
+                h.closed_at.strftime("%Y-%m-%d %H:%M") if h.closed_at else "",
+                asset.symbol if asset else "",
+                asset.market if asset else "",
+                h.timeframe,
+                h.signal_type,
+                h.entry_price,
+                h.outcome,
+                round(h.pnl_pct, 2) if h.pnl_pct is not None else "",
+                h.duration_minutes or "",
+                predicted_rr,
+            ]
+
+    return _stream_csv_response(
+        ["Date", "Asset", "Market", "Timeframe", "Signal", "Entry", "Outcome",
+         "PnL%", "Duration(min)", "R:R Predicted"],
+        rows(),
+        f"signal_history_{today}.csv",
     )

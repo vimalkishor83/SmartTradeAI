@@ -494,6 +494,14 @@ The main signal-performance endpoint no longer loads the complete closed-signal 
 
 **Regression evidence:** Focused signal-performance tests passed locally (**1 passed**); the full local suite passed with **216 passed** in 121.36s. Production deployment completed on 2026-09-05 from `8ed0270`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: signal-performance-20260905`, the deployed signal and prediction performance tests passed (**7 passed** in 5.04s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.17 IMPLEMENTED — Stream signal CSV exports
+
+Live-signal and signal-history CSV exports now stream rows in 500-record batches instead of building the entire file in process memory. Asset details are eager-joined to avoid per-row relationship lookups, while existing filters, columns, filenames, and numeric calculations remain unchanged.
+
+**Risk level:** Medium scalability value, low API compatibility risk (same CSV contract and authentication; no model or schema change). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_exports.py`. **Migration:** none.
+
+**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **217 passed** in 188.55s. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
