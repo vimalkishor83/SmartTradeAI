@@ -317,6 +317,14 @@ The authenticated signal-list endpoint previously converted user-controlled `pag
 
 **Regression evidence:** Targeted pagination tests and the full local unit baseline passed with **122 tests**. Production verification completed on 2026-09-05 after rebuilding the app service from `a8b4c47`: the full suite reported **159 passed**, health and root endpoints returned `HTTP 200`, the app remained healthy, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.2 IMPLEMENTED — Apply pagination limits to signal history
+
+The signal-history endpoint duplicated the old unbounded `int()` parsing used by the signal list. It now uses the same shared positive-page and maximum-100-record contract, so the Performance and Signal Journal data paths have the same failure behavior and response budget. This is an additive performance hardening change with no default pagination change.
+
+**Risk level:** Low (shared input normalization; default page size remains 20). **Affected modules:** `app/api/v1/signals.py`, `app/services/pagination.py`, `tests/unit/test_pagination.py`. **Migration:** none.
+
+**Regression evidence:** The shared pagination tests and full local unit baseline passed with **122 tests**. Production deployment verification is pending for this change.
+
 ---
 
 ## 7. Remaining P0/P1 items from the full 16-phase spec (not started)

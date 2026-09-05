@@ -1681,8 +1681,8 @@ def get_summary():
 @signals_bp.route("/history", methods=["GET"])
 @login_required
 def signal_history():
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
+    page = bounded_page(request.args.get("page", 1))
+    per_page = bounded_per_page(request.args.get("per_page", 20), maximum=100)
     market = request.args.get("market")
 
     outcome = request.args.get("outcome")
