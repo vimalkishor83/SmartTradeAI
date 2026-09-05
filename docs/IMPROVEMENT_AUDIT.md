@@ -315,7 +315,7 @@ The authenticated signal-list endpoint previously converted user-controlled `pag
 
 **Risk level:** Low (input normalization and an upper bound; default behavior is unchanged). **Affected modules:** `app/services/pagination.py`, `app/api/v1/signals.py`, `tests/unit/test_pagination.py`. **Migration:** none.
 
-**Regression evidence:** Targeted pagination tests and the full local unit baseline passed with **122 tests**. Production deployment verification is pending for this change.
+**Regression evidence:** Targeted pagination tests and the full local unit baseline passed with **122 tests**. Production verification completed on 2026-09-05 after rebuilding the app service from `a8b4c47`: the full suite reported **159 passed**, health and root endpoints returned `HTTP 200`, the app remained healthy, and the fresh app/worker log scan contained no traceback/error matches.
 
 ---
 
