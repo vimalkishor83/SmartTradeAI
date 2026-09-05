@@ -150,19 +150,19 @@ function loadOpportunityRadar(signals) {
     const tag = _oppTag(conf, s.signal_type);
     const rr = parseFloat(s.risk_reward);
     const note = (s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || (s.confidence_label || '');
-    return `<div class="opp-card" onclick="location='/asset/${s.asset_id}'">
+    return `<a class="opp-card" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
       <div class="opp-top">
-        <div class="opp-name">${s.asset}</div>
+        <div class="opp-name">${STSafe.html(s.asset)}</div>
         <span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span>
       </div>
       <div class="opp-conf" style="color:${tag.c}">${conf.toFixed(0)}%</div>
-      <div id="oppspk_${s.id}" class="opp-spark"></div>
-      <div class="opp-foot"><span>R:R ${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span class="text-muted">${note}</span></div>
-    </div>`;
+      <div id="${STSafe.domId('oppspk_', s.id)}" class="opp-spark"></div>
+      <div class="opp-foot"><span>R:R ${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span class="text-muted">${STSafe.html(note)}</span></div>
+    </a>`;
   }).join('');
 
   top.forEach(s => {
-    const el = document.getElementById(`oppspk_${s.id}`);
+    const el = document.getElementById(STSafe.domId('oppspk_', s.id));
     if (el && typeof Sparkline !== 'undefined') Sparkline.load(el, s.asset_id, s.timeframe || '1h');
   });
 }
@@ -217,9 +217,9 @@ function _renderSignals(signals) {
     // age/regime/model-agreement/status all live there now) — only the
     // trash-icon-style affordance differs, so make the whole row clickable
     // rather than just the asset name.
-    return `<tr style="cursor:pointer" onclick="location='/asset/${s.asset_id}'">
-      <td><span class="asset-cell-name">${s.asset}</span><div class="asset-cell-sub"><span class="badge-tag">${mkt}</span></div></td>
-      <td><span class="badge-tag">${s.timeframe}</span></td>
+    return `<tr style="cursor:pointer" tabindex="0" data-asset-href="${STSafe.assetHref(s.asset_id)}">
+      <td><span class="asset-cell-name">${STSafe.html(s.asset)}</span><div class="asset-cell-sub"><span class="badge-tag">${STSafe.html(mkt)}</span></div></td>
+      <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td class="num">${formatPrice(s.entry_price, s.market)}</td>
       <td class="num">${formatPrice(cur, s.market)}</td>
@@ -227,6 +227,13 @@ function _renderSignals(signals) {
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
     </tr>`;
   }).join('');
+  tbody.querySelectorAll('tr[data-asset-href]').forEach(row => {
+    const go = () => { if (row.dataset.assetHref && row.dataset.assetHref !== '#') location.href = row.dataset.assetHref; };
+    row.addEventListener('click', go);
+    row.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); go(); }
+    });
+  });
 }
 
 /* ── AI Decision Inspector ────────────────────────────────────── */
@@ -243,17 +250,15 @@ function loadInspector(s) {
   const qualityAge = Number.isFinite(Number(quality.last_candle_age_seconds))
     ? `${Math.max(0, Math.round(Number(quality.last_candle_age_seconds) / 60))} min ago`
     : 'timestamp unavailable';
-  const qualityProvider = String(quality.provider || 'provider unavailable')
-    .replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const qualityProvider = STSafe.html(quality.provider || 'provider unavailable');
   const provenance = s.reproducibility || {};
-  const provenanceText = value => String(value || 'unavailable')
-    .replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const provenanceText = value => STSafe.html(value || 'unavailable');
   const sourceLabel = provenance.generation_source === 'manual' ? 'Manual' :
     provenance.generation_source === 'automatic' ? 'Automatic' : 'Legacy / unknown';
   const modelLabel = provenance.model_version === 'not_applicable' ? 'Rule-based scoring' :
     provenanceText(provenance.model_version);
   const fingerprintLabel = provenance.data_fingerprint
-    ? `${provenance.data_fingerprint.slice(0, 12)}...`
+    ? STSafe.html(`${provenance.data_fingerprint.slice(0, 12)}...`)
     : 'unavailable';
   const decisionTitle = provenance.model_version && provenance.model_version !== 'not_applicable'
     ? 'Why This Signal Qualified (AI-assisted)' : 'Why This Signal Qualified';
@@ -325,26 +330,26 @@ function loadInspector(s) {
     </div>
     <div class="insp-context insp-quality-${qualityClass}" role="status">
       <div class="insp-context-main"><i class="bi bi-database-check"></i><strong>Data ${qualityStatus}</strong><span>${qualityAge}</span></div>
-      <div class="insp-context-meta">${qualityProvider} · ${quality.candle_count ?? '—'} candles</div>
+      <div class="insp-context-meta">${qualityProvider} · ${STSafe.html(quality.candle_count ?? '—')} candles</div>
     </div>
     <div class="insp-context insp-regime" role="status">
-      <div class="insp-context-main"><i class="bi bi-activity"></i><strong>Market regime</strong><span>${s.regime || 'Not classified'}</span></div>
+      <div class="insp-context-main"><i class="bi bi-activity"></i><strong>Market regime</strong><span>${STSafe.html(s.regime || 'Not classified')}</span></div>
       <div class="insp-context-meta">This describes the observed environment, not a profit prediction.</div>
     </div>
     <div class="insp-context insp-provenance" role="status">
-      <div class="insp-context-main"><i class="bi bi-fingerprint"></i><strong>Signal provenance</strong><span>${sourceLabel}</span></div>
-      <div class="insp-context-meta">${modelLabel} · ${provenance.data_candles ?? '—'} candles · data ${fingerprintLabel}</div>
+      <div class="insp-context-main"><i class="bi bi-fingerprint"></i><strong>Signal provenance</strong><span>${STSafe.html(sourceLabel)}</span></div>
+      <div class="insp-context-meta">${modelLabel} · ${STSafe.html(provenance.data_candles ?? '—')} candles · data ${fingerprintLabel}</div>
     </div>
     <div class="insp-context insp-history" role="status">
       <div class="insp-context-main"><i class="bi bi-bar-chart-line"></i><strong>Historical context</strong><span>${historyAccuracy == null ? '—' : historyAccuracy.toFixed(1) + '% accuracy'}</span></div>
-      <div class="insp-context-meta">${historySummary} · ${historySample} total resolved records${historyPnl == null ? '' : ` · avg P&L ${historyPnl >= 0 ? '+' : ''}${historyPnl.toFixed(2)}%`}</div>
+      <div class="insp-context-meta">${STSafe.html(historySummary)} · ${historySample} total resolved records${historyPnl == null ? '' : ` · avg P&L ${historyPnl >= 0 ? '+' : ''}${historyPnl.toFixed(2)}%`}</div>
       <div class="insp-context-meta">Same asset and timeframe; accuracy excludes neutral expiries and is not a forecast.</div>
     </div>
     <div class="insp-section-title">${decisionTitle}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>
     ${warnings.length ? `<div class="insp-section-title text-yellow">Warnings</div><div class="insp-warns">${warnings.map(w => `<div class="insp-warn"><i class="bi bi-exclamation-triangle-fill text-yellow"></i>${w}</div>`).join('')}</div>` : ''}
-    ${evidence.length ? `<div class="insp-section-title">Evidence Supporting ${s.signal_type}</div><div class="insp-checks">${evidence.map(r => `<div class="insp-check"><i class="bi bi-check-circle-fill text-green"></i>${r.text}</div>`).join('')}</div>` : ''}
-    ${counterEvidence.length ? `<div class="insp-section-title text-yellow">Counter-Evidence (outweighed)</div><div class="insp-warns">${counterEvidence.map(r => `<div class="insp-warn"><i class="bi bi-arrow-left-right text-yellow"></i>${r.text}</div>`).join('')}</div>` : ''}
+    ${evidence.length ? `<div class="insp-section-title">Evidence Supporting ${STSafe.html(s.signal_type)}</div><div class="insp-checks">${evidence.map(r => `<div class="insp-check"><i class="bi bi-check-circle-fill text-green"></i>${STSafe.html(r.text)}</div>`).join('')}</div>` : ''}
+    ${counterEvidence.length ? `<div class="insp-section-title text-yellow">Counter-Evidence (outweighed)</div><div class="insp-warns">${counterEvidence.map(r => `<div class="insp-warn"><i class="bi bi-arrow-left-right text-yellow"></i>${STSafe.html(r.text)}</div>`).join('')}</div>` : ''}
     <div class="insp-section-title">Confidence Factors</div>
     ${factors.map(([n, v]) => `<div class="insp-model"><span class="insp-model-n">${n}</span><div class="insp-model-track"><div class="insp-model-fill" style="width:${Math.max(0, Math.min(100, v || 0))}%;background:${dir}"></div></div><span class="insp-model-p">${Math.round(v || 0)}%</span></div>`).join('')}
   `;
@@ -410,7 +415,7 @@ async function loadWinByMarket() {
     const wr = m.win_rate || 0;
     const exp = m.avg_pnl_pct ?? m.expectancy;
     return `<tr>
-      <td>${label(m.market)}</td>
+      <td>${STSafe.html(label(m.market))}</td>
       <td class="num" style="color:${wr >= 50 ? 'var(--green)' : 'var(--red)'};font-weight:700">${wr.toFixed(0)}%</td>
       <td class="num">${m.avg_rr != null ? '1:' + fmt(m.avg_rr) : '—'}</td>
       <td class="num" style="color:${(exp || 0) >= 0 ? 'var(--green)' : 'var(--red)'}">${exp != null ? (exp >= 0 ? '+' : '') + fmt(exp) : '—'}</td>
@@ -469,11 +474,11 @@ function _renderHeatmap(items) {
     else if (_heatmapMode === 'confidence') { const tf = ai?.tf?.['1h'] || Object.values(ai?.tf || {})[0]; const c = tf?.confidence ?? 50; main = Math.round(c) + '%'; clr = c >= 70 ? 'var(--green)' : c >= 55 ? 'var(--yellow)' : 'var(--red)'; sub = 'confidence'; }
     else if (_heatmapMode === 'volatility') { const v = Math.abs(item.change_pct || 0); main = v.toFixed(2) + '%'; clr = v > 3 ? 'var(--red)' : v > 1.5 ? 'var(--yellow)' : 'var(--green)'; sub = v > 3 ? 'high' : v > 1.5 ? 'med' : 'low'; }
     else { const strength = Math.min(100, Math.abs(item.change_pct || 0) * 25 + 30); main = Math.round(strength); clr = up ? 'var(--green)' : 'var(--red)'; sub = up ? 'bullish' : 'bearish'; }
-    return `<div class="heatmap-cell ${up ? 'up' : 'down'}" onclick="location='/markets/${item.market}'">
-      <div class="cell-symbol">${item.symbol}</div>
+    return `<a class="heatmap-cell ${up ? 'up' : 'down'}" href="${STSafe.marketHref(item.market)}" style="text-decoration:none;color:inherit">
+      <div class="cell-symbol">${STSafe.html(item.symbol)}</div>
       <div class="cell-change" style="color:${clr}">${main}</div>
       <div class="cell-price">${sub}</div>
-    </div>`;
+    </a>`;
   }).join('');
 }
 

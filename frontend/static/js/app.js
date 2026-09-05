@@ -37,6 +37,12 @@ window.STSafe = window.STSafe || Object.freeze({
     const id = this.assetId(value);
     return id ? `/asset/${id}` : '#';
   },
+  marketHref(value) {
+    const key = String(value ?? '').trim();
+    return ['crypto', 'forex', 'commodity', 'indian_stock', 'index'].includes(key)
+      ? `/markets/${key}`
+      : '#';
+  },
   domId(prefix, value) {
     const id = String(value ?? '').replace(/[^A-Za-z0-9_-]/g, '');
     return `${prefix}${id}`;

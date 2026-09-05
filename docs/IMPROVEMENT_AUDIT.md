@@ -790,6 +790,14 @@ The global notification dropdown and toast system now render server messages as 
 
 **Regression evidence:** Global UI safety checks passed (**6 passed**), `app.js` passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**291 passed** in 115.49s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.54 IMPLEMENTED — Harden Dashboard live rendering and navigation
+
+Dashboard opportunities, signals, heatmap cells and Decision Inspector context now escape live values before HTML insertion. Asset and market navigation use validated links, while signal rows preserve click behavior through safe dataset-driven handlers with keyboard support. This prevents provider or persisted reasoning text from becoming executable markup in the primary dashboard.
+
+**Risk level:** High trust/security and accessibility value, low UX/API risk (navigation behavior is preserved and keyboard access is improved). **Affected modules:** `frontend/static/js/app.js`, `frontend/static/js/pages/dashboard.js`, `tests/unit/test_dashboard_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Dashboard, global widget and overview rendering checks passed (**7 passed**), Dashboard and core JavaScript files passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**293 passed** in 111.91s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -953,5 +961,9 @@ The global notification dropdown and toast system now render server messages as 
 - `frontend/static/js/app.js` — render toast/notification text safely, protect ticker symbol rendering and selector matching, and sanitize market registry options.
 - `frontend/templates/partials/base.html` — escape and validate lazy-loaded command-palette asset entries.
 - `tests/unit/test_global_ui_safety.py` — protect shared widget and navigation rendering contracts.
+
+**Session 33 (UI security/accessibility — Dashboard rendering safety):**
+- `frontend/static/js/pages/dashboard.js` — escape opportunity, signal, inspector and heatmap values; replace inline navigation with validated links and keyboard-capable row handlers.
+- `tests/unit/test_dashboard_template_safety.py` — protect the Dashboard rendering and navigation contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
