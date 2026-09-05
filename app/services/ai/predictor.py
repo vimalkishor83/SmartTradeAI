@@ -237,13 +237,22 @@ def _make_triple_barrier_labels(df: pd.DataFrame, atr: pd.Series) -> pd.Series:
 # ─────────────────────────────────────────────────────────────────────────────
 # Walk-forward split (Phase 5)
 # ─────────────────────────────────────────────────────────────────────────────
-def _walk_forward_split(X: np.ndarray, y: np.ndarray, n_splits: int = 5):
+def _walk_forward_split(
+    X: np.ndarray,
+    y: np.ndarray,
+    n_splits: int = 5,
+    purge_bars: int = _TB_MAX_HOLD,
+):
     """
     Time-series aware cross-validation.
     Returns list of (train_idx, val_idx) tuples where val is always after train.
-    Uses a fixed-size rolling window (most recent `window` rows as train).
+    Uses a fixed-size rolling window (most recent `window` rows as train) and
+    purges the maximum label horizon immediately before validation. Without
+    the purge, a training row near the boundary can use future OHLC bars that
+    belong to the validation period when its triple-barrier label is resolved.
     """
     n = len(X)
+    purge_bars = max(0, int(purge_bars))
     # Minimum train size = 60% of total
     min_train = max(_MIN_TRAIN_ROWS, int(n * 0.6))
     step = max(1, (n - min_train) // n_splits)
@@ -254,10 +263,15 @@ def _walk_forward_split(X: np.ndarray, y: np.ndarray, n_splits: int = 5):
         val_end   = min(train_end + step, n - 1)  # -1: keep last row for prediction
         if train_end >= val_end or val_end >= n:
             break
-        # Rolling window: use the last `min_train` rows before train_end
-        train_start = max(0, train_end - min_train)
+        # Leave a label-horizon gap before validation. The first fold has
+        # fewer than min_train rows when the dataset cannot fit the full
+        # rolling window before the purge, which is safer than contamination.
+        purged_train_end = max(0, train_end - purge_bars)
+        train_start = max(0, purged_train_end - min_train)
+        if train_start >= purged_train_end:
+            break
         splits.append((
-            np.arange(train_start, train_end),
+            np.arange(train_start, purged_train_end),
             np.arange(train_end, val_end),
         ))
     return splits

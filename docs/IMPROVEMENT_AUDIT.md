@@ -678,6 +678,14 @@ The API uses `has_ready_model()` to avoid training inside a user request. That c
 
 **Regression evidence:** Focused predictor readiness/member-output/model-version tests passed (**5 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**258 passed** in 125.64s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.40 IMPLEMENTED — Purge triple-barrier label horizons before AI calibration
+
+The chronological calibration splitter now removes a 10-bar gap, matching the maximum triple-barrier label horizon, between the final training row and the first validation row. Previously, a training label near that boundary could inspect future OHLC bars that belonged to the validation period, making calibration evidence optimistic. The split remains chronological, rolling and last-row-safe; only the training/calibration boundary changed.
+
+**Risk level:** High model-evaluation integrity value, low runtime/API risk (training uses fewer boundary rows; inference thresholds and output contracts are unchanged). **Affected modules:** `app/services/ai/predictor.py`, `tests/unit/test_predictor_splits.py`. **Migration:** none.
+
+**Regression evidence:** Focused split, readiness, member-output and model-version tests passed (**7 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**260 passed** in 121.59s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -779,5 +787,9 @@ The API uses `has_ready_model()` to avoid training inside a user request. That c
 **Session 18 (ML/performance — predictor readiness, §7.39):**
 - `app/services/ai/predictor.py` — make the API readiness check use the same all-installed-members contract as inference-only prediction.
 - `tests/unit/test_predictor_readiness.py` — prevent partial model files from being reported as request-safe.
+
+**Session 19 (ML integrity — purged calibration folds, §7.40):**
+- `app/services/ai/predictor.py` — purge the triple-barrier label horizon before each chronological validation fold.
+- `tests/unit/test_predictor_splits.py` — verify temporal ordering, purge distance and last-row protection.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
