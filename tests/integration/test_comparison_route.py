@@ -4,6 +4,14 @@ validation paths only (the happy path needs real market data, already
 verified manually against the live app; these tests cover the pure
 input-validation logic that doesn't need real OHLCV)."""
 import pytest
+from app.api.v1.comparison import _bounded_compare_lookback
+
+
+def test_comparison_lookback_is_bounded_and_resilient():
+    assert _bounded_compare_lookback("100") == 100
+    assert _bounded_compare_lookback("5") == 20
+    assert _bounded_compare_lookback("10000") == 500
+    assert _bounded_compare_lookback("invalid") == 100
 
 
 @pytest.fixture

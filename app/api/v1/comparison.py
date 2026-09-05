@@ -10,10 +10,16 @@ from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.auth.decorators import login_required
 from app.extensions import cache
+from app.services.pagination import bounded_per_page
 
 comparison_bp = Blueprint("comparison", __name__)
 
 _MAX_COMPARE = 5
+
+
+def _bounded_compare_lookback(value):
+    """Keep comparison fetches within a useful and predictable bar budget."""
+    return max(20, bounded_per_page(value, default=100, maximum=500))
 
 
 @comparison_bp.route("/", methods=["GET"])
@@ -35,10 +41,7 @@ def compare_assets():
         return jsonify({"error": f"Maximum {_MAX_COMPARE} assets can be compared at once"}), 400
 
     timeframe = request.args.get("timeframe", "1h")
-    try:
-        lookback = max(20, min(500, int(request.args.get("lookback", 100))))
-    except (TypeError, ValueError):
-        lookback = 100
+    lookback = _bounded_compare_lookback(request.args.get("lookback", 100))
 
     ck = f"compare_{'_'.join(sorted(symbols))}_{timeframe}_{lookback}"
     cached = cache.get(ck)

@@ -414,6 +414,14 @@ The authenticated OHLCV endpoint now normalizes invalid `limit` values and clamp
 
 **Regression evidence:** Production deployment completed on 2026-09-05 from commit `0846d20`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **171 passed** in 45.59s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
+### 7.8 IMPLEMENTED — Standardize comparison lookback limits
+
+The multi-asset comparison route now uses the shared bounded pagination helper for its lookback window. Requests are normalized to the existing `20..500` range, malformed values use the 100-bar default, and excessive values cannot expand the market-data fetch beyond 500 bars.
+
+**Risk level:** Low (valid behavior and existing bounds are unchanged). **Affected modules:** `app/api/v1/comparison.py`, `tests/integration/test_comparison_route.py`. **Migration:** none.
+
+**Regression evidence:** Production deployment verification is pending for this change.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
