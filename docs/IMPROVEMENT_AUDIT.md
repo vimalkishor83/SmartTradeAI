@@ -420,7 +420,7 @@ The multi-asset comparison route now uses the shared bounded pagination helper f
 
 **Risk level:** Low (valid behavior and existing bounds are unchanged). **Affected modules:** `app/api/v1/comparison.py`, `tests/integration/test_comparison_route.py`. **Migration:** none.
 
-**Regression evidence:** Production deployment verification is pending for this change.
+**Regression evidence:** Production deployment completed on 2026-09-05 from commit `e31c5a8`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **172 passed** in 45.66s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches.
 
 ## 8. Files changed this pass
 
