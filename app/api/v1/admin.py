@@ -672,8 +672,6 @@ def create_api_config():
         base_url         = clean.get("base_url", ""),
         websocket_url    = clean.get("websocket_url", ""),
         auth_type        = clean.get("auth_type", "api_key"),
-        access_token     = clean.get("access_token", ""),
-        refresh_token    = clean.get("refresh_token", ""),
         rate_limit       = clean.get("rate_limit", 60),
         refresh_interval = clean.get("refresh_interval", 60),
         priority         = clean.get("priority", 0),
@@ -683,6 +681,8 @@ def create_api_config():
     )
     if clean.get("api_key"):    cfg.set_api_key(clean["api_key"])
     if clean.get("api_secret"): cfg.set_api_secret(clean["api_secret"])
+    if clean.get("access_token"):  cfg.set_access_token(clean["access_token"])
+    if clean.get("refresh_token"): cfg.set_refresh_token(clean["refresh_token"])
     db.session.add(cfg)
     db.session.commit()
     return jsonify(cfg.to_dict()), 201
@@ -727,8 +727,8 @@ def update_api_config(cfg_id):
     # Only update credentials if supplied
     if clean.get("api_key"):    cfg.set_api_key(clean["api_key"])
     if clean.get("api_secret"): cfg.set_api_secret(clean["api_secret"])
-    if clean.get("access_token"):  cfg.access_token  = clean["access_token"]
-    if clean.get("refresh_token"): cfg.refresh_token = clean["refresh_token"]
+    if clean.get("access_token"):  cfg.set_access_token(clean["access_token"])
+    if clean.get("refresh_token"): cfg.set_refresh_token(clean["refresh_token"])
 
     cfg.updated_at = datetime.utcnow()
     db.session.commit()
@@ -1142,8 +1142,9 @@ def _test_connection(cfg: APIConfig) -> dict:
         if api_key:
             headers["X-MBX-APIKEY"] = api_key   # Binance style
             headers["X-API-KEY"]    = api_key
-    if cfg.auth_type == "token" and cfg.access_token:
-        headers["Authorization"] = f"Bearer {cfg.access_token}"
+    access_token = cfg.get_access_token()
+    if cfg.auth_type == "token" and access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
 
     # groq/openrouter are OpenAI-compatible (Authorization: Bearer <key>,
     # not the X-*-APIKEY headers above every market-data provider here

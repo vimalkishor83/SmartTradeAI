@@ -91,6 +91,14 @@ class APIConfig(db.Model):
         from app.services.security.crypto import encrypt_value
         self.api_secret_encrypted = encrypt_value(plaintext) if plaintext else ""
 
+    def set_access_token(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.access_token = encrypt_value(plaintext) if plaintext else ""
+
+    def set_refresh_token(self, plaintext: str):
+        from app.services.security.crypto import encrypt_value
+        self.refresh_token = encrypt_value(plaintext) if plaintext else ""
+
     def get_api_key(self) -> str | None:
         """Decrypt the stored key. Falls back to the raw stored value if it
         doesn't look encrypted (legacy plaintext rows created before
@@ -109,6 +117,22 @@ class APIConfig(db.Model):
         if not is_encrypted(self.api_secret_encrypted):
             return self.api_secret_encrypted
         return decrypt_value(self.api_secret_encrypted)
+
+    def get_access_token(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.access_token:
+            return None
+        if not is_encrypted(self.access_token):
+            return self.access_token
+        return decrypt_value(self.access_token)
+
+    def get_refresh_token(self) -> str | None:
+        from app.services.security.crypto import decrypt_value, is_encrypted
+        if not self.refresh_token:
+            return None
+        if not is_encrypted(self.refresh_token):
+            return self.refresh_token
+        return decrypt_value(self.refresh_token)
 
     def to_dict(self, reveal_keys=False):
         return {

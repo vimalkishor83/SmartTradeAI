@@ -758,6 +758,14 @@ Direct Delta and Binance OHLCV fetches now use per-symbol/timeframe single-fligh
 
 **Regression evidence:** Focused market-data, data-quality and prediction-history checks passed (**28 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**282 passed** in 101.77s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.50 IMPLEMENTED — Encrypt admin provider access and refresh tokens
+
+APIConfig access and refresh token writes now use the same Fernet at-rest protection as API keys and secrets. Reads tolerate legacy plaintext rows so existing deployments remain usable, while admin create/update and connection-test flows use credential accessors instead of raw token columns. API responses continue exposing presence booleans only.
+
+**Risk level:** High credential-security value, low compatibility/API risk (no column shape or response fields changed; legacy values remain readable). **Affected modules:** `app/models/api_config.py`, `app/api/v1/admin.py`, `tests/unit/test_api_config_credentials.py`. **Migration:** none; newly written tokens are encrypted, and legacy values are read compatibly until the next edit.
+
+**Regression evidence:** Focused credential, validation and provider-health checks passed (**22 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**284 passed** in 110.78s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -901,5 +909,10 @@ Direct Delta and Binance OHLCV fetches now use per-symbol/timeframe single-fligh
 **Session 28 (market-data performance — OHLCV single-flight):**
 - `app/services/data/fetcher.py` — add per-key miss locks and double-checked cache reads for direct Delta and Binance candle fetches.
 - `tests/unit/test_market_data_singleflight.py` — verify concurrent identical Delta misses issue one provider request and share the cached frame.
+
+**Session 29 (credential security — encrypted admin provider tokens):**
+- `app/models/api_config.py` — add encrypted setters/getters for access and refresh tokens with legacy plaintext-read compatibility.
+- `app/api/v1/admin.py` — route admin create/update/connection-test token flows through the accessors.
+- `tests/unit/test_api_config_credentials.py` — verify encrypted storage and legacy plaintext reads.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
