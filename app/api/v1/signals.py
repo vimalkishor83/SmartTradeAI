@@ -1340,11 +1340,14 @@ def _open_live_read_log(asset, timeframe, result):
         except Exception:
             reasoning_text = result.get("reasoning")
 
+        generated_at = datetime.utcnow()
         row = LiveReadLog(
             asset_id=asset.id, timeframe=timeframe, signal_type=result["signal_type"],
             confidence_score=result.get("confidence_score"), entry_price=result.get("entry_price"),
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
+            generated_at=generated_at,
+            expires_at=generated_at + timedelta(minutes=_SIGNAL_EXPIRY.get(timeframe, 240)),
             reasoning=reasoning_text, reasoning_detail=result.get("reasoning_detail"),
             regime=result.get("regime"),
             data_quality=result.get("data_quality"),
@@ -2260,9 +2263,10 @@ def live_read_performance():
     hardest target, whereas a real Signal is marked a win at target1 (see
     _frozen_live_read's docstring). A read that reaches target1 or target2
     and then reverses counts as neither a win nor a loss here — it just
-    sits in `open` until its cache entry ages out, uncounted in win_rate's
-    denominator, rather than resolving as an "expired" outcome the way a
-    real Signal's `_check_outcome` does. Do not use this number to claim
+    sits in `open` only until its timeframe window ends, then resolves as
+    an explicit neutral `expired` outcome. Expired reads are included in
+    the resolved denominator and exposed separately, rather than silently
+    disappearing when the cache entry ages out. Do not use this number to claim
     an overall platform accuracy figure without this caveat attached.
     """
     from app.models.live_read_log import LiveReadLog
@@ -2271,6 +2275,7 @@ def live_read_performance():
     resolved_q = LiveReadLog.query.filter(LiveReadLog.outcome.isnot(None))
     resolved = resolved_q.count()
     wins = resolved_q.filter(LiveReadLog.outcome == "win").count()
+    expired = resolved_q.filter(LiveReadLog.outcome == "expired").count()
     win_rate = round(wins / resolved * 100, 1) if resolved else None
 
     tf_rows = (
@@ -2278,16 +2283,18 @@ def live_read_performance():
             LiveReadLog.timeframe, func.count(LiveReadLog.id),
             func.sum(case((LiveReadLog.outcome == "win", 1), else_=0)),
             func.sum(case((LiveReadLog.outcome.isnot(None), 1), else_=0)),
+            func.sum(case((LiveReadLog.outcome == "expired", 1), else_=0)),
         ).group_by(LiveReadLog.timeframe).all()
     )
     by_timeframe = [{
-        "timeframe": tf, "total": total_n, "resolved": res_n,
+        "timeframe": tf, "total": total_n, "resolved": res_n, "expired": expired_n,
         "win_rate": round(w / res_n * 100, 1) if res_n else None,
-    } for tf, total_n, w, res_n in tf_rows]
+    } for tf, total_n, w, res_n, expired_n in tf_rows]
 
     return jsonify({
         "total_logged": total,
         "resolved": resolved,
+        "expired": expired,
         "open": total - resolved,
         "win_rate": win_rate,
         "by_timeframe": by_timeframe,

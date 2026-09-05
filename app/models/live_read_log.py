@@ -16,7 +16,9 @@ class LiveReadLog(db.Model):
     hypothetical trade is still open (current price hasn't reached the
     frozen stop-loss or final target yet); _frozen_live_read closes it out
     the moment a fresh read replaces it, using the same win/loss condition
-    that would close a real signal.
+    that would close a real signal. A read that reaches neither boundary
+    before its timeframe window ends is marked `expired` (neutral) by the
+    scheduled cleanup job.
     """
     __tablename__ = "live_read_logs"
 
@@ -30,9 +32,10 @@ class LiveReadLog(db.Model):
     target1 = db.Column(db.Float)
     target2 = db.Column(db.Float)
     target3 = db.Column(db.Float)
-    outcome = db.Column(db.String(10))       # None (open), "win", or "loss"
+    outcome = db.Column(db.String(10))       # None (open), "win", "loss", or "expired"
     exit_price = db.Column(db.Float)
     generated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+    expires_at = db.Column(db.DateTime, index=True)
     resolved_at = db.Column(db.DateTime)
 
     # Same "why" data a real Signal row carries (see Signal.reasoning /
@@ -62,6 +65,7 @@ class LiveReadLog(db.Model):
             "outcome": self.outcome,
             "exit_price": self.exit_price,
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None,
             "reasoning": self.reasoning,
             "reasoning_detail": self.reasoning_detail,

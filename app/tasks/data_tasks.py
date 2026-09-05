@@ -1168,6 +1168,47 @@ def nightly_cleanup(app):
             logger.error(f"Nightly cleanup failed: {e}")
 
 
+def expire_live_read_logs(app):
+    """Close stale Terminal preview reads as neutral outcomes.
+
+    Live-read cards are intentionally measured against target3, so a read can
+    remain open after reaching target1. Once its timeframe window ends it must
+    become an explicit neutral result instead of disappearing from the win-rate
+    denominator when the Redis card cache expires.
+    """
+    with app.app_context():
+        from app.models.live_read_log import LiveReadLog
+        from app.extensions import cache, db
+        from datetime import datetime
+
+        now = datetime.utcnow()
+        try:
+            expired = (
+                LiveReadLog.query
+                .filter(
+                    LiveReadLog.outcome.is_(None),
+                    LiveReadLog.expires_at.isnot(None),
+                    LiveReadLog.expires_at <= now,
+                )
+                .update(
+                    {
+                        LiveReadLog.outcome: "expired",
+                        LiveReadLog.resolved_at: now,
+                    },
+                    synchronize_session=False,
+                )
+            )
+            if expired:
+                db.session.commit()
+                cache.delete("signals_live_read_performance")
+                logger.info("Marked %d stale Terminal live reads as expired.", expired)
+            else:
+                db.session.rollback()
+        except Exception as e:
+            db.session.rollback()
+            logger.error(f"Live-read expiry cleanup failed: {e}")
+
+
 def prewarm_delta_market_screener(app):
     """Pre-compute the flexible-condition screener's metric universe (price,
     24h change, volume, RSI(14), funding, open interest) for each asset type,
@@ -1256,6 +1297,10 @@ def register_data_jobs(scheduler, app):
     # Prediction accuracy evaluation — every 30 minutes
     scheduler.add_job(evaluate_expired_predictions, "interval", minutes=30,
                       args=[app], id="eval_predictions", replace_existing=True)
+    # Terminal preview expiry — every 5 minutes, aligned with signal outcome
+    # tracking so stale reads become explicit neutral results promptly.
+    scheduler.add_job(expire_live_read_logs, "interval", minutes=5,
+                      args=[app], id="expire_live_read_logs", replace_existing=True)
     # Nightly database cleanup — runs at 02:00 UTC every day
     scheduler.add_job(nightly_cleanup, "cron", hour=2, minute=0,
                       args=[app], id="nightly_cleanup", replace_existing=True)

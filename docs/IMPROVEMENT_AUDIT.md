@@ -274,9 +274,9 @@ This surfaces as a real, user-facing accuracy claim: `GET /signals/live-read-per
 
 **Verified live**: disposable test account created (temporarily elevated to view the Basic+-gated `/performance` page), confirmed via direct DOM query that the new caption text renders exactly as written on the production page's "Terminal Live Reads" card; account and all FK-dependent rows deleted afterward.
 
-### 5.3 Remaining Phase 4 items (not done in this pass — larger, separate changes)
+### 5.3 Remaining Phase 4 items (partially completed; larger, separate changes remain)
 
-- **A real fix for the underlying design gap**, not just the disclosure added above: give `LiveReadLog` its own `expires_at` (mirroring `Signal.expires_at`) and a scheduled sweep that marks timed-out-without-resolving rows `outcome="expired"` (neutral), the way real signals already correctly do — this needs a new DB column + migration + a background job, which is why it wasn't done speculatively in this pass. Once that exists, a second, real product decision follows: should `live_read_performance()`'s win condition be changed to `target1` to make it genuinely comparable to real-signal win rate (as its docstrings originally, incorrectly, claimed it already was), or is measuring against the harder `target3` bar an intentional, different metric that just needs to stay clearly labeled as such? That's a product call, not a bug fix — flagged for discussion.
+- **Completed in §7.22:** `LiveReadLog` now has its own `expires_at`, a migration/backfill, and a scheduled sweep that marks timed-out-without-resolving rows `outcome="expired"` (neutral). The remaining product decision is whether `live_read_performance()` should change its win condition to `target1` to become comparable to real-signal win rate, or keep the harder `target3` bar as a separately labeled metric. The implementation keeps target3 because changing the definition of an existing metric requires an explicit product decision.
 - Signal-lifecycle reproducibility metadata (engine version / model version stamped on each generated `Signal`) — overlaps the Phase 1 item already flagged in §2.8/§5-remainder; still not started.
 - The rest of Phase 4 as specified (signal versioning at the schema level) beyond the one concrete defect found and fixed above.
 
@@ -524,7 +524,7 @@ The data-quality persistence change for generated signals also passed data_quali
 
 **Risk level:** High auditability value, low compatibility risk (nullable additive column; existing rows and live-read response behavior remain valid). **Affected modules:** app/models/live_read_log.py, app/__init__.py, migrations/versions/4c8d9e0f1a2b_add_data_quality_to_live_read_logs.py, tests/unit/test_live_read_log_contract.py. **Migration:** required; the application startup migration runner applies it automatically in the deployed topology.
 
-**Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production deployment completed on 2026-09-05 from \`e7353ba\`: Alembic reported \`4c8d9e0f1a2b (head)\`, the app, PostgreSQL, Redis and worker were healthy, \`/api/v1/system/health\` returned \`HTTP 200\` with \`X-Request-ID: live-read-quality-20260905\`, the deployed persistence, Terminal freeze, export, performance and prediction tests passed (**14 passed** in 8.68s), and the ten-minute app/worker error scan contained no app error matches. A full integration suite was not run against production because it could mutate live services or data.
+**Regression evidence:** The focused persistence and Terminal freeze tests passed locally (**5 passed**); the full local suite passed with **219 passed** in 93.27s. Production deployment completed on 2026-09-05 from e7353ba: Alembic reported 4c8d9e0f1a2b (head), the app, PostgreSQL, Redis and worker were healthy, the health endpoint returned HTTP 200 with request ID live-read-quality-20260905, the deployed persistence, Terminal freeze, export, performance and prediction tests passed (**14 passed** in 8.68s), and the ten-minute app/worker error scan contained no app error matches. A full integration suite was not run against production because it could mutate live services or data.
 
 ### 7.21 IMPLEMENTED — Serialize PostgreSQL startup migrations
 
@@ -532,7 +532,15 @@ The split Gunicorn web tier can initialize several workers concurrently. Alembic
 
 **Risk level:** High deployment-reliability value, low runtime compatibility risk (migration startup only; no request or trading behavior changes). **Affected modules:** migrations/env.py. **Migration:** none beyond the existing Alembic revisions.
 
-**Regression evidence:** Migration syntax, Terminal persistence/freeze tests (**5 passed**), and the full local suite (**219 passed** in 104.65s) passed. Production deployment completed on 2026-09-05 from \`2555882\`: all services were healthy, the deployed Alembic revision remained \`4c8d9e0f1a2b (head)\`, \`/api/v1/system/health\` returned \`HTTP 200\` with \`X-Request-ID: migration-lock-20260905\`, the focused deployed suite passed (**14 passed** in 8.63s), and a fresh app/worker log scan had no migration fallback, duplicate-column, traceback, or error output. A full integration suite was not run against production because it could mutate live services or data.
+**Regression evidence:** Migration syntax, Terminal persistence/freeze tests (**5 passed**), and the full local suite (**219 passed** in 104.65s) passed. Production deployment completed on 2026-09-05 from 2555882: all services were healthy, the deployed Alembic revision remained 4c8d9e0f1a2b (head), the health endpoint returned HTTP 200 with request ID migration-lock-20260905, the focused deployed suite passed (**14 passed** in 8.63s), and a fresh app/worker log scan had no migration fallback, duplicate-column, traceback, or error output. A full integration suite was not run against production because it could mutate live services or data.
+
+### 7.22 IMPLEMENTED — Resolve stale Terminal live reads as neutral expiries
+
+Terminal live-read logs now receive an expires_at value from the same timeframe windows used by the signal engine. A worker job marks timed-out open reads as an explicit expired neutral outcome, invalidates the cached performance summary, and preserves target3 as the deliberately stricter win bar. The performance API and card now expose expired-neutral counts, completed denominators, and open reads still inside their valid window, so stale cache replacement cannot silently improve the displayed win rate.
+
+**Risk level:** High measurement-integrity value, low compatibility risk (additive nullable column/API fields and an explicit neutral outcome; existing target3 win/loss behavior remains unchanged). **Affected modules:** app/models/live_read_log.py, app/api/v1/signals.py, app/tasks/data_tasks.py, app/__init__.py, frontend/templates/dashboard/performance.html, migrations/versions/5d9e0f1a2b3c_add_expiry_to_live_read_logs.py, tests/unit/test_live_read_log_contract.py. **Migration:** required; the migration backfills expiry timestamps for existing rows using their stored timeframe.
+
+**Regression evidence:** Expiry, persistence, Terminal freeze and signal-performance tests passed locally (**7 passed**); the full local suite passed with **220 passed** in 139.05s. Production migration, scheduler and UI verification are pending for this slice.
 
 ## 8. Files changed this pass
 

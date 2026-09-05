@@ -489,6 +489,7 @@ def _migrate_columns(app):
         ("api_configs","last_sync",            "DATETIME"),
         ("api_configs","last_latency_ms",      "INTEGER"),
         ("live_read_logs", "data_quality",     "TEXT"),
+        ("live_read_logs", "expires_at",        "DATETIME"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)

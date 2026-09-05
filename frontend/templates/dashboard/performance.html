@@ -157,34 +157,38 @@
     <div class="section-card">
       <div class="section-card-header">
         <span class="section-card-title">Terminal Live Reads</span>
-        <span class="text-muted fs-xs">Cards shown when no real signal exists yet for that asset+timeframe — tracked separately from real signals above. Win Rate here uses a stricter bar (must reach the final target) than real signals (which count a win at the first target), so the two percentages are not directly comparable. "Still Open" includes reads that may never resolve and age out uncounted.</span>
+        <span class="text-muted fs-xs">Cards shown when no real signal exists yet for that asset+timeframe — tracked separately from real signals above. Win Rate here uses a stricter bar (must reach the final target) than real signals (which count a win at the first target), so the two percentages are not directly comparable. Completed includes target3 wins, stop losses and neutral expiries; "Still Open" covers reads inside their timeframe window.</span>
       </div>
       <div class="section-card-body">
         <div class="row g-3 mb-3">
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="fs-xs text-muted">Total Logged</div>
             <div class="fw-800" id="lrTotal" style="font-size:20px">—</div>
           </div>
-          <div class="col-6 col-md-3">
-            <div class="fs-xs text-muted">Resolved</div>
+          <div class="col-6 col-md">
+            <div class="fs-xs text-muted">Completed</div>
             <div class="fw-800" id="lrResolved" style="font-size:20px">—</div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="fs-xs text-muted">Still Open</div>
             <div class="fw-800" id="lrOpen" style="font-size:20px">—</div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="fs-xs text-muted">Win Rate</div>
             <div class="fw-800 text-green" id="lrWinRate" style="font-size:20px">—</div>
+          </div>
+          <div class="col-6 col-md">
+            <div class="fs-xs text-muted">Expired Neutral</div>
+            <div class="fw-800" id="lrExpired" style="font-size:20px">—</div>
           </div>
         </div>
         <div class="table-responsive">
           <table class="smart-table">
             <thead>
-              <tr><th>Timeframe</th><th>Total</th><th>Resolved</th><th>Win Rate</th></tr>
+              <tr><th>Timeframe</th><th>Total</th><th>Completed</th><th>Expired Neutral</th><th>Win Rate</th></tr>
             </thead>
             <tbody id="lrTfTable">
-              <tr><td colspan="4" class="text-center text-muted py-4">Loading…</td></tr>
+              <tr><td colspan="5" class="text-center text-muted py-4">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -421,18 +425,20 @@ async function loadLiveReadPerformance() {
   set('lrTotal', data.total_logged ?? 0);
   set('lrResolved', data.resolved ?? 0);
   set('lrOpen', data.open ?? 0);
+  set('lrExpired', data.expired ?? 0);
   set('lrWinRate', data.win_rate != null ? data.win_rate.toFixed(1) + '%' : '—');
 
   const body = document.getElementById('lrTfTable');
   const rows = data.by_timeframe || [];
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No live reads logged yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No live reads logged yet.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => `<tr>
     <td><span class="badge-tag">${r.timeframe}</span></td>
     <td>${r.total}</td>
     <td>${r.resolved}</td>
+    <td>${r.expired ?? 0}</td>
     <td>${r.win_rate != null ? r.win_rate.toFixed(1) + '%' : '—'}</td>
   </tr>`).join('');
 }
