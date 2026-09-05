@@ -508,7 +508,7 @@ The exposed `/signals/performance/by-asset` route now computes overall statistic
 
 **Risk level:** Medium scalability value, low API compatibility risk (existing keys, calculations, and bounded 50-bucket response are preserved; no model or schema change). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_performance_by_asset.py`. **Migration:** none.
 
-**Regression evidence:** Focused per-asset performance tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 153.08s. Production verification is pending for this slice.
+**Regression evidence:** Focused per-asset performance tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 153.08s. Production deployment completed on 2026-09-05 from `4a2e978`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: per-asset-performance-20260905`, the deployed per-asset, signal-performance, export and prediction tests passed (**9 passed** in 6.36s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
