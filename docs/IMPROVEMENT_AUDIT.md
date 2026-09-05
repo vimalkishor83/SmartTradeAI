@@ -301,6 +301,14 @@ This surfaces as a real, user-facing accuracy claim: `GET /signals/live-read-per
 - Market-regime confidence context (`s.regime` already exists on every signal but isn't shown in the Inspector itself, only used elsewhere) — not added this pass, scoped separately to keep this change to one concrete addition.
 - **A much deeper AI/ML rigor spec was handed over on 2026-09-05, to start once the current phase of this 16-phase pass reaches a natural stopping point** — see the user-provided spec (calibration separation, ensemble redesign, drift monitoring, leakage testing, shadow models, per-model independent evaluation, a new `/admin/ai-quality` page, etc.). That spec substantially deepens and overlaps this section's remaining items and Phase 2/3's remaining items — treat it as the rigorous continuation of this work, not a separate backlog, when it's time to start it.
 
+### 6.3 IMPLEMENTED — Surface data quality and market regime in the Decision Inspector
+
+The dashboard Decision Inspector now displays the persisted signal data-quality status, candle age, provider, candle count and market regime beside the trade plan. Unknown or historical values degrade to explicit labels rather than fabricated certainty, and the regime copy states that it describes the observed environment rather than predicting profit. This gives users the context needed to decide whether a signal is actionable without changing signal selection or confidence math.
+
+**Risk level:** Low (additive UI-only rendering with safe provider escaping). **Affected modules:** `frontend/static/js/pages/dashboard.js`, `frontend/static/css/main.css`. **Migration:** none.
+
+**Regression evidence:** JavaScript syntax validation and whitespace checks passed locally. Production app service was rebuilt and restarted from commit `c4dcbcb`; authenticated visual browser verification remains a follow-up because no browser control surface was available in this session.
+
 ---
 
 ## 7. Remaining P0/P1 items from the full 16-phase spec (not started)
