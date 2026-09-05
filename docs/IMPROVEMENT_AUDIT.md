@@ -446,6 +446,14 @@ The Flask app now preserves a safe inbound `X-Request-ID` or generates one, retu
 
 **Regression evidence:** The focused integration suite passed locally and in the deployed container (**5 passed**); the full local suite passed with **180 passed** in 97.23s. Production deployment completed on 2026-09-05 from `d6dd16c`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the application log contained the expected JSON completion record with duration, and the fresh app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.11 IMPLEMENTED — Harden Auto Generate configuration boundaries
+
+Auto Generate save, start and run-once routes now require JSON objects, validate supported markets/timeframes/filters and asset-ID shapes, deduplicate selections, and bound confidence, per-run signals and repeat interval settings. Boolean parsing is explicit, so values such as the string `"false"` are no longer persisted as `True`; malformed or unsupported configuration returns a clear `400` before scheduler or generation work begins, while partial Run Once updates retain their existing semantics.
+
+**Risk level:** Medium reliability and operational-safety value, low compatibility risk (valid UI configuration remains supported; only malformed, unsupported or excessive values are rejected/normalized). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_auto_generate_config.py`. **Migration:** none.
+
+**Regression evidence:** Focused Auto Generate integration tests passed locally (**7 passed**); the full local suite passed with **185 passed** in 116.42s. Production deployment and production smoke verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

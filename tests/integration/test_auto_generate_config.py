@@ -25,6 +25,17 @@ up right.
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def restore_auto_generate_state():
+    """Keep module-global scheduler state isolated between tests/modules."""
+    from app.api.v1.signals import _AG_STATE
+
+    snapshot = dict(_AG_STATE)
+    yield
+    _AG_STATE.clear()
+    _AG_STATE.update(snapshot)
+
+
 @pytest.fixture
 def super_admin_headers(app, client):
     with app.app_context():
@@ -114,3 +125,45 @@ class TestAutoGenerateStopDoesNotRevertOtherSettings:
             assert row.timeframes == ["5m", "15m"]
             assert row.interval_minutes == 20
             assert row.markets == ["crypto"]
+
+
+class TestAutoGenerateInputValidation:
+    @pytest.mark.parametrize("route", [
+        "/api/v1/signals/auto-generate/save",
+        "/api/v1/signals/auto-generate/start",
+        "/api/v1/signals/auto-generate/run-once",
+    ])
+    def test_non_object_body_returns_400(self, client, super_admin_headers, route):
+        resp = client.post(route, json=[], headers=super_admin_headers)
+        assert resp.status_code == 400
+        assert resp.get_json()["error"] == "request body must be a JSON object"
+
+    def test_invalid_configuration_returns_400(self, client, super_admin_headers):
+        resp = client.post(
+            "/api/v1/signals/auto-generate/save",
+            json={"timeframes": ["10h"], "signal_filter": "unknown"},
+            headers=super_admin_headers,
+        )
+        assert resp.status_code == 400
+        assert "unsupported timeframes" in resp.get_json()["error"]
+
+    def test_configuration_is_bounded_and_boolean_is_parsed(self, client, super_admin_headers):
+        resp = client.post(
+            "/api/v1/signals/auto-generate/save",
+            json={
+                "timeframes": ["1h", "1h"],
+                "markets": ["crypto"],
+                "min_confidence": 999,
+                "max_per_run": 999999,
+                "interval_minutes": -5,
+                "telegram_on_signal": "false",
+            },
+            headers=super_admin_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["timeframes"] == ["1h"]
+        assert body["min_confidence"] == 100
+        assert body["max_per_run"] == 1000
+        assert body["interval_minutes"] == 0
+        assert body["telegram_on_signal"] is False

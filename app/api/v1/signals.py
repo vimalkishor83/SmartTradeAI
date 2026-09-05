@@ -409,27 +409,113 @@ def _run_auto_generate(app):
         _ag_publish_status()
 
 
-def _parse_ag_config(data):
-    """Shared parsing for auto-generate config payloads (start/save/run-once)."""
-    raw_tfs = data.get("timeframes") or data.get("timeframe", "1h")
-    timeframes = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
+_AG_ALLOWED_FILTERS = frozenset({"all", "strong", "buy_sell", "buy", "sell"})
+_AG_MAX_TIMEFRAMES = 8
+_AG_MAX_ASSET_IDS = 500
 
-    raw_markets = data.get("markets") or data.get("market") or []
-    markets = raw_markets if isinstance(raw_markets, list) else ([raw_markets] if raw_markets else [])
-    markets = [m for m in markets if m]  # drop empty strings
 
-    asset_ids = data.get("asset_ids", [])
+def _ag_bool(value, default=True):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off", ""}:
+            return False
+    return default
 
-    return {
-        "asset_ids":          [int(x) for x in asset_ids],
-        "markets":            markets,
-        "timeframes":         timeframes,
-        "signal_filter":      data.get("signal_filter", "all"),
-        "min_confidence":     float(data.get("min_confidence", 0)),
-        "max_per_run":        int(data.get("max_per_run", 0)),
-        "interval_minutes":   int(data.get("interval_minutes", 5)),
-        "telegram_on_signal": bool(data.get("telegram_on_signal", True)),
-    }
+
+def _ag_choice_list(raw, field, allowed, *, default=None, maximum=None):
+    if raw is None:
+        values = list(default or [])
+    elif isinstance(raw, list):
+        values = raw
+    elif isinstance(raw, str):
+        values = [raw]
+    else:
+        raise ValueError(f"{field} must be a string or array")
+
+    normalized = []
+    for value in values:
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"{field} contains an invalid value")
+        if value not in allowed:
+            raise ValueError(f"unsupported {field}: {value}")
+        if value not in normalized:
+            normalized.append(value)
+
+    if maximum is not None and len(normalized) > maximum:
+        raise ValueError(f"{field} supports at most {maximum} values")
+    return normalized
+
+
+def _ag_asset_ids(raw):
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("asset_ids must be an array")
+    normalized = []
+    for value in raw:
+        try:
+            asset_id = int(value)
+        except (TypeError, ValueError):
+            raise ValueError("asset_ids must contain positive integers")
+        if asset_id <= 0:
+            raise ValueError("asset_ids must contain positive integers")
+        if asset_id not in normalized:
+            normalized.append(asset_id)
+    if len(normalized) > _AG_MAX_ASSET_IDS:
+        raise ValueError(f"asset_ids supports at most {_AG_MAX_ASSET_IDS} values")
+    return normalized
+
+
+def _parse_ag_config(data, *, partial=False):
+    """Parse and bound Auto-Generate settings for save/start/run-once."""
+    if not isinstance(data, dict):
+        raise ValueError("request body must be a JSON object")
+
+    parsed = {}
+    if not partial or "asset_ids" in data:
+        parsed["asset_ids"] = _ag_asset_ids(data.get("asset_ids"))
+
+    if not partial or "timeframes" in data or "timeframe" in data:
+        raw_tfs = data.get("timeframes") or data.get("timeframe") or "1h"
+        parsed["timeframes"] = _ag_choice_list(
+            raw_tfs, "timeframes", _SIGNAL_EXPIRY, default=["1h"], maximum=_AG_MAX_TIMEFRAMES,
+        ) or ["1h"]
+
+    if not partial or "markets" in data or "market" in data:
+        raw_markets = data.get("markets") or data.get("market") or []
+        parsed["markets"] = _ag_choice_list(raw_markets, "markets", Asset.MARKETS)
+
+    if not partial or "signal_filter" in data:
+        signal_filter = data.get("signal_filter", "all")
+        if not isinstance(signal_filter, str) or signal_filter not in _AG_ALLOWED_FILTERS:
+            raise ValueError(f"unsupported signal_filter: {signal_filter}")
+        parsed["signal_filter"] = signal_filter
+
+    if not partial or "min_confidence" in data:
+        parsed["min_confidence"] = bounded_float(
+            data.get("min_confidence", 0), default=0, minimum=0, maximum=100,
+        )
+
+    if not partial or "max_per_run" in data:
+        parsed["max_per_run"] = bounded_int(
+            data.get("max_per_run", 0), default=0, minimum=0, maximum=1000,
+        )
+
+    # Run Once historically did not change the saved repeat interval or
+    # Telegram setting, so partial parsing intentionally leaves them out.
+    if not partial:
+        parsed["interval_minutes"] = bounded_int(
+            data.get("interval_minutes", 5), default=5, minimum=0, maximum=1440,
+        )
+        parsed["telegram_on_signal"] = _ag_bool(data.get("telegram_on_signal", True))
+
+    return parsed
 
 
 @signals_bp.route("/auto-generate/save", methods=["POST"])
@@ -448,23 +534,29 @@ def ag_save_config():
     schedule the next time the worker polls this config — exactly the
     kind of "Auto-Generate randomly stopped" report this was causing.
     """
-    data = request.get_json() or {}
-    _AG_STATE.update(_parse_ag_config(data))
+    data = request.get_json(silent=True)
+    try:
+        config = _parse_ag_config(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    _AG_STATE.update(config)
     saved = _ag_load()
     if saved is not None:
         _AG_STATE["running"] = bool(saved.get("running"))
     _ag_save()
     _ag_log("Configuration saved")
-    return jsonify({"status": "saved", **_parse_ag_config(data)}), 200
+    return jsonify({"status": "saved", **config}), 200
 
 
 @signals_bp.route("/auto-generate/start", methods=["POST"])
 @super_admin_required
 def ag_start():
     from app.extensions import scheduler
-    data = request.get_json() or {}
-
-    cfg = _parse_ag_config(data)
+    data = request.get_json(silent=True)
+    try:
+        cfg = _parse_ag_config(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     timeframes = cfg["timeframes"]
     asset_ids  = cfg["asset_ids"]
     markets    = cfg["markets"]
@@ -590,21 +682,12 @@ def ag_watchlist():
 @signals_bp.route("/auto-generate/run-once", methods=["POST"])
 @super_admin_required
 def ag_run_once():
-    data = request.get_json() or {}
-    raw_tfs = data.get("timeframes") or data.get("timeframe")
-    if raw_tfs:
-        _AG_STATE["timeframes"] = raw_tfs if isinstance(raw_tfs, list) else [raw_tfs]
-    if "asset_ids" in data:
-        _AG_STATE["asset_ids"] = [int(x) for x in data["asset_ids"]]
-    if "markets" in data or "market" in data:
-        raw_markets = data.get("markets") or data.get("market") or []
-        _AG_STATE["markets"] = raw_markets if isinstance(raw_markets, list) else ([raw_markets] if raw_markets else [])
-    if "signal_filter" in data:
-        _AG_STATE["signal_filter"] = data["signal_filter"]
-    if "min_confidence" in data:
-        _AG_STATE["min_confidence"] = float(data["min_confidence"])
-    if "max_per_run" in data:
-        _AG_STATE["max_per_run"] = int(data["max_per_run"])
+    data = request.get_json(silent=True)
+    try:
+        config = _parse_ag_config(data, partial=True)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    _AG_STATE.update(config)
     app = current_app._get_current_object()
     import threading
     threading.Thread(target=_run_auto_generate, args=[app], daemon=True).start()
