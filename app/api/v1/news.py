@@ -11,6 +11,7 @@ news_bp = Blueprint("news", __name__)
 
 _NEWS_FETCH_MARKER = "news_fetch_in_progress"
 _NEWS_FETCH_MARKER_TTL = 60
+_ECONOMIC_CALENDAR_FETCH_LOCK = threading.Lock()
 
 
 @news_bp.route("/", methods=["GET"])
@@ -64,8 +65,7 @@ def get_news():
 def economic_calendar():
     """Public/no-auth: read-only calendar, matches the reference site's
     free "Economic Calendar" dashboard tier."""
-    import requests as req
-    from datetime import datetime, timedelta, timezone
+    from datetime import datetime, timedelta
 
     # Try cache first
     cached = cache.get("econ_calendar")
@@ -81,100 +81,106 @@ def economic_calendar():
     ).order_by(EconomicEvent.event_time).all()
 
     if not events:
-        # Fetch live from Forex Factory free API
-        urls = [
-            "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
-            "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
-        ]
-        from app.extensions import db
-        all_raw = []
-        for url in urls:
-            try:
-                resp = req.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
-                resp.raise_for_status()
-                all_raw.extend(resp.json())
-            except Exception as e:
-                logger.debug(f"Economic calendar fetch failed: {e}")
-
-        # Parse everything first (pure computation) so existing rows can be
-        # batch-fetched in ONE query instead of one
-        # EconomicEvent.query.filter_by(title=..., event_time=...) SELECT per
-        # event — mirrors the same fix in app/tasks/data_tasks.py's
-        # fetch_economic_calendar (this cold path and that scheduled job
-        # were near-identical duplicates of the same upsert loop).
-        parsed = []
-        for ev in all_raw:
-            title = ev.get("title", "").strip()
-            date_str = ev.get("date", "")
-            if not title or not date_str:
-                continue
-            # Forex Factory sends the event's own timezone offset (US Eastern) —
-            # it must be converted to UTC, not discarded, or events land 4-5
-            # hours early. Naive datetimes are UTC everywhere else in this app.
-            event_time = None
-            for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
-                try:
-                    dt = datetime.strptime(date_str, fmt)
-                    if dt.tzinfo is not None:
-                        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
-                    event_time = dt
-                    break
-                except ValueError:
-                    continue
-            if not event_time:
-                continue
-
-            impact_raw = (ev.get("impact") or "").lower()
-            impact = impact_raw if impact_raw in ("high", "medium", "low") else "low"
-            parsed.append({
-                "title": title, "event_time": event_time, "impact": impact,
-                "country": ev.get("country", ""), "forecast": ev.get("forecast"),
-                "previous": ev.get("previous"), "actual": ev.get("actual"),
-            })
-
-        if parsed:
-            times = [p["event_time"] for p in parsed]
-            existing_rows = (
-                EconomicEvent.query
-                .filter(EconomicEvent.event_time.between(min(times), max(times)))
-                .all()
-            )
-            existing_by_key = {(e.title, e.event_time): e for e in existing_rows}
-
-            for p in parsed:
-                key = (p["title"], p["event_time"])
-                existing = existing_by_key.get(key)
-                if existing:
-                    existing.actual = p["actual"] or existing.actual
-                else:
-                    event = EconomicEvent(
-                        title=p["title"],
-                        country=p["country"],
-                        currency=p["country"],
-                        impact=p["impact"],
-                        forecast=p["forecast"],
-                        previous=p["previous"],
-                        actual=p["actual"],
-                        event_time=p["event_time"],
-                    )
-                    db.session.add(event)
-                    # Same-batch duplicate guard — the two overlapping
-                    # ForexFactory week-URLs can return one event twice in a
-                    # single request; without this, existing_by_key (seeded
-                    # once before the loop) would never see it as "existing"
-                    # and would insert it a second time.
-                    existing_by_key[key] = event
-        try:
-            db.session.commit()
-        except Exception as e:
-            db.session.rollback()
-            logger.error(f"Economic calendar DB save failed: {e}")
-
-        # Re-query after save
-        events = EconomicEvent.query.filter(
-            EconomicEvent.event_time.between(start, end)
-        ).order_by(EconomicEvent.event_time).all()
+        # Several pages request this endpoint at startup. Only the first cold
+        # request should contact Forex Factory; later requests re-check cache
+        # and DB after waiting for that refresh to finish.
+        with _ECONOMIC_CALENDAR_FETCH_LOCK:
+            cached = cache.get("econ_calendar")
+            if cached:
+                return jsonify(cached), 200
+            events = _calendar_events_between(start, end)
+            if not events:
+                events = _fetch_economic_calendar(start, end)
 
     result = {"events": [e.to_dict() for e in events]}
     cache.set("econ_calendar", result, timeout=3600)
     return jsonify(result), 200
+
+
+def _calendar_events_between(start, end):
+    return (EconomicEvent.query
+            .filter(EconomicEvent.event_time.between(start, end))
+            .order_by(EconomicEvent.event_time)
+            .all())
+
+
+def _fetch_economic_calendar(start, end):
+    """Fetch, batch-upsert, and return the current Forex Factory window."""
+    import requests as req
+    from datetime import datetime, timezone
+    from app.extensions import db
+
+    urls = [
+        "https://nfs.faireconomy.media/ff_calendar_thisweek.json",
+        "https://nfs.faireconomy.media/ff_calendar_nextweek.json",
+    ]
+    all_raw = []
+    for url in urls:
+        try:
+            resp = req.get(url, timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+            resp.raise_for_status()
+            all_raw.extend(resp.json())
+        except Exception as e:
+            logger.debug(f"Economic calendar fetch failed: {e}")
+
+    # Parse first so existing rows can be fetched with one ranged query.
+    parsed = []
+    for ev in all_raw:
+        title = ev.get("title", "").strip()
+        date_str = ev.get("date", "")
+        if not title or not date_str:
+            continue
+        event_time = None
+        for fmt in ("%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%dT%H:%M:%S"):
+            try:
+                dt = datetime.strptime(date_str, fmt)
+                if dt.tzinfo is not None:
+                    dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
+                event_time = dt
+                break
+            except ValueError:
+                continue
+        if not event_time:
+            continue
+
+        impact_raw = (ev.get("impact") or "").lower()
+        impact = impact_raw if impact_raw in ("high", "medium", "low") else "low"
+        parsed.append({
+            "title": title, "event_time": event_time, "impact": impact,
+            "country": ev.get("country", ""), "forecast": ev.get("forecast"),
+            "previous": ev.get("previous"), "actual": ev.get("actual"),
+        })
+
+    if parsed:
+        times = [p["event_time"] for p in parsed]
+        existing_rows = (EconomicEvent.query
+                         .filter(EconomicEvent.event_time.between(min(times), max(times)))
+                         .all())
+        existing_by_key = {(e.title, e.event_time): e for e in existing_rows}
+
+        for p in parsed:
+            key = (p["title"], p["event_time"])
+            existing = existing_by_key.get(key)
+            if existing:
+                existing.actual = p["actual"] or existing.actual
+            else:
+                event = EconomicEvent(
+                    title=p["title"],
+                    country=p["country"],
+                    currency=p["country"],
+                    impact=p["impact"],
+                    forecast=p["forecast"],
+                    previous=p["previous"],
+                    actual=p["actual"],
+                    event_time=p["event_time"],
+                )
+                db.session.add(event)
+                # Both weekly feeds can contain the same event.
+                existing_by_key[key] = event
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Economic calendar DB save failed: {e}")
+
+    return _calendar_events_between(start, end)
