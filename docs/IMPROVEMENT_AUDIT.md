@@ -542,6 +542,14 @@ Terminal live-read logs now receive an expires_at value from the same timeframe 
 
 **Regression evidence:** Expiry, persistence, Terminal freeze and signal-performance tests passed locally (**7 passed**); the full local suite passed with **220 passed** in 139.05s. Production deployment completed on 2026-09-05 from `e87ac77`: Alembic reported `5d9e0f1a2b3c (head)`, all 1,276 existing live-read rows were backfilled with expiry timestamps and 0 remained missing one, the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: live-read-expiry-20260905`, the deployed persistence, expiry, Terminal freeze, export, performance and prediction tests passed (**15 passed** in 9.31s), the worker scheduler included `expire_live_read_logs`, and the fresh app/worker error scan had no migration fallback, duplicate-column, traceback, critical or error output. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.23 IMPLEMENTED — Aggregate legacy history statistics in SQL
+
+The cached `/signals/history-stats` endpoint no longer materializes the entire `SignalHistory` table in Python. Overall totals, win/loss/neutral counts, average PnL, profit factor, timeframe, market, signal-type, confidence-band, and expiry what-if metrics are now computed with bounded database aggregate queries, while the optional `rows=` compatibility path remains available for existing internal callers.
+
+**Risk level:** Medium scalability value, low API compatibility risk (existing response keys and calculations are preserved; no model or schema change). **Affected modules:** `app/services/backtest/analyzer.py`, `app/api/v1/signals.py`, `tests/unit/test_history_analyzer_sql.py`. **Migration:** none.
+
+**Regression evidence:** The SQL history contract and related performance/export route tests passed locally (**6 passed**); the full local suite passed with **221 passed** in 98.55s. Production deployment and endpoint verification are pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

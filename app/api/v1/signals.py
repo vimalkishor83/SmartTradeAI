@@ -2414,11 +2414,8 @@ def signal_journal():
 
 @signals_bp.route("/history-stats", methods=["GET"])
 @login_required
-# Same rationale as get_analytics/get_performance/get_summary in this file:
-# no request args, deterministic and user-independent output, but this was
-# the one endpoint of the four with NO caching at all — every hit ran an
-# unconditional SignalHistory.query.all() (unbounded — the table is only
-# implicitly capped by nightly_cleanup's 60-day retention, not a query limit).
+# Cached aggregate endpoint; the analyzer uses database-side aggregates when
+# rows are omitted, so history size does not become Python memory usage.
 @cache.cached(timeout=60, key_prefix="signals_history_stats")
 def history_stats():
     """
@@ -2427,13 +2424,9 @@ def history_stats():
     trades). Includes a 'what-if' expiry diagnostic.
     """
     from app.services.backtest import analyze_history, whatif_expiry
-    # Fetch SignalHistory once and share it with both functions — they
-    # previously each ran their own independent unbounded query (3 full
-    # loads of the same table across the two calls) on every request.
-    rows = SignalHistory.query.all()
     return jsonify({
-        "stats": analyze_history(rows),
-        "whatif_expiry": whatif_expiry(rows),
+        "stats": analyze_history(),
+        "whatif_expiry": whatif_expiry(),
     }), 200
 
 
