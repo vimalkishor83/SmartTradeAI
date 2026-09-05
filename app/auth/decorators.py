@@ -139,21 +139,51 @@ def page_admin_required(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        from flask import redirect, url_for
+        from flask import redirect, url_for, request
         try:
             verify_jwt_in_request()
         except Exception:
+            _notify_security_admin_unauthorized(None, "no valid session")
             return redirect(url_for("views.login"))
 
         user_id = get_jwt_identity()
         user = User.query.get(int(user_id)) if user_id else None
         if not user or not user.is_active:
+            _notify_security_admin_unauthorized(None, "inactive or unknown account")
             return redirect(url_for("views.login"))
         if not user.role or user.role.name != "admin":
+            _notify_security_admin_unauthorized(user, "not an admin account")
             return redirect(url_for("views.dashboard"))
 
         return f(*args, **kwargs)
     return decorated
+
+
+def _notify_security_admin_unauthorized(user, reason: str):
+    """Fires the moment someone loads an /admin/* HTML page without valid
+    admin access — a genuinely security-relevant signal distinct from
+    the audit log (which only records actions by known, authenticated
+    users). Gated by PlatformConfig.telegram_security_notify_admin_
+    unauthorized, editable from /admin/security."""
+    try:
+        from flask import request
+        from datetime import datetime
+        from app.services.platform_config import get_platform_config
+        if not get_platform_config().get("telegram_security_notify_admin_unauthorized", True):
+            return
+        from app.tasks.notification_tasks import send_security_alert
+        when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        who = f"`{user.username}` ({user.full_name})" if user else "_anonymous_"
+        send_security_alert(
+            f"⛔ *UNAUTHORIZED ADMIN ACCESS*\n\n"
+            f"👤 User: {who}\n"
+            f"📄 Page: `{request.path}`\n"
+            f"🌐 IP: `{request.remote_addr}`\n"
+            f"❓ Reason: {reason}\n"
+            f"🕐 Time: `{when}`"
+        )
+    except Exception:
+        pass
 
 
 def min_tier_required(min_tier_level):

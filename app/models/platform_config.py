@@ -61,6 +61,29 @@ class PlatformConfig(db.Model):
     # before. See send_new_ip_login_alert() in notification_tasks.py.
     telegram_alerts_new_ip_login = db.Column(db.Boolean, default=True, nullable=False)
 
+    # ── Dedicated security-notifications Telegram group ─────────────────
+    # A separate chat from any trading-signal TelegramAlertChannel and
+    # from a super admin's own personal alerts — one shared destination
+    # for the security event stream below, using the same platform bot
+    # (TELEGRAM_BOT_TOKEN) via notification_tasks.send_security_alert().
+    # No chat id set = every toggle below is a no-op (nothing to send to).
+    telegram_security_chat_id = db.Column(db.String(64))
+
+    # Every toggle here is independent, so an admin opts into exactly the
+    # event types they want in this one chat instead of an all-or-nothing
+    # firehose. See notification_tasks.send_security_alert() call sites
+    # (auth/routes.py login, auth/decorators.py page_admin_required, and
+    # the anonymous-visit before_request hook in app/__init__.py) for
+    # where each of these is actually checked.
+    telegram_security_notify_login_success      = db.Column(db.Boolean, default=False, nullable=False)
+    telegram_security_notify_login_failed       = db.Column(db.Boolean, default=True,  nullable=False)
+    telegram_security_notify_new_ip_login       = db.Column(db.Boolean, default=True,  nullable=False)
+    telegram_security_notify_admin_unauthorized = db.Column(db.Boolean, default=True,  nullable=False)
+    # Off by default — every anonymous page view is high-volume on a live
+    # public site (every /home visit, every asset page, etc.), unlike the
+    # other toggles above which only fire on genuinely occasional events.
+    telegram_security_notify_anonymous_visits   = db.Column(db.Boolean, default=False, nullable=False)
+
     # Off by default — a super admin's own logins/actions don't clutter
     # the audit trail unless deliberately turned on. See
     # AuditLog.record(), the single place this is actually enforced.
@@ -116,6 +139,12 @@ class PlatformConfig(db.Model):
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "telegram_alerts_new_ip_login": self.telegram_alerts_new_ip_login,
+            "telegram_security_chat_id": self.telegram_security_chat_id or "",
+            "telegram_security_notify_login_success": self.telegram_security_notify_login_success,
+            "telegram_security_notify_login_failed": self.telegram_security_notify_login_failed,
+            "telegram_security_notify_new_ip_login": self.telegram_security_notify_new_ip_login,
+            "telegram_security_notify_admin_unauthorized": self.telegram_security_notify_admin_unauthorized,
+            "telegram_security_notify_anonymous_visits": self.telegram_security_notify_anonymous_visits,
             "audit_log_super_admins": self.audit_log_super_admins,
             "smc_order_block_gate_enabled": self.smc_order_block_gate_enabled,
             "smc_liquidity_sweep_gate_enabled": self.smc_liquidity_sweep_gate_enabled,

@@ -142,6 +142,18 @@ def update_platform_config_route():
     if "telegram_alerts_new_ip_login" in data:
         row.telegram_alerts_new_ip_login = bool(data["telegram_alerts_new_ip_login"])
 
+    if "telegram_security_chat_id" in data:
+        chat_id = (data["telegram_security_chat_id"] or "").strip()
+        if len(chat_id) > 64:
+            return jsonify({"error": "telegram_security_chat_id is too long"}), 400
+        row.telegram_security_chat_id = chat_id or None
+
+    for field in ["telegram_security_notify_login_success", "telegram_security_notify_login_failed",
+                  "telegram_security_notify_new_ip_login", "telegram_security_notify_admin_unauthorized",
+                  "telegram_security_notify_anonymous_visits"]:
+        if field in data:
+            setattr(row, field, bool(data[field]))
+
     if "audit_log_super_admins" in data:
         row.audit_log_super_admins = bool(data["audit_log_super_admins"])
 
@@ -291,6 +303,29 @@ def telegram_channel_broadcast(channel_id):
         return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
 
     _send_to_chat(channel.group_chat_id, text)
+    return jsonify({"message": "Sent"}), 200
+
+
+@admin_bp.route("/telegram/security-test", methods=["POST"])
+@super_admin_required
+def telegram_security_test():
+    """Sends one test message to the configured security-notifications
+    chat right now, so an admin can confirm the bot is actually in that
+    group and the chat id is correct before relying on it for real
+    security events (see PlatformConfig.telegram_security_chat_id)."""
+    from app.services.platform_config import get_platform_config
+    from app.tasks.notification_tasks import send_security_alert
+
+    if not current_app.config.get("TELEGRAM_BOT_TOKEN"):
+        return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
+    chat_id = get_platform_config().get("telegram_security_chat_id")
+    if not chat_id:
+        return jsonify({"error": "Set a security chat id first"}), 400
+
+    send_security_alert(
+        "✅ *Test message*\n\nThis chat is correctly wired up to receive "
+        "SmartTrade AI security notifications."
+    )
     return jsonify({"message": "Sent"}), 200
 
 

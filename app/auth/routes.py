@@ -164,10 +164,12 @@ def login():
         # patterns (repeated failures against one email or from one IP),
         # which the audit log couldn't previously show at all.
         _audit(user.id if user else None, "login_failed", "user", identifier, status="failed")
+        _notify_security_login_failed(identifier)
         return jsonify({"error": "Invalid credentials"}), 401
 
     if not user.is_active:
         _audit(user.id, "login_failed", "user", str(user.id), status="failed")
+        _notify_security_login_failed(identifier)
         return jsonify({"error": "Account is disabled"}), 403
 
     # ── 2FA check ──────────────────────────────────────────────────────────────
@@ -254,7 +256,9 @@ def login():
                 send_new_ip_login_alert(user, current_ip, request.headers.get("User-Agent", ""))
         except Exception:
             pass
+        _notify_security_new_ip_login(user, current_ip, request.headers.get("User-Agent", ""))
 
+    _notify_security_login_success(user, current_ip, request.headers.get("User-Agent", ""))
     _audit(user.id, "login", "user", str(user.id))
 
     response = jsonify({
@@ -786,6 +790,70 @@ def _audit(user_id, action, resource, resource_id, status="success"):
         AuditLog.record(
             user_id, action, resource=resource, resource_id=resource_id, status=status,
             ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
+        )
+    except Exception:
+        pass
+
+
+# ── Security-notifications Telegram group ──────────────────────────────────
+# Separate opt-in stream from the audit log above (which is for the admin
+# UI's own Audit Log page) and from send_new_ip_login_alert (which DMs
+# super admins individually) — see PlatformConfig.telegram_security_chat_id
+# and its telegram_security_notify_* toggles, editable from /admin/security.
+
+def _notify_security_login_failed(identifier: str):
+    try:
+        from app.services.platform_config import get_platform_config
+        if not get_platform_config().get("telegram_security_notify_login_failed", True):
+            return
+        from app.tasks.notification_tasks import send_security_alert
+        when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        send_security_alert(
+            f"🚫 *FAILED LOGIN ATTEMPT*\n\n"
+            f"🪪 Identifier: `{identifier}`\n"
+            f"🌐 IP: `{request.remote_addr}`\n"
+            f"💻 User-Agent: `{request.headers.get('User-Agent', '')[:150]}`\n"
+            f"🕐 Time: `{when}`"
+        )
+    except Exception:
+        pass
+
+
+def _notify_security_login_success(user, ip: str, user_agent: str):
+    try:
+        from app.services.platform_config import get_platform_config
+        if not get_platform_config().get("telegram_security_notify_login_success", False):
+            return
+        from app.tasks.notification_tasks import send_security_alert
+        from app.models.user_session import parse_device_label
+        when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        send_security_alert(
+            f"✅ *LOGIN*\n\n"
+            f"👤 User: `{user.username}` ({user.full_name})\n"
+            f"🌐 IP: `{ip}`\n"
+            f"💻 Device: {parse_device_label(user_agent)}\n"
+            f"🕐 Time: `{when}`"
+        )
+    except Exception:
+        pass
+
+
+def _notify_security_new_ip_login(user, ip: str, user_agent: str):
+    try:
+        from app.services.platform_config import get_platform_config
+        if not get_platform_config().get("telegram_security_notify_new_ip_login", True):
+            return
+        from app.tasks.notification_tasks import send_security_alert
+        from app.models.user_session import parse_device_label
+        when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+        send_security_alert(
+            f"🔐 *NEW IP LOGIN*\n\n"
+            f"👤 User: `{user.username}` ({user.full_name})\n"
+            f"📧 Email: `{user.email}`\n"
+            f"🌐 IP: `{ip}`\n"
+            f"💻 Device: {parse_device_label(user_agent)}\n"
+            f"🕐 Time: `{when}`\n\n"
+            f"_This IP hasn't been seen for this account before._"
         )
     except Exception:
         pass

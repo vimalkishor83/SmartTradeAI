@@ -266,6 +266,26 @@ def _send_to_chat(chat_id: str, text: str):
         logger.error(f"Telegram group broadcast error (chat {chat_id}): {e}")
 
 
+def send_security_alert(text: str):
+    """Sends one message to the dedicated security-notifications Telegram
+    group (PlatformConfig.telegram_security_chat_id), using the shared
+    platform bot — same delivery mechanism as the trading-signal group
+    channels (_send_to_chat), just a different chat and a different
+    purpose (login activity, unauthorized admin access, anonymous
+    visits — never trading signals). No-ops silently if no chat id has
+    been configured yet. Callers check their own specific
+    telegram_security_notify_* toggle before calling this; this function
+    only handles delivery, not which events are enabled."""
+    try:
+        from app.services.platform_config import get_platform_config
+        chat_id = get_platform_config().get("telegram_security_chat_id")
+        if not chat_id:
+            return
+        _send_to_chat(chat_id, text)
+    except Exception as e:
+        logger.error(f"Security alert broadcast failed: {e}")
+
+
 def _send_to_channels(text: str, market: str, category: str, timeframe: str | None = None):
     """Fans one alert out to every active TelegramAlertChannel whose own
     market list, timeframe list, and category toggle all match — e.g. a

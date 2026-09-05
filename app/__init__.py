@@ -51,6 +51,7 @@ def create_app(config_class=None):
     _register_asset_versioning(app)
     _register_platform_config(app)
     _register_approval_gate(app)
+    _register_security_visit_alerts(app)
 
     return app
 
@@ -95,6 +96,63 @@ def _register_approval_gate(app):
                 "approval_status": user.approval_status,
                 "message": "Your account is awaiting admin approval before you can access this feature.",
             }), 403
+        return None
+
+
+def _register_security_visit_alerts(app):
+    """Opt-in security notification for anonymous page visits — off by
+    default (PlatformConfig.telegram_security_notify_anonymous_visits)
+    since every visit to a public page is high-volume on a live site,
+    unlike the other telegram_security_notify_* events which only fire
+    on genuinely occasional activity. Scoped to page routes only (the
+    `views` blueprint — /home, /login, /asset/<id>, etc.), never /api or
+    /static, and only for requests carrying no valid JWT at all (a
+    logged-in visitor browsing the dashboard isn't "anonymous access").
+    A short per-IP cooldown (via the same Flask-Caching instance used
+    elsewhere, e.g. the Fear & Greed cache) collapses a single visitor's
+    burst of page loads into one message instead of one per navigation."""
+    @app.before_request
+    def _notify_anonymous_visit():
+        from flask import request
+
+        if request.blueprint != "views" or request.method != "GET":
+            return None
+        # These are crawler/infra requests, not a person visiting the
+        # product — not worth a security notification even when this is on.
+        if request.endpoint in ("views.robots_txt", "views.sitemap_xml"):
+            return None
+
+        try:
+            from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+            verify_jwt_in_request(optional=True)
+            if get_jwt_identity():
+                return None  # a logged-in visitor — not anonymous access
+        except Exception:
+            pass  # treat an unparseable/expired token as anonymous too
+
+        try:
+            from app.services.platform_config import get_platform_config
+            if not get_platform_config().get("telegram_security_notify_anonymous_visits", False):
+                return None
+
+            from app.extensions import cache
+            cache_key = f"sec_visit_cooldown:{request.remote_addr}"
+            if cache.get(cache_key):
+                return None
+            cache.set(cache_key, True, timeout=300)  # one alert per IP per 5 minutes
+
+            from datetime import datetime
+            from app.tasks.notification_tasks import send_security_alert
+            when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+            send_security_alert(
+                f"👀 *ANONYMOUS VISIT*\n\n"
+                f"📄 Page: `{request.path}`\n"
+                f"🌐 IP: `{request.remote_addr}`\n"
+                f"💻 User-Agent: `{request.headers.get('User-Agent', '')[:150]}`\n"
+                f"🕐 Time: `{when}`"
+            )
+        except Exception:
+            pass
         return None
 
 
