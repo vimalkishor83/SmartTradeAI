@@ -822,6 +822,14 @@ The public economic-calendar route now uses a process-local single-flight lock a
 
 **Regression evidence:** Economic-calendar and News throttle checks passed (**2 passed**), JavaScript syntax and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.58 IMPLEMENTED — Collapse concurrent heatmap rebuilds
+
+The heatmap endpoint now serializes only its cold rebuild and re-checks the shared cache after waiting. This prevents simultaneous dashboard loads after a restart or failed prewarm from repeating the active-universe query and market-data fallback, while warm requests remain immediate and the payload remains unchanged.
+
+**Risk level:** Medium upstream-load/performance value, low API/data risk (cache-hit behavior and tile values are unchanged). **Affected modules:** `app/api/v1/market_data.py`, `tests/unit/test_heatmap_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** Heatmap single-flight test passed (**1 passed**), Python compilation and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1001,5 +1009,9 @@ The public economic-calendar route now uses a process-local single-flight lock a
 **Session 36 (backend reliability — economic-calendar cold-cache single-flight, §7.57):**
 - `app/api/v1/news.py` — serialize concurrent request-time Forex Factory refreshes and double-check the shared cache/database before fetching, while retaining the existing batch upsert and response contract.
 - `tests/integration/test_economic_calendar_fetch_throttle.py` — verify simultaneous cold requests share one provider refresh.
+
+**Session 37 (backend reliability — heatmap cold-cache single-flight, §7.58):**
+- `app/api/v1/market_data.py` — serialize the expensive cold heatmap rebuild and double-check the shared cache before building the active-universe payload.
+- `tests/unit/test_heatmap_singleflight.py` — verify simultaneous cold requests share one heatmap build.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

@@ -1,4 +1,5 @@
 ﻿import logging
+import threading
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
@@ -12,6 +13,8 @@ import pandas as pd
 
 logger = logging.getLogger(__name__)
 market_data_bp = Blueprint("market_data", __name__)
+
+_HEATMAP_BUILD_LOCK = threading.Lock()
 
 
 @market_data_bp.route("/<int:asset_id>/ohlcv", methods=["GET"])
@@ -634,9 +637,17 @@ def get_heatmap():
     cached = cache.get("market_heatmap")
     if cached is not None:
         return jsonify(cached), 200
-    payload = {"heatmap": build_heatmap()}
-    cache.set("market_heatmap", payload, timeout=210)
-    return jsonify(payload), 200
+    # The scheduler normally keeps this warm, but several dashboard surfaces
+    # can still arrive together after a restart or failed prewarm. Serialize
+    # only the cold rebuild, then re-check the cache so waiting requests reuse
+    # the first completed universe fetch.
+    with _HEATMAP_BUILD_LOCK:
+        cached = cache.get("market_heatmap")
+        if cached is not None:
+            return jsonify(cached), 200
+        payload = {"heatmap": build_heatmap()}
+        cache.set("market_heatmap", payload, timeout=210)
+        return jsonify(payload), 200
 
 
 def build_heatmap() -> list:
