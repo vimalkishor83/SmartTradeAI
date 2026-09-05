@@ -14,6 +14,7 @@
   <meta property="og:url" content="https://smarttradeai.online/terms" />
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
+  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; overflow-x: hidden; }
@@ -237,6 +238,13 @@
     .footer-brand { font-size: 18px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.4px; }
     .footer-brand .ai { color: var(--accent); }
     .footer-tagline { color: var(--text2); font-size: 13.5px; margin-bottom: 22px; }
+    .footer-social { display: none; justify-content: center; gap: 12px; margin-bottom: 26px; }
+    .footer-social a {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--card2);
+      border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+      color: var(--text2); font-size: 15px; transition: all 0.2s;
+    }
+    .footer-social a:hover { color: var(--accent); border-color: rgba(245,166,35,0.35); background: var(--accent-dim); }
     .footer-columns { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 24px; max-width: 900px; margin: 0 auto 30px; text-align: left; }
     .footer-col-title { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text3); margin-bottom: 12px; }
     .footer-col ul { list-style: none; display: flex; flex-direction: column; gap: 9px; }
@@ -425,6 +433,8 @@
   <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
   <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
 
+  <div class="footer-social" id="footerSocial"></div>
+
   <div class="footer-columns">
     <div class="footer-col">
       <div class="footer-col-title">Product</div>
@@ -513,6 +523,31 @@ async function loadLegalTicker() {
 }
 loadLegalTicker();
 setInterval(loadLegalTicker, 5000);
+</script>
+
+<script>
+// Footer social icons — only shows a platform an admin has actually
+// configured with a real URL; nothing hardcoded.
+(async function () {
+  const wrap = document.getElementById('footerSocial');
+  if (!wrap) return;
+  const ICONS = {
+    facebook: 'bi-facebook', instagram: 'bi-instagram', x: 'bi-twitter-x',
+    linkedin: 'bi-linkedin', youtube: 'bi-youtube', telegram: 'bi-telegram',
+    discord: 'bi-discord',
+  };
+  try {
+    const res = await fetch('/api/v1/public/site-config');
+    const data = await res.json();
+    const links = data.social_links || {};
+    const entries = Object.entries(links).filter(([k]) => ICONS[k]);
+    if (!entries.length) return;
+    wrap.innerHTML = entries.map(([k, url]) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${k}"><i class="bi ${ICONS[k]}"></i></a>`
+    ).join('');
+    wrap.style.display = 'flex';
+  } catch (e) { /* leave hidden */ }
+})();
 </script>
 
 <script>

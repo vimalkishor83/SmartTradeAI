@@ -79,6 +79,7 @@
   </script>
 
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet" crossorigin />
+  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     /* overflow-x here too, not just on body below — html is the real
@@ -867,6 +868,27 @@
       margin-bottom: 22px;
     }
 
+    /* Only rendered once /api/v1/public/site-config reports at least one
+       configured platform — stays hidden rather than showing dead icons
+       for accounts that don't exist yet. */
+    .footer-social {
+      display: none;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 26px;
+    }
+    .footer-social a {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text2);
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    .footer-social a:hover { color: var(--accent); border-color: rgba(245,166,35,0.35); background: var(--accent-dim); }
+
     .footer-links {
       display: flex;
       justify-content: center;
@@ -1443,6 +1465,8 @@
   <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
   <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
 
+  <div class="footer-social" id="footerSocial"></div>
+
   <div class="footer-columns">
     <div class="footer-col">
       <div class="footer-col-title">Product</div>
@@ -1638,6 +1662,30 @@ async function loadLandingTicker() {
 }
 loadLandingTicker();
 setInterval(loadLandingTicker, 5000);
+
+// Footer social icons — only ever shows a platform an admin has actually
+// configured with a real URL (GET /api/v1/public/site-config); nothing
+// hardcoded, nothing shown until it's genuinely set.
+(async function () {
+  const wrap = document.getElementById('footerSocial');
+  if (!wrap) return;
+  const ICONS = {
+    facebook: 'bi-facebook', instagram: 'bi-instagram', x: 'bi-twitter-x',
+    linkedin: 'bi-linkedin', youtube: 'bi-youtube', telegram: 'bi-telegram',
+    discord: 'bi-discord',
+  };
+  try {
+    const res = await fetch('/api/v1/public/site-config');
+    const data = await res.json();
+    const links = data.social_links || {};
+    const entries = Object.entries(links).filter(([k]) => ICONS[k]);
+    if (!entries.length) return;
+    wrap.innerHTML = entries.map(([k, url]) =>
+      `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${k}"><i class="bi ${ICONS[k]}"></i></a>`
+    ).join('');
+    wrap.style.display = 'flex';
+  } catch (e) { /* leave hidden */ }
+})();
 
 // Crypto Fear & Greed strip — real data only. Stays hidden until a genuine
 // value loads; never falls back to a placeholder number (would look live

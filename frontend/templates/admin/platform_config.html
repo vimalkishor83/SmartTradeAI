@@ -156,13 +156,57 @@
 </div>
 
 <!-- Security -->
-<div class="section-card">
+<div class="section-card mb-4">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-shield-lock text-accent"></i> Security</span>
     <a href="/admin/security" class="btn btn-sm btn-outline-light"><i class="bi bi-arrow-right me-1"></i>Configure</a>
   </div>
   <div class="section-card-body p-3">
     <p class="text-muted small mb-0">Session timeout, new-IP login alerts, and audit trail visibility — moved to its own page alongside Login Sessions and the Audit Log.</p>
+  </div>
+</div>
+
+<!-- Social Media -->
+<div class="section-card">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-share-fill text-accent"></i> Social Media Links</span>
+    <button class="btn btn-sm btn-primary" id="saveSocialBtn" onclick="saveSocialLinks()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-3">
+      Paste your official account URL for each platform you actually have. Leave a field empty and
+      that icon simply won't appear on the public site — nothing is ever shown until you set it here.
+    </p>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-facebook me-1"></i>Facebook</label>
+        <input type="url" class="form-control" id="socialFacebook" placeholder="https://facebook.com/smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-instagram me-1"></i>Instagram</label>
+        <input type="url" class="form-control" id="socialInstagram" placeholder="https://instagram.com/smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-twitter-x me-1"></i>X (Twitter)</label>
+        <input type="url" class="form-control" id="socialX" placeholder="https://x.com/smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-linkedin me-1"></i>LinkedIn</label>
+        <input type="url" class="form-control" id="socialLinkedin" placeholder="https://linkedin.com/company/smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-youtube me-1"></i>YouTube</label>
+        <input type="url" class="form-control" id="socialYoutube" placeholder="https://youtube.com/@smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-telegram me-1"></i>Telegram (public channel)</label>
+        <input type="url" class="form-control" id="socialTelegram" placeholder="https://t.me/smarttradeai">
+      </div>
+      <div class="col-md-6">
+        <label class="form-label"><i class="bi bi-discord me-1"></i>Discord</label>
+        <input type="url" class="form-control" id="socialDiscord" placeholder="https://discord.gg/smarttradeai">
+      </div>
+    </div>
   </div>
 </div>
 
@@ -255,6 +299,32 @@ async function loadPlatformConfig() {
   document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
   document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
   document.getElementById('smcSrToggle').checked = !!_cfg.smc_support_resistance_gate_enabled;
+
+  document.getElementById('socialFacebook').value = _cfg.social_facebook || '';
+  document.getElementById('socialInstagram').value = _cfg.social_instagram || '';
+  document.getElementById('socialX').value = _cfg.social_x || '';
+  document.getElementById('socialLinkedin').value = _cfg.social_linkedin || '';
+  document.getElementById('socialYoutube').value = _cfg.social_youtube || '';
+  document.getElementById('socialTelegram').value = _cfg.social_telegram || '';
+  document.getElementById('socialDiscord').value = _cfg.social_discord || '';
+}
+
+async function saveSocialLinks() {
+  const res = await API.put('/admin/platform-config', {
+    social_facebook: document.getElementById('socialFacebook').value.trim(),
+    social_instagram: document.getElementById('socialInstagram').value.trim(),
+    social_x: document.getElementById('socialX').value.trim(),
+    social_linkedin: document.getElementById('socialLinkedin').value.trim(),
+    social_youtube: document.getElementById('socialYoutube').value.trim(),
+    social_telegram: document.getElementById('socialTelegram').value.trim(),
+    social_discord: document.getElementById('socialDiscord').value.trim(),
+  });
+  if (res && !res.error) {
+    Toast.show('Social media links saved', 'success');
+    _cfg = res;
+  } else {
+    Toast.show(res?.error || 'Failed to save', 'error');
+  }
 }
 
 function updateKpis() {
@@ -418,6 +488,9 @@ document.addEventListener('app:ready', () => {
   document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
   document.getElementById('smcLiquidityToggle').disabled = !isSuperAdmin;
   document.getElementById('smcSrToggle').disabled = !isSuperAdmin;
+  ['socialFacebook','socialInstagram','socialX','socialLinkedin','socialYoutube','socialTelegram','socialDiscord']
+    .forEach(id => document.getElementById(id).disabled = !isSuperAdmin);
+  document.getElementById('saveSocialBtn').style.display = isSuperAdmin ? '' : 'none';
   loadPlatformConfig();
 });
 document.getElementById('tfInput')?.addEventListener('keydown', e => {

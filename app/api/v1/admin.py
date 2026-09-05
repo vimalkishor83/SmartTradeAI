@@ -142,6 +142,16 @@ def update_platform_config_route():
     if "telegram_alerts_new_ip_login" in data:
         row.telegram_alerts_new_ip_login = bool(data["telegram_alerts_new_ip_login"])
 
+    for field in ["social_facebook", "social_instagram", "social_x", "social_linkedin",
+                  "social_youtube", "social_telegram", "social_discord"]:
+        if field in data:
+            url = (data[field] or "").strip()
+            if url and not (url.startswith("http://") or url.startswith("https://")):
+                return jsonify({"error": f"{field} must be a full https:// URL, or empty"}), 400
+            if len(url) > 300:
+                return jsonify({"error": f"{field} is too long"}), 400
+            setattr(row, field, url or None)
+
     if "telegram_security_chat_id" in data:
         chat_id = (data["telegram_security_chat_id"] or "").strip()
         if len(chat_id) > 64:

@@ -84,6 +84,20 @@ class PlatformConfig(db.Model):
     # other toggles above which only fire on genuinely occasional events.
     telegram_security_notify_anonymous_visits   = db.Column(db.Boolean, default=False, nullable=False)
 
+    # ── Social media links ───────────────────────────────────────────────
+    # Every field is empty by default and stays empty until an admin pastes
+    # a real, official account URL — never auto-populated or guessed. A
+    # public page only ever renders an icon for a platform with a non-empty
+    # value here (see /api/v1/public/site-config), so an unfilled field
+    # simply means that icon doesn't appear, not a broken link.
+    social_facebook  = db.Column(db.String(300))
+    social_instagram = db.Column(db.String(300))
+    social_x         = db.Column(db.String(300))
+    social_linkedin  = db.Column(db.String(300))
+    social_youtube   = db.Column(db.String(300))
+    social_telegram  = db.Column(db.String(300))
+    social_discord   = db.Column(db.String(300))
+
     # Off by default — a super admin's own logins/actions don't clutter
     # the audit trail unless deliberately turned on. See
     # AuditLog.record(), the single place this is actually enforced.
@@ -139,6 +153,13 @@ class PlatformConfig(db.Model):
             "telegram_rating_change_sensitivity": self.telegram_rating_change_sensitivity or "cross_zone",
             "session_timeout_minutes": self.session_timeout_minutes or 1440,
             "telegram_alerts_new_ip_login": self.telegram_alerts_new_ip_login,
+            "social_facebook": self.social_facebook or "",
+            "social_instagram": self.social_instagram or "",
+            "social_x": self.social_x or "",
+            "social_linkedin": self.social_linkedin or "",
+            "social_youtube": self.social_youtube or "",
+            "social_telegram": self.social_telegram or "",
+            "social_discord": self.social_discord or "",
             "telegram_security_chat_id": self.telegram_security_chat_id or "",
             "telegram_security_notify_login_success": self.telegram_security_notify_login_success,
             "telegram_security_notify_login_failed": self.telegram_security_notify_login_failed,
