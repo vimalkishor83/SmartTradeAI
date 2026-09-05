@@ -58,6 +58,23 @@ const CURRENCY_FLAGS = {
 
 let _fetchingPoller = null;
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function safeExternalUrl(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw, window.location.origin);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function loadNews(page = 1) {
   const sentiment = document.getElementById('sentimentFilter').value;
   const params = { page, per_page: 12 };
@@ -95,26 +112,33 @@ async function loadNews(page = 1) {
     return;
   }
 
-  grid.innerHTML = data.news.map(n => `
+  grid.innerHTML = data.news.map(n => {
+    const summary = String(n.summary ?? '');
+    const related = Array.isArray(n.related_assets)
+      ? n.related_assets.map(a => `<span class="badge-tag me-1">${escapeHtml(a)}</span>`).join('')
+      : '';
+    const articleUrl = safeExternalUrl(n.url);
+    return `
     <div class="col-md-4">
       <div class="section-card h-100 d-flex flex-column">
         <div class="section-card-body flex-grow-1">
           <div class="d-flex justify-content-between mb-2">
-            <span class="badge ${n.sentiment === 'positive' ? 'bg-success' : n.sentiment === 'negative' ? 'bg-danger' : 'bg-secondary'}">${n.sentiment || 'neutral'}</span>
-            <span class="text-muted small">${n.source || ''}</span>
+            <span class="badge ${n.sentiment === 'positive' ? 'bg-success' : n.sentiment === 'negative' ? 'bg-danger' : 'bg-secondary'}">${escapeHtml(n.sentiment || 'neutral')}</span>
+            <span class="text-muted small">${escapeHtml(n.source || '')}</span>
           </div>
-          <h6 class="fw-semibold mb-2">${n.title}</h6>
-          <p class="text-muted small">${(n.summary || '').slice(0, 150)}${n.summary && n.summary.length > 150 ? '&hellip;' : ''}</p>
-          ${n.related_assets?.length ? `<div class="mt-2">${n.related_assets.map(a => `<span class="badge-tag me-1">${a}</span>`).join('')}</div>` : ''}
+          <h6 class="fw-semibold mb-2">${escapeHtml(n.title || 'Untitled article')}</h6>
+          <p class="text-muted small">${escapeHtml(summary.slice(0, 150))}${summary.length > 150 ? '&hellip;' : ''}</p>
+          ${related ? `<div class="mt-2">${related}</div>` : ''}
         </div>
         <div class="p-3 pt-0">
           <div class="d-flex justify-content-between align-items-center">
-            <span class="text-muted small">${n.published_at ? formatTime(n.published_at) : ''}</span>
-            ${n.url ? `<a href="${n.url}" target="_blank" class="btn btn-sm btn-outline-light">Read</a>` : ''}
+            <span class="text-muted small">${escapeHtml(n.published_at ? formatTime(n.published_at) : '')}</span>
+            ${articleUrl ? `<a href="${escapeHtml(articleUrl)}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-light">Read</a>` : ''}
           </div>
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 
   const pag = document.getElementById('newsPagination');
   let html = '';
@@ -126,8 +150,8 @@ async function loadNews(page = 1) {
 function _compareValues(actual, forecast) {
   // Returns 'better', 'worse', or null
   if (!actual || !forecast) return null;
-  const a = parseFloat(actual.replace(/[^0-9.\-]/g, ''));
-  const f = parseFloat(forecast.replace(/[^0-9.\-]/g, ''));
+  const a = parseFloat(String(actual).replace(/[^0-9.\-]/g, ''));
+  const f = parseFloat(String(forecast).replace(/[^0-9.\-]/g, ''));
   if (isNaN(a) || isNaN(f)) return null;
   // Higher is generally better for most indicators; not perfect but conventional
   if (a > f) return 'better';
@@ -150,16 +174,16 @@ async function loadEcon() {
     const flag = CURRENCY_FLAGS[e.currency] || CURRENCY_FLAGS[e.country] || '';
     const cmp = _compareValues(e.actual, e.forecast);
     const actualClass = cmp === 'better' ? 'actual-better' : cmp === 'worse' ? 'actual-worse' : '';
-    const timeStr = e.event_time ? formatTime(e.event_time) : '—';
+    const timeStr = escapeHtml(e.event_time ? formatTime(e.event_time) : '—');
     return `
     <tr>
       <td class="text-muted small">${timeStr}</td>
-      <td>${flag} <strong>${e.currency || e.country || '—'}</strong></td>
-      <td><span class="badge ${impactClass}">${e.impact || 'low'}</span></td>
-      <td><strong>${e.title}</strong></td>
-      <td>${e.forecast || '—'}</td>
-      <td>${e.previous || '—'}</td>
-      <td class="${actualClass}">${e.actual || '—'}</td>
+      <td>${flag} <strong>${escapeHtml(e.currency || e.country || '—')}</strong></td>
+      <td><span class="badge ${impactClass}">${escapeHtml(e.impact || 'low')}</span></td>
+      <td><strong>${escapeHtml(e.title || 'Untitled event')}</strong></td>
+      <td>${escapeHtml(e.forecast || '—')}</td>
+      <td>${escapeHtml(e.previous || '—')}</td>
+      <td class="${actualClass}">${escapeHtml(e.actual || '—')}</td>
     </tr>`;
   }).join('') || '<tr><td colspan="7" class="text-center py-3 text-muted">No events this week</td></tr>';
 }

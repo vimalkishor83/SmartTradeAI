@@ -734,6 +734,14 @@ The scheduled news importer now loads existing article URLs in bounded batches b
 
 **Regression evidence:** Focused news-ingestion test passed (**1 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**279 passed** in 105.85s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.47 IMPLEMENTED — Harden provider-controlled News rendering
+
+The News page now escapes provider-controlled titles, summaries, sources, related symbols and economic-calendar values before inserting them into the DOM. Article links are accepted only when they resolve to HTTP(S), and external links use `noopener noreferrer`; numeric calendar comparisons now also tolerate provider values that arrive as numbers instead of strings. This removes a client-side injection path without changing the page’s visual information architecture.
+
+**Risk level:** High security/UX value, low compatibility risk (valid article links and display values remain visible; unsafe schemes are intentionally omitted). **Affected modules:** `frontend/templates/dashboard/news.html`, `tests/unit/test_news_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** News safety and ingestion checks passed (**2 passed**), extracted browser JavaScript passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**280 passed** in 109.82s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -865,5 +873,9 @@ The scheduled news importer now loads existing article URLs in bounded batches b
 **Session 25 (data-ingestion performance — batched news deduplication):**
 - `app/tasks/data_tasks.py` — replace per-article URL existence queries with bounded batch lookups and same-run duplicate guards.
 - `tests/integration/test_news_ingestion.py` — verify existing, duplicate, missing-URL and new feed-item behavior.
+
+**Session 26 (UI security — provider-controlled News rendering):**
+- `frontend/templates/dashboard/news.html` — escape provider values, allow only HTTP(S) article links, add safe external-link attributes, and normalize numeric calendar comparisons.
+- `tests/unit/test_news_template_safety.py` — lock the rendering safety contract against raw provider interpolation.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
