@@ -436,7 +436,7 @@ The primary dashboard shell now provides a skip-to-content link, a labeled navig
 
 **Risk level:** Low (semantic/accessibility markup and state attributes; existing click behavior is preserved). **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/app.js`, `frontend/static/css/main.css`, `tests/unit/test_dashboard_accessibility.py`. **Migration:** none.
 
-**Regression evidence:** Jinja template parsing, JavaScript syntax validation, static accessibility checks, and whitespace validation passed locally. Production deployment verification is pending for this change.
+**Regression evidence:** Jinja template parsing, JavaScript syntax validation, static accessibility checks, and whitespace validation passed locally. Production deployment completed on 2026-09-05 from commits `6ed1fc2` and `cf40c7c`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **175 passed** in 45.89s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches. Authenticated visual browser verification remains a follow-up because no browser control surface was available in this session.
 
 ## 8. Files changed this pass
 
