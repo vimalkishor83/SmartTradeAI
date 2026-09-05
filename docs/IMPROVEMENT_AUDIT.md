@@ -564,7 +564,7 @@ The strategy-config backtest engine now includes the exit fill impact when it fo
 
 **Risk level:** High measurement-integrity value, low compatibility risk (backtest reporting only; simulated fill prices, capital, commission, and trading behavior are unchanged). **Affected modules:** `app/services/backtesting/engine.py`, `tests/unit/test_backtest_partial_exit_consolidation.py`. **Migration:** none.
 
-**Regression evidence:** Backtest correctness and request-boundary tests passed locally (**44 passed**); the full local suite passed with **223 passed** in 90.65s. Production deployment and endpoint verification are pending for this slice.
+**Regression evidence:** Backtest correctness and request-boundary tests passed locally (**44 passed**); the full local suite passed with **223 passed** in 90.65s. Production deployment completed on 2026-09-06 from `f6e2106`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: forced-close-slippage-20260906`, the deployed backtest correctness and request-boundary tests passed (**44 passed** in 8.31s), and the fresh app/worker error scan had no error, traceback, critical, or exception output. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
