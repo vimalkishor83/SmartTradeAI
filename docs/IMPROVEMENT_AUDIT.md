@@ -500,7 +500,7 @@ Live-signal and signal-history CSV exports now stream rows in 500-record batches
 
 **Risk level:** Medium scalability value, low API compatibility risk (same CSV contract and authentication; no model or schema change). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_exports.py`. **Migration:** none.
 
-**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **217 passed** in 188.55s. Production verification is pending for this slice.
+**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **217 passed** in 188.55s. Production deployment completed on 2026-09-05 from `3e44b0f`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: signal-export-20260905`, the deployed export and performance tests passed (**8 passed** in 5.98s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
 ## 8. Files changed this pass
 
