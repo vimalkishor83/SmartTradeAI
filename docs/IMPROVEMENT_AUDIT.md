@@ -694,6 +694,14 @@ The calibrated predictor contract is now `ensemble-calibrated-v2`, and the model
 
 **Regression evidence:** Focused predictor contract tests passed (**8 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**261 passed** in 104.36s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.42 IMPLEMENTED — Validate admin API-configuration writes at the boundary
+
+Admin provider-configuration create/update payloads now share one validator. It normalizes bounded text and numeric values, requires supported market/provider combinations, accepts only explicit boolean representations, and restricts auth types and statuses before any database mutation. A market change is rejected when the existing provider would become incompatible, preventing an invalid half-updated configuration. Valid UI payloads remain compatible; credentials are still written only when supplied.
+
+**Risk level:** High operational-safety value, low compatibility risk (valid configuration fields and defaults are preserved; malformed values now receive `400` instead of a server error or ambiguous persistence). **Affected modules:** `app/services/api_config_validation.py`, `app/api/v1/admin.py`, `tests/unit/test_api_config_validation.py`. **Migration:** none.
+
+**Regression evidence:** Focused validation tests passed (**14 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**275 passed** in 105.75s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -803,5 +811,10 @@ The calibrated predictor contract is now `ensemble-calibrated-v2`, and the model
 **Session 20 (ML deployment integrity — versioned artifacts, §7.41):**
 - `app/services/ai/predictor.py` — bump the calibrated contract to v2 and include it in model artifact keys.
 - `tests/unit/test_prediction_model_outputs.py` — verify output provenance and artifact-key invalidation when the contract changes.
+
+**Session 21 (P0 boundary hardening — API configuration validation, §7.42):**
+- `app/services/api_config_validation.py` — centralize create/update normalization and validation for provider configuration payloads.
+- `app/api/v1/admin.py` — apply the shared validator before configuration writes.
+- `tests/unit/test_api_config_validation.py` — cover valid normalization, malformed bodies, incompatible providers, partial updates and ambiguous values.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

@@ -10,6 +10,10 @@ from app.models.audit import AuditLog, SystemLog
 from app.models.signal import Signal, SignalHistory
 from app.auth.decorators import admin_required, super_admin_required
 from app.services.pagination import bounded_page, bounded_per_page
+from app.services.api_config_validation import (
+    APIConfigValidationError,
+    validate_api_config_payload,
+)
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint("admin", __name__)
@@ -648,36 +652,37 @@ def get_api_config(cfg_id):
 @super_admin_required
 def create_api_config():
     data = request.get_json() or {}
-    required = ["name", "provider", "market"]
-    if not all(k in data for k in required):
-        return jsonify({"error": "name, provider and market are required"}), 400
+    try:
+        clean = validate_api_config_payload(data)
+    except APIConfigValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # Enforce unique name
-    if APIConfig.query.filter_by(name=data["name"]).first():
-        return jsonify({"error": f"A config named '{data['name']}' already exists"}), 409
+    if APIConfig.query.filter_by(name=clean["name"]).first():
+        return jsonify({"error": f"A config named '{clean['name']}' already exists"}), 409
 
     # If set as default, unset others in same market
-    if data.get("is_default"):
-        APIConfig.query.filter_by(market=data["market"], is_default=True).update({"is_default": False})
+    if clean.get("is_default"):
+        APIConfig.query.filter_by(market=clean["market"], is_default=True).update({"is_default": False})
 
     cfg = APIConfig(
-        name             = data["name"],
-        provider         = data["provider"],
-        market           = data["market"],
-        base_url         = data.get("base_url", ""),
-        websocket_url    = data.get("websocket_url", ""),
-        auth_type        = data.get("auth_type", "api_key"),
-        access_token     = data.get("access_token", ""),
-        refresh_token    = data.get("refresh_token", ""),
-        rate_limit       = int(data.get("rate_limit", 60)),
-        refresh_interval = int(data.get("refresh_interval", 60)),
-        priority         = int(data.get("priority", 0)),
-        is_default       = bool(data.get("is_default", False)),
+        name             = clean["name"],
+        provider         = clean["provider"],
+        market           = clean["market"],
+        base_url         = clean.get("base_url", ""),
+        websocket_url    = clean.get("websocket_url", ""),
+        auth_type        = clean.get("auth_type", "api_key"),
+        access_token     = clean.get("access_token", ""),
+        refresh_token    = clean.get("refresh_token", ""),
+        rate_limit       = clean.get("rate_limit", 60),
+        refresh_interval = clean.get("refresh_interval", 60),
+        priority         = clean.get("priority", 0),
+        is_default       = clean.get("is_default", False),
         is_active        = True,
         status           = "active",
     )
-    if data.get("api_key"):    cfg.set_api_key(data["api_key"])
-    if data.get("api_secret"): cfg.set_api_secret(data["api_secret"])
+    if clean.get("api_key"):    cfg.set_api_key(clean["api_key"])
+    if clean.get("api_secret"): cfg.set_api_secret(clean["api_secret"])
     db.session.add(cfg)
     db.session.commit()
     return jsonify(cfg.to_dict()), 201
@@ -688,6 +693,10 @@ def create_api_config():
 def update_api_config(cfg_id):
     cfg  = APIConfig.query.get_or_404(cfg_id)
     data = request.get_json() or {}
+    try:
+        clean = validate_api_config_payload(data, existing=cfg)
+    except APIConfigValidationError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     field_map = {
         "name": "name", "provider": "provider", "market": "market",
@@ -697,8 +706,8 @@ def update_api_config(cfg_id):
         "is_default": "is_default", "is_active": "is_active", "status": "status",
     }
     for k, attr in field_map.items():
-        if k in data:
-            setattr(cfg, attr, data[k])
+        if k in clean:
+            setattr(cfg, attr, clean[k])
 
     # Clear other configs' is_default AFTER applying field_map above — if the
     # request also changes `market` in the same call, this must use the NEW
@@ -708,7 +717,7 @@ def update_api_config(cfg_id):
     # marked is_default=True in the new market (the moved one, plus whatever
     # was already default there) — ambiguous "default" resolution for
     # whichever fetcher code does .filter_by(is_default=True).first().
-    if "is_default" in data and data["is_default"]:
+    if clean.get("is_default"):
         APIConfig.query.filter(
             APIConfig.market == cfg.market,
             APIConfig.id != cfg_id,
@@ -716,10 +725,10 @@ def update_api_config(cfg_id):
         ).update({"is_default": False})
 
     # Only update credentials if supplied
-    if data.get("api_key"):    cfg.set_api_key(data["api_key"])
-    if data.get("api_secret"): cfg.set_api_secret(data["api_secret"])
-    if data.get("access_token"):  cfg.access_token  = data["access_token"]
-    if data.get("refresh_token"): cfg.refresh_token = data["refresh_token"]
+    if clean.get("api_key"):    cfg.set_api_key(clean["api_key"])
+    if clean.get("api_secret"): cfg.set_api_secret(clean["api_secret"])
+    if clean.get("access_token"):  cfg.access_token  = clean["access_token"]
+    if clean.get("refresh_token"): cfg.refresh_token = clean["refresh_token"]
 
     cfg.updated_at = datetime.utcnow()
     db.session.commit()
