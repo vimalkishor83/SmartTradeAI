@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify, current_app
+import threading
 from app.models.news import News
 from app.models.economic import EconomicEvent
 from app.extensions import cache
@@ -7,6 +8,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 news_bp = Blueprint("news", __name__)
+
+_NEWS_FETCH_MARKER = "news_fetch_in_progress"
+_NEWS_FETCH_MARKER_TTL = 60
 
 
 @news_bp.route("/", methods=["GET"])
@@ -27,11 +31,21 @@ def get_news():
     if total == 0:
         # No news yet — trigger a background fetch and tell the client to retry
         try:
-            from app.tasks.data_tasks import fetch_news
-            import threading
-            t = threading.Thread(target=fetch_news, args=[current_app._get_current_object()], daemon=True)
-            t.start()
+            # A refresh burst must not spawn one provider job per request.
+            # The marker is deliberately short-lived so a failed worker cannot
+            # suppress retries forever; a successful worker makes this branch
+            # unnecessary as soon as rows are committed.
+            if not cache.get(_NEWS_FETCH_MARKER):
+                cache.set(_NEWS_FETCH_MARKER, "1", timeout=_NEWS_FETCH_MARKER_TTL)
+                from app.tasks.data_tasks import fetch_news
+                t = threading.Thread(
+                    target=fetch_news,
+                    args=[current_app._get_current_object()],
+                    daemon=True,
+                )
+                t.start()
         except Exception as e:
+            cache.delete(_NEWS_FETCH_MARKER)
             logger.warning(f"Background news fetch trigger failed: {e}")
         return jsonify({"news": [], "total": 0, "pages": 0, "fetching": True}), 200
 

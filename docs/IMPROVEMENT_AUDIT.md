@@ -742,6 +742,14 @@ The News page now escapes provider-controlled titles, summaries, sources, relate
 
 **Regression evidence:** News safety and ingestion checks passed (**2 passed**), extracted browser JavaScript passed `node --check`, Python compilation and whitespace validation passed, and the full local regression suite passed (**280 passed** in 109.82s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+### 7.48 IMPLEMENTED — Throttle duplicate empty-state News fetches
+
+When the News table is empty, the public endpoint now uses a short shared in-progress marker before starting its background provider fetch. Refresh bursts therefore start one worker instead of one worker per request; the marker expires after 60 seconds so provider failures still recover automatically, and marker cleanup remains failure-safe.
+
+**Risk level:** Medium availability/performance value, low response/API risk (the existing empty response remains `fetching: true`; only duplicate background work is suppressed). **Affected modules:** `app/api/v1/news.py`, `tests/integration/test_news_fetch_throttle.py`. **Migration:** none.
+
+**Regression evidence:** Empty-state throttle test passed (**1 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**281 passed** in 106.09s). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -877,5 +885,9 @@ The News page now escapes provider-controlled titles, summaries, sources, relate
 **Session 26 (UI security — provider-controlled News rendering):**
 - `frontend/templates/dashboard/news.html` — escape provider values, allow only HTTP(S) article links, add safe external-link attributes, and normalize numeric calendar comparisons.
 - `tests/unit/test_news_template_safety.py` — lock the rendering safety contract against raw provider interpolation.
+
+**Session 27 (News reliability — empty-state fetch throttle):**
+- `app/api/v1/news.py` — add a short shared in-progress marker so empty-state refresh bursts do not spawn duplicate provider jobs.
+- `tests/integration/test_news_fetch_throttle.py` — verify repeated empty-state requests start only one background fetch.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
