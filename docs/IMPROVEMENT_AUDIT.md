@@ -315,7 +315,7 @@ The primary dashboard API client now coalesces identical concurrent `GET` reques
 
 **Risk level:** Low (GET-only request coalescing, token included in the key). **Affected modules:** `frontend/static/js/app.js`. **Migration:** none.
 
-**Regression evidence:** JavaScript syntax validation and whitespace checks passed locally. Production deployment verification is pending for this change.
+**Regression evidence:** JavaScript syntax validation and whitespace checks passed locally. Production deployment completed on 2026-09-05 from commit `8c0cbb1`: the app container is healthy, the worker and dependencies are healthy, the full suite reported **159 passed** in 42.86s, health and root endpoints returned `HTTP 200`, and the fresh app/worker log scan contained no traceback/error matches. Authenticated visual browser verification remains a follow-up because no browser control surface was available in this session.
 
 ### 7.1 IMPLEMENTED — Bound signal-list pagination for API performance
 
