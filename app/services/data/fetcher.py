@@ -738,40 +738,49 @@ class YahooFetcher:
         if cached is not None:
             return cached
 
-        try:
-            yf_symbol = self._yahoo_symbol(symbol)
-            interval  = self.TF_INTERVAL.get(timeframe, "1d")
-            period    = self.TF_PERIOD.get(timeframe, "1y")
+        # Direct Yahoo callers (charts, ad-hoc signal requests) can arrive at
+        # the same cold key concurrently, independently of fetch_ohlcv_batch.
+        # Re-check after the per-key lock so only one of them pays the Yahoo
+        # round trip and the rest share the freshly cached frame.
+        with _cache.lock_for(cache_key):
+            cached = _cache.get(cache_key, min_rows=limit)
+            if cached is not None:
+                return cached
 
-            df = yf.download(
-                yf_symbol,
-                period=period,
-                interval=interval,
-                progress=False,
-                auto_adjust=True,
-                threads=False,
-            )
+            try:
+                yf_symbol = self._yahoo_symbol(symbol)
+                interval  = self.TF_INTERVAL.get(timeframe, "1d")
+                period    = self.TF_PERIOD.get(timeframe, "1y")
 
-            if df is None or df.empty:
+                df = yf.download(
+                    yf_symbol,
+                    period=period,
+                    interval=interval,
+                    progress=False,
+                    auto_adjust=True,
+                    threads=False,
+                )
+
+                if df is None or df.empty:
+                    return None
+
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+
+                df.columns = [c.lower() for c in df.columns]
+                needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
+                df = df[needed].dropna()
+                if "volume" not in df.columns:
+                    df["volume"] = 0.0
+
+                df = df.tail(limit)
+                _cache.set(cache_key, df)
+                _breaker_yahoo.success()
+                return df
+            except Exception as e:
+                _breaker_yahoo.failure()
+                logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
                 return None
-
-            if isinstance(df.columns, pd.MultiIndex):
-                df.columns = df.columns.get_level_values(0)
-
-            df.columns = [c.lower() for c in df.columns]
-            needed = [c for c in ["open","high","low","close","volume"] if c in df.columns]
-            df = df[needed].dropna()
-            if "volume" not in df.columns:
-                df["volume"] = 0.0
-
-            df = df.tail(limit)
-            _cache.set(cache_key, df)
-            _breaker_yahoo.success()
-            return df
-        except Exception as e:
-            _breaker_yahoo.failure()
-            logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
-            return None
 
     def fetch_ohlcv_batch(self, symbols: list[str], timeframe: str, limit: int = 220) -> dict[str, pd.DataFrame]:
         """Fetch multiple Yahoo symbols in a single download call (much faster than one-by-one)."""
@@ -784,7 +793,7 @@ class YahooFetcher:
         to_fetch_yf:  list[str]  = []   # yahoo symbols
 
         for sym in symbols:
-            cached = _cache.get(f"{sym}_{timeframe}")
+            cached = _cache.get(f"{sym}_{timeframe}", min_rows=limit)
             if cached is not None:
                 result[sym] = cached
             else:
@@ -1000,7 +1009,7 @@ class MarketDataFetcher:
             pending: list[tuple] = []
             for a in delta_assets:
                 for tf in timeframes:
-                    cached = _cache.get(f"{a.symbol}_{tf}")
+                    cached = _cache.get(f"{a.symbol}_{tf}", min_rows=limit)
                     if cached is not None:
                         results[a.symbol][tf] = cached
                     else:
