@@ -470,6 +470,14 @@ AI prediction responses now include a bounded historical context for the same as
 
 **Regression evidence:** Focused API/UI contract tests passed locally (**3 passed**); the full local suite passed with **212 passed** in 116.15s. Production deployment completed on 2026-09-05 from `268ce3e`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with the requested correlation ID, the deployed prediction-context tests passed (**3 passed**), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.14 IMPLEMENTED — Reject unsupported AI prediction timeframes
+
+The per-asset AI prediction endpoint now validates its timeframe against the canonical fetchable timeframe registry before checking cache, warming models, fetching candles, or persisting a prediction. Unsupported values no longer fall through the data fetcher’s provider defaults and risk returning a prediction for a different interval under the requested label.
+
+**Risk level:** Medium correctness value, low compatibility risk (all supported `1m` through `1d` timeframes remain available; unsupported intervals now receive a clear `400`). **Affected modules:** `app/api/v1/predictions.py`, `tests/integration/test_prediction_history_route.py`. **Migration:** none.
+
+**Regression evidence:** Focused prediction tests passed locally (**4 passed**); the full local suite passed with **213 passed** in 119.47s. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**

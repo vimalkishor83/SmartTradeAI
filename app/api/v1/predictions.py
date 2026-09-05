@@ -5,6 +5,7 @@ from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, premium_required, subscription_feature_required
 from app.services.ai.predictor import ai_predictor
 from app.services.data.fetcher import market_fetcher
+from app.services.backtest.validation import parse_timeframe
 from sqlalchemy import func
 from datetime import datetime, timedelta
 
@@ -55,7 +56,10 @@ def _prediction_response(prediction: Prediction) -> dict:
 @limiter.limit("30 per minute;200 per hour")
 def get_prediction(asset_id):
     asset = Asset.query.get_or_404(asset_id)
-    timeframe = request.args.get("timeframe", "1h")
+    try:
+        timeframe = parse_timeframe(request.args.get("timeframe"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     # Return cached prediction if recent
     existing = Prediction.query.filter_by(

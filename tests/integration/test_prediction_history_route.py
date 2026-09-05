@@ -64,3 +64,19 @@ def test_cached_prediction_includes_bounded_historical_context(app, client, prem
     assert context["correct"] == 1
     assert context["accuracy"] == 50.0
     assert context["scope"] == "same asset and timeframe, recent resolved predictions"
+
+
+def test_unsupported_prediction_timeframe_returns_400_before_fetch(app, client, premium_headers):
+    with app.app_context():
+        from app.extensions import db
+        from app.models.asset import Asset
+
+        asset = Asset(symbol="BADTF", name="Invalid Timeframe Asset", market="crypto", is_active=True)
+        db.session.add(asset)
+        db.session.commit()
+        asset_id = asset.id
+
+    response = client.get(f"/api/v1/predictions/{asset_id}?timeframe=10h", headers=premium_headers)
+
+    assert response.status_code == 400
+    assert "timeframe must be one of" in response.get_json()["error"]
