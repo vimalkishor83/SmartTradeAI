@@ -2511,6 +2511,7 @@ def _stream_csv_response(headers, rows, filename):
 
 @signals_bp.route("/export/csv", methods=["GET"])
 @login_required
+@limiter.limit("5 per minute;30 per hour")
 def export_signals_csv():
     """Export live signals as a joined, streamed CSV response."""
     market      = request.args.get("market")
@@ -2559,6 +2560,7 @@ def export_signals_csv():
 
 @signals_bp.route("/history/export/csv", methods=["GET"])
 @login_required
+@limiter.limit("5 per minute;30 per hour")
 def export_history_csv():
     """Export signal history as a joined, streamed CSV response."""
     today = datetime.utcnow().strftime("%Y-%m-%d")

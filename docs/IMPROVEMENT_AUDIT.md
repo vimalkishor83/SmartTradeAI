@@ -510,6 +510,14 @@ The exposed `/signals/performance/by-asset` route now computes overall statistic
 
 **Regression evidence:** Focused per-asset performance tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 153.08s. Production deployment completed on 2026-09-05 from `4a2e978`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: per-asset-performance-20260905`, the deployed per-asset, signal-performance, export and prediction tests passed (**9 passed** in 6.36s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.19 IMPLEMENTED — Rate-limit bulk CSV exports
+
+The live-signal and signal-history export endpoints now apply an endpoint-specific limit of five requests per minute and 30 per hour per caller. This complements streaming by limiting repeated bulk work while keeping normal downloads and all existing CSV filters unchanged.
+
+**Risk level:** Medium abuse-resistance value, low compatibility risk (normal users can continue to export; only repeated bulk requests receive `429`). **Affected modules:** `app/api/v1/signals.py`. **Migration:** none.
+
+**Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 89.83s. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
