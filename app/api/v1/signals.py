@@ -1614,60 +1614,119 @@ def signal_performance():
     market = request.args.get("market")
 
     cutoff = datetime.utcnow() - timedelta(days=days)
-    q = SignalHistory.query.filter(SignalHistory.closed_at >= cutoff)
-    rows = q.all()
+    filters = [SignalHistory.closed_at >= cutoff]
 
-    # Asset map (for symbol/market labels + optional market filter)
-    asset_ids = {r.asset_id for r in rows if r.asset_id}
-    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()} if asset_ids else {}
+    # Keep the optional market filter in SQL, but preserve legacy rows whose
+    # asset relation is unavailable when no market filter was requested.
     if market:
-        rows = [r for r in rows if (a := assets_map.get(r.asset_id)) and a.market == market]
+        filters.append(Asset.market == market)
 
-    def _stats(items):
-        total = len(items)
-        wins = [r for r in items if r.outcome == "win"]
-        losses = [r for r in items if r.outcome == "loss"]
-        gross_win = sum((r.pnl_pct or 0) for r in wins)
-        gross_loss = abs(sum((r.pnl_pct or 0) for r in losses))
-        return {
-            "total": total,
-            "wins": len(wins),
-            "losses": len(losses),
-            "win_rate": round(len(wins) / total * 100, 1) if total else 0,
-            "avg_pnl_pct": round(sum((r.pnl_pct or 0) for r in items) / total, 3) if total else 0,
-            "profit_factor": round(gross_win / gross_loss, 2) if gross_loss > 0
-                             else (None if gross_win > 0 else 0),   # None = no losing trades
-        }
+    gross_win_expr = func.sum(case(
+        (SignalHistory.outcome == "win", func.coalesce(SignalHistory.pnl_pct, 0)),
+        else_=0,
+    ))
+    gross_loss_expr = func.sum(case(
+        (SignalHistory.outcome == "loss", func.coalesce(SignalHistory.pnl_pct, 0)),
+        else_=0,
+    ))
+    overall_row = db.session.query(
+        func.count(SignalHistory.id).label("total"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+        func.sum(case((SignalHistory.outcome == "loss", 1), else_=0)).label("losses"),
+        func.sum(func.coalesce(SignalHistory.pnl_pct, 0)).label("pnl"),
+        gross_win_expr.label("gross_win"),
+        gross_loss_expr.label("gross_loss"),
+    ).select_from(SignalHistory)
+    if market:
+        overall_row = overall_row.join(Asset, SignalHistory.asset_id == Asset.id)
+    overall_row = overall_row.filter(*filters).one()
 
-    # ── Overall ──
-    overall = _stats(rows)
+    total = int(overall_row.total or 0)
+    wins = int(overall_row.wins or 0)
+    losses = int(overall_row.losses or 0)
+    gross_win = float(overall_row.gross_win or 0)
+    gross_loss = abs(float(overall_row.gross_loss or 0))
+    overall = {
+        "total": total,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(wins / total * 100, 1) if total else 0,
+        "avg_pnl_pct": round(float(overall_row.pnl or 0) / total, 3) if total else 0,
+        "profit_factor": round(gross_win / gross_loss, 2) if gross_loss > 0
+                         else (None if gross_win > 0 else 0),
+    }
 
     # ── Per asset × timeframe ──
-    from collections import defaultdict
-    buckets: dict[tuple, list] = defaultdict(list)
-    for r in rows:
-        buckets[(r.asset_id, r.timeframe)].append(r)
+    bucket_query = db.session.query(
+        SignalHistory.asset_id.label("asset_id"),
+        SignalHistory.timeframe.label("timeframe"),
+        func.count(SignalHistory.id).label("total"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+        func.sum(case((SignalHistory.outcome == "loss", 1), else_=0)).label("losses"),
+        func.sum(func.coalesce(SignalHistory.pnl_pct, 0)).label("pnl"),
+        gross_win_expr.label("gross_win"),
+        gross_loss_expr.label("gross_loss"),
+    ).select_from(SignalHistory)
+    if market:
+        bucket_query = bucket_query.join(Asset, SignalHistory.asset_id == Asset.id)
+    bucket_rows = (bucket_query.filter(*filters)
+                   .group_by(SignalHistory.asset_id, SignalHistory.timeframe)
+                   .all())
+
+    asset_ids = {row.asset_id for row in bucket_rows if row.asset_id}
+    assets_map = {a.id: a for a in Asset.query.filter(Asset.id.in_(asset_ids)).all()} if asset_ids else {}
     by_asset_tf = []
-    for (aid, tf), items in buckets.items():
-        a = assets_map.get(aid)
-        s = _stats(items)
-        s.update({"asset": a.symbol if a else str(aid),
-                  "market": a.market if a else None, "timeframe": tf})
-        by_asset_tf.append(s)
+    for row in bucket_rows:
+        asset = assets_map.get(row.asset_id)
+        row_total = int(row.total or 0)
+        row_wins = int(row.wins or 0)
+        row_losses = int(row.losses or 0)
+        gross_win = float(row.gross_win or 0)
+        gross_loss = abs(float(row.gross_loss or 0))
+        by_asset_tf.append({
+            "asset": asset.symbol if asset else str(row.asset_id),
+            "market": asset.market if asset else None,
+            "timeframe": row.timeframe,
+            "total": row_total,
+            "wins": row_wins,
+            "losses": row_losses,
+            "win_rate": round(row_wins / row_total * 100, 1) if row_total else 0,
+            "avg_pnl_pct": round(float(row.pnl or 0) / row_total, 3) if row_total else 0,
+            "profit_factor": round(gross_win / gross_loss, 2) if gross_loss > 0
+                             else (None if gross_win > 0 else 0),
+        })
     by_asset_tf.sort(key=lambda x: (-x["total"], -x["win_rate"]))
 
     # ── Confidence calibration: does an 80%-confidence signal win ~80%? ──
     conf_bands = [(0, 60, "Weak"), (60, 75, "Moderate"), (75, 90, "Strong"), (90, 101, "Very Strong")]
+    score_expr = func.coalesce(SignalHistory.confidence_score, 0)
+    band_expr = case(
+        *[(and_(score_expr >= lo, score_expr < hi), label)
+          for lo, hi, label in conf_bands],
+        else_=None,
+    )
+    calibration_rows = db.session.query(
+        band_expr.label("band"),
+        func.count(SignalHistory.id).label("signals"),
+        func.sum(case((SignalHistory.outcome.in_(("win", "loss")), 1), else_=0)).label("decisive"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+    ).select_from(SignalHistory)
+    if market:
+        calibration_rows = calibration_rows.join(Asset, SignalHistory.asset_id == Asset.id)
+    calibration_rows = (calibration_rows.filter(*filters, band_expr.isnot(None))
+                        .group_by(band_expr).all())
+    calibration_map = {
+        row.band: (int(row.signals or 0), int(row.decisive or 0), int(row.wins or 0))
+        for row in calibration_rows
+    }
     calibration = []
     for lo, hi, label in conf_bands:
-        band = [r for r in rows if lo <= (r.confidence_score or 0) < hi]
-        decisive = [r for r in band if r.outcome in ("win", "loss")]
-        actual_win = round(sum(1 for r in decisive if r.outcome == "win") / len(decisive) * 100, 1) \
-                     if decisive else None
+        signals, decisive, wins = calibration_map.get(label, (0, 0, 0))
+        actual_win = round(wins / decisive * 100, 1) if decisive else None
         calibration.append({
             "band": label, "range": f"{lo}-{hi - 1}",
-            "signals": len(band),
-            "actual_win_rate": actual_win,   # compare against the band midpoint
+            "signals": signals,
+            "actual_win_rate": actual_win,
             "expected_win_rate": (lo + hi) // 2,
         })
 

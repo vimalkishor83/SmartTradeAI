@@ -502,6 +502,14 @@ Live-signal and signal-history CSV exports now stream rows in 500-record batches
 
 **Regression evidence:** Focused export tests passed locally (**1 passed**); the full local suite passed with **217 passed** in 188.55s. Production deployment completed on 2026-09-05 from `3e44b0f`: the app, PostgreSQL, Redis and worker were healthy, `/api/v1/system/health` returned `HTTP 200` with `X-Request-ID: signal-export-20260905`, the deployed export and performance tests passed (**8 passed** in 5.98s), and the ten-minute app/worker error scan was empty. A full integration suite was not run against production because it could mutate live services or data.
 
+### 7.18 IMPLEMENTED — Aggregate the legacy per-asset performance endpoint in SQL
+
+The exposed `/signals/performance/by-asset` route now computes overall statistics, asset/timeframe buckets, profit factors, and confidence calibration in database aggregates instead of loading every history row into Python. Optional market filtering is applied in SQL, while the response shape and legacy null-confidence Weak-band behavior remain compatible.
+
+**Risk level:** Medium scalability value, low API compatibility risk (existing keys, calculations, and bounded 50-bucket response are preserved; no model or schema change). **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_performance_by_asset.py`. **Migration:** none.
+
+**Regression evidence:** Focused per-asset performance tests passed locally (**1 passed**); the full local suite passed with **218 passed** in 153.08s. Production verification is pending for this slice.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
