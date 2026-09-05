@@ -14,7 +14,7 @@ from app.services.backtest.validation import (
     parse_asset_id, parse_days, parse_market, parse_portfolio_limit, parse_timeframe, parse_symbol,
 )
 from datetime import datetime, timedelta
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -1052,6 +1052,63 @@ def open_pnl():
     return jsonify(result), 200
 
 
+def _historical_context_for_signals(signals) -> dict[tuple[int, str], dict]:
+    """Return grouped closed-history context for the active signals shown.
+
+    The query is intentionally grouped by asset/timeframe so a page of
+    signals gets one database round-trip rather than an N+1 lookup from the
+    Decision Inspector. Accuracy uses decisive outcomes only; expired neutral
+    rows remain visible in the sample counts instead of being treated as wins
+    or losses.
+    """
+    pairs = {(signal.asset_id, signal.timeframe) for signal in signals}
+    context = {
+        pair: {
+            "sample_size": 0,
+            "decisive_sample_size": 0,
+            "wins": 0,
+            "losses": 0,
+            "neutral": 0,
+            "accuracy": None,
+            "avg_pnl_pct": None,
+        }
+        for pair in pairs
+    }
+    if not pairs:
+        return context
+
+    pair_filter = or_(*(
+        and_(SignalHistory.asset_id == asset_id, SignalHistory.timeframe == timeframe)
+        for asset_id, timeframe in pairs
+    ))
+    rows = db.session.query(
+        SignalHistory.asset_id.label("asset_id"),
+        SignalHistory.timeframe.label("timeframe"),
+        func.count(SignalHistory.id).label("sample_size"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+        func.sum(case((SignalHistory.outcome == "loss", 1), else_=0)).label("losses"),
+        func.avg(SignalHistory.pnl_pct).label("avg_pnl_pct"),
+    ).filter(pair_filter).group_by(
+        SignalHistory.asset_id, SignalHistory.timeframe,
+    ).all()
+
+    for row in rows:
+        sample_size = int(row.sample_size or 0)
+        wins = int(row.wins or 0)
+        losses = int(row.losses or 0)
+        decisive = wins + losses
+        context[(row.asset_id, row.timeframe)] = {
+            "sample_size": sample_size,
+            "decisive_sample_size": decisive,
+            "wins": wins,
+            "losses": losses,
+            "neutral": max(0, sample_size - decisive),
+            "accuracy": round(wins / decisive * 100, 1) if decisive else None,
+            "avg_pnl_pct": round(float(row.avg_pnl_pct), 2) if row.avg_pnl_pct is not None else None,
+        }
+    return context
+
+
 @signals_bp.route("/", methods=["GET"])
 @login_required
 def get_signals():
@@ -1088,8 +1145,15 @@ def get_signals():
         .order_by(Signal.generated_at.desc()) \
         .paginate(page=page, per_page=per_page, error_out=False)
 
+    history_context = _historical_context_for_signals(signals.items)
+    serialized = []
+    for signal in signals.items:
+        row = signal.to_dict()
+        row["historical_context"] = history_context[(signal.asset_id, signal.timeframe)]
+        serialized.append(row)
+
     return jsonify({
-        "signals": [s.to_dict() for s in signals.items],
+        "signals": serialized,
         "total": signals.total,
         "page": page,
         "pages": signals.pages,
@@ -1100,7 +1164,11 @@ def get_signals():
 @login_required
 def get_signal(signal_id):
     signal = Signal.query.get_or_404(signal_id)
-    return jsonify(signal.to_dict()), 200
+    row = signal.to_dict()
+    row["historical_context"] = _historical_context_for_signals([signal]).get(
+        (signal.asset_id, signal.timeframe),
+    )
+    return jsonify(row), 200
 
 
 @signals_bp.route("/generate", methods=["POST"])

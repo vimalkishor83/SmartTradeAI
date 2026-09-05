@@ -296,7 +296,7 @@ This surfaces as a real, user-facing accuracy claim: `GET /signals/live-read-per
 
 ### 6.2 Remaining Phase 5 items (not done in this pass)
 
-- Historical-accuracy context alongside the Inspector's confidence % (still flagged from §3.3 — the existing `/model-performance` and confidence-calibration-band data could plausibly feed this).
+- Confidence-matched historical-accuracy context alongside the Inspector's confidence % remains future work; §7.34 now shows same-asset/timeframe closed history with explicit decisive and neutral counts.
 - Data-quality status is now surfaced in the Inspector (§6.3); the same contract is also persisted on AI prediction cards in §7.32.
 - Market-regime confidence context (`s.regime` already exists on every signal but isn't shown in the Inspector itself, only used elsewhere) — not added this pass, scoped separately to keep this change to one concrete addition.
 - **A much deeper AI/ML rigor spec was handed over on 2026-09-05, to start once the current phase of this 16-phase pass reaches a natural stopping point** — see the user-provided spec (calibration separation, ensemble redesign, drift monitoring, leakage testing, shadow models, per-model independent evaluation, a new `/admin/ai-quality` page, etc.). That spec substantially deepens and overlaps this section's remaining items and Phase 2/3's remaining items — treat it as the rigorous continuation of this work, not a separate backlog, when it's time to start it.
@@ -630,6 +630,14 @@ The AI predictor now retains each available RF, XGBoost and LightGBM `predict_pr
 
 **Regression evidence:** Focused member-output, model-version, and provenance tests passed (**7 passed**); Python compilation and whitespace validation passed. Production deployment verification is pending for this slice; the safe plan is Alembic head inspection, health/compose checks, source verification, isolated unit tests in the app container, and a non-mutating log scan. A full production integration suite is intentionally not run because prediction generation and other integration paths can mutate live services or data.
 
+### 7.34 IMPLEMENTED — Add same-asset/timeframe history to the Decision Inspector
+
+Active signal list and detail responses now include grouped historical context for the exact asset and timeframe being inspected: total resolved records, decisive sample size, wins, losses, neutral expiries, accuracy and average P&L. Accuracy is explicitly calculated from wins divided by wins plus losses; neutral expiries remain visible but do not inflate or depress that decisive accuracy percentage. The dashboard Inspector renders this beside data quality, regime and provenance and labels it as historical context rather than a forecast. The grouped query avoids an N+1 database lookup when the active signal page contains multiple rows.
+
+**Risk level:** Low (read-only additive API metadata and UI context; no signal selection, confidence, execution or outcome calculation changed). **Affected modules:** `app/api/v1/signals.py`, `frontend/static/js/pages/dashboard.js`, `tests/integration/test_signal_history_context.py`. **Migration:** none.
+
+**Regression evidence:** Focused history-context and prediction-context integration tests passed (**4 passed**), JavaScript syntax validation, Python compilation and whitespace validation passed, and the full local regression suite passed (**246 passed**). Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is health/compose/source checks plus isolated tests only, not the mutating integration suite.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -701,5 +709,10 @@ The AI predictor now retains each available RF, XGBoost and LightGBM `predict_pr
 - `app/__init__.py`, `migrations/versions/c6f7a8b9c0d1_add_prediction_model_outputs.py` — additive SQLite fallback and Alembic migration.
 - `frontend/templates/dashboard/ai_insights.html` — show actual member values and percentage-point spread, with a heuristic fallback warning.
 - `tests/unit/test_prediction_model_outputs.py`, `tests/unit/test_prediction_model_version.py` — inference/cache and persistence/serialization regression coverage.
+
+**Session 13 (Phase 5 — Decision Inspector historical context, §7.34):**
+- `app/api/v1/signals.py` — one grouped asset/timeframe history query for active signal list/detail responses.
+- `frontend/static/js/pages/dashboard.js` — show decisive accuracy, sample composition and average P&L with explicit non-forecast wording.
+- `tests/integration/test_signal_history_context.py` — mixed-outcome and empty-history response coverage.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. **No destructive migration. No new credentials or secrets introduced.**

@@ -304,6 +304,14 @@ function loadInspector(s) {
   const detail = s.reasoning_detail || [];
   const evidence = detail.filter(r => r.aligned);
   const counterEvidence = detail.filter(r => !r.aligned);
+  const history = s.historical_context || {};
+  const historyAccuracy = Number.isFinite(Number(history.accuracy)) ? Number(history.accuracy) : null;
+  const historySample = Number(history.sample_size || 0);
+  const historyDecisive = Number(history.decisive_sample_size || 0);
+  const historyPnl = Number.isFinite(Number(history.avg_pnl_pct)) ? Number(history.avg_pnl_pct) : null;
+  const historySummary = historyDecisive
+    ? `${history.wins || 0} wins · ${history.losses || 0} losses${history.neutral ? ` · ${history.neutral} neutral` : ''}`
+    : 'No decisive closed sample yet';
 
   body.innerHTML = `
     <div class="insp-grid">
@@ -326,6 +334,11 @@ function loadInspector(s) {
     <div class="insp-context insp-provenance" role="status">
       <div class="insp-context-main"><i class="bi bi-fingerprint"></i><strong>Signal provenance</strong><span>${sourceLabel}</span></div>
       <div class="insp-context-meta">${modelLabel} · ${provenance.data_candles ?? '—'} candles · data ${fingerprintLabel}</div>
+    </div>
+    <div class="insp-context insp-history" role="status">
+      <div class="insp-context-main"><i class="bi bi-bar-chart-line"></i><strong>Historical context</strong><span>${historyAccuracy == null ? '—' : historyAccuracy.toFixed(1) + '% accuracy'}</span></div>
+      <div class="insp-context-meta">${historySummary} · ${historySample} total resolved records${historyPnl == null ? '' : ` · avg P&L ${historyPnl >= 0 ? '+' : ''}${historyPnl.toFixed(2)}%`}</div>
+      <div class="insp-context-meta">Same asset and timeframe; accuracy excludes neutral expiries and is not a forecast.</div>
     </div>
     <div class="insp-section-title">${decisionTitle}</div>
     <div class="insp-checks">${checks.map(([l, ok]) => `<div class="insp-check"><i class="bi ${ok ? 'bi-check-circle-fill text-green' : 'bi-dash-circle text-muted'}"></i>${l}</div>`).join('')}</div>
