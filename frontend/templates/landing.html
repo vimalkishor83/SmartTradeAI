@@ -819,6 +819,45 @@
     }
     .footer-links a:hover { color: var(--accent); }
 
+    /* Grouped footer columns (Product/Account/Company/Legal/Support) --
+       .footer itself stays text-align:center for the brand/disclaimer/
+       copyright above and below, so this grid re-centers itself with
+       margin:auto rather than inheriting that. */
+    .footer-columns {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(120px, 1fr));
+      gap: 24px;
+      max-width: 900px;
+      margin: 0 auto 30px;
+      text-align: left;
+    }
+    .footer-col-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--text3);
+      margin-bottom: 12px;
+    }
+    .footer-col ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+    .footer-col a {
+      color: var(--text2);
+      font-size: 13px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .footer-col a:hover { color: var(--accent); }
+
+    @media (max-width: 768px) {
+      .footer-columns { grid-template-columns: repeat(2, 1fr); text-align: center; }
+      .footer-col ul { align-items: center; }
+    }
+
     .financial-disclaimer {
       max-width: 780px;
       margin: 0 auto 20px;
@@ -1336,16 +1375,49 @@
 <footer class="footer">
   <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
   <div class="footer-tagline">Your edge across global markets — powered by artificial intelligence.</div>
-  <ul class="footer-links">
-    <li><a href="/dashboard">Dashboard</a></li>
-    <li id="footerLoginItem"><a href="/login">Login</a></li>
-    <li id="footerRegisterItem"><a href="/register">Register</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#pricing">Pricing</a></li>
-    <li><a href="#about">About Us</a></li>
-    <li><a href="#contact">Contact Us</a></li>
-    <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
-  </ul>
+
+  <div class="footer-columns">
+    <div class="footer-col">
+      <div class="footer-col-title">Product</div>
+      <ul>
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How It Works</a></li>
+        <li><a href="#signals">Live Signals</a></li>
+        <li><a href="#pricing">Pricing</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Account</div>
+      <ul>
+        <li><a href="/dashboard">Dashboard</a></li>
+        <li id="footerLoginItem"><a href="/login">Login</a></li>
+        <li id="footerRegisterItem"><a href="/register">Register</a></li>
+        <li><a href="/forgot-password">Forgot Password</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Company</div>
+      <ul>
+        <li><a href="#about">About Us</a></li>
+        <li><a href="#contact">Contact Us</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Legal</div>
+      <ul>
+        <li><a href="/terms">Terms of Service</a></li>
+        <li><a href="/privacy">Privacy Policy</a></li>
+        <li><a href="/disclaimer">Financial Disclaimer</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <div class="footer-col-title">Support</div>
+      <ul>
+        <li><a href="#contact">Contact Support</a></li>
+        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+      </ul>
+    </div>
+  </div>
 
   <div class="financial-disclaimer">
     <strong>Financial Disclaimer.</strong> This platform provides financial education, market information, and
