@@ -239,7 +239,7 @@
     <button type="button" class="btn-analyze" id="btnAnalyze" disabled>
       <i class="bi bi-play-fill"></i> Analyze
     </button>
-    <span class="text-muted" style="font-size:12px" id="aaStatusText"></span>
+    <span class="text-muted" style="font-size:12px" id="aaStatusText" role="status" aria-live="polite"></span>
   </div>
 
   <!-- Overlay toggles -->
@@ -257,8 +257,8 @@
   <div class="row g-3">
     <!-- Chart column -->
     <div class="col-lg-9">
-      <div id="aaChartWrap">
-        <div id="aaChart"></div>
+      <div id="aaChartWrap" role="region" aria-label="Advanced price analysis chart">
+        <div id="aaChart" role="img" aria-label="Select an asset and timeframe to view the price chart"></div>
         <div class="chart-empty" id="chartEmpty">
           <i class="bi bi-layers"></i>
           <div>Select an asset and timeframe to begin analysis</div>
@@ -273,19 +273,19 @@
     <div class="col-lg-3">
       <div class="aa-card" id="aaRight" style="height:620px; display:flex; flex-direction:column">
 
-        <div class="aa-tabs" id="aaTabs">
-          <button type="button" class="aa-tab active" data-panel="struct" title="Market Structure" aria-label="Market Structure"><i class="bi bi-diagram-3"></i></button>
-          <button type="button" class="aa-tab" data-panel="fib" title="Fibonacci Levels" aria-label="Fibonacci Levels"><i class="bi bi-rulers"></i></button>
-          <button type="button" class="aa-tab" data-panel="liq" title="Liquidity Pools" aria-label="Liquidity Pools"><i class="bi bi-droplet-fill"></i></button>
-          <button type="button" class="aa-tab" data-panel="fvg" title="Fair Value Gaps" aria-label="Fair Value Gaps"><i class="bi bi-layout-split"></i></button>
-          <button type="button" class="aa-tab" data-panel="ob" title="Order Blocks" aria-label="Order Blocks"><i class="bi bi-bounding-box"></i></button>
-          <button type="button" class="aa-tab" data-panel="vp" title="Volume Profile" aria-label="Volume Profile"><i class="bi bi-bar-chart-horizontal-fill"></i></button>
+        <div class="aa-tabs" id="aaTabs" role="tablist" aria-label="Analysis panels">
+          <button type="button" class="aa-tab active" data-panel="struct" role="tab" aria-selected="true" aria-controls="aaPanel-struct" title="Market Structure" aria-label="Market Structure"><i class="bi bi-diagram-3"></i></button>
+          <button type="button" class="aa-tab" data-panel="fib" role="tab" aria-selected="false" aria-controls="aaPanel-fib" title="Fibonacci Levels" aria-label="Fibonacci Levels"><i class="bi bi-rulers"></i></button>
+          <button type="button" class="aa-tab" data-panel="liq" role="tab" aria-selected="false" aria-controls="aaPanel-liq" title="Liquidity Pools" aria-label="Liquidity Pools"><i class="bi bi-droplet-fill"></i></button>
+          <button type="button" class="aa-tab" data-panel="fvg" role="tab" aria-selected="false" aria-controls="aaPanel-fvg" title="Fair Value Gaps" aria-label="Fair Value Gaps"><i class="bi bi-layout-split"></i></button>
+          <button type="button" class="aa-tab" data-panel="ob" role="tab" aria-selected="false" aria-controls="aaPanel-ob" title="Order Blocks" aria-label="Order Blocks"><i class="bi bi-bounding-box"></i></button>
+          <button type="button" class="aa-tab" data-panel="vp" role="tab" aria-selected="false" aria-controls="aaPanel-vp" title="Volume Profile" aria-label="Volume Profile"><i class="bi bi-bar-chart-horizontal-fill"></i></button>
         </div>
 
         <div class="aa-tab-body">
 
           <!-- Market Structure -->
-          <div class="aa-panel active" data-panel="struct">
+          <div class="aa-panel active" id="aaPanel-struct" role="tabpanel" data-panel="struct">
             <div class="aa-card-title"><i class="bi bi-diagram-3"></i> Market Structure</div>
             <div id="structTrend"></div>
             <div class="struct-list" id="structList">
@@ -294,7 +294,7 @@
           </div>
 
           <!-- Fibonacci -->
-          <div class="aa-panel" data-panel="fib">
+          <div class="aa-panel" id="aaPanel-fib" role="tabpanel" data-panel="fib">
             <div class="aa-card-title"><i class="bi bi-rulers"></i> Fibonacci Levels</div>
             <div id="fibTable">
               <div class="aa-skeleton"><div class="aa-skel-line" style="width:85%"></div><div class="aa-skel-line" style="width:70%"></div><div class="aa-skel-line" style="width:95%"></div><div class="aa-skel-line" style="width:65%"></div></div>
@@ -302,7 +302,7 @@
           </div>
 
           <!-- Liquidity -->
-          <div class="aa-panel" data-panel="liq">
+          <div class="aa-panel" id="aaPanel-liq" role="tabpanel" data-panel="liq">
             <div class="aa-card-title"><i class="bi bi-droplet-fill"></i> Liquidity Pools</div>
             <div id="liqPanel">
               <div class="aa-skeleton"><div class="aa-skel-line" style="width:80%"></div><div class="aa-skel-line" style="width:60%"></div></div>
@@ -310,7 +310,7 @@
           </div>
 
           <!-- FVG -->
-          <div class="aa-panel" data-panel="fvg">
+          <div class="aa-panel" id="aaPanel-fvg" role="tabpanel" data-panel="fvg">
             <div class="aa-card-title"><i class="bi bi-layout-split"></i> Fair Value Gaps</div>
             <div id="fvgList">
               <div class="aa-skeleton"><div class="aa-skel-line" style="width:70%"></div><div class="aa-skel-line" style="width:90%"></div></div>
@@ -318,7 +318,7 @@
           </div>
 
           <!-- Order Blocks -->
-          <div class="aa-panel" data-panel="ob">
+          <div class="aa-panel" id="aaPanel-ob" role="tabpanel" data-panel="ob">
             <div class="aa-card-title"><i class="bi bi-bounding-box"></i> Order Blocks</div>
             <div id="obList">
               <div class="aa-skeleton"><div class="aa-skel-line" style="width:75%"></div><div class="aa-skel-line" style="width:55%"></div></div>
@@ -326,7 +326,7 @@
           </div>
 
           <!-- Volume Profile -->
-          <div class="aa-panel" data-panel="vp">
+          <div class="aa-panel" id="aaPanel-vp" role="tabpanel" data-panel="vp">
             <div class="aa-card-title"><i class="bi bi-bar-chart-horizontal-fill"></i> Volume Profile</div>
             <div id="vpChart">
               <div class="aa-skeleton"><div class="aa-skel-line" style="width:50%"></div><div class="aa-skel-line" style="width:80%"></div><div class="aa-skel-line" style="width:65%"></div></div>
@@ -950,7 +950,11 @@ document.addEventListener('app:ready', () => {
     if (!tab || !event.currentTarget.contains(tab)) return;
     const panelKey = String(tab.dataset.panel || '');
     if (!['struct', 'fib', 'liq', 'fvg', 'ob', 'vp'].includes(panelKey)) return;
-    document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.aa-tab').forEach(t => {
+      const active = t === tab;
+      t.classList.toggle('active', active);
+      t.setAttribute('aria-selected', String(active));
+    });
     document.querySelectorAll('.aa-panel').forEach(panel => {
       panel.classList.toggle('active', panel.dataset.panel === panelKey);
     });

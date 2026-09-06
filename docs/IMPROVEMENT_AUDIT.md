@@ -166,6 +166,20 @@ Protective-order serialization now tolerates rows with a missing nullable `creat
 
 **Database changes:** none. **API contract changes:** incomplete rows now return `created_at: null`. **No new credentials or secrets introduced.**
 
+### 7.129 IMPLEMENTED - Add accessible Advanced Analysis panel semantics
+
+Advanced Analysis now exposes its chart and status as named regions, gives the overlay panel switcher proper tablist/tab/tabpanel relationships, and keeps `aria-selected` synchronized when panels change. Existing chart rendering, bounded external-data handling, request sequencing and analysis API contracts remain unchanged.
+
+**Risk level:** High decision-support accessibility value, low compatibility risk because the change is additive semantic metadata and preserves the existing panel interaction. **Affected modules:** `frontend/templates/dashboard/advanced_analysis.html`, `tests/unit/test_advanced_analysis_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Advanced Analysis template, signal-state and backend validation checks passed (**10 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing SQLAlchemy, pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 109 (Advanced Analysis accessibility):**
+- `frontend/templates/dashboard/advanced_analysis.html` - add chart/status semantics and synchronized analysis panel tabs.
+- `tests/unit/test_advanced_analysis_template_safety.py` - protect accessible tab and state contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

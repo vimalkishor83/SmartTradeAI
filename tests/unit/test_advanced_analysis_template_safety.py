@@ -14,6 +14,9 @@ def test_advanced_analysis_uses_accessible_delegated_controls():
     assert "event.target?.closest?.('.aa-tab')" in source
     assert "event.target?.closest?.('.tf-btn')" in source
     assert 'aria-label="Select asset"' in source
+    assert 'id="aaStatusText"' in source
+    assert 'role="tablist"' in source
+    assert 'role="tabpanel"' in source
 
 
 def test_advanced_analysis_bounds_and_escapes_external_values():
@@ -42,3 +45,4 @@ def test_advanced_analysis_guards_chart_requests_and_series_order():
     assert "const pointsByTime = new Map();" in source
     assert "const markersByTime = new Map();" in source
     assert "zoneLines.forEach" in source
+    assert "t.setAttribute('aria-selected', String(active));" in source
