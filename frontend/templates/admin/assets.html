@@ -11,7 +11,7 @@
     <h1 class="page-title">Manage Assets</h1>
     <p class="page-subtitle">Add, filter, and remove trading assets from the platform</p>
   </div>
-  <button class="btn btn-outline-light btn-sm" onclick="loadAssets()">
+  <button type="button" class="btn btn-outline-light btn-sm" data-action="refresh-assets">
     <i class="bi bi-arrow-clockwise me-1"></i> Refresh
   </button>
 </div>
@@ -71,22 +71,22 @@
     <div class="d-flex gap-2 align-items-center">
       <div class="search-bar" style="width:220px;padding:4px 10px">
         <i class="bi bi-search" style="font-size:12px"></i>
-        <input type="text" id="assetSearch" placeholder="Search symbol or name…" style="font-size:12.5px" oninput="applyFilter()">
+        <input type="text" id="assetSearch" placeholder="Search symbol or name…" style="font-size:12.5px">
         <i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i>
       </div>
-      <select id="assetMarketFilter" class="form-select form-select-sm" style="width:160px" onchange="applyFilter()">
+      <select id="assetMarketFilter" class="form-select form-select-sm" style="width:160px">
         <option value="">All Markets</option>
       </select>
       <div class="form-check mb-0">
-        <input class="form-check-input" type="checkbox" id="showDisabled" onchange="applyFilter()">
+        <input class="form-check-input" type="checkbox" id="showDisabled">
         <label class="form-check-label small text-muted" for="showDisabled">Show disabled</label>
       </div>
       <div class="vr mx-1" style="opacity:.3"></div>
-      <button class="btn btn-sm btn-outline-success" id="enableFilteredBtn" onclick="bulkSetFiltered(true)"
+      <button type="button" class="btn btn-sm btn-outline-success" id="enableFilteredBtn" data-action="enable-filtered"
         title="Enable every asset matching the current market filter/search">Enable All</button>
-      <button class="btn btn-sm btn-outline-danger" id="disableFilteredBtn" onclick="bulkSetFiltered(false)"
+      <button type="button" class="btn btn-sm btn-outline-danger" id="disableFilteredBtn" data-action="disable-filtered"
         title="Disable every asset matching the current market filter/search">Disable All</button>
-      <button class="btn btn-sm btn-danger" id="deleteSelectedBtn" onclick="deleteSelectedAssets()" style="display:none">
+      <button type="button" class="btn btn-sm btn-danger" id="deleteSelectedBtn" data-action="delete-selected" style="display:none">
         <i class="bi bi-trash3 me-1"></i>Delete Selected (<span id="deleteSelectedCount">0</span>)
       </button>
       <span class="text-muted small" id="assetCount"></span>
@@ -96,7 +96,7 @@
     <table class="smart-table">
       <thead>
         <tr>
-          <th style="width:34px"><input class="form-check-input" type="checkbox" id="assetSelectAll" onchange="toggleSelectAllAssets(this.checked)" title="Select all visible assets"></th>
+          <th style="width:34px"><input class="form-check-input" type="checkbox" id="assetSelectAll" title="Select all visible assets"></th>
           <th>Symbol</th>
           <th>Name</th>
           <th>Market</th>
@@ -145,12 +145,12 @@
     <div class="d-flex gap-2 align-items-center">
       <div class="search-bar" style="width:220px;padding:4px 10px">
         <i class="bi bi-search" style="font-size:12px"></i>
-        <input type="text" id="deltaCatalogSearch" placeholder="Search catalog to add assets…" style="font-size:12.5px" oninput="renderDeltaCatalog()">
+        <input type="text" id="deltaCatalogSearch" placeholder="Search catalog to add assets…" style="font-size:12.5px">
         <i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i>
       </div>
-      <button class="btn btn-sm btn-outline-success" onclick="bulkSetDeltaCatalog(true)"
+      <button type="button" class="btn btn-sm btn-outline-success" data-action="enable-delta-filtered"
         title="Enable every symbol matching your search — type something first">Enable All</button>
-      <button class="btn btn-sm btn-outline-danger" onclick="bulkSetDeltaCatalog(false)"
+      <button type="button" class="btn btn-sm btn-outline-danger" data-action="disable-delta-filtered"
         title="Disable every tracked symbol matching your search (or all tracked symbols if the search is empty)">Disable All</button>
       <span class="text-muted small" id="deltaCatalogCount"></span>
     </div>
@@ -177,13 +177,54 @@ let isSuperAdmin = false;
 // switching markets to add more to the same batch doesn't lose what's
 // already checked. renderTable() re-syncs each checkbox from this Set.
 let _selectedAssetIds = new Set();
+let _assetLoadSequence = 0;
+let _assetSearchSequence = 0;
+let _deltaCatalogSequence = 0;
+let _assetMutations = new Set();
+
+function assetDomKey(value) {
+  const key = String(value ?? '').trim().replace(/[^a-z0-9]/gi, '_');
+  return key || 'asset';
+}
+
+function normalizeAsset(value) {
+  if (!value || typeof value !== 'object') return null;
+  const id = Number(value.id);
+  const symbol = String(value.symbol ?? '').trim();
+  if (!Number.isInteger(id) || id < 1 || !symbol) return null;
+  return {
+    ...value,
+    id,
+    symbol,
+    name: String(value.name ?? symbol),
+    market: String(value.market ?? ''),
+    exchange: String(value.exchange ?? ''),
+    data_source: String(value.data_source ?? ''),
+    is_active: value.is_active === true,
+  };
+}
+
+async function mapWithLimit(items, worker, limit = 6) {
+  const results = Array(items.length).fill(null);
+  let next = 0;
+  async function consume() {
+    while (next < items.length) {
+      const index = next++;
+      try { results[index] = await worker(items[index], index); } catch (_) { results[index] = null; }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, consume));
+  return results;
+}
 
 async function loadAssets() {
   // include_inactive=1 so disabled assets (previously invisible everywhere
   // once toggled off) are still shown here with a re-enable control.
+  const sequence = ++_assetLoadSequence;
   const data = await API.get('/assets/', { include_inactive: 1 });
+  if (sequence !== _assetLoadSequence) return;
   if (!data) return;
-  _allAssets = data.assets || [];
+  _allAssets = (Array.isArray(data.assets) ? data.assets : []).map(normalizeAsset).filter(Boolean);
   updateKpis();
   applyFilter();
 }
@@ -197,13 +238,16 @@ function updateKpis() {
 }
 
 function applyFilter() {
-  const q  = (document.getElementById('assetSearch').value || '').toLowerCase();
-  const mk = document.getElementById('assetMarketFilter').value;
-  const showDisabled = document.getElementById('showDisabled').checked;
+  const search = document.getElementById('assetSearch');
+  const market = document.getElementById('assetMarketFilter');
+  const disabled = document.getElementById('showDisabled');
+  const q  = (search?.value || '').toLowerCase().trim();
+  const mk = market?.value || '';
+  const showDisabled = !!disabled?.checked;
   const filtered = _allAssets.filter(a =>
     (showDisabled || a.is_active) &&
     (!mk || a.market === mk) &&
-    (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q))
+    (!q  || a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q))
   );
   renderTable(filtered);
 }
@@ -213,14 +257,21 @@ function applyFilter() {
 // controls visibility, not what a bulk action should target).
 async function bulkSetFiltered(turnOn) {
   if (!isSuperAdmin) return;
-  const q  = (document.getElementById('assetSearch').value || '').toLowerCase();
-  const mk = document.getElementById('assetMarketFilter').value;
+  const mutationKey = `bulk-assets:${turnOn ? 'enable' : 'disable'}`;
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
+  const q  = (document.getElementById('assetSearch')?.value || '').toLowerCase().trim();
+  const mk = document.getElementById('assetMarketFilter')?.value || '';
   const targets = _allAssets.filter(a =>
     (!mk || a.market === mk) &&
-    (!q  || a.symbol.toLowerCase().includes(q) || (a.name||'').toLowerCase().includes(q)) &&
+    (!q  || a.symbol.toLowerCase().includes(q) || a.name.toLowerCase().includes(q)) &&
     a.is_active !== turnOn
   );
-  if (!targets.length) { Toast.show('Nothing to change for the current filter', 'info'); return; }
+  if (!targets.length) {
+    _assetMutations.delete(mutationKey);
+    Toast.show('Nothing to change for the current filter', 'info');
+    return;
+  }
   // No confirm() dialog: unlike removing an asset, enabling/disabling is
   // trivially reversible (click the other button, or the same one again),
   // and the native browser confirm() prompt reportedly wasn't reliably
@@ -229,16 +280,19 @@ async function bulkSetFiltered(turnOn) {
   // this action doesn't carry enough risk to be worth that fragility.
 
   const btn = document.getElementById(turnOn ? 'enableFilteredBtn' : 'disableFilteredBtn');
-  btn.disabled = true;
-  const results = await Promise.all(targets.map(a => API.put(`/assets/${a.id}`, { is_active: turnOn })));
-  btn.disabled = false;
-
-  const okCount = results.filter(Boolean).length;
-  targets.forEach((a, i) => { if (results[i]) a.is_active = turnOn; });
-  Toast.show(`${okCount}/${targets.length} asset(s) ${turnOn ? 'enabled' : 'disabled'}`,
-             okCount === targets.length ? 'success' : 'error');
-  updateKpis();
-  applyFilter();
+  if (btn) btn.disabled = true;
+  try {
+    const results = await mapWithLimit(targets, a => API.put(`/assets/${a.id}`, { is_active: turnOn }));
+    const okCount = results.filter(Boolean).length;
+    targets.forEach((a, i) => { if (results[i]) a.is_active = turnOn; });
+    Toast.show(`${okCount}/${targets.length} asset(s) ${turnOn ? 'enabled' : 'disabled'}`,
+               okCount === targets.length ? 'success' : 'error');
+    updateKpis();
+    applyFilter();
+  } finally {
+    if (btn) btn.disabled = false;
+    _assetMutations.delete(mutationKey);
+  }
 }
 
 function renderTable(assets) {
@@ -266,12 +320,12 @@ function renderTable(assets) {
         </div>`
       : `<span class="badge ${a.is_active ? 'bg-success' : 'bg-danger'}">${a.is_active ? 'Active' : 'Disabled'}</span>`;
     const actionCell = isSuperAdmin
-      ? `<button class="btn btn-sm btn-outline-danger" data-action="remove-asset" data-id="${STSafe.assetId(a.id)}" data-symbol="${STSafe.html(a.symbol)}">
+      ? `<button type="button" class="btn btn-sm btn-outline-danger" data-action="remove-asset" data-id="${STSafe.assetId(a.id)}" data-symbol="${STSafe.html(a.symbol)}">
           <i class="bi bi-trash3"></i>
         </button>`
       : '<span class="text-muted small">View only</span>';
     const checkCell = isSuperAdmin
-      ? `<input class="form-check-input" type="checkbox" ${_selectedAssetIds.has(a.id) ? 'checked' : ''} data-action="select-asset" data-id="${STSafe.assetId(a.id)}">`
+      ? `<input class="form-check-input" type="checkbox" ${_selectedAssetIds.has(a.id) ? 'checked' : ''} data-action="select-asset" data-id="${STSafe.assetId(a.id)}" aria-label="Select ${STSafe.html(a.symbol)}">`
       : '';
     return `<tr id="arow_${STSafe.assetId(a.id)}" ${a.is_active ? '' : 'style="opacity:.55"'}>
       <td>${checkCell}</td>
@@ -285,15 +339,6 @@ function renderTable(assets) {
       <td>${actionCell}</td>
     </tr>`;
   }).join('');
-  body.querySelectorAll('[data-action="toggle-active"]').forEach(input => {
-    input.addEventListener('change', () => toggleAssetActive(input.dataset.id, input.dataset.symbol, input.checked));
-  });
-  body.querySelectorAll('[data-action="remove-asset"]').forEach(button => {
-    button.addEventListener('click', () => removeAsset(button.dataset.id, button.dataset.symbol));
-  });
-  body.querySelectorAll('[data-action="select-asset"]').forEach(input => {
-    input.addEventListener('change', () => toggleAssetSelect(input.dataset.id, input.checked));
-  });
   updateSelectedToolbar();
 }
 
@@ -335,56 +380,83 @@ function updateSelectedToolbar() {
 
 async function deleteSelectedAssets() {
   if (!isSuperAdmin || !_selectedAssetIds.size) return;
+  const mutationKey = 'delete-selected-assets';
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
   const ids = [..._selectedAssetIds];
   const symbols = ids.map(id => _allAssets.find(a => a.id === id)?.symbol).filter(Boolean);
-  if (!confirm(`Remove ${ids.length} selected asset${ids.length === 1 ? '' : 's'}?\n\n${symbols.join(', ')}\n\nHistorical signals are preserved — each can be re-enabled later via "Show disabled".`)) return;
+  if (!confirm(`Remove ${ids.length} selected asset${ids.length === 1 ? '' : 's'}?\n\n${symbols.join(', ')}\n\nHistorical signals are preserved — each can be re-enabled later via "Show disabled".`)) {
+    _assetMutations.delete(mutationKey);
+    return;
+  }
 
   const btn = document.getElementById('deleteSelectedBtn');
-  btn.disabled = true;
-  const results = await Promise.all(ids.map(id => API.delete(`/assets/${id}`)));
-  btn.disabled = false;
-
-  const okCount = results.filter(Boolean).length;
-  ids.forEach((id, i) => {
-    if (results[i]) {
-      const a = _allAssets.find(x => x.id === id);
-      if (a) a.is_active = false;
-      _selectedAssetIds.delete(id);
-    }
-  });
-  Toast.show(`${okCount}/${ids.length} asset(s) removed`, okCount === ids.length ? 'success' : 'error');
-  updateKpis();
-  applyFilter();
+  if (btn) btn.disabled = true;
+  try {
+    const results = await mapWithLimit(ids, id => API.delete(`/assets/${id}`));
+    const okCount = results.filter(Boolean).length;
+    ids.forEach((id, i) => {
+      if (results[i]) {
+        const a = _allAssets.find(x => x.id === id);
+        if (a) a.is_active = false;
+        _selectedAssetIds.delete(id);
+      }
+    });
+    Toast.show(`${okCount}/${ids.length} asset(s) removed`, okCount === ids.length ? 'success' : 'error');
+    updateKpis();
+    applyFilter();
+  } finally {
+    if (btn) btn.disabled = false;
+    _assetMutations.delete(mutationKey);
+  }
 }
 
 async function removeAsset(id, symbol) {
+  id = Number(id);
+  if (!Number.isInteger(id) || id < 1 || _assetMutations.has(`asset:${id}`)) return;
   if (!confirm(`Remove "${symbol}" from the platform?\n\nHistorical signals are preserved — it can be re-enabled later via "Show disabled".`)) return;
-  const ok = await API.delete(`/assets/${id}`);
-  if (ok) {
-    Toast.show(`${symbol} removed`, 'success');
-    // Soft delete — the row stays in _allAssets (now is_active:false) so
-    // "Show disabled" can still find and re-enable it; applyFilter() is
-    // what actually hides it from the default view, not removal from the array.
-    const a = _allAssets.find(x => x.id === id);
-    if (a) a.is_active = false;
-    updateKpis();
-    applyFilter();
-  } else {
-    Toast.show('Failed to remove asset', 'error');
+  const mutationKey = `asset:${id}`;
+  _assetMutations.add(mutationKey);
+  try {
+    const ok = await API.delete(`/assets/${id}`);
+    if (ok) {
+      Toast.show(`${symbol} removed`, 'success');
+      // Soft delete keeps historical signals available for audit and lets an
+      // administrator re-enable the same asset from the disabled view.
+      const a = _allAssets.find(x => x.id === id);
+      if (a) a.is_active = false;
+      _selectedAssetIds.delete(id);
+      updateKpis();
+      applyFilter();
+    } else {
+      Toast.show('Failed to remove asset', 'error');
+    }
+  } finally {
+    _assetMutations.delete(mutationKey);
   }
 }
 
 async function toggleAssetActive(id, symbol, isActive) {
-  const res = await API.put(`/assets/${id}`, { is_active: isActive });
-  if (res) {
-    Toast.show(`${symbol} ${isActive ? 'enabled' : 'disabled'}`, 'success');
-    const a = _allAssets.find(x => x.id === id);
-    if (a) a.is_active = isActive;
-    updateKpis();
-    applyFilter();
-  } else {
-    Toast.show('Failed to update asset', 'error');
-    loadAssets();
+  id = Number(id);
+  if (!Number.isInteger(id) || id < 1 || typeof isActive !== 'boolean') return;
+  const mutationKey = `asset:${id}`;
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
+  try {
+    const res = await API.put(`/assets/${id}`, { is_active: isActive });
+    if (res) {
+      Toast.show(`${symbol} ${isActive ? 'enabled' : 'disabled'}`, 'success');
+      const a = _allAssets.find(x => x.id === id);
+      if (a) a.is_active = isActive;
+      if (!isActive) _selectedAssetIds.delete(id);
+      updateKpis();
+      applyFilter();
+    } else {
+      Toast.show('Failed to update asset', 'error');
+      loadAssets();
+    }
+  } finally {
+    _assetMutations.delete(mutationKey);
   }
 }
 
@@ -392,9 +464,24 @@ async function toggleAssetActive(id, symbol, isActive) {
 let _deltaCatalog = [];
 
 async function loadDeltaCatalog() {
+  const sequence = ++_deltaCatalogSequence;
   const data = await API.get('/assets/delta-catalog');
+  if (sequence !== _deltaCatalogSequence) return;
   if (!data) return;
-  _deltaCatalog = data.catalog || [];
+  _deltaCatalog = (Array.isArray(data.catalog) ? data.catalog : []).map(value => {
+    if (!value || typeof value !== 'object') return null;
+    const symbol = String(value.symbol ?? '').trim();
+    if (!symbol) return null;
+    const assetId = Number(value.asset_id);
+    return {
+      ...value,
+      symbol,
+      name: String(value.name ?? symbol),
+      tracked: value.tracked === true,
+      asset_id: Number.isInteger(assetId) && assetId > 0 ? assetId : null,
+      is_active: value.is_active === true,
+    };
+  }).filter(Boolean);
   renderDeltaCatalog();
 }
 
@@ -414,7 +501,8 @@ function _deltaCatalogMatches(q) {
 
 function renderDeltaCatalog() {
   const grid = document.getElementById('deltaCatalogGrid');
-  const q = document.getElementById('deltaCatalogSearch').value || '';
+  if (!grid) return;
+  const q = document.getElementById('deltaCatalogSearch')?.value || '';
   const matches = _deltaCatalogMatches(q);
   const list = matches.slice(0, DELTA_CATALOG_MAX_RESULTS);
   document.getElementById('deltaCatalogCount').textContent = `${_deltaCatalog.filter(c => c.is_active).length} of ${_deltaCatalog.length} active`;
@@ -435,7 +523,7 @@ function renderDeltaCatalog() {
 
   grid.innerHTML = hint + list.map(c => `
     <div class="col-6 col-md-4 col-lg-3 col-xl-2">
-      <div class="asset-toggle ${c.is_active ? 'active' : ''}" data-symbol="${STSafe.html(c.symbol)}"
+      <div class="asset-toggle ${c.is_active ? 'active' : ''}" data-symbol="${STSafe.html(c.symbol)}" tabindex="0" role="button" aria-pressed="${c.is_active ? 'true' : 'false'}"
            ${isSuperAdmin ? '' : 'style="cursor:default;opacity:.7"'}>
         <div class="check"></div>
         <div>
@@ -444,11 +532,6 @@ function renderDeltaCatalog() {
         </div>
       </div>
     </div>`).join('');
-  if (isSuperAdmin) {
-    grid.querySelectorAll('.asset-toggle').forEach(el => {
-      el.addEventListener('click', () => toggleDeltaCatalogEntry(el, el.dataset.symbol));
-    });
-  }
 }
 
 // Adds (if untracked) or toggles (if tracked) one catalog entry. Mutates
@@ -459,7 +542,8 @@ async function setDeltaEntry(entry, turnOn) {
   if (entry.tracked) {
     ok = !!(await API.put(`/assets/${entry.asset_id}`, { is_active: turnOn }));
   } else if (turnOn) {
-    const token = localStorage.getItem('access_token');
+    let token = '';
+    try { token = localStorage.getItem('access_token') || ''; } catch (_) {}
     const res = await fetch('/api/v1/assets/add-from-search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -467,7 +551,11 @@ async function setDeltaEntry(entry, turnOn) {
     });
     const data = await res.json().catch(() => ({}));
     ok = res.ok;
-    if (ok && data.asset) { entry.tracked = true; entry.asset_id = data.asset.id; }
+    if (ok && data.asset) {
+      const assetId = Number(data.asset.id);
+      entry.tracked = true;
+      entry.asset_id = Number.isInteger(assetId) && assetId > 0 ? assetId : null;
+    }
   } else {
     ok = true; // untracked + turning off — already effectively off, nothing to do
   }
@@ -479,42 +567,101 @@ async function toggleDeltaCatalogEntry(el, symbol) {
   if (!isSuperAdmin) return;
   const entry = _deltaCatalog.find(c => c.symbol === symbol);
   if (!entry) return;
+  const mutationKey = `delta:${symbol}`;
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
   const turnOn = !entry.is_active;
   el.style.pointerEvents = 'none';
-  const ok = await setDeltaEntry(entry, turnOn);
-  el.style.pointerEvents = '';
-  if (ok) {
-    Toast.show(`${symbol} ${turnOn ? 'enabled' : 'disabled'}`, 'success');
-    renderDeltaCatalog();
-    loadAssets();
-  } else {
+  try {
+    const ok = await setDeltaEntry(entry, turnOn);
+    if (ok) {
+      Toast.show(`${symbol} ${turnOn ? 'enabled' : 'disabled'}`, 'success');
+      renderDeltaCatalog();
+      loadAssets();
+    } else {
+      Toast.show(`Failed to ${turnOn ? 'enable' : 'disable'} ${symbol}`, 'error');
+    }
+  } catch (_) {
     Toast.show(`Failed to ${turnOn ? 'enable' : 'disable'} ${symbol}`, 'error');
+  } finally {
+    el.style.pointerEvents = '';
+    _assetMutations.delete(mutationKey);
   }
 }
 
 async function bulkSetDeltaCatalog(turnOn) {
   if (!isSuperAdmin) return;
-  const q = document.getElementById('deltaCatalogSearch').value || '';
+  const mutationKey = `bulk-delta:${turnOn ? 'enable' : 'disable'}`;
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
+  const q = document.getElementById('deltaCatalogSearch')?.value || '';
   // Uses the same matching as the render — with an empty search that's
   // "tracked assets only", so "Enable All" naturally has nothing to do
   // until you search for something to add (no more accidentally enabling
   // the entire ~220-symbol catalog with one click on an empty search box).
   const targets = _deltaCatalogMatches(q).filter(c => c.is_active !== turnOn);
   if (!targets.length) {
+    _assetMutations.delete(mutationKey);
     Toast.show(turnOn && !q.trim() ? 'Search for symbols to add first' : 'Nothing to change for the current search', 'info');
     return;
   }
   // See bulkSetFiltered's comment above for why this skips confirm().
 
-  const results = await Promise.all(targets.map(entry => setDeltaEntry(entry, turnOn)));
-  const okCount = results.filter(Boolean).length;
-  Toast.show(`${okCount}/${targets.length} symbol(s) ${turnOn ? 'enabled' : 'disabled'}`,
-             okCount === targets.length ? 'success' : 'error');
-  renderDeltaCatalog();
-  loadAssets();
+  try {
+    const results = await mapWithLimit(targets, entry => setDeltaEntry(entry, turnOn));
+    const okCount = results.filter(Boolean).length;
+    Toast.show(`${okCount}/${targets.length} symbol(s) ${turnOn ? 'enabled' : 'disabled'}`,
+               okCount === targets.length ? 'success' : 'error');
+    renderDeltaCatalog();
+    loadAssets();
+  } finally {
+    _assetMutations.delete(mutationKey);
+  }
 }
 
 // ── Search & Add ─────────────────────────────────────────────────
+function bindAssetControls() {
+  const body = document.getElementById('assetBody');
+  if (body && !body.dataset.bound) {
+    body.dataset.bound = '1';
+    body.addEventListener('change', event => {
+      const input = event.target;
+      if (input.matches('[data-action="toggle-active"]')) {
+        toggleAssetActive(input.dataset.id, input.dataset.symbol, input.checked);
+      } else if (input.matches('[data-action="select-asset"]')) {
+        toggleAssetSelect(input.dataset.id, input.checked);
+      }
+    });
+    body.addEventListener('click', event => {
+      const button = event.target.closest('[data-action="remove-asset"]');
+      if (button) removeAsset(button.dataset.id, button.dataset.symbol);
+    });
+  }
+
+  const searchBody = document.getElementById('assetSearchBody');
+  if (searchBody && !searchBody.dataset.bound) {
+    searchBody.dataset.bound = '1';
+    searchBody.addEventListener('click', event => {
+      const button = event.target.closest('.asset-add-btn');
+      if (button) addAsset(button.dataset.symbol, button.dataset.name, button.dataset.exchange, button.dataset.source, button);
+    });
+  }
+
+  const catalogGrid = document.getElementById('deltaCatalogGrid');
+  if (catalogGrid && !catalogGrid.dataset.bound) {
+    catalogGrid.dataset.bound = '1';
+    const activate = event => {
+      const card = event.target.closest('.asset-toggle');
+      if (!card || !isSuperAdmin) return;
+      if (event.type === 'keydown' && !['Enter', ' '].includes(event.key)) return;
+      if (event.type === 'keydown') event.preventDefault();
+      toggleDeltaCatalogEntry(card, card.dataset.symbol);
+    };
+    catalogGrid.addEventListener('click', activate);
+    catalogGrid.addEventListener('keydown', activate);
+  }
+}
+
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
@@ -523,6 +670,18 @@ document.addEventListener('app:ready', () => {
   // the select-all header checkbox has nothing to drive — hide it too.
   document.getElementById('assetSelectAll').style.display = isSuperAdmin ? '' : 'none';
   populateMarketSelect(document.getElementById('assetMarketFilter'), { includeAll: true });
+  bindAssetControls();
+  document.querySelector('[data-action="refresh-assets"]')?.addEventListener('click', loadAssets);
+  document.getElementById('assetSearch')?.addEventListener('input', applyFilter);
+  document.getElementById('assetMarketFilter')?.addEventListener('change', applyFilter);
+  document.getElementById('showDisabled')?.addEventListener('change', applyFilter);
+  document.getElementById('assetSelectAll')?.addEventListener('change', event => toggleSelectAllAssets(event.target.checked));
+  document.getElementById('enableFilteredBtn')?.addEventListener('click', () => bulkSetFiltered(true));
+  document.getElementById('disableFilteredBtn')?.addEventListener('click', () => bulkSetFiltered(false));
+  document.getElementById('deleteSelectedBtn')?.addEventListener('click', deleteSelectedAssets);
+  document.getElementById('deltaCatalogSearch')?.addEventListener('input', renderDeltaCatalog);
+  document.querySelector('[data-action="enable-delta-filtered"]')?.addEventListener('click', () => bulkSetDeltaCatalog(true));
+  document.querySelector('[data-action="disable-delta-filtered"]')?.addEventListener('click', () => bulkSetDeltaCatalog(false));
   loadDeltaCatalog();
 
   loadAssets();
@@ -544,7 +703,8 @@ document.addEventListener('app:ready', () => {
 });
 
 async function searchAssets() {
-  const q = document.getElementById('assetSearchInput').value.trim();
+  const sequence = ++_assetSearchSequence;
+  const q = document.getElementById('assetSearchInput')?.value.trim() || '';
   const msg  = document.getElementById('assetSearchMsg');
   const wrap = document.getElementById('assetSearchResults');
   if (q.length < 2) {
@@ -555,9 +715,23 @@ async function searchAssets() {
   msg.textContent = 'Searching…';
   wrap.style.display = 'none';
   const data = await API.get('/assets/search', { q });
+  if (sequence !== _assetSearchSequence) return;
   if (!data) { msg.textContent = 'Search failed.'; return; }
-  if (!data.results?.length) { msg.textContent = 'No results found.'; return; }
-  msg.textContent = `${data.results.length} result${data.results.length !== 1 ? 's' : ''} found`;
+  const results = (Array.isArray(data.results) ? data.results : []).map(value => {
+    if (!value || typeof value !== 'object') return null;
+    const symbol = String(value.symbol ?? '').trim();
+    if (!symbol) return null;
+    return {
+      ...value,
+      symbol,
+      name: String(value.name ?? symbol),
+      exchange: String(value.exchange ?? ''),
+      source: String(value.source ?? 'yahoo'),
+      type: String(value.type ?? ''),
+    };
+  }).filter(Boolean).slice(0, 30);
+  if (!results.length) { msg.textContent = 'No results found.'; return; }
+  msg.textContent = `${results.length} result${results.length !== 1 ? 's' : ''} found`;
   wrap.style.display = 'block';
   const guessMkt = r => {
     const exch = (r.exchange || '').toUpperCase();
@@ -573,9 +747,9 @@ async function searchAssets() {
   const mkOpts = (def) => ['crypto','forex','commodity','indian_stock','index'].map(m =>
     `<option value="${m}" ${m===def?'selected':''}>${m.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}</option>`).join('');
   // Delta Exchange (crypto) results shown first, tagged with a distinct badge
-  const sorted = [...data.results].sort((a, b) => (a.source === 'delta_exchange' ? -1 : 0) - (b.source === 'delta_exchange' ? -1 : 0));
+  const sorted = [...results].sort((a, b) => (a.source === 'delta_exchange' ? -1 : 0) - (b.source === 'delta_exchange' ? -1 : 0));
   document.getElementById('assetSearchBody').innerHTML = sorted.map(r => {
-    const sid = r.symbol.replace(/[^a-z0-9]/gi,'_');
+    const sid = assetDomKey(r.symbol);
     const isDelta = r.source === 'delta_exchange';
     const sourceBadge = isDelta
       ? '<span class="badge-tag" style="background:rgba(16,185,129,.12);color:var(--green);border-color:rgba(16,185,129,.3)">Delta Exchange</span>'
@@ -597,33 +771,40 @@ async function searchAssets() {
       </td>
     </tr>`;
   }).join('');
-  document.querySelectorAll('.asset-add-btn').forEach(button => {
-    button.addEventListener('click', () => addAsset(
-      button.dataset.symbol,
-      button.dataset.name,
-      button.dataset.exchange,
-      button.dataset.source,
-    ));
-  });
 }
 
-async function addAsset(symbol, name, exchange, source) {
-  const sid    = symbol.replace(/[^a-z0-9]/gi,'_');
+async function addAsset(symbol, name, exchange, source, button = null) {
+  symbol = String(symbol ?? '').trim().toUpperCase();
+  name = String(name ?? '').trim();
+  if (!symbol || !name) return;
+  const mutationKey = `add:${symbol}`;
+  if (_assetMutations.has(mutationKey)) return;
+  _assetMutations.add(mutationKey);
+  const sid    = assetDomKey(symbol);
   const market = document.getElementById('mkt_' + sid)?.value || 'index';
-  const token  = localStorage.getItem('access_token');
-  const res    = await fetch('/api/v1/assets/add-from-search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ symbol, name, exchange, market, source })
-  });
-  const data = await res.json();
-  if (res.ok) {
-    Toast.show(`${symbol} added as ${market}`, 'success');
-    const row = document.getElementById('row_' + sid);
-    if (row) row.innerHTML = `<td colspan="6" class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>${STSafe.html(symbol)}</strong> added as <em>${STSafe.html(market)}</em></td>`;
-    loadAssets();
-  } else {
-    Toast.show(data.error || 'Failed to add asset', 'error');
+  let token = '';
+  try { token = localStorage.getItem('access_token') || ''; } catch (_) {}
+  if (button) button.disabled = true;
+  try {
+    const res = await fetch('/api/v1/assets/add-from-search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ symbol, name, exchange, market, source })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      Toast.show(`${symbol} added as ${market}`, 'success');
+      const row = document.getElementById('row_' + sid);
+      if (row) row.innerHTML = `<td colspan="6" class="text-success"><i class="bi bi-check-circle-fill me-1"></i><strong>${STSafe.html(symbol)}</strong> added as <em>${STSafe.html(market)}</em></td>`;
+      loadAssets();
+    } else {
+      Toast.show(data.error || 'Failed to add asset', 'error');
+    }
+  } catch (_) {
+    Toast.show('Failed to add asset', 'error');
+  } finally {
+    if (button) button.disabled = false;
+    _assetMutations.delete(mutationKey);
   }
 }
 </script>

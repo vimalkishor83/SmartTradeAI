@@ -26,6 +26,7 @@ def test_asset_table_and_catalog_escape_values_and_remove_inline_handlers():
 def test_catalog_and_search_buttons_are_wired_from_dataset_values():
     source = TEMPLATE.read_text(encoding="utf-8")
 
-    assert "el.addEventListener('click', () => toggleDeltaCatalogEntry" in source
-    assert "button.addEventListener('click', () => addAsset" in source
+    assert "catalogGrid.addEventListener('click', activate)" in source
+    assert "searchBody.addEventListener('click'" in source
     assert "button.dataset.symbol" in source
+    assert "button.dataset.name" in source

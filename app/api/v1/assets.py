@@ -1,4 +1,8 @@
+import math
+import re
+
 from flask import Blueprint, request, jsonify
+from sqlalchemy.exc import IntegrityError
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
@@ -70,27 +74,110 @@ _ASSET_EDITABLE_FIELDS = [
     "is_active", "data_source", "pip_size", "lot_size", "min_lot",
 ]
 
+_ASSET_TEXT_LIMITS = {
+    "symbol": 30,
+    "name": 100,
+    "exchange": 50,
+    "base_currency": 10,
+    "quote_currency": 10,
+    "data_source": 50,
+    "source": 30,
+    "market": 30,
+}
+_ASSET_SYMBOL_RE = re.compile(r"^[A-Za-z0-9^][A-Za-z0-9.^=_-]{0,29}$")
+_ASSET_NUMBER_LIMITS = {
+    "pip_size": (0.0, 1_000_000_000_000.0),
+    "lot_size": (0.0, 1_000_000_000_000.0),
+    "min_lot": (0.0, 1_000_000_000_000.0),
+}
+
+
+def _asset_body():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return None, jsonify({"error": "request body must be a JSON object"}), 400
+    return data, None, None
+
+
+def _asset_text(data, field, *, required=False, uppercase=False):
+    if field not in data:
+        if required:
+            raise ValueError(f"{field} is required")
+        return None
+    value = data[field]
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be text")
+    value = value.strip()
+    if required and not value:
+        raise ValueError(f"{field} is required")
+    if len(value) > _ASSET_TEXT_LIMITS[field]:
+        raise ValueError(f"{field} must be {_ASSET_TEXT_LIMITS[field]} characters or fewer")
+    if field == "symbol" and value and not _ASSET_SYMBOL_RE.fullmatch(value):
+        raise ValueError("symbol contains unsupported characters")
+    return value.upper() if uppercase else value
+
+
+def _asset_number(data, field):
+    if field not in data:
+        return None
+    value = data[field]
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be a number")
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{field} must be a number")
+    minimum, maximum = _ASSET_NUMBER_LIMITS[field]
+    if not math.isfinite(parsed) or parsed < minimum or parsed > maximum:
+        raise ValueError(f"{field} must be finite and between {minimum:g} and {maximum:g}")
+    return parsed
+
+
+def _normalize_asset_fields(data, *, required=False):
+    values = {
+        "symbol": _asset_text(data, "symbol", required=required, uppercase=True),
+        "name": _asset_text(data, "name", required=required),
+        "exchange": _asset_text(data, "exchange"),
+        "base_currency": _asset_text(data, "base_currency", uppercase=True),
+        "quote_currency": _asset_text(data, "quote_currency", uppercase=True),
+        "data_source": _asset_text(data, "data_source"),
+    }
+    values.update({field: _asset_number(data, field) for field in _ASSET_NUMBER_LIMITS})
+    if "is_active" in data:
+        if not isinstance(data["is_active"], bool):
+            raise ValueError("is_active must be a boolean")
+        values["is_active"] = data["is_active"]
+    return {field: value for field, value in values.items() if value is not None}
+
 
 @assets_bp.route("/", methods=["POST"])
 @super_admin_required
 def create_asset():
-    data = request.get_json()
-    required = ["symbol", "name", "market"]
-    if not all(k in data for k in required):
-        return jsonify({"error": "Missing required fields"}), 400
-
-    if data["market"] not in Asset.MARKETS:
-        return jsonify({"error": f"market must be one of {Asset.MARKETS}"}), 400
+    data, error, status = _asset_body()
+    if error:
+        return error, status
+    try:
+        values = _normalize_asset_fields(data, required=True)
+        market = data.get("market")
+        if not isinstance(market, str) or market.strip() not in Asset.MARKETS:
+            raise ValueError(f"market must be one of {Asset.MARKETS}")
+        values["market"] = market.strip()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     existing = Asset.query.filter_by(
-        symbol=data["symbol"], exchange=data.get("exchange")
+        symbol=values["symbol"], exchange=values.get("exchange")
     ).first()
     if existing:
-        return jsonify({"error": f"Asset '{data['symbol']}' already exists for this exchange"}), 409
+        return jsonify({"error": f"Asset '{values['symbol']}' already exists for this exchange"}), 409
 
-    asset = Asset(**{k: data[k] for k in data if k in _ASSET_EDITABLE_FIELDS})
+    asset = Asset(**{k: values[k] for k in values if k in _ASSET_EDITABLE_FIELDS})
     db.session.add(asset)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "An asset with this symbol and exchange already exists"}), 409
     # list_assets caches under f"assets_list_{market or 'all'}" — deleting the
     # bare "assets_list" key (as this did) matched nothing, so a newly created
     # asset stayed invisible until the entry aged out on its own. Sweep every
@@ -104,15 +191,38 @@ def create_asset():
 @super_admin_required
 def update_asset(asset_id):
     asset = Asset.query.get_or_404(asset_id)
-    data = request.get_json()
+    data, error, status = _asset_body()
+    if error:
+        return error, status
+    try:
+        values = _normalize_asset_fields(data)
+        if "market" in data:
+            market = data["market"]
+            if not isinstance(market, str) or market.strip() not in Asset.MARKETS:
+                raise ValueError(f"market must be one of {Asset.MARKETS}")
+            values["market"] = market.strip()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
-    if "market" in data and data["market"] not in Asset.MARKETS:
-        return jsonify({"error": f"market must be one of {Asset.MARKETS}"}), 400
+    if not values:
+        return jsonify({"error": "no editable fields supplied"}), 400
+    if "symbol" in values or "exchange" in values:
+        duplicate = Asset.query.filter(
+            Asset.id != asset.id,
+            Asset.symbol == values.get("symbol", asset.symbol),
+            Asset.exchange == values.get("exchange", asset.exchange),
+        ).first()
+        if duplicate:
+            return jsonify({"error": "An asset with this symbol and exchange already exists"}), 409
 
-    for k, v in data.items():
+    for k, v in values.items():
         if k in _ASSET_EDITABLE_FIELDS:
             setattr(asset, k, v)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "An asset with this symbol and exchange already exists"}), 409
     # Sweep every market key, not the bare "assets_list" (which list_assets
     # never writes). The full sweep also covers a market change on this edit,
     # where BOTH the old and new market's cached lists are now stale.
@@ -511,15 +621,21 @@ def delta_catalog():
 def add_from_search():
     """Add an asset found via search to the platform. Delta-sourced results
     are always added as crypto, routed to Delta Exchange for data — never Yahoo."""
-    data = request.get_json() or {}
-    symbol   = (data.get("symbol") or "").strip().upper()
-    name     = (data.get("name") or "").strip()
-    exchange = (data.get("exchange") or "").strip()
-    source   = (data.get("source") or "yahoo").strip()
-    market   = (data.get("market") or "index").strip()
-
-    if not symbol or not name:
-        return jsonify({"error": "symbol and name are required"}), 400
+    data, error, status = _asset_body()
+    if error:
+        return error, status
+    try:
+        symbol = _asset_text(data, "symbol", required=True, uppercase=True)
+        name = _asset_text(data, "name", required=True)
+        exchange = _asset_text(data, "exchange") or ""
+        source = _asset_text(data, "source") or "yahoo"
+        market = _asset_text(data, "market") or "index"
+        if source not in {"yahoo", "delta_exchange"}:
+            raise ValueError("source must be yahoo or delta_exchange")
+        if market not in Asset.MARKETS:
+            raise ValueError(f"market must be one of {Asset.MARKETS}")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     if source == "delta_exchange":
         from app.services.data.fetcher import to_delta_symbol
@@ -541,7 +657,11 @@ def add_from_search():
         existing.exchange    = exchange
         existing.data_source = data_source
         existing.is_active   = True
-        db.session.commit()
+        try:
+            db.session.commit()
+        except IntegrityError:
+            db.session.rollback()
+            return jsonify({"error": "An asset with this symbol and exchange already exists"}), 409
         for mk in Asset.MARKETS + ["all"]:
             cache.delete(f"assets_list_{mk}")
         return jsonify({"message": f"{symbol} re-added successfully", "asset": existing.to_dict()}), 201
@@ -555,7 +675,11 @@ def add_from_search():
         is_active=True,
     )
     db.session.add(asset)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "An asset with this symbol and exchange already exists"}), 409
     # clear asset list cache for all markets
     for mk in Asset.MARKETS + ["all"]:
         cache.delete(f"assets_list_{mk}")
