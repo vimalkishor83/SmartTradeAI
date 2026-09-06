@@ -19,7 +19,7 @@
       <option value="confidence">Confidence %</option>
       <option value="rr">Risk:Reward</option>
     </select>
-    <button class="btn btn-sm btn-outline-light" id="refreshBtn">
+    <button type="button" class="btn btn-sm btn-outline-light" id="refreshBtn">
       <i class="bi bi-arrow-repeat me-1"></i>Refresh
     </button>
   </div>
@@ -41,6 +41,7 @@
 <!-- Matrix Table -->
 <div class="section-card">
   <div class="section-card-body p-0">
+    <div id="matrixStatus" class="px-3 pt-2 text-muted fs-xs" role="status" aria-live="polite"></div>
     <div class="table-responsive" id="matrixWrap">
       <div class="text-center py-5 text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>Loading matrix...
@@ -286,6 +287,7 @@ function _mtfCacheKey(market) { return 'mtf_matrix_cache_' + market; }
    loaded on this device. */
 async function loadMatrix(showSpinner = true) {
   const market = document.getElementById('mktFilter').value;
+  const status = document.getElementById('matrixStatus');
   const wrap = document.getElementById('matrixWrap');
   const hasTable = !!wrap.querySelector('table');
 
@@ -297,6 +299,7 @@ async function loadMatrix(showSpinner = true) {
       _assets = cached.assets || [];
       renderMatrix();
     } else if (showSpinner) {
+      if (status) status.textContent = 'Loading multi-timeframe ratings...';
       wrap.innerHTML = `<div class="text-center py-5 text-muted">
         <div class="spinner-border spinner-border-sm me-2"></div>Calculating indicators...
         <div style="font-size:12px;margin-top:8px">May take 15–30 seconds</div>
@@ -304,12 +307,26 @@ async function loadMatrix(showSpinner = true) {
     }
   }
 
-  const data = await API.get('/signals/mtf-matrix', { market });
-  if (!data) return;
+  let data;
+  try {
+    data = await API.get('/signals/mtf-matrix', { market });
+  } catch (_) {
+    if (status) status.textContent = 'Unable to refresh the matrix. Showing the last available data.';
+    if (!hasTable) {
+      wrap.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-exclamation-triangle d-block mb-2" style="font-size:28px"></i>Unable to load ratings. Try Refresh.</div>';
+    }
+    return;
+  }
+  if (!data) {
+    if (status) status.textContent = 'No matrix data is available right now. Try Refresh.';
+    if (!hasTable) wrap.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>No ratings available.</div>';
+    return;
+  }
   _matrix = data.matrix || {};
   _assets = data.assets || [];
   if (Array.isArray(data.timeframes) && data.timeframes.length) TFS = data.timeframes;
   renderMatrix();
+  if (status) status.textContent = `Updated ${new Date().toLocaleTimeString()}`;
   try { localStorage.setItem(_mtfCacheKey(market), JSON.stringify({ matrix: _matrix, assets: _assets })); } catch {}
 }
 
@@ -317,10 +334,18 @@ document.addEventListener('app:ready', () => {
   populateMarketSelect(document.getElementById('mktFilter'), { includeAll: true, allValue: 'all' });
   loadMatrix();
   document.getElementById('refreshBtn').addEventListener('click', async (e) => {
+    const button = e.currentTarget;
     const icon = e.currentTarget.querySelector('i');
+    button.disabled = true;
+    button.setAttribute('aria-busy', 'true');
     icon?.classList.add('spin');
-    await loadMatrix(true);
-    icon?.classList.remove('spin');
+    try {
+      await loadMatrix(true);
+    } finally {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      icon?.classList.remove('spin');
+    }
   });
   document.getElementById('mktFilter').addEventListener('change', () => loadMatrix(true));
   document.getElementById('viewMode').addEventListener('change', updateCellContents);

@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.132 IMPLEMENTED - Harden MTF Analysis refresh lifecycle
+
+MTF Analysis now exposes its refresh control and matrix status as semantic UI controls. Matrix failures no longer leave a first-load spinner indefinitely: the page shows a retryable error, or retains the last rendered table when a refresh fails. Manual refresh state is restored through `finally`, including busy and spinner cleanup, while stale-while-revalidate behavior and the existing API payload remain unchanged.
+
+**Risk level:** Medium decision-support reliability value, low compatibility risk because the change is client-side state handling only. **Affected modules:** `frontend/templates/dashboard/mtf_analysis.html`, `tests/unit/test_mtf_analysis_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** MTF Analysis template safety checks passed (**2 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 112 (MTF Analysis refresh resilience):**
+- `frontend/templates/dashboard/mtf_analysis.html` - add status semantics and recoverable matrix errors.
+- `tests/unit/test_mtf_analysis_template_safety.py` - protect refresh and error-state contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.131 IMPLEMENTED - Harden Signal Journal refresh lifecycle
 
 Signal Journal now marks its refresh control as an explicit button and exposes the result count as a live status region. Journal loading restores the refresh button's disabled and busy state in `finally`, including when the journal request throws, and preserves the existing filters, pagination and API contract.
