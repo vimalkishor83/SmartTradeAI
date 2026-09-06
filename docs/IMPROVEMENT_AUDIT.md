@@ -1435,6 +1435,21 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.102 IMPLEMENTED - Improve Signals and AI Inspector decision workflows
+
+The Signals page now clearly separates live active signals/open P&L from historical closed-trade results, exposes semantic live/history tabs and filter labels, reports refresh and feed health, and uses bounded numeric rendering for provider values. Live refreshes are coordinated so overlapping requests do not overwrite newer results; history, active signals and P&L replace indefinite loading with explicit unavailable states. The AI Inspector now labels its asset/timeframe controls, exposes a live result region and busy state, bounds model member outputs, reports asset-loading failures, and clearly distinguishes complete, incomplete, gated and legacy/fallback prediction context while preserving existing prediction APIs and model metadata.
+
+**Risk level:** Critical decision-support clarity, trust and accessibility value, low compatibility risk because existing signal/prediction routes, IDs, tier gates, exports, model metadata and response contracts remain available. **Affected modules:** `frontend/templates/dashboard/signals.html`, `frontend/templates/dashboard/ai_insights.html`, `tests/unit/test_signals_template_safety.py`, `tests/unit/test_ai_insights_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Signals/AI template and related engine/prediction unit checks passed (**29 passed**), inline browser JavaScript compilation, Jinja parsing and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `99023b7`.
+
+**Session 82 (Signals and AI Inspector UX, data states and accessibility - UI-9, §7.102):**
+- `frontend/templates/dashboard/signals.html` - add live/history context, semantic tabs, filter/table relationships, refresh coordination, bounded values and explicit feed states.
+- `frontend/templates/dashboard/ai_insights.html` - add prediction context, accessible controls, busy/result semantics, bounded model output display and incomplete/gated/unavailable states.
+- `tests/unit/test_signals_template_safety.py`, `tests/unit/test_ai_insights_template_safety.py` - protect the new decision-surface and lifecycle contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.100 IMPLEMENTED - Add a date-aware Reporting Center
 
 The research navigation now includes a Basic-tier Reporting Center that consolidates historical closed-trade review into one explicit date-scoped workflow. Users can select 7, 30, 90 or 365-day UTC presets or a custom range up to 367 days, see outcome mix, win rate, P&L, profit factor, duration, market/timeframe breakdowns and daily P&L, and export the same selected history range as CSV. The backend performs bounded SQL aggregates, keeps neutral outcomes visible while excluding them from win rate, and rejects malformed, reversed or oversized ranges before querying.
