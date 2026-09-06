@@ -50,6 +50,20 @@ Broker Connections now exposes an accessible live status for initial connection/
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.121 IMPLEMENTED - Make account Settings saves trustworthy
+
+Settings now exposes an accessible live status for profile and notification saves, restores save controls after both API responses and network exceptions, reports failed saves explicitly, and adds missing label relationships for account and Telegram fields. Submitted payloads, token-handling behavior, 2FA flows and backend contracts remain unchanged.
+
+**Risk level:** High account and notification trust value, low compatibility risk because the change is additive client-side lifecycle handling. **Affected modules:** `frontend/templates/dashboard/settings.html`, `tests/unit/test_settings_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Settings template and profile-route validation checks passed (**11 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 101 (Settings save lifecycle):**
+- `frontend/templates/dashboard/settings.html` - add explicit save status, guaranteed button cleanup and field label relationships.
+- `tests/unit/test_settings_template_safety.py` - protect status, accessibility and error-cleanup contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

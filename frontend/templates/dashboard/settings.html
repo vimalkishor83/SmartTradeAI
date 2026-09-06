@@ -41,6 +41,7 @@
 {% block content %}
 <div class="page-header"><div><span class="page-eyebrow">Account</span>
 <h1 class="page-title">Settings</h1></div></div>
+<div id="settingsStatus" class="visually-hidden" role="status" aria-live="polite"></div>
 
 <div class="row g-4">
   <div class="col-lg-6">
@@ -49,10 +50,10 @@
       <div class="section-card-body">
         <form id="profileForm">
           <div class="row g-3 mb-3">
-            <div class="col"><label class="form-label">First Name</label><input type="text" class="form-control" id="firstName" /></div>
-            <div class="col"><label class="form-label">Last Name</label><input type="text" class="form-control" id="lastName" /></div>
+            <div class="col"><label class="form-label" for="firstName">First Name</label><input type="text" class="form-control" id="firstName" /></div>
+            <div class="col"><label class="form-label" for="lastName">Last Name</label><input type="text" class="form-control" id="lastName" /></div>
           </div>
-          <div class="mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" id="phone" /></div>
+          <div class="mb-3"><label class="form-label" for="phone">Phone</label><input type="text" class="form-control" id="phone" /></div>
           <div class="mb-3">
             <label class="form-label">Theme</label>
             <select class="form-select" id="theme">
@@ -100,19 +101,19 @@
         </details>
 
         <div class="mb-3">
-          <label class="form-label">Telegram Bot Token</label>
+          <label class="form-label" for="telegramBotToken">Telegram Bot Token</label>
           <input type="password" class="form-control" id="telegramBotToken" placeholder="Leave blank to keep your saved token" autocomplete="new-password" name="telegram-bot-token-not-a-login-field" />
           <div class="fs-xs text-muted mt-1" id="telegramBotTokenStatus"></div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Telegram Chat ID</label>
+          <label class="form-label" for="telegramId">Telegram Chat ID</label>
           <div class="d-flex gap-2">
             <input type="text" class="form-control" id="telegramId" placeholder="Click Find my Chat ID, or paste it manually" />
             <button class="btn btn-outline-secondary text-nowrap" id="findChatId" type="button"><i class="bi bi-search me-1"></i>Find my Chat ID</button>
           </div>
         </div>
         <div class="d-flex gap-2">
-          <button class="btn btn-primary" id="saveNotifs">Save Notifications</button>
+          <button type="button" class="btn btn-primary" id="saveNotifs">Save Notifications</button>
           <button class="btn btn-outline-secondary" id="testTelegram" type="button"><i class="bi bi-send me-1"></i>Send Test Message</button>
         </div>
       </div>
@@ -122,8 +123,8 @@
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lock text-accent"></i> Change Password</span></div>
       <div class="section-card-body">
         <form id="pwdForm">
-          <div class="mb-3"><label class="form-label">Current Password</label><input type="password" class="form-control" id="curPwd" /></div>
-          <div class="mb-3"><label class="form-label">New Password</label><input type="password" class="form-control" id="newPwd" /></div>
+        <div class="mb-3"><label class="form-label" for="curPwd">Current Password</label><input type="password" class="form-control" id="curPwd" /></div>
+          <div class="mb-3"><label class="form-label" for="newPwd">New Password</label><input type="password" class="form-control" id="newPwd" /></div>
           <button type="submit" class="btn btn-primary">Update Password</button>
         </form>
       </div>
@@ -291,6 +292,11 @@ function settingsAssetId(value) {
 function settingsNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function settingsStatus(message) {
+  const status = document.getElementById('settingsStatus');
+  if (status) status.textContent = String(message || '');
 }
 
 function renderAssetGrid(assets) {
@@ -557,22 +563,36 @@ document.getElementById('theme').addEventListener('change', function () {
 
 document.getElementById('profileForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const btn = e.submitter;
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); }
+  settingsStatus('Saving profile…');
   const selectedTheme = document.getElementById('theme').value;
-  const res = await API.put('/auth/me', {
-    first_name: document.getElementById('firstName').value,
-    last_name: document.getElementById('lastName').value,
-    phone: document.getElementById('phone').value,
-    theme: selectedTheme,
-  });
-  if (res?.user) {
-    // Persist theme after successful save
-    document.documentElement.setAttribute('data-theme', selectedTheme);
-    localStorage.setItem('theme', selectedTheme);
-    Toast.show('Profile updated!', 'success');
-  } else Toast.show('Update failed', 'error');
+  try {
+    const res = await API.put('/auth/me', {
+      first_name: document.getElementById('firstName').value,
+      last_name: document.getElementById('lastName').value,
+      phone: document.getElementById('phone').value,
+      theme: selectedTheme,
+    });
+    if (res?.user) {
+      document.documentElement.setAttribute('data-theme', selectedTheme);
+      localStorage.setItem('theme', selectedTheme);
+      settingsStatus('Profile saved.');
+      Toast.show('Profile updated!', 'success');
+    } else {
+      settingsStatus('Profile could not be saved.');
+      Toast.show(res?.error || 'Update failed', 'error');
+    }
+  } catch (_) {
+    settingsStatus('Profile could not be saved.');
+    Toast.show('Unable to save profile right now', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); }
+  }
 });
 
 document.getElementById('saveNotifs').addEventListener('click', async () => {
+  const btn = document.getElementById('saveNotifs');
   const telegramEnabled = document.getElementById('telegramNotif').checked;
   const telegramChatId = document.getElementById('telegramId').value.trim();
   // Saves fine either way (you may be mid-setup), but this is the exact
@@ -589,13 +609,28 @@ document.getElementById('saveNotifs').addEventListener('click', async () => {
   };
   const newToken = document.getElementById('telegramBotToken').value.trim();
   if (newToken) payload.telegram_bot_token = newToken; // blank = leave the saved one alone
-  const res = await API.put('/auth/me', payload);
-  if (res?.user) {
-    Toast.show('Notifications saved!', 'success');
-    document.getElementById('telegramBotToken').value = '';
-    document.getElementById('telegramBotTokenStatus').textContent = res.user.has_telegram_bot_token
-      ? 'A bot token is saved. Leave blank to keep it, or enter a new one to replace it.'
-      : 'No bot token saved yet — see the guide above.';
+  btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  settingsStatus('Saving notification preferences…');
+  try {
+    const res = await API.put('/auth/me', payload);
+    if (res?.user) {
+      settingsStatus('Notification preferences saved.');
+      Toast.show('Notifications saved!', 'success');
+      document.getElementById('telegramBotToken').value = '';
+      document.getElementById('telegramBotTokenStatus').textContent = res.user.has_telegram_bot_token
+        ? 'A bot token is saved. Leave blank to keep it, or enter a new one to replace it.'
+        : 'No bot token saved yet — see the guide above.';
+    } else {
+      settingsStatus('Notification preferences could not be saved.');
+      Toast.show(res?.error || 'Save failed', 'error');
+    }
+  } catch (_) {
+    settingsStatus('Notification preferences could not be saved.');
+    Toast.show('Unable to save notifications right now', 'error');
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
   }
 });
 

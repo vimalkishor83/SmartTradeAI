@@ -15,6 +15,9 @@ def test_settings_controls_do_not_use_inline_event_handlers():
     assert "data-action=\"confirm-2fa\"" in source
     assert "data-market-action=\"select\"" in source
     assert "data-request-plan=\"${settingsText(p.name)}\"" in source
+    assert 'id="settingsStatus" class="visually-hidden" role="status" aria-live="polite"' in source
+    assert 'for="firstName"' in source
+    assert 'for="telegramBotToken"' in source
 
 
 def test_settings_dynamic_values_are_escaped_and_mutations_are_serialized():
@@ -29,3 +32,6 @@ def test_settings_dynamic_values_are_escaped_and_mutations_are_serialized():
     assert "let _settingsMutations = new Set();" in source
     assert "_settingsMutations.has('plan:' + plan.toLowerCase())" in source
     assert "Array.isArray(res?.backup_codes)" in source
+    assert "function settingsStatus(message)" in source
+    assert "btn.removeAttribute('aria-busy');" in source
+    assert "Unable to save notifications right now" in source
