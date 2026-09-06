@@ -64,6 +64,20 @@ Settings now exposes an accessible live status for profile and notification save
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.122 IMPLEMENTED - Harden legacy notification serialization
+
+Notification serialization now tolerates legacy rows whose nullable `created_at` is missing, returning `null` instead of raising an exception during authenticated notification reads. Normal timestamps retain their existing ISO-8601 representation and the endpoint pagination, ownership filtering and response keys are unchanged.
+
+**Risk level:** Medium reliability value, very low compatibility risk because only previously failing null data changes from a server error to an explicit null response. **Affected modules:** `app/models/notification.py`, `tests/unit/test_notification_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Notification serialization checks passed (**2 passed**) and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 102 (Notification legacy-row resilience):**
+- `app/models/notification.py` - make nullable timestamp serialization safe.
+- `tests/unit/test_notification_serialization.py` - cover null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** valid-record response unchanged; legacy null timestamp now returns `null`. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
