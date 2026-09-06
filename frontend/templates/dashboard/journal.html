@@ -277,7 +277,7 @@
 
           <div class="col-12">
             <label class="form-label">Notes</label>
-            <textarea class="form-control" id="fNotes" rows="3" placeholder="Trade rationale, observations…"></textarea>
+            <textarea class="form-control" id="fNotes" rows="3" maxlength="5000" placeholder="Trade rationale, observations…"></textarea>
           </div>
 
         </div><!-- /row -->
@@ -309,6 +309,40 @@ const OUTCOME_COLORS = { win: 'success', loss: 'danger', breakeven: 'secondary' 
 let _currentPage = 1;
 let _totalPages  = 1;
 let _modal       = null;
+let _entriesRequestSeq = 0;
+let _weeklyLoadPromise = null;
+let _saveTradeInFlight = false;
+const _deleteEntryInFlight = new Set();
+
+const MAX_JOURNAL_PRICE = 1000000000000;
+const MAX_JOURNAL_QUANTITY = 1000000000;
+
+function _journalHtml(value) {
+  return typeof STSafe !== 'undefined' && typeof STSafe.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _journalId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,18}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _journalNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function _journalText(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function _journalTitle(value) {
+  const text = _journalText(value, 'Unknown');
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 // ── init ──────────────────────────────────────────────────────────────────
 // app:ready (fired from app.js), not DOMContentLoaded: this page is
@@ -332,29 +366,36 @@ document.addEventListener('app:ready', async () => {
 
 // ── helpers ───────────────────────────────────────────────────────────────
 function fmt(n) {
-  if (n == null) return '—';
-  return '₹' + Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+  const number = _journalNumber(n);
+  return number === null ? '—' : '₹' + number.toLocaleString('en-IN', { maximumFractionDigits: 2 });
 }
-function fmtPct(n) { return n == null ? '—' : n.toFixed(2) + '%'; }
+function fmtPct(n) {
+  const number = _journalNumber(n);
+  return number === null ? '—' : number.toFixed(2) + '%';
+}
 function outcomeBadge(o) {
-  const cls = OUTCOME_COLORS[o] || 'secondary';
-  return `<span class="badge bg-${cls}">${o || '—'}</span>`;
+  const outcome = _journalText(o, '—').toLowerCase();
+  const cls = OUTCOME_COLORS[outcome] || 'secondary';
+  return `<span class="badge bg-${cls}">${_journalHtml(outcome)}</span>`;
 }
 function emotionBadge(e) {
   if (!e) return '—';
-  const cls = EMOTION_COLORS[e] || 'secondary';
-  return `<span class="badge bg-${cls}">${e}</span>`;
+  const emotion = _journalText(e, '');
+  const cls = EMOTION_COLORS[emotion] || 'secondary';
+  return `<span class="badge bg-${cls}">${_journalHtml(emotion)}</span>`;
 }
 
 // ── assets select ─────────────────────────────────────────────────────────
 async function loadAssets() {
   const res = await API.get('/assets/');
-  if (!res?.assets) return;
+  if (!Array.isArray(res?.assets)) return;
   const sel = document.getElementById('fAsset');
-  res.assets.forEach(a => {
+  res.assets.filter(a => a && typeof a === 'object').forEach(a => {
+    const id = _journalId(a.id);
+    if (!id) return;
     const opt = document.createElement('option');
-    opt.value = a.id;
-    opt.textContent = `${a.symbol} – ${a.name}`;
+    opt.value = id;
+    opt.textContent = `${_journalText(a.symbol, '—')} – ${_journalText(a.name, '')}`;
     sel.appendChild(opt);
   });
 }
@@ -366,18 +407,19 @@ async function loadEntries(page = 1) {
   const dateFrom = document.getElementById('filterDateFrom').value;
   const dateTo   = document.getElementById('filterDateTo').value;
 
-  let url = `/journal/?page=${page}&per_page=20`;
-  if (outcome)  url += `&outcome=${outcome}`;
-  if (market)   url += `&market=${market}`;
-  if (dateFrom) url += `&date_from=${dateFrom}`;
-  if (dateTo)   url += `&date_to=${dateTo}`;
+  const params = new URLSearchParams({ page: String(Math.max(1, Number(page) || 1)), per_page: '20' });
+  if (outcome)  params.set('outcome', outcome);
+  if (market)   params.set('market', market);
+  if (dateFrom) params.set('date_from', dateFrom);
+  if (dateTo)   params.set('date_to', dateTo);
 
-  const res = await API.get(url);
-  if (!res) return;
+  const requestSeq = ++_entriesRequestSeq;
+  const res = await API.get(`/journal/?${params.toString()}`);
+  if (!res || requestSeq !== _entriesRequestSeq || !Array.isArray(res.entries)) return;
 
-  _currentPage = res.page;
-  _totalPages  = res.pages;
-  renderTable(res.entries, res.total);
+  _currentPage = _journalNumber(res.page, 1);
+  _totalPages  = Math.max(1, _journalNumber(res.pages, 1));
+  renderTable(res.entries.filter(e => e && typeof e === 'object'), _journalNumber(res.total, 0));
 }
 
 function renderTable(entries, total) {
@@ -385,7 +427,7 @@ function renderTable(entries, total) {
   const empty = document.getElementById('journalEmpty');
   const pager = document.getElementById('journalPagination');
 
-  if (!entries.length) {
+  if (!Array.isArray(entries) || !entries.length) {
     body.innerHTML = '';
     body.appendChild(empty);
     pager.style.display = 'none';
@@ -393,27 +435,30 @@ function renderTable(entries, total) {
   }
 
   body.innerHTML = entries.map(e => {
-    const pnlCls = e.pnl_amount > 0 ? 'text-green' : e.pnl_amount < 0 ? 'text-red' : '';
+    const id = _journalId(e.id);
+    const pnl = _journalNumber(e.pnl_amount);
+    const direction = _journalText(e.direction, '—').toUpperCase();
+    const pnlCls = pnl > 0 ? 'text-green' : pnl < 0 ? 'text-red' : '';
     return `<tr>
-      <td class="text-nowrap">${e.trade_date || '—'}</td>
-      <td>${e.asset_symbol || '—'}</td>
-      <td><span class="badge ${e.direction === 'BUY' ? 'bg-success' : 'bg-danger'}">${e.direction || '—'}</span></td>
-      <td>${e.timeframe || '—'}</td>
-      <td>${e.entry_price != null ? e.entry_price : '—'}</td>
-      <td>${e.exit_price  != null ? e.exit_price  : '—'}</td>
-      <td class="${pnlCls} text-nowrap">${fmt(e.pnl_amount)}<br><small>${fmtPct(e.pnl_pct)}</small></td>
+      <td class="text-nowrap">${_journalHtml(_journalText(e.trade_date, '—'))}</td>
+      <td>${_journalHtml(_journalText(e.asset_symbol, '—'))}</td>
+      <td><span class="badge ${direction === 'BUY' ? 'bg-success' : direction === 'SELL' ? 'bg-danger' : 'bg-secondary'}">${_journalHtml(direction)}</span></td>
+      <td>${_journalHtml(_journalText(e.timeframe, '—'))}</td>
+      <td>${_journalNumber(e.entry_price) === null ? '—' : _journalNumber(e.entry_price)}</td>
+      <td>${_journalNumber(e.exit_price) === null ? '—' : _journalNumber(e.exit_price)}</td>
+      <td class="${pnlCls} text-nowrap">${fmt(pnl)}<br><small>${fmtPct(e.pnl_pct)}</small></td>
       <td>${outcomeBadge(e.outcome)}</td>
       <td>${emotionBadge(e.emotion_tag)}</td>
       <td class="text-nowrap">
-        <button class="btn btn-xs btn-outline-secondary me-1" onclick="openEdit(${e.id})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-xs btn-outline-danger" onclick="deleteEntry(${e.id})"><i class="bi bi-trash"></i></button>
+        <button class="btn btn-xs btn-outline-secondary me-1" data-edit-entry="${id}" ${id ? '' : 'disabled'}><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-xs btn-outline-danger" data-delete-entry="${id}" ${id ? '' : 'disabled'}><i class="bi bi-trash"></i></button>
       </td>
     </tr>`;
   }).join('');
 
   pager.style.display = 'flex';
   document.getElementById('pageInfo').textContent =
-    `Page ${_currentPage} of ${_totalPages} (${total} trades)`;
+    `Page ${_currentPage} of ${_totalPages} (${_journalNumber(total, 0)} trades)`;
   document.getElementById('btnPrev').disabled = _currentPage <= 1;
   document.getElementById('btnNext').disabled = _currentPage >= _totalPages;
 }
@@ -421,19 +466,26 @@ function renderTable(entries, total) {
 // ── stats + insights ──────────────────────────────────────────────────────
 async function loadStats() {
   const s = await API.get('/journal/stats');
-  if (!s) return;
+  if (!s || typeof s !== 'object') {
+    document.getElementById('insightPanel').innerHTML = '<p class="text-muted fs-sm">Unable to load journal insights. Try refreshing.</p>';
+    return;
+  }
 
   // KPIs
-  document.getElementById('kpiTotal').textContent   = s.total_trades;
-  document.getElementById('kpiWinRate').textContent = s.win_rate + '%';
+  const totalTrades = _journalNumber(s.total_trades, 0);
+  const winRate = _journalNumber(s.win_rate, 0);
+  const totalPnl = _journalNumber(s.total_pnl, 0);
+  document.getElementById('kpiTotal').textContent   = totalTrades;
+  document.getElementById('kpiWinRate').textContent = winRate + '%';
   const pnlEl = document.getElementById('kpiPnl');
-  pnlEl.textContent = fmt(s.total_pnl);
-  pnlEl.className   = 'kpi-value ' + (s.total_pnl >= 0 ? 'text-green' : 'text-red');
-  document.getElementById('kpiPF').textContent = s.profit_factor == null && s.total_trades ? '∞' : (s.profit_factor ?? 0);
+  pnlEl.textContent = fmt(totalPnl);
+  pnlEl.className   = 'kpi-value ' + (totalPnl >= 0 ? 'text-green' : 'text-red');
+  const profitFactor = _journalNumber(s.profit_factor);
+  document.getElementById('kpiPF').textContent = s.profit_factor == null && totalTrades ? '∞' : (profitFactor ?? 0);
 
   // Insights
   const panel = document.getElementById('insightPanel');
-  if (!s.total_trades) {
+  if (!totalTrades) {
     panel.innerHTML = '<p class="text-muted fs-sm">Add trades to see insights.</p>';
     return;
   }
@@ -445,27 +497,34 @@ async function loadStats() {
   // Emotion: Unknown" / "Avoid: Unknown trades") presented missing data as
   // an actionable insight. Exclude it and only show this card once there's
   // at least one real tagged emotion to compare.
-  const emo = Object.fromEntries(Object.entries(s.by_emotion || {}).filter(([k]) => k !== 'unknown'));
+  const emo = Object.fromEntries(Object.entries(s.by_emotion || {}).filter(([k, v]) =>
+    k !== 'unknown' && v && typeof v === 'object' && _journalNumber(v.trades, 0) > 0
+  ));
   if (Object.keys(emo).length) {
-    const best = Object.entries(emo).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
+    const best = Object.entries(emo).sort((a, b) => _journalNumber(b[1].win_rate, 0) - _journalNumber(a[1].win_rate, 0))[0];
+    const bestRate = _journalNumber(best[1].win_rate, 0);
+    const bestTrades = _journalNumber(best[1].trades, 0);
     insights.push(`<div class="glass-card mb-2 border-success">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-emoji-smile-fill text-green fs-4"></i>
         <div>
-          <div class="fw-semibold text-green">Best Emotion: ${best[0].charAt(0).toUpperCase()+best[0].slice(1)}</div>
-          <div class="text-muted fs-sm">${best[1].win_rate}% win rate (${best[1].trades} trades)</div>
+          <div class="fw-semibold text-green">Best Emotion: ${_journalHtml(_journalTitle(best[0]))}</div>
+          <div class="text-muted fs-sm">${bestRate}% win rate (${bestTrades} trades)</div>
         </div>
       </div>
     </div>`);
 
-    const worst = Object.entries(emo).filter(e => e[1].trades >= 2).sort((a, b) => a[1].win_rate - b[1].win_rate)[0];
+    const worst = Object.entries(emo).filter(e => _journalNumber(e[1].trades, 0) >= 2)
+      .sort((a, b) => _journalNumber(a[1].win_rate, 0) - _journalNumber(b[1].win_rate, 0))[0];
     if (worst && worst[0] !== best[0]) {
+      const worstRate = _journalNumber(worst[1].win_rate, 0);
+      const worstTrades = _journalNumber(worst[1].trades, 0);
       insights.push(`<div class="glass-card mb-2 border-danger">
         <div class="d-flex align-items-center gap-2">
           <i class="bi bi-emoji-frown-fill text-red fs-4"></i>
           <div>
-            <div class="fw-semibold text-red">Avoid: ${worst[0].charAt(0).toUpperCase()+worst[0].slice(1)} trades</div>
-            <div class="text-muted fs-sm">${worst[1].win_rate}% win rate (${worst[1].trades} trades)</div>
+            <div class="fw-semibold text-red">Avoid: ${_journalHtml(_journalTitle(worst[0]))} trades</div>
+            <div class="text-muted fs-sm">${worstRate}% win rate (${worstTrades} trades)</div>
           </div>
         </div>
       </div>`);
@@ -484,30 +543,38 @@ async function loadStats() {
 
   // Best market — n=1 "100% win rate" claims aren't a meaningful signal;
   // require at least 2 trades before calling anything "best".
-  const mkt = Object.fromEntries(Object.entries(s.by_market || {}).filter(([, v]) => v.trades >= 2));
+  const mkt = Object.fromEntries(Object.entries(s.by_market || {}).filter(([, v]) =>
+    v && typeof v === 'object' && _journalNumber(v.trades, 0) >= 2
+  ));
   if (Object.keys(mkt).length) {
-    const best = Object.entries(mkt).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
+    const best = Object.entries(mkt).sort((a, b) => _journalNumber(b[1].win_rate, 0) - _journalNumber(a[1].win_rate, 0))[0];
+    const bestRate = _journalNumber(best[1].win_rate, 0);
+    const bestTrades = _journalNumber(best[1].trades, 0);
     insights.push(`<div class="glass-card mb-2">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-globe2 text-blue fs-4"></i>
         <div>
-          <div class="fw-semibold">Best Market: ${best[0]}</div>
-          <div class="text-muted fs-sm">${best[1].win_rate}% win rate (${best[1].trades} trades) · ${fmt(best[1].pnl)} P&L</div>
+          <div class="fw-semibold">Best Market: ${_journalHtml(best[0])}</div>
+          <div class="text-muted fs-sm">${bestRate}% win rate (${bestTrades} trades) · ${fmt(best[1].pnl)} P&amp;L</div>
         </div>
       </div>
     </div>`);
   }
 
   // Best day — same minimum-sample-size guard
-  const dow = Object.fromEntries(Object.entries(s.by_day_of_week || {}).filter(([, v]) => v.trades >= 2));
+  const dow = Object.fromEntries(Object.entries(s.by_day_of_week || {}).filter(([, v]) =>
+    v && typeof v === 'object' && _journalNumber(v.trades, 0) >= 2
+  ));
   if (Object.keys(dow).length) {
-    const best = Object.entries(dow).sort((a, b) => b[1].win_rate - a[1].win_rate)[0];
+    const best = Object.entries(dow).sort((a, b) => _journalNumber(b[1].win_rate, 0) - _journalNumber(a[1].win_rate, 0))[0];
+    const bestRate = _journalNumber(best[1].win_rate, 0);
+    const bestTrades = _journalNumber(best[1].trades, 0);
     insights.push(`<div class="glass-card mb-2">
       <div class="d-flex align-items-center gap-2">
         <i class="bi bi-calendar-check text-accent fs-4"></i>
         <div>
-          <div class="fw-semibold">Best Day: ${best[0]}</div>
-          <div class="text-muted fs-sm">${best[1].win_rate}% win rate (${best[1].trades} trades)</div>
+          <div class="fw-semibold">Best Day: ${_journalHtml(best[0])}</div>
+          <div class="text-muted fs-sm">${bestRate}% win rate (${bestTrades} trades)</div>
         </div>
       </div>
     </div>`);
@@ -518,6 +585,8 @@ async function loadStats() {
 
 // ── weekly review ─────────────────────────────────────────────────────────
 async function loadWeeklyReview() {
+  if (_weeklyLoadPromise) return _weeklyLoadPromise;
+  const request = (async () => {
   const today = new Date();
   const days  = [];
   for (let i = 6; i >= 0; i--) {
@@ -531,8 +600,9 @@ async function loadWeeklyReview() {
   const dateFrom = fmt8(days[0]);
   const dateTo   = fmt8(days[6]);
 
-  const res = await API.get(`/journal/?date_from=${dateFrom}&date_to=${dateTo}&per_page=200`);
-  const entries = res?.entries || [];
+  const res = await API.get(`/journal/?date_from=${dateFrom}&date_to=${dateTo}&per_page=100`);
+  const entries = Array.isArray(res?.entries)
+    ? res.entries.filter(e => e && typeof e === 'object') : [];
 
   // group by date
   const byDate = {};
@@ -546,7 +616,7 @@ async function loadWeeklyReview() {
   heatmap.innerHTML = days.map(d => {
     const key  = fmt8(d);
     const list = byDate[key] || [];
-    const pnl  = list.reduce((s, e) => s + (e.pnl_amount || 0), 0);
+    const pnl  = list.reduce((s, e) => s + _journalNumber(e.pnl_amount, 0), 0);
     let color  = 'var(--border)';
     if (list.length && pnl > 0)  color = 'var(--green)';
     if (list.length && pnl < 0)  color = 'var(--red)';
@@ -563,13 +633,13 @@ async function loadWeeklyReview() {
   tbody.innerHTML = days.map(d => {
     const key  = fmt8(d);
     const list = byDate[key] || [];
-    const pnl  = list.reduce((s, e) => s + (e.pnl_amount || 0), 0);
+    const pnl  = list.reduce((s, e) => s + _journalNumber(e.pnl_amount, 0), 0);
     const wins  = list.filter(e => e.outcome === 'win').length;
     const losses = list.filter(e => e.outcome === 'loss').length;
     const dayLabel = d.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short' });
     const barW = list.length ? Math.round((wins / list.length) * 100) : 0;
     return `<tr>
-      <td>${dayLabel}</td>
+      <td>${_journalHtml(dayLabel)}</td>
       <td>${list.length || '—'}</td>
       <td class="${pnl > 0 ? 'text-green' : pnl < 0 ? 'text-red' : 'text-muted'}">${list.length ? fmt(pnl) : '—'}</td>
       <td style="min-width:120px">
@@ -580,13 +650,18 @@ async function loadWeeklyReview() {
       </td>
     </tr>`;
   }).join('');
+  })();
+  _weeklyLoadPromise = request;
+  try { return await request; }
+  finally { if (_weeklyLoadPromise === request) _weeklyLoadPromise = null; }
 }
 
 // ── weekly notes (localStorage) ───────────────────────────────────────────
 function initWeeklyNotes() {
-  const key = 'journal_weekly_notes_' + weekKey();
+  const userId = typeof Auth !== 'undefined' ? _journalId(Auth.user?.id) : '';
+  const key = 'journal_weekly_notes_' + (userId || 'account') + '_' + weekKey();
   const ta  = document.getElementById('weeklyNotes');
-  ta.value  = localStorage.getItem(key) || '';
+  try { ta.value = localStorage.getItem(key) || ''; } catch (_) { ta.value = ''; }
 }
 
 function weekKey() {
@@ -613,40 +688,43 @@ function openAdd() {
 }
 
 async function openEdit(id) {
-  const res = await API.get(`/journal/?page=1&per_page=200`);
-  if (!res) return;
-  const entry = res.entries.find(e => e.id === id);
-  if (!entry) { Toast.show('Entry not found', 'error'); return; }
+  id = _journalId(id);
+  if (!id) return;
+  const entry = await API.get(`/journal/${id}`);
+  if (!entry || entry.error) { Toast.show('Entry not found', 'error'); return; }
 
   document.getElementById('journalModalTitle').textContent = 'Edit Trade';
   document.getElementById('editId').value = id;
   document.getElementById('fDate').value     = entry.trade_date || '';
-  document.getElementById('fAsset').value    = entry.asset_id   || '';
-  document.getElementById('fMarket').value   = entry.market     || '';
-  document.getElementById('fDirection').value= entry.direction  || 'BUY';
-  document.getElementById('fTimeframe').value= entry.timeframe  || '';
-  document.getElementById('fEntry').value    = entry.entry_price != null ? entry.entry_price : '';
-  document.getElementById('fExit').value     = entry.exit_price  != null ? entry.exit_price  : '';
-  document.getElementById('fQty').value      = entry.quantity    != null ? entry.quantity    : '';
-  document.getElementById('fSL').value       = entry.stop_loss   != null ? entry.stop_loss   : '';
-  document.getElementById('fTarget').value   = entry.target      != null ? entry.target      : '';
-  document.getElementById('fEmotion').value  = entry.emotion_tag || '';
-  document.getElementById('fSetupTags').value= (entry.setup_tags || []).join(', ');
-  document.getElementById('fNotes').value    = entry.notes || '';
+  document.getElementById('fAsset').value    = _journalId(entry.asset_id) || '';
+  document.getElementById('fMarket').value   = _journalText(entry.market, '');
+  document.getElementById('fDirection').value= _journalText(entry.direction, 'BUY');
+  document.getElementById('fTimeframe').value= _journalText(entry.timeframe, '');
+  document.getElementById('fEntry').value    = _journalNumber(entry.entry_price) ?? '';
+  document.getElementById('fExit').value     = _journalNumber(entry.exit_price) ?? '';
+  document.getElementById('fQty').value      = _journalNumber(entry.quantity) ?? '';
+  document.getElementById('fSL').value       = _journalNumber(entry.stop_loss) ?? '';
+  document.getElementById('fTarget').value   = _journalNumber(entry.target) ?? '';
+  document.getElementById('fEmotion').value  = _journalText(entry.emotion_tag, '');
+  document.getElementById('fSetupTags').value= Array.isArray(entry.setup_tags)
+    ? entry.setup_tags.filter(tag => typeof tag === 'string').join(', ') : '';
+  document.getElementById('fNotes').value    = _journalText(entry.notes, '');
   updatePnlPreview();
   _modal.show();
 }
 
 async function deleteEntry(id) {
+  id = _journalId(id);
+  if (!id || _deleteEntryInFlight.has(id)) return;
   if (!confirm('Delete this trade entry?')) return;
-  const res = await API.delete(`/journal/${id}`);
-  if (res?.message) {
-    Toast.show('Trade deleted', 'success');
-    await Promise.all([loadEntries(_currentPage), loadStats()]);
-    loadWeeklyReview();
-  } else {
-    Toast.show('Delete failed', 'error');
-  }
+  _deleteEntryInFlight.add(id);
+  try {
+    if (await API.delete(`/journal/${id}`)) {
+      Toast.show('Trade deleted', 'success');
+      await Promise.all([loadEntries(_currentPage), loadStats()]);
+      loadWeeklyReview();
+    } else Toast.show('Delete failed', 'error');
+  } finally { _deleteEntryInFlight.delete(id); }
 }
 
 function getFormData() {
@@ -654,15 +732,15 @@ function getFormData() {
   const setupTags = setupRaw.split(',').map(s => s.trim()).filter(Boolean);
   return {
     trade_date:  document.getElementById('fDate').value,
-    asset_id:    document.getElementById('fAsset').value   || null,
+    asset_id:    _journalId(document.getElementById('fAsset').value) || null,
     market:      document.getElementById('fMarket').value  || null,
     direction:   document.getElementById('fDirection').value || 'BUY',
     timeframe:   document.getElementById('fTimeframe').value || null,
-    entry_price: parseFloat(document.getElementById('fEntry').value)  || null,
-    exit_price:  parseFloat(document.getElementById('fExit').value)   || null,
-    quantity:    parseFloat(document.getElementById('fQty').value)    || null,
-    stop_loss:   parseFloat(document.getElementById('fSL').value)     || null,
-    target:      parseFloat(document.getElementById('fTarget').value) || null,
+    entry_price: _journalNumber(document.getElementById('fEntry').value),
+    exit_price:  _journalNumber(document.getElementById('fExit').value),
+    quantity:    _journalNumber(document.getElementById('fQty').value),
+    stop_loss:   _journalNumber(document.getElementById('fSL').value),
+    target:      _journalNumber(document.getElementById('fTarget').value),
     emotion_tag: document.getElementById('fEmotion').value  || null,
     setup_tags:  setupTags,
     notes:       document.getElementById('fNotes').value    || null,
@@ -671,13 +749,16 @@ function getFormData() {
 
 // ── P&L preview ───────────────────────────────────────────────────────────
 function updatePnlPreview() {
-  const entry = parseFloat(document.getElementById('fEntry').value);
-  const exit_ = parseFloat(document.getElementById('fExit').value);
-  const qty   = parseFloat(document.getElementById('fQty').value) || 1;
+  const entry = _journalNumber(document.getElementById('fEntry').value);
+  const exit_ = _journalNumber(document.getElementById('fExit').value);
+  const qtyValue = _journalNumber(document.getElementById('fQty').value);
+  const qty   = qtyValue === null ? 1 : qtyValue;
   const dir   = document.getElementById('fDirection').value || 'BUY';
   const prev  = document.getElementById('pnlPreview');
 
-  if (!entry || !exit_) { prev.style.display = 'none'; return; }
+  if (entry === null || exit_ === null || entry <= 0 || exit_ <= 0 || qty < 0) {
+    prev.style.display = 'none'; return;
+  }
 
   const pnlAmt = dir === 'BUY' ? (exit_ - entry) * qty : (entry - exit_) * qty;
   const pnlPct = dir === 'BUY' ? (exit_ - entry) / entry * 100 : (entry - exit_) / entry * 100;
@@ -693,25 +774,46 @@ function updatePnlPreview() {
 function bindEvents() {
   document.getElementById('btnAddTrade').addEventListener('click', openAdd);
 
-  document.getElementById('btnSaveTrade').addEventListener('click', async () => {
-    const id   = document.getElementById('editId').value;
+  document.getElementById('journalBody').addEventListener('click', event => {
+    const edit = event.target.closest('[data-edit-entry]');
+    if (edit) { openEdit(edit.dataset.editEntry); return; }
+    const remove = event.target.closest('[data-delete-entry]');
+    if (remove) deleteEntry(remove.dataset.deleteEntry);
+  });
+
+  document.getElementById('btnSaveTrade').addEventListener('click', async (event) => {
+    if (_saveTradeInFlight) return;
+    const id   = _journalId(document.getElementById('editId').value);
     const data = getFormData();
     if (!data.trade_date) { Toast.show('Please select a trade date', 'warning'); return; }
-
-    let res;
-    if (id) {
-      res = await API.put(`/journal/${id}`, data);
-    } else {
-      res = await API.post('/journal/', data);
+    if ((data.entry_price !== null && (data.entry_price <= 0 || data.entry_price > MAX_JOURNAL_PRICE))
+        || (data.exit_price !== null && (data.exit_price <= 0 || data.exit_price > MAX_JOURNAL_PRICE))
+        || (data.quantity !== null && (data.quantity < 0 || data.quantity > MAX_JOURNAL_QUANTITY))
+        || (data.stop_loss !== null && (data.stop_loss <= 0 || data.stop_loss > MAX_JOURNAL_PRICE))
+        || (data.target !== null && (data.target <= 0 || data.target > MAX_JOURNAL_PRICE))) {
+      Toast.show('Enter finite position values within the allowed limits.', 'warning');
+      return;
     }
 
-    if (res?.id || res?.trade_date) {
-      Toast.show(id ? 'Trade updated' : 'Trade added', 'success');
-      _modal.hide();
-      await Promise.all([loadEntries(id ? _currentPage : 1), loadStats()]);
-      loadWeeklyReview();
-    } else {
-      Toast.show('Save failed', 'error');
+    _saveTradeInFlight = true;
+    event.currentTarget.disabled = true;
+    let res;
+    try {
+      if (id) {
+        res = await API.put(`/journal/${id}`, data);
+      } else {
+        res = await API.post('/journal/', data);
+      }
+
+      if (res && !res.error && (res.id || res.trade_date)) {
+        Toast.show(id ? 'Trade updated' : 'Trade added', 'success');
+        _modal.hide();
+        await Promise.all([loadEntries(id ? _currentPage : 1), loadStats()]);
+        loadWeeklyReview();
+      } else Toast.show(res?.error || 'Save failed', 'error');
+    } finally {
+      _saveTradeInFlight = false;
+      event.currentTarget.disabled = false;
     }
   });
 
@@ -735,8 +837,9 @@ function bindEvents() {
   );
 
   document.getElementById('btnSaveNotes').addEventListener('click', () => {
-    const key = 'journal_weekly_notes_' + weekKey();
-    localStorage.setItem(key, document.getElementById('weeklyNotes').value);
+    const userId = typeof Auth !== 'undefined' ? _journalId(Auth.user?.id) : '';
+    const key = 'journal_weekly_notes_' + (userId || 'account') + '_' + weekKey();
+    try { localStorage.setItem(key, document.getElementById('weeklyNotes').value.slice(0, 5000)); } catch (_) {}
     Toast.show('Weekly notes saved', 'success');
   });
 }
