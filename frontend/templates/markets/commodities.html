@@ -32,10 +32,10 @@
       <input type="range" class="form-range" id="minConf" min="0" max="100" value="0" style="width:80px">
       <span class="badge-tag" id="confVal">0%</span>
     </div>
-    <button class="btn btn-sm btn-outline-light" onclick="loadAll()">
+    <button type="button" class="btn btn-sm btn-outline-light" data-action="refresh-commodities">
       <i class="bi bi-arrow-repeat me-1"></i>Refresh
     </button>
-    <button class="btn btn-sm btn-primary" id="genAllBtn" onclick="genAllSignals()">
+    <button type="button" class="btn btn-sm btn-primary" id="genAllBtn" data-action="generate-all-commodities">
       <i class="bi bi-lightning-charge-fill me-1"></i>Generate All
     </button>
   </div>
@@ -46,7 +46,7 @@
 
   <!-- Gold -->
   <div class="col-12 col-md-4 col-lg-3">
-    <div class="section-card p-3" style="cursor:pointer" onclick="genSignal('XAUUSD')">
+    <div class="section-card p-3" style="cursor:pointer" data-action="generate-commodity" data-symbol="XAUUSD" tabindex="0" role="button">
       <div class="d-flex align-items-center gap-2 mb-2">
         <div style="width:36px;height:36px;border-radius:50%;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center">
           <i class="bi bi-gem" style="color:#f59e0b;font-size:18px"></i>
@@ -59,8 +59,7 @@
       </div>
       <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_XAUUSD">—</div>
       <div style="font-size:12px;margin-top:2px" id="change_XAUUSD"><span style="color:var(--text-muted)">loading...</span></div>
-      <button class="btn btn-sm w-100 mt-2" style="font-size:11px;padding:3px 6px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25);border-radius:6px"
-        onclick="event.stopPropagation();genSignal('XAUUSD')">
+      <button type="button" class="btn btn-sm w-100 mt-2" data-action="generate-commodity" data-symbol="XAUUSD" style="font-size:11px;padding:3px 6px;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.25);border-radius:6px">
         <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
       </button>
     </div>
@@ -68,7 +67,7 @@
 
   <!-- Silver -->
   <div class="col-12 col-md-4 col-lg-3">
-    <div class="section-card p-3" style="cursor:pointer">
+    <div class="section-card p-3" style="cursor:pointer" data-action="generate-commodity" data-symbol="XAGUSD" tabindex="0" role="button">
       <div class="d-flex align-items-center gap-2 mb-2">
         <div style="width:36px;height:36px;border-radius:50%;background:rgba(148,163,184,0.15);display:flex;align-items:center;justify-content:center">
           <i class="bi bi-circle-fill silver-tone" style="color:#94a3b8;font-size:18px"></i>
@@ -81,8 +80,7 @@
       </div>
       <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_XAGUSD">—</div>
       <div style="font-size:12px;margin-top:2px" id="change_XAGUSD"><span style="color:var(--text-muted)">loading...</span></div>
-      <button class="btn btn-sm w-100 mt-2 silver-tone" style="font-size:11px;padding:3px 6px;background:rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.25);border-radius:6px"
-        onclick="genSignal('XAGUSD')">
+      <button type="button" class="btn btn-sm w-100 mt-2 silver-tone" data-action="generate-commodity" data-symbol="XAGUSD" style="font-size:11px;padding:3px 6px;background:rgba(148,163,184,0.12);color:#94a3b8;border:1px solid rgba(148,163,184,0.25);border-radius:6px">
         <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
       </button>
     </div>
@@ -90,7 +88,7 @@
 
   <!-- Crude Oil -->
   <div class="col-12 col-md-4 col-lg-3">
-    <div class="section-card p-3" style="cursor:pointer">
+    <div class="section-card p-3" style="cursor:pointer" data-action="generate-commodity" data-symbol="CLUSD" tabindex="0" role="button">
       <div class="d-flex align-items-center gap-2 mb-2">
         <div style="width:36px;height:36px;border-radius:50%;background:rgba(239,68,68,0.12);display:flex;align-items:center;justify-content:center">
           <i class="bi bi-droplet-fill" style="color:#ef4444;font-size:18px"></i>
@@ -103,8 +101,7 @@
       </div>
       <div class="fw-900 mt-1" style="font-size:22px;letter-spacing:-0.5px;color:var(--text-primary)" id="price_CLUSD">—</div>
       <div style="font-size:12px;margin-top:2px" id="change_CLUSD"><span style="color:var(--text-muted)">loading...</span></div>
-      <button class="btn btn-sm w-100 mt-2" style="font-size:11px;padding:3px 6px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:6px"
-        onclick="genSignal('CLUSD')">
+      <button type="button" class="btn btn-sm w-100 mt-2" data-action="generate-commodity" data-symbol="CLUSD" style="font-size:11px;padding:3px 6px;background:rgba(239,68,68,0.1);color:#f87171;border:1px solid rgba(239,68,68,0.2);border-radius:6px">
         <i class="bi bi-lightning-charge-fill me-1"></i>Generate Signal
       </button>
     </div>
@@ -130,9 +127,9 @@
           <div class="col-6"><div class="quick-stat"><div class="qs-label">Volume</div><div class="qs-value" id="sentVol" style="font-size:12px">—</div></div></div>
         </div>
         <div class="mt-2 d-flex gap-1 flex-wrap justify-content-center">
-          <button class="badge-tag" style="cursor:pointer;border:none;background:rgba(245,158,11,0.12);color:#f59e0b" onclick="loadSentiment('gold')">Gold</button>
-          <button class="badge-tag silver-tone" style="cursor:pointer;border:none;background:rgba(148,163,184,0.12);color:#94a3b8" onclick="loadSentiment('silver')">Silver</button>
-          <button class="badge-tag" style="cursor:pointer;border:none;background:rgba(239,68,68,0.12);color:#f87171" onclick="loadSentiment('oil')">Crude</button>
+          <button type="button" class="badge-tag" data-action="load-sentiment" data-sentiment="gold" style="cursor:pointer;border:none;background:rgba(245,158,11,0.12);color:#f59e0b">Gold</button>
+          <button type="button" class="badge-tag silver-tone" data-action="load-sentiment" data-sentiment="silver" style="cursor:pointer;border:none;background:rgba(148,163,184,0.12);color:#94a3b8">Silver</button>
+          <button type="button" class="badge-tag" data-action="load-sentiment" data-sentiment="oil" style="cursor:pointer;border:none;background:rgba(239,68,68,0.12);color:#f87171">Crude</button>
         </div>
       </div>
     </div>
@@ -178,6 +175,40 @@ const COMMODITY_SYMBOLS = {
 };
 let _assets = [];
 let _sentimentMap = {};   // symbol -> asset_id
+let _assetLoadSequence = 0;
+let _signalLoadSequence = 0;
+let _sentimentLoadSequence = 0;
+let _commodityMutations = new Set();
+
+const COMMODITY_TIMEFRAMES = new Set(['1m', '5m', '15m', '30m', '1h', '4h', '1d']);
+const COMMODITY_SIGNAL_TYPES = new Set(['BUY', 'SELL', 'HOLD']);
+
+function commodityNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function commodityPercent(value) {
+  return Math.max(0, Math.min(100, commodityNumber(value)));
+}
+
+function normalizeCommodityAsset(value) {
+  if (!value || typeof value !== 'object') return null;
+  const id = Number(value.id);
+  const symbol = String(value.symbol ?? '').trim().toUpperCase();
+  if (!Number.isInteger(id) || id < 1 || !COMMODITY_SYMBOLS[symbol]) return null;
+  return { ...value, id, symbol };
+}
+
+function normalizeCommoditySignal(value) {
+  if (!value || typeof value !== 'object') return null;
+  const id = Number(value.id);
+  const asset = String(value.asset ?? '').trim().toUpperCase();
+  const timeframe = String(value.timeframe ?? '').trim();
+  if (!Number.isInteger(id) || id < 1 || !COMMODITY_SYMBOLS[asset] || !COMMODITY_TIMEFRAMES.has(timeframe)) return null;
+  const signalType = String(value.signal_type ?? '').trim().toUpperCase();
+  return { ...value, id, asset, timeframe, signal_type: COMMODITY_SIGNAL_TYPES.has(signalType) ? signalType : 'HOLD' };
+}
 
 function shortTime(iso) {
   if (!iso) return '—';
@@ -192,9 +223,11 @@ function shortTime(iso) {
 
 /* ── Load Assets (commodity market) ─────────── */
 async function loadAssets() {
+  const sequence = ++_assetLoadSequence;
   // Try commodity market first, fall back to gold+silver
   let data = await API.get('/assets/', { market: 'commodity' });
-  let assets = data?.assets || [];
+  if (sequence !== _assetLoadSequence) return;
+  let assets = (Array.isArray(data?.assets) ? data.assets : []).map(normalizeCommodityAsset).filter(Boolean);
 
   if (!assets.length) {
     // Legacy: might be stored as gold/silver markets
@@ -202,10 +235,13 @@ async function loadAssets() {
       API.get('/assets/', { market: 'gold' }),
       API.get('/assets/', { market: 'silver' }),
     ]);
-    assets = [...(g?.assets || []), ...(s?.assets || [])];
+    assets = [...(Array.isArray(g?.assets) ? g.assets : []), ...(Array.isArray(s?.assets) ? s.assets : [])]
+      .map(normalizeCommodityAsset).filter(Boolean);
   }
 
+  if (sequence !== _assetLoadSequence) return;
   _assets = assets;
+  _sentimentMap = {};
   assets.forEach(a => {
     _sentimentMap[a.symbol] = a.id;
     loadPrice(a);
@@ -221,13 +257,15 @@ async function loadAssets() {
 }
 
 async function loadPrice(asset) {
+  if (!asset || !Number.isInteger(Number(asset.id))) return;
   const priceEl  = document.getElementById(`price_${asset.symbol}`);
   const changeEl = document.getElementById(`change_${asset.symbol}`);
   if (!priceEl) return;
-  const data = await API.get(`/assets/${asset.id}/ticker`);
-  if (data?.price) {
-    priceEl.textContent = formatPrice(data.price);
-    const chg = data.change_pct ?? 0;
+  const data = await API.get(`/assets/${Number(asset.id)}/ticker`);
+  const price = commodityNumber(data?.price, NaN);
+  if (Number.isFinite(price)) {
+    priceEl.textContent = formatPrice(price);
+    const chg = commodityNumber(data?.change_pct);
     const col = chg >= 0 ? 'var(--green)' : 'var(--red)';
     const arr = chg >= 0 ? '▲' : '▼';
     changeEl.innerHTML = `<span style="color:${col};font-weight:700">${arr} ${Math.abs(chg).toFixed(2)}%</span>`;
@@ -243,15 +281,17 @@ async function loadSentiment(which) {
   const sym = map[which] || 'XAUUSD';
   const id  = _sentimentMap[sym];
   if (!id) return;
+  const sequence = ++_sentimentLoadSequence;
 
   document.getElementById('sentimentAsset').textContent = sym;
   const tf   = document.getElementById('tfFilter').value || '1h';
   const data = await API.get(`/market-data/${id}/sentiment`, { timeframe: tf });
+  if (sequence !== _sentimentLoadSequence) return;
   if (!data?.sentiment) return;
 
   const s     = data.sentiment;
-  const score = s.score ?? 50;
-  const label = s.label || 'Neutral';
+  const score = commodityPercent(s.score ?? 50);
+  const label = String(s.label ?? 'Neutral');
   const color = score >= 65 ? 'var(--green)' : score <= 35 ? 'var(--red)' : 'var(--yellow)';
 
   document.getElementById('sentimentScore').textContent = score;
@@ -261,24 +301,27 @@ async function loadSentiment(which) {
   document.getElementById('sentimentBar').style.width      = score + '%';
   document.getElementById('sentimentBar').style.background = color;
 
-  if (s.indicators) {
-    const rsi = s.indicators.rsi;
+  if (s.indicators && typeof s.indicators === 'object') {
+    const rsi = commodityNumber(s.indicators.rsi, NaN);
     const rsiColor = rsi > 70 ? 'var(--red)' : rsi < 30 ? 'var(--green)' : 'var(--yellow)';
-    const macd  = s.indicators.macd_signal || '—';
-    const trend = s.indicators.ema_trend   || '—';
+    const macd  = String(s.indicators.macd_signal ?? '—');
+    const trend = String(s.indicators.ema_trend ?? '—');
     const setEl = (id, val, col) => { const el = document.getElementById(id); if (el) { el.textContent = val; if (col) el.style.color = col; }};
-    setEl('sentRSI',  rsi?.toFixed(1) || '—', rsiColor);
+    setEl('sentRSI',  Number.isFinite(rsi) ? rsi.toFixed(1) : '—', rsiColor);
     setEl('sentMACD', macd,  macd === 'bullish' ? 'var(--green)' : macd === 'bearish' ? 'var(--red)' : null);
     setEl('sentTrend', trend, trend === 'bullish' ? 'var(--green)' : trend === 'bearish' ? 'var(--red)' : null);
-    setEl('sentVol',  s.indicators.volume_trend || '—', null);
+    setEl('sentVol',  String(s.indicators.volume_trend ?? '—'), null);
   }
 }
 
 /* ── Signals Table ───────────────────────────── */
 async function loadSignals(page = 1) {
-  const tf   = document.getElementById('tfFilter').value;
-  const type = document.getElementById('typeFilter').value;
-  const conf = document.getElementById('minConf').value;
+  const sequence = ++_signalLoadSequence;
+  const tfValue = document.getElementById('tfFilter')?.value || '1h';
+  const tf = COMMODITY_TIMEFRAMES.has(tfValue) ? tfValue : '1h';
+  const typeValue = document.getElementById('typeFilter')?.value || '';
+  const type = COMMODITY_SIGNAL_TYPES.has(typeValue) ? typeValue : '';
+  const conf = commodityPercent(document.getElementById('minConf')?.value);
 
   // Fetch signals for all commodity markets
   const [r1, r2, r3] = await Promise.all([
@@ -286,16 +329,26 @@ async function loadSignals(page = 1) {
     API.get('/signals/', { market:'gold',      timeframe:tf, page, per_page:10, min_confidence:conf, ...(type?{signal_type:type}:{}) }),
     API.get('/signals/', { market:'silver',    timeframe:tf, page, per_page:10, min_confidence:conf, ...(type?{signal_type:type}:{}) }),
   ]);
+  if (sequence !== _signalLoadSequence) return;
 
   // Merge and deduplicate by id
   const seen = new Set();
-  const signals = [...(r1?.signals||[]), ...(r2?.signals||[]), ...(r3?.signals||[])]
-    .filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; })
+  const rawSignals = [
+    ...(Array.isArray(r1?.signals) ? r1.signals : []),
+    ...(Array.isArray(r2?.signals) ? r2.signals : []),
+    ...(Array.isArray(r3?.signals) ? r3.signals : []),
+  ];
+  const signals = rawSignals.map(normalizeCommoditySignal).filter(s => s && (() => {
+    if (seen.has(s.id)) return false;
+    seen.add(s.id);
+    return true;
+  })())
     .sort((a,b) => new Date(b.generated_at) - new Date(a.generated_at));
 
-  const total = (r1?.total||0) + (r2?.total||0) + (r3?.total||0);
+  const total = [r1, r2, r3].reduce((sum, response) => sum + Math.max(0, Math.trunc(commodityNumber(response?.total))), 0);
   document.getElementById('sigCount').textContent  = `${signals.length} signals`;
   document.getElementById('sigTotal').textContent  = `${total} total`;
+  renderCommodityPagination(page, total);
 
   const tbody = document.getElementById('mktSignalsBody');
   if (!signals.length) {
@@ -310,31 +363,30 @@ async function loadSignals(page = 1) {
   const commodityColor = { XAUUSD:'#f59e0b', XAGUSD:'#94a3b8', CLUSD:'#f87171' };
 
   tbody.innerHTML = signals.map(s => {
-    const rr      = parseFloat(s.risk_reward) || 0;
+    const rr      = Math.max(0, commodityNumber(s.risk_reward));
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-muted)';
-    const conf2   = s.confidence_score || 0;
+    const conf2   = commodityPercent(s.confidence_score);
     const confClr = conf2 >= 85 ? 'var(--green)' : conf2 >= 70 ? 'var(--accent-light)' : conf2 >= 55 ? 'var(--yellow)' : 'var(--red)';
-    const cLabel  = commodityLabel[s.asset] || s.asset;
+    const cLabel  = commodityLabel[s.asset] || 'Unknown';
     const cColor  = commodityColor[s.asset] || 'var(--text-muted)';
     return `<tr>
-      <td><strong style="color:var(--text-primary)">${s.asset}</strong></td>
-      <td><span style="color:${cColor};font-weight:600;font-size:12px">${cLabel}</span></td>
+      <td><strong style="color:var(--text-primary)">${STSafe.html(s.asset)}</strong></td>
+      <td><span style="color:${cColor};font-weight:600;font-size:12px">${STSafe.html(cLabel)}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td><span class="badge-tag">${s.timeframe}</span></td>
-      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(s.entry_price)}</td>
-      <td class="text-red">${formatPrice(s.stop_loss)}</td>
-      <td class="text-green">${formatPrice(s.target1)}</td>
-      <td class="text-green">${formatPrice(s.target2)}</td>
-      <td class="text-green">${formatPrice(s.target3)}</td>
+      <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
+      <td class="fw-700" style="color:var(--text-primary)">${formatPrice(commodityNumber(s.entry_price))}</td>
+      <td class="text-red">${formatPrice(commodityNumber(s.stop_loss))}</td>
+      <td class="text-green">${formatPrice(commodityNumber(s.target1))}</td>
+      <td class="text-green">${formatPrice(commodityNumber(s.target2))}</td>
+      <td class="text-green">${formatPrice(commodityNumber(s.target3))}</td>
       <td><span style="font-weight:700;color:${rrColor}">${rr.toFixed(1)}x</span></td>
       <td style="min-width:110px">
         <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${conf2}%;background:${confClr}"></div></div>
-        <div style="font-size:11px;color:var(--text-muted)">${conf2.toFixed(0)}% · ${s.confidence_label||''}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${conf2.toFixed(0)}% · ${STSafe.html(String(s.confidence_label ?? ''))}</div>
       </td>
       <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${shortTime(s.generated_at)}</td>
       <td>
-        <button class="btn btn-sm" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px"
-          onclick="genSignal('${s.asset}','${s.timeframe}')" title="Regenerate">
+        <button type="button" class="btn btn-sm" data-action="regenerate-commodity" data-symbol="${STSafe.html(s.asset)}" data-timeframe="${STSafe.html(s.timeframe)}" style="background:var(--bg-secondary);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px" title="Regenerate">
           <i class="bi bi-arrow-repeat"></i>
         </button>
       </td>
@@ -344,32 +396,77 @@ async function loadSignals(page = 1) {
 
 /* ── Generate ────────────────────────────────── */
 async function genSignal(symbol, timeframe) {
-  const tf = timeframe || document.getElementById('tfFilter').value;
+  symbol = String(symbol ?? '').trim().toUpperCase();
+  const requestedTf = String(timeframe || document.getElementById('tfFilter')?.value || '1h');
+  const tf = COMMODITY_TIMEFRAMES.has(requestedTf) ? requestedTf : '1h';
+  if (!COMMODITY_SYMBOLS[symbol]) return;
+  const mutationKey = `signal:${symbol}:${tf}`;
+  if (_commodityMutations.has(mutationKey)) return;
+  _commodityMutations.add(mutationKey);
   Toast.show(`Generating ${tf} signal for ${symbol}...`, 'info', 2000);
-  const res = await API.post('/signals/generate', { symbol, timeframe: tf });
-  if (res?.signal_type) {
-    Toast.show(`${res.signal_type} signal for ${symbol} — ${(res.confidence_score||0).toFixed(0)}% confidence`, 'success');
-    loadSignals(1);
-  } else {
-    Toast.show(res?.error || 'Signal generation failed', 'warning');
+  try {
+    const res = await API.post('/signals/generate', { symbol, timeframe: tf });
+    if (res?.signal_type) {
+      const signalType = String(res.signal_type).toUpperCase();
+      const confidence = commodityPercent(res.confidence_score);
+      Toast.show(`${COMMODITY_SIGNAL_TYPES.has(signalType) ? signalType : 'HOLD'} signal for ${symbol} — ${confidence.toFixed(0)}% confidence`, 'success');
+      loadSignals(1);
+    } else {
+      Toast.show(res?.error || 'Signal generation failed', 'warning');
+    }
+  } catch (_) {
+    Toast.show('Signal generation failed', 'warning');
+  } finally {
+    _commodityMutations.delete(mutationKey);
   }
 }
 
+function renderCommodityPagination(page, total) {
+  const pager = document.getElementById('mktPagination');
+  if (!pager) return;
+  const pageCount = Math.max(1, Math.ceil(total / 40));
+  if (pageCount <= 1) {
+    pager.innerHTML = '';
+    return;
+  }
+  const current = Math.max(1, Math.min(pageCount, Number(page) || 1));
+  const start = Math.max(1, Math.min(current - 3, pageCount - 7));
+  const end = Math.min(pageCount, start + 7);
+  pager.innerHTML = Array.from({ length: end - start + 1 }, (_, index) => {
+    const value = start + index;
+    return `<li class="page-item ${value === current ? 'active' : ''}"><button type="button" class="page-link" data-action="commodity-page" data-page="${value}">${value}</button></li>`;
+  }).join('');
+}
+
 async function genAllSignals() {
+  const mutationKey = 'signals:all';
+  if (_commodityMutations.has(mutationKey)) return;
+  _commodityMutations.add(mutationKey);
   const btn = document.getElementById('genAllBtn');
-  const tf  = document.getElementById('tfFilter').value;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
+  const selectedTf = document.getElementById('tfFilter')?.value || '1h';
+  const tf = COMMODITY_TIMEFRAMES.has(selectedTf) ? selectedTf : '1h';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating...';
+  }
   const syms = ['XAUUSD', 'XAGUSD', 'CLUSD'];
   let count = 0;
-  for (const sym of syms) {
-    const res = await API.post('/signals/generate', { symbol: sym, timeframe: tf });
-    if (res?.signal_type) count++;
+  try {
+    for (const sym of syms) {
+      try {
+        const res = await API.post('/signals/generate', { symbol: sym, timeframe: tf });
+        if (res?.signal_type) count++;
+      } catch (_) {}
+    }
+    Toast.show(`${count}/${syms.length} signals generated for Commodities`, count === syms.length ? 'success' : 'warning');
+    loadSignals(1);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i>Generate All';
+    }
+    _commodityMutations.delete(mutationKey);
   }
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-lightning-charge-fill me-1"></i>Generate All';
-  Toast.show(`${count} signals generated for Commodities`, 'success');
-  loadSignals(1);
 }
 
 /* ── Init ────────────────────────────────────── */
@@ -377,12 +474,34 @@ function loadAll() { loadAssets(); }
 
 document.addEventListener('app:ready', () => {
   loadAll();
+  document.addEventListener('click', event => {
+    const control = event.target.closest('[data-action]');
+    if (!control) return;
+    const action = control.dataset.action;
+    if (action === 'refresh-commodities') loadAll();
+    if (action === 'generate-all-commodities') genAllSignals();
+    if (action === 'generate-commodity' || action === 'regenerate-commodity') {
+      genSignal(control.dataset.symbol, control.dataset.timeframe);
+    }
+    if (action === 'load-sentiment') loadSentiment(control.dataset.sentiment);
+    if (action === 'commodity-page') loadSignals(Number(control.dataset.page));
+  });
+  document.addEventListener('keydown', event => {
+    const control = event.target.closest('[data-action="generate-commodity"]');
+    if (!control || !['Enter', ' '].includes(event.key)) return;
+    event.preventDefault();
+    genSignal(control.dataset.symbol, control.dataset.timeframe);
+  });
   document.getElementById('tfFilter').addEventListener('change',  () => { loadSignals(1); loadSentiment('gold'); });
   document.getElementById('typeFilter').addEventListener('change', () => loadSignals(1));
+  let filterTimer;
   document.getElementById('minConf').addEventListener('input', function() {
     document.getElementById('confVal').textContent = this.value + '%';
-    loadSignals(1);
+    clearTimeout(filterTimer);
+    filterTimer = setTimeout(() => loadSignals(1), 180);
   });
+  const signalBody = document.getElementById('mktSignalsBody');
+  signalBody?.setAttribute('data-bound', '1');
   setInterval(() => loadSignals(1), 60000);
   setInterval(() => _assets.forEach(a => loadPrice(a)), 30000);
 });
