@@ -1210,4 +1210,20 @@ Delta scanner API cache misses now use scoped single-flight locks with double-ch
 - `app/services/scanner/delta_market_screener.py`, `app/services/scanner/delta_indicator_scanner.py` - reject malformed condition items before field access.
 - `tests/unit/test_scanner_backend_hardening.py` - verify concurrent cache-build coalescing and invalid request rejection.
 
+### 7.75 IMPLEMENTED - Harden portfolio input boundaries
+
+Portfolio position creation and updates now validate symbol types and syntax before querying the asset catalog, enforce finite positive quantity/price bounds, and reject non-string or overlong notes instead of relying on database behavior. The limits match the existing `PortfolioItem` schema and prevent malformed JSON from raising attribute errors or allowing unbounded financial values into the portfolio workflow.
+
+**Risk level:** High input-integrity and operational-safety value, low compatibility risk (valid symbols and values remain accepted; malformed or out-of-contract values receive `400`). **Affected modules:** `app/api/v1/portfolio.py`, `tests/unit/test_portfolio_input_validation.py`. **Migration:** none.
+
+**Regression evidence:** Portfolio input, risk and template checks passed (**20 passed**), Python compilation and whitespace validation passed. Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
+### 7.76 IMPLEMENTED - Harden portfolio position workflow and rendering
+
+Portfolio rendering now escapes asset data and validates IDs/numbers before DOM insertion. Position actions are delegated through event listeners, duplicate add/stop/delete requests are suppressed, failures are shown instead of reported as success, stop losses can be edited after entry, and a completed refresh correctly replaces stale rows with the empty state. Mixed-currency headline totals are grouped rather than blended as raw rupee and dollar values.
+
+**Risk level:** High trust, risk-management UX and data-display value, low API compatibility risk (existing endpoints and payloads are preserved). **Affected modules:** `frontend/templates/dashboard/portfolio.html`, `tests/unit/test_portfolio_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Portfolio template/input/risk checks passed (**20 passed**), extracted browser JavaScript passed `node --check`, and whitespace validation passed. Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
