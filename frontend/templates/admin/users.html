@@ -251,7 +251,7 @@ function roleSelectHtml(u) {
   const badge = u.is_super_admin ? '<span class="badge bg-warning text-dark ms-1" title="Super Admin">Super</span>' : '';
   if (!isSuperAdmin) return `<span class="text-capitalize">${STSafe.html(u.role || '—')}</span>${badge}`;
   const opts = allRoles.map(r => `<option value="${STSafe.html(r.id)}" ${r.id === u.role_id ? 'selected' : ''}>${STSafe.html(r.name)}</option>`).join('');
-  return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" onchange="changeUserRole(${u.id}, this.value)">${opts}</select>${badge}</div>`;
+  return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" data-user-action="change-role" data-id="${STSafe.assetId(u.id)}">${opts}</select>${badge}</div>`;
 }
 function subscriptionSelectHtml(u) {
   const trialBadge = u.is_on_trial
@@ -268,15 +268,21 @@ function subscriptionSelectHtml(u) {
     if (current) list = [current, ...list];
   }
   const opts = list.map(s => `<option value="${STSafe.html(s.id)}" ${s.id === u.subscription_id ? 'selected' : ''}>${STSafe.html(s.name)}</option>`).join('');
-  return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" onchange="changeUserSubscription(${u.id}, this.value)">${opts}</select>${trialBadge}</div>`;
+  return `<div class="d-flex align-items-center gap-1"><select class="form-select form-select-sm" style="width:auto" data-user-action="change-subscription" data-id="${STSafe.assetId(u.id)}">${opts}</select>${trialBadge}</div>`;
 }
 async function changeUserRole(id, roleId) {
-  const res = await API.put(`/admin/users/${id}`, { role_id: parseInt(roleId) });
+  id = STSafe.assetId(id);
+  const parsedRoleId = Number(roleId);
+  if (!id || !Number.isSafeInteger(parsedRoleId) || parsedRoleId <= 0) return;
+  const res = await API.put(`/admin/users/${id}`, { role_id: parsedRoleId });
   if (res && !res.error) Toast.show('Role updated', 'success');
   else Toast.show(res?.error || 'Failed to update role', 'error');
 }
 async function changeUserSubscription(id, subId) {
-  const res = await API.put(`/admin/users/${id}`, { subscription_id: parseInt(subId) });
+  id = STSafe.assetId(id);
+  const parsedSubId = Number(subId);
+  if (!id || !Number.isSafeInteger(parsedSubId) || parsedSubId <= 0) return;
+  const res = await API.put(`/admin/users/${id}`, { subscription_id: parsedSubId });
   if (res && !res.error) Toast.show('Plan updated', 'success');
   else Toast.show(res?.error || 'Failed to update plan', 'error');
 }
@@ -285,7 +291,8 @@ async function loadUsers(page = 1) {
   userPage = page;
   const search = document.getElementById('userSearch').value;
   const data = await API.get('/admin/users', { page, per_page: 20, search });
-  if (!data) return;
+  if (!data || data.error) return;
+  const users = Array.isArray(data.users) ? data.users : [];
 
   document.getElementById('userCount').textContent = `${data.total} users`;
   const approvalBadge = (status) => {
@@ -293,7 +300,7 @@ async function loadUsers(page = 1) {
     return `<span class="badge ${cls}">${STSafe.html(status || 'approved')}</span>`;
   };
   allUsersById = {};
-  data.users.forEach(u => allUsersById[u.id] = u);
+  users.forEach(u => allUsersById[u.id] = u);
   const actionsHtml = (u) => {
     if (!isSuperAdmin) return '<span class="text-muted small">View only</span>';
     // Available for any account, admin-role included — feature access is
@@ -316,7 +323,7 @@ async function loadUsers(page = 1) {
           </button>
         </div>`;
   };
-  document.getElementById('usersBody').innerHTML = data.users.map(u => `
+  document.getElementById('usersBody').innerHTML = users.map(u => `
     <tr>
       <td class="text-muted">${STSafe.html(u.id)}</td>
       <td><strong>${STSafe.html(u.username)}</strong></td>
@@ -325,7 +332,7 @@ async function loadUsers(page = 1) {
       <td>${subscriptionSelectHtml(u)}</td>
       <td>${approvalBadge(u.approval_status)}</td>
       <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Disabled'}</span></td>
-      <td class="text-muted small">${u.last_login ? formatTime(u.last_login) : 'Never'}</td>
+      <td class="text-muted small">${STSafe.html(u.last_login ? formatTime(u.last_login) : 'Never')}</td>
       <td class="text-muted small">${STSafe.html(u.created_at?.slice(0, 10) || '—')}</td>
       <td>${actionsHtml(u)}</td>
     </tr>`).join('');
@@ -338,6 +345,8 @@ async function loadUsers(page = 1) {
     if (action === 'edit-user') button.addEventListener('click', () => openEditUser(id));
     if (action === 'toggle-user') button.addEventListener('click', () => toggleUser(id, button.dataset.active === 'true'));
     if (action === 'delete-user') button.addEventListener('click', () => deleteUser(id, button.dataset.username));
+    if (action === 'change-role') button.addEventListener('change', () => changeUserRole(id, button.value));
+    if (action === 'change-subscription') button.addEventListener('change', () => changeUserSubscription(id, button.value));
   });
 
   // Pagination
@@ -345,19 +354,24 @@ async function loadUsers(page = 1) {
   let html = '';
   for (let i = 1; i <= Math.min(data.pages, 7); i++) {
     html += `<li class="page-item ${i === page ? 'active' : ''}">
-      <a class="page-link" href="#" onclick="loadUsers(${i});return false;">${i}</a></li>`;
+      <a class="page-link" href="#" data-user-page="${i}">${i}</a></li>`;
   }
   pag.innerHTML = html;
+  pag.querySelectorAll('[data-user-page]').forEach(link => link.addEventListener('click', e => {
+    e.preventDefault();
+    const nextPage = Number(link.dataset.userPage);
+    if (Number.isSafeInteger(nextPage) && nextPage > 0) loadUsers(nextPage);
+  }));
 }
 
 async function loadPendingUsers() {
   const data = await API.get('/admin/users/pending');
-  if (!data) return;
+  if (!data || data.error) return;
   const card = document.getElementById('pendingUsersCard');
   if (!data.total) { card.style.display = 'none'; return; }
   card.style.display = '';
   document.getElementById('pendingCount').textContent = data.total;
-  document.getElementById('pendingUsersBody').innerHTML = data.users.map(u => `
+  document.getElementById('pendingUsersBody').innerHTML = (Array.isArray(data.users) ? data.users : []).map(u => `
     <tr>
       <td><strong>${STSafe.html(u.username)}</strong></td>
       <td>${STSafe.html(u.email)}</td>
@@ -365,35 +379,51 @@ async function loadPendingUsers() {
       <td>
         ${isSuperAdmin ? `
         <div class="d-flex gap-1">
-          <button class="btn btn-sm btn-success" onclick="approveUser(${u.id})"><i class="bi bi-check-lg"></i> Approve</button>
-          <button class="btn btn-sm btn-outline-danger" onclick="rejectUser(${u.id})"><i class="bi bi-x-lg"></i> Reject</button>
+          <button class="btn btn-sm btn-success" type="button" data-user-action="approve-user" data-id="${STSafe.assetId(u.id)}"><i class="bi bi-check-lg"></i> Approve</button>
+          <button class="btn btn-sm btn-outline-danger" type="button" data-user-action="reject-user" data-id="${STSafe.assetId(u.id)}"><i class="bi bi-x-lg"></i> Reject</button>
         </div>` : '<span class="text-muted small">View only</span>'}
       </td>
     </tr>`).join('');
+  document.querySelectorAll('#pendingUsersBody [data-user-action]').forEach(button => {
+    const id = button.dataset.id;
+    if (button.dataset.userAction === 'approve-user') button.addEventListener('click', () => approveUser(id));
+    if (button.dataset.userAction === 'reject-user') button.addEventListener('click', () => rejectUser(id));
+  });
 }
 
 async function approveUser(id) {
-  await API.post(`/admin/users/${id}/approve`, {});
+  id = STSafe.assetId(id);
+  if (!id) return;
+  const res = await API.post(`/admin/users/${id}/approve`, {});
+  if (res?.error) { Toast.show(res.error, 'error'); return; }
   Toast.show('User approved', 'success');
   loadPendingUsers();
   loadUsers(userPage);
 }
 
 async function rejectUser(id) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   if (!confirm('Reject this account? They will remain blocked from full access.')) return;
-  await API.post(`/admin/users/${id}/reject`, {});
+  const res = await API.post(`/admin/users/${id}/reject`, {});
+  if (res?.error) { Toast.show(res.error, 'error'); return; }
   Toast.show('User rejected', 'success');
   loadPendingUsers();
   loadUsers(userPage);
 }
 
 async function toggleUser(id, active) {
-  await API.put(`/admin/users/${id}`, { is_active: active });
+  id = STSafe.assetId(id);
+  if (!id || typeof active !== 'boolean') return;
+  const res = await API.put(`/admin/users/${id}`, { is_active: active });
+  if (res?.error) { Toast.show(res.error, 'error'); return; }
   Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success');
   loadUsers(userPage);
 }
 
 async function deleteUser(id, username) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
   const ok = await API.delete(`/admin/users/${id}`);
   if (ok) { Toast.show('User deleted', 'success'); loadUsers(userPage); }
@@ -454,6 +484,8 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', (
 
 // ── Edit User (super admin only) ────────────────────────────────────────
 function openEditUser(id) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   const u = allUsersById[id];
   if (!u) return;
   document.getElementById('euId').value = u.id;
@@ -511,6 +543,8 @@ document.getElementById('editUserModal').addEventListener('hidden.bs.modal', () 
 
 // ── Plan Trials (super admin only) ──────────────────────────────────────
 function openTrialModal(id) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   const u = allUsersById[id];
   if (!u) return;
   document.getElementById('trUserId').value = u.id;
@@ -521,7 +555,8 @@ function openTrialModal(id) {
 
 document.getElementById('trialForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id = document.getElementById('trUserId').value;
+  const id = STSafe.assetId(document.getElementById('trUserId').value);
+  if (!id) return;
   const res = await API.post(`/admin/users/${id}/trial`, {
     subscription_id: parseInt(document.getElementById('trPlan').value),
     days: parseInt(document.getElementById('trDays').value),
