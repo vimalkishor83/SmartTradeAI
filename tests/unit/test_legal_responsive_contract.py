@@ -22,3 +22,23 @@ def test_legal_styles_keep_mobile_navigation_and_long_content_usable():
     assert ".legal-doc table" in source
     assert "overflow-x: auto" in source
     assert "prefers-reduced-motion" in source
+
+
+def test_legal_index_has_three_column_card_grid_and_visual_assets():
+    source = (ROOT / "frontend/templates/legal/index.html").read_text(encoding="utf-8")
+
+    assert "grid-template-columns: repeat(3, 1fr)" in source
+    assert "grid-template-columns: repeat(2, 1fr)" in source
+    assert ".legal-index-card:nth-child(3n + 2)::before" in source
+    assert "/static/img/legal-center-atmosphere.png" in source
+    assert "/static/img/markets-atmosphere.png" in source
+    assert "/static/img/hero-market-atmosphere.png" in source
+
+    for asset in (
+        "legal-center-atmosphere.png",
+        "markets-atmosphere.png",
+        "hero-market-atmosphere.png",
+    ):
+        path = ROOT / "frontend/static/img" / asset
+        assert path.is_file()
+        assert path.stat().st_size > 0

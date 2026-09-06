@@ -102,7 +102,8 @@
     .navbar {
       position: sticky; top: var(--ticker-h); z-index: 100;
       background: rgba(8,11,18,0.88); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between; padding: 0 5%; height: 64px;
+      display: grid; grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+      align-items: center; padding: 0 5%; height: 64px;
     }
     .nav-brand { display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 800; letter-spacing: -0.4px; }
     .nav-brand .brand-icon {
@@ -111,10 +112,10 @@
       box-shadow: 0 0 0 1px rgba(245,166,35,0.35), 0 4px 16px rgba(245,166,35,0.25);
     }
     .nav-brand .ai-part { color: var(--accent); }
-    .nav-links { display: flex; align-items: center; gap: 30px; list-style: none; }
+    .nav-links { display: flex; align-items: center; justify-self: center; gap: 30px; list-style: none; }
     .nav-links a { color: var(--text2); font-size: 14px; font-weight: 500; transition: color 0.2s; }
     .nav-links a:hover { color: var(--text); }
-    .nav-cta { display: flex; align-items: center; gap: 12px; }
+    .nav-cta { display: flex; align-items: center; justify-self: end; gap: 12px; }
     .btn {
       display: inline-flex; align-items: center; gap: 7px; padding: 9px 22px; border-radius: 8px;
       font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; border: none;
@@ -126,7 +127,7 @@
 
     @media (max-width: 768px) {
       .nav-links { display: none; }
-      .navbar { padding: 0 4%; }
+      .navbar { display: flex; justify-content: space-between; padding: 0 4%; }
       .nav-brand { font-size: 15px; gap: 7px; }
       .nav-brand .brand-icon { width: 30px; height: 30px; font-size: 15px; }
       .nav-cta { gap: 8px; }
@@ -140,22 +141,48 @@
     .breadcrumb-trail .sep { margin: 0 6px; }
     .breadcrumb-trail .current { color: var(--text2); }
 
-    .legal-hero { max-width: 720px; margin: 0 auto; padding: 56px 5% 40px; text-align: center; }
+    .legal-hero {
+      position: relative; isolation: isolate; overflow: hidden;
+      max-width: 880px; margin: 0 auto; padding: 70px 5% 50px; text-align: left;
+      background: linear-gradient(90deg, var(--bg) 0%, rgba(8,11,18,0.76) 42%, rgba(8,11,18,0.18) 100%),
+        url('/static/img/legal-center-atmosphere.png') center right / cover no-repeat;
+      border-bottom: 1px solid rgba(245,166,35,0.16); border-radius: 0 0 28px 28px;
+    }
+    .legal-hero > * { position: relative; z-index: 1; }
     .legal-eyebrow {
       display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 2px;
       text-transform: uppercase; color: var(--accent); margin-bottom: 14px;
     }
     .legal-hero h1 { font-size: clamp(30px, 4vw, 40px); font-weight: 900; letter-spacing: -0.8px; margin-bottom: 14px; }
-    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; }
+    .legal-hero-sub { color: var(--text2); font-size: 15.5px; line-height: 1.7; max-width: 520px; }
 
-    .legal-index { max-width: 880px; margin: 0 auto; padding: 0 5% 90px; }
-    .legal-index-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-    @media (max-width: 700px) { .legal-index-grid { grid-template-columns: 1fr; } }
+    .legal-index { max-width: 1040px; margin: 0 auto; padding: 34px 5% 90px; }
+    .legal-index-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    @media (max-width: 900px) { .legal-index-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 700px) {
+      .legal-hero { padding: 52px 5% 38px; text-align: center; }
+      .legal-hero-sub { margin-inline: auto; }
+      .legal-index-grid { grid-template-columns: 1fr; }
+    }
 
     .legal-index-card {
+      position: relative; overflow: hidden;
       background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
       padding: 22px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s, transform 0.2s;
     }
+    .legal-index-card::before {
+      content: ''; position: absolute; inset: 0 0 auto auto; width: 48%; height: 92px;
+      background: linear-gradient(90deg, var(--card) 0%, rgba(16,20,28,0.34) 45%, rgba(16,20,28,0.06) 100%),
+        url('/static/img/legal-center-atmosphere.png') center / cover no-repeat;
+      opacity: 0.38; pointer-events: none;
+    }
+    .legal-index-card:nth-child(3n + 2)::before {
+      background-image: linear-gradient(90deg, var(--card) 0%, rgba(16,20,28,0.34) 45%, rgba(16,20,28,0.06) 100%), url('/static/img/markets-atmosphere.png');
+    }
+    .legal-index-card:nth-child(3n)::before {
+      background-image: linear-gradient(90deg, var(--card) 0%, rgba(16,20,28,0.34) 45%, rgba(16,20,28,0.06) 100%), url('/static/img/hero-market-atmosphere.png');
+    }
+    .legal-index-card > * { position: relative; z-index: 1; }
     a.legal-index-card:hover { border-color: rgba(245,166,35,0.35); transform: translateY(-2px); }
     .legal-index-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
     .legal-index-card-icon {
