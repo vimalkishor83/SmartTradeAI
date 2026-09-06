@@ -4,33 +4,70 @@
 let _filter = (typeof MARKET !== 'undefined' && MARKET) ? MARKET : '';
 let _apChart = null, _consensusChart = null, _liveSignals = [];
 const mset = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
-const mfmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
+const mnum = (value, fallback = null) => { if (value === null || value === undefined || value === '') return fallback; const number = Number(value); return Number.isFinite(number) ? number : fallback; };
+const mcount = (value, fallback = 0) => { const number = mnum(value, fallback); return Math.max(0, Math.min(1000000000, Math.floor(number))); };
+const mpercent = (value, fallback = 0) => { const number = mnum(value, fallback); return Math.max(0, Math.min(100, number)); };
+const mfmt = (n, d = 2) => { const number = mnum(n); return number === null ? '—' : number.toFixed(d); };
 const _cv = (n, f) => (getComputedStyle(document.documentElement).getPropertyValue(n) || f).trim();
 const mktLabel = m => m === 'indian_stock' ? 'Indian Stocks' : m === 'index' ? 'Indices' : m ? m.charAt(0).toUpperCase() + m.slice(1) : 'All';
 
+let _marketsRefreshPromise = null;
+let _marketsRefreshQueued = false;
+let _marketsSelectionSequence = 0;
+let _marketsBooted = false;
+
+function _marketIsCurrent(sequence) { return sequence === _marketsSelectionSequence; }
+
+function _setMarketStatus(state, message, detail) {
+  const context = document.getElementById('marketsContext');
+  if (context) context.className = `dashboard-context is-${state}`;
+  mset('marketsLiveStatus', message);
+  if (detail !== undefined) mset('marketsUpdatedAt', detail);
+}
+
+function _setMarketBusy(busy) {
+  const content = document.getElementById('marketsContent');
+  if (content) content.setAttribute('aria-busy', busy ? 'true' : 'false');
+  const generate = document.getElementById('generateAll');
+  if (generate) generate.disabled = !!busy;
+}
+
+function _setMarketUnavailable(id, message) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = `<div class="ui-state ui-state--error p-3"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${STSafe.html(message)}</span></div>`;
+}
+
 /* ── KPIs + sentiment + volatility from heatmap/signals ── */
 async function loadKPIs() {
+  const sequence = _marketsSelectionSequence;
   const [summary, perf, pnl, heat] = await Promise.all([
     API.get('/signals/summary'), API.get('/signals/performance'),
     API.get('/signals/open-pnl'), API.get('/market-data/heatmap'),
   ]);
+  if (!_marketIsCurrent(sequence)) return null;
   const ov = perf?.overall || {};
-  const buy = summary?.buy_today ?? 0, sell = summary?.sell_today ?? 0, hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
+  const buy = mcount(summary?.buy_today), sell = mcount(summary?.sell_today), hold = mcount(summary?.hold_today), exit = mcount(summary?.exit_today);
   mset('kpiGen', buy + sell + hold + exit);
-  mset('kpiActive', summary?.open_alerts ?? (buy + sell + hold + exit));
-  mset('kpiWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-  mset('kpiWinSub', 'n = ' + (ov.total_closed ?? 0));
+  mset('kpiActive', mcount(summary?.open_alerts, buy + sell + hold + exit));
+  const winRate = mnum(ov.win_rate);
+  mset('kpiWin', winRate === null ? '—' : mpercent(winRate).toFixed(1) + '%');
+  mset('kpiWinSub', 'historical · n = ' + mcount(ov.total_closed));
   if (Array.isArray(pnl) && pnl.length) {
-    const avg = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0) / pnl.length;
-    const el = document.getElementById('kpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
-    mset('kpiPnlSub', pnl.length + ' open');
-  } else mset('kpiPnl', '—');
+    const values = pnl.map(r => mnum(r?.pnl_pct)).filter(v => v !== null);
+    const avg = values.length ? values.reduce((s, value) => s + value, 0) / values.length : null;
+    const el = document.getElementById('kpiPnl');
+    if (el) {
+      el.textContent = avg === null ? '—' : (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%';
+      el.className = 'kpi-value ' + (avg === null || avg >= 0 ? 'text-green' : 'text-red');
+    }
+    mset('kpiPnlSub', values.length + ' open');
+  } else { mset('kpiPnl', '—'); mset('kpiPnlSub', 'no open positions'); }
 
   // sentiment + volatility from heatmap — scoped to the selected market tab
   // (All Markets -> whole market; a specific tab -> that market only)
-  const rows = (heat?.heatmap || []).filter(r => !_filter || r.market === _filter);
+  const rows = (Array.isArray(heat?.heatmap) ? heat.heatmap : []).filter(r => !_filter || r.market === _filter);
   if (rows.length) {
-    const ch = rows.map(r => r.change_pct || 0);
+    const ch = rows.map(r => mnum(r?.change_pct, 0));
     const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
     const std = Math.sqrt(ch.reduce((a, b) => a + (b - avg) ** 2, 0) / ch.length);
     const score = Math.round(Math.max(0, Math.min(100, 50 + avg * 12)));
@@ -39,7 +76,12 @@ async function loadKPIs() {
     const vlbl = std > 2 ? 'High' : std > 1 ? 'Moderate' : 'Low';
     const ve = document.getElementById('kpiVol'); if (ve) { ve.textContent = vlbl; ve.className = 'kpi-value ' + (std > 2 ? 'text-red' : std > 1 ? 'text-yellow' : 'text-green'); }
     loadSentimentPanel(rows, score, slbl);
+  } else {
+    mset('kpiSent', '—'); mset('kpiVol', '—'); mset('mktSentScore', '—'); mset('mktSentLabel', 'No live data');
+    _setMarketUnavailable('sentCounts', 'Live sentiment is unavailable for this selection.');
+    _setMarketUnavailable('mktByMarket', 'Live market breakdown is unavailable.');
   }
+  return !!(summary || perf || pnl || heat);
 }
 
 /* ── Market Sentiment panel ── */
@@ -47,8 +89,8 @@ function loadSentimentPanel(rows, score, label) {
   mset('mktSentScore', score);
   const le = document.getElementById('mktSentLabel'); if (le) { le.textContent = label; le.className = 'sent-gauge-lbl ' + (score >= 55 ? 'text-green' : score >= 45 ? 'text-yellow' : 'text-red'); }
   _gauge('mktGauge', score);
-  const bull = rows.filter(r => (r.change_pct || 0) > 0.1).length;
-  const bear = rows.filter(r => (r.change_pct || 0) < -0.1).length;
+  const bull = rows.filter(r => mnum(r?.change_pct, 0) > 0.1).length;
+  const bear = rows.filter(r => mnum(r?.change_pct, 0) < -0.1).length;
   const neu = rows.length - bull - bear;
   const cEl = document.getElementById('sentCounts');
   if (cEl) cEl.innerHTML = `
@@ -62,7 +104,7 @@ function loadSentimentPanel(rows, score, label) {
   const showByMarket = !_filter;
   if (bm) bm.style.display = showByMarket ? '' : 'none';
   if (bmLabel && bmLabel.textContent.trim().toLowerCase() === 'by market') bmLabel.style.display = showByMarket ? '' : 'none';
-  const markets = {}; rows.forEach(r => { (markets[r.market] = markets[r.market] || []).push(r.change_pct || 0); });
+  const markets = {}; rows.forEach(r => { (markets[r.market] = markets[r.market] || []).push(mnum(r?.change_pct, 0)); });
   if (bm && showByMarket) bm.innerHTML = Object.entries(markets).map(([m, arr]) => {
     const a = arr.reduce((x, y) => x + y, 0) / arr.length; const sc = Math.round(Math.max(5, Math.min(95, 50 + a * 12)));
     const clr = sc >= 55 ? 'var(--green)' : sc >= 45 ? 'var(--yellow)' : 'var(--red)';
@@ -80,12 +122,21 @@ function _gauge(id, score) {
 
 /* ── Live Signals table ── */
 async function loadLiveSignals() {
+  const sequence = _marketsSelectionSequence;
   const tf = document.getElementById('tfFilter')?.value || '';
   const type = document.getElementById('typeFilter')?.value || '';
   const params = { per_page: 12 }; if (_filter) params.market = _filter; if (tf) params.timeframe = tf; if (type) params.signal_type = type;
   const data = await API.get('/signals/', params);
-  _liveSignals = data?.signals || [];
-  mset('liveCount', (data?.total || 0) + ' active');
+  if (!_marketIsCurrent(sequence)) return null;
+  if (!data) {
+    mset('liveCount', 'unavailable');
+    const tb = document.getElementById('liveBody');
+    if (tb) tb.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">Live signals are temporarily unavailable.</td></tr>';
+    _setMarketUnavailable('topOpps', 'Live opportunities are unavailable.');
+    return false;
+  }
+  _liveSignals = Array.isArray(data.signals) ? data.signals.filter(s => s && typeof s === 'object') : [];
+  mset('liveCount', mcount(data.total, _liveSignals.length) + ' active');
   loadTopOpps(_liveSignals);
   // consensus is computed from the full scored universe in loadAiHeat()
   const tb = document.getElementById('liveBody');
@@ -94,23 +145,24 @@ async function loadLiveSignals() {
   const rows = _liveSignals.filter(s => !search || (s.asset || '').toLowerCase().includes(search));
   if (!rows.length) { tb.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-5">No signals for this filter</td></tr>'; return; }
   tb.innerHTML = rows.map(s => {
-    const conf = s.confidence_score || 0; const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
-    const rr = parseFloat(s.risk_reward) || 0; const st = _statusOf(s);
+    const conf = mpercent(s.confidence_score); const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
+    const rr = mnum(s.risk_reward, 0); const st = _statusOf(s);
     return `<tr>
       <td><a href="${STSafe.assetHref(s.asset_id)}" class="asset-cell-name" style="text-decoration:none">${STSafe.html(s.asset)}</a></td>
       <td><span class="badge-tag">${STSafe.html(mktLabel(s.market))}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
-      <td class="num">${formatPrice(s.entry_price, s.market)}</td>
-      <td class="num" style="color:var(--red)">${formatPrice(s.stop_loss, s.market)}</td>
-      <td class="num" style="color:var(--green)">${formatPrice(s.target1, s.market)}</td>
-      <td class="num" style="color:var(--green)">${s.target2 ? formatPrice(s.target2, s.market) : '—'}</td>
+      <td class="num">${formatPrice(mnum(s.entry_price), s.market)}</td>
+      <td class="num" style="color:var(--red)">${formatPrice(mnum(s.stop_loss), s.market)}</td>
+      <td class="num" style="color:var(--green)">${formatPrice(mnum(s.target1), s.market)}</td>
+      <td class="num" style="color:var(--green)">${mnum(s.target2) === null ? '—' : formatPrice(mnum(s.target2), s.market)}</td>
       <td style="min-width:100px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
       <td class="num" style="font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
       <td class="num">${typeof relativeTime === 'function' ? relativeTime(s.generated_at) : ''}</td>
       <td><span class="status-chip" style="color:${st.c};border-color:${st.c}">${st.t}</span></td>
     </tr>`;
   }).join('');
+  return true;
 }
 function _statusOf(s) {
   const age = s.generated_at ? (Date.now() - new Date(s.generated_at)) / 60000 : 999; const cur = s.current_price, e = s.entry_price;
@@ -123,7 +175,7 @@ function loadTopOpps(signals) {
   const el = document.getElementById('topOpps'); if (!el) return;
   const seen = new Set();
   const top = signals.filter(s => { if (!s.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
-    .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0)).slice(0, 5);
+    .sort((a, b) => mpercent(b.confidence_score) - mpercent(a.confidence_score)).slice(0, 5);
   if (!top.length) { el.innerHTML = '<div class="text-muted fs-sm">No opportunities</div>'; return; }
   const head = `<div class="opp-list-row opp-list-head">
       <span class="opp-rank">#</span>
@@ -134,7 +186,7 @@ function loadTopOpps(signals) {
       <span class="opp-list-spark">Trend</span>
     </div>`;
   el.innerHTML = head + top.map((s, i) => {
-    const conf = s.confidence_score || 0; const rr = parseFloat(s.risk_reward);
+    const conf = mpercent(s.confidence_score); const rr = mnum(s.risk_reward, 0);
     return `<a class="opp-list-row" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
       <span class="opp-rank">${i + 1}</span>
       <span class="opp-list-name">${STSafe.html(s.asset)}</span>
@@ -154,42 +206,49 @@ function loadTopOpps(signals) {
    so no asset is ever missing a score. */
 async function loadAiHeat() {
   const grid = document.getElementById('aiHeatGrid'); if (!grid) return;
+  const sequence = _marketsSelectionSequence;
   const params = { per_page: 40 }; if (_filter) params.market = _filter;
   const [sig, ai, heat] = await Promise.all([
     API.get('/signals/', params), API.get('/market-data/ai-summary'), API.get('/market-data/heatmap'),
   ]);
+  if (!_marketIsCurrent(sequence)) return null;
+  if (!sig && !ai && !heat) {
+    _setMarketUnavailable('aiHeatGrid', 'AI scores are temporarily unavailable.');
+    return false;
+  }
   // best (highest-confidence) active signal per symbol
   const bySym = {};
-  (sig?.signals || []).forEach(s => { const k = s.asset; if (!bySym[k] || (s.confidence_score || 0) > bySym[k].confidence_score) bySym[k] = s; });
+  (Array.isArray(sig?.signals) ? sig.signals : []).forEach(s => { const k = String(s.asset || ''); const confidence = mpercent(s.confidence_score); if (!bySym[k] || confidence > mpercent(bySym[k].confidence_score)) bySym[k] = s; });
   // AI-model prediction per symbol
-  const aiMap = {}; (ai?.assets || []).forEach(a => { aiMap[a.symbol] = a; });
+  const aiMap = {}; (Array.isArray(ai?.assets) ? ai.assets : []).forEach(a => { aiMap[String(a.symbol || '')] = a; });
   // universe = every asset in the market (from the live heatmap feed)
-  const universe = (heat?.heatmap || []).filter(r => !_filter || r.market === _filter);
+  const universe = (Array.isArray(heat?.heatmap) ? heat.heatmap : []).filter(r => !_filter || r.market === _filter);
   let items = universe.map(r => {
     let score;
-    const s = bySym[r.symbol];
+    const s = bySym[String(r.symbol || '')];
     if (s) {                                                  // 1) live signal
-      const c = s.confidence_score || 0;
+      const c = mpercent(s.confidence_score);
       score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50;
     } else {                                                  // 2) AI prediction
-      const a = aiMap[r.symbol];
+      const a = aiMap[String(r.symbol || '')];
       const tf = a && (a.tf?.['1h'] || Object.values(a.tf || {})[0]);
       if (tf && tf.confidence != null) {
-        score = tf.direction === 'bullish' ? tf.confidence : tf.direction === 'bearish' ? 100 - tf.confidence : 50;
+        const confidence = mpercent(tf.confidence, 50);
+        score = tf.direction === 'bullish' ? confidence : tf.direction === 'bearish' ? 100 - confidence : 50;
       } else {                                                // 3) price-change fallback
-        score = 50 + (r.change_pct || 0) * 8;
+        score = 50 + mnum(r.change_pct, 0) * 8;
       }
     }
-    return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, score))) };
+    return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, mnum(score, 50)))) };
   });
   if (!items.length) { // last-resort fallback to ai-summary universe
-    let assets = ai?.assets || []; if (_filter) assets = assets.filter(a => a.market === _filter);
-    items = assets.map(a => { const tf = a.tf?.['1h'] || Object.values(a.tf || {})[0] || {}; return { symbol: a.symbol, id: a.id, score: Math.round(tf.confidence ?? 50) }; });
+    let assets = Array.isArray(ai?.assets) ? ai.assets : []; if (_filter) assets = assets.filter(a => a.market === _filter);
+    items = assets.map(a => { const tf = a.tf?.['1h'] || Object.values(a.tf || {})[0] || {}; return { symbol: a.symbol, id: a.id, score: Math.round(mpercent(tf.confidence, 50)) }; });
   }
   items = items.sort((a, b) => b.score - a.score);
   loadConsensus(items);                 // consensus from every scored asset
   items = items.slice(0, 24);
-  if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI data</div>'; return; }
+  if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI score is available for this selection.</div>'; return true; }
   grid.innerHTML = items.map(it => {
     const score = it.score;
     const label = score >= 80 ? 'STRONG BUY' : score >= 60 ? 'BUY' : score >= 40 ? 'HOLD' : score >= 20 ? 'SELL' : 'STRONG SELL';
@@ -198,6 +257,7 @@ async function loadAiHeat() {
     return `<a class="ai-heat-cell" href="${STSafe.assetHref(it.id)}" style="background:${bg};border-color:${bd}33;text-decoration:none;color:inherit">
       <div class="ahc-sym">${STSafe.html(it.symbol)}</div><div class="ahc-score" style="color:${bd}">${score}</div><div class="ahc-lbl">${label}</div></a>`;
   }).join('');
+  return true;
 }
 
 /* ── AI Model Consensus donut ── */
@@ -234,19 +294,27 @@ function loadConsensus(items) {
 
 /* ── AI Performance chart ── */
 async function loadAiPerf() {
+  const sequence = _marketsSelectionSequence;
   const [perf, hist] = await Promise.all([API.get('/signals/performance'), API.get('/signals/history', { per_page: 100 })]);
+  if (!_marketIsCurrent(sequence)) return null;
+  if (!perf && !hist) {
+    _setMarketUnavailable('apWin', 'AI performance unavailable.');
+    mset('apPF', '—'); mset('apTrades', '—');
+    return false;
+  }
   const ov = perf?.overall || {};
-  mset('apWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
+  const winRate = mnum(ov.win_rate);
+  mset('apWin', winRate === null ? '—' : mpercent(winRate).toFixed(1) + '%');
   mset('apPF', ov.profit_factor != null ? mfmt(ov.profit_factor) : '—');
-  mset('apTrades', ov.total_closed ?? '—');
-  const rows = (hist?.history || []).slice().reverse();
-  if (!rows.length) return;
+  mset('apTrades', ov.total_closed != null ? mcount(ov.total_closed) : '—');
+  const rows = (Array.isArray(hist?.history) ? hist.history : []).slice().reverse();
+  if (!rows.length) return true;
   // daily buckets: win rate + avg realized RR
   const byDay = {};
-  rows.forEach(r => { const d = (r.closed_at || '').slice(0, 10); if (!d) return; (byDay[d] = byDay[d] || []).push(r); });
+  rows.forEach(r => { const d = String(r.closed_at || '').slice(0, 10); if (!d) return; (byDay[d] = byDay[d] || []).push(r); });
   const days = Object.keys(byDay).sort().slice(-7);
-  const winRates = days.map(d => { const arr = byDay[d]; const w = arr.filter(x => (x.pnl_pct || 0) > 0).length; return Math.round(w / arr.length * 100); });
-  const rrs = days.map(d => { const arr = byDay[d]; const wins = arr.filter(x => (x.pnl_pct || 0) > 0).map(x => x.pnl_pct); const losses = arr.filter(x => (x.pnl_pct || 0) < 0).map(x => Math.abs(x.pnl_pct)); const aw = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0; const al = losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 1; return +(aw / al).toFixed(2); });
+  const winRates = days.map(d => { const arr = byDay[d]; const w = arr.filter(x => mnum(x.pnl_pct, 0) > 0).length; return Math.round(w / arr.length * 100); });
+  const rrs = days.map(d => { const arr = byDay[d]; const wins = arr.filter(x => mnum(x.pnl_pct, 0) > 0).map(x => mnum(x.pnl_pct, 0)); const losses = arr.filter(x => mnum(x.pnl_pct, 0) < 0).map(x => Math.abs(mnum(x.pnl_pct, 0))); const aw = wins.length ? wins.reduce((a, b) => a + b, 0) / wins.length : 0; const al = losses.length ? losses.reduce((a, b) => a + b, 0) / losses.length : 1; return +(aw / al).toFixed(2); });
   const ctx = document.getElementById('apChart'); if (!ctx || typeof Chart === 'undefined') return;
   if (_apChart) _apChart.destroy();
   _apChart = new Chart(ctx, {
@@ -261,32 +329,41 @@ async function loadAiPerf() {
       scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, y1: { position: 'right', min: 0, grid: { display: false } } }
     }
   });
+  return true;
 }
 
 /* ── News Impact + Upcoming Events ── */
 async function loadNewsImpact() {
+  const sequence = _marketsSelectionSequence;
   const data = await API.get('/news/', { per_page: 4 });
-  const rows = data?.news || [];
+  if (!_marketIsCurrent(sequence)) return null;
   const el = document.getElementById('newsImpact'); if (!el) return;
-  if (!rows.length) { el.innerHTML = '<div class="text-muted fs-sm">No news</div>'; return; }
+  if (!data) { _setMarketUnavailable('newsImpact', 'News impact is temporarily unavailable.'); return false; }
+  const rows = Array.isArray(data.news) ? data.news.filter(n => n && typeof n === 'object') : [];
+  if (!rows.length) { el.innerHTML = '<div class="text-muted fs-sm">No recent news impact.</div>'; return true; }
   el.innerHTML = rows.slice(0, 4).map(n => {
     const imp = n.sentiment === 'negative' ? ['High Impact', 'var(--red)'] : n.sentiment === 'positive' ? ['Positive', 'var(--green)'] : ['Neutral', 'var(--text-muted)'];
     const t = n.published_at ? new Date(n.published_at + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
     const href = STSafe.externalUrl(n.url) || '#';
     return `<a class="ni-row" href="${STSafe.html(href)}" target="_blank" rel="noopener"><span class="ni-imp" style="color:${imp[1]}">${imp[0]}</span><span class="ni-text">${STSafe.html((n.title || '').slice(0, 70))}</span><span class="ni-time">${t}</span></a>`;
   }).join('');
+  return true;
 }
 async function loadUpcoming() {
+  const sequence = _marketsSelectionSequence;
   const data = await API.get('/news/economic-calendar');
-  const events = (data?.events || []).filter(e => e.event_time && new Date(e.event_time + 'Z') >= new Date())
-    .sort((a, b) => new Date(a.event_time) - new Date(b.event_time)).slice(0, 4);
+  if (!_marketIsCurrent(sequence)) return null;
   const el = document.getElementById('upcomingEvents'); if (!el) return;
-  if (!events.length) { el.innerHTML = '<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No high-impact events scheduled</div>'; return; }
+  if (!data) { _setMarketUnavailable('upcomingEvents', 'Economic events are temporarily unavailable.'); return false; }
+  const events = (Array.isArray(data.events) ? data.events : []).filter(e => e && e.event_time && new Date(e.event_time + 'Z') >= new Date())
+    .sort((a, b) => new Date(a.event_time) - new Date(b.event_time)).slice(0, 4);
+  if (!events.length) { el.innerHTML = '<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No high-impact events scheduled.</div>'; return true; }
   el.innerHTML = events.map(e => {
     const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
     const imp = (e.impact || 'low').toLowerCase(); const clr = imp === 'high' ? 'var(--red)' : imp === 'medium' ? 'var(--yellow)' : 'var(--text-muted)';
     return `<div class="ue-row"><span class="ue-time">${t}</span><span class="ue-name">${STSafe.html(e.title)}</span><span class="ue-imp" style="color:${clr}">${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))}</span></div>`;
   }).join('');
+  return true;
 }
 
 /* ── Generate All ── */
@@ -301,19 +378,66 @@ async function generateAll() {
 
 /* ── Tabs ── */
 function _setActiveTab() {
-  document.querySelectorAll('.mkt-tab').forEach(t => t.classList.toggle('active', (t.dataset.market || '') === _filter));
+  let activeId = 'marketTabAll';
+  document.querySelectorAll('.mkt-tab').forEach(t => {
+    const selected = (t.dataset.market || '') === _filter;
+    t.classList.toggle('active', selected);
+    t.setAttribute('aria-selected', selected ? 'true' : 'false');
+    t.tabIndex = selected ? 0 : -1;
+    if (selected) activeId = t.id;
+  });
+  const panel = document.getElementById('marketsContent');
+  if (panel) panel.setAttribute('aria-labelledby', activeId);
 }
 
 /* ── Init ── */
-function loadAll() { loadKPIs(); loadLiveSignals(); loadAiHeat(); loadAiPerf(); loadNewsImpact(); loadUpcoming(); }
+function loadAll() {
+  if (_marketsRefreshPromise) { _marketsRefreshQueued = true; return _marketsRefreshPromise; }
+  const sequence = _marketsSelectionSequence;
+  const label = mktLabel(_filter);
+  _setMarketBusy(true);
+  _setMarketStatus('loading', `Refreshing ${label} market data…`, 'Live conditions update automatically. Closed-trade metrics use historical signals.');
+  const loaders = [loadKPIs, loadLiveSignals, loadAiHeat, loadAiPerf, loadNewsImpact, loadUpcoming];
+  const promise = Promise.allSettled(loaders.map(loader => loader()))
+    .then(results => {
+      if (!_marketIsCurrent(sequence)) return;
+      const failed = results.filter(result => result.status === 'rejected' || result.value === false).length;
+      const stamp = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+      if (failed) _setMarketStatus('degraded', `${label} data is partially available`, `Updated ${stamp} IST · ${failed} feed${failed === 1 ? '' : 's'} unavailable`);
+      else _setMarketStatus('ready', `${label} market data is current`, `Updated ${stamp} IST · live conditions and historical metrics are labelled above`);
+    })
+    .catch(() => {
+      if (_marketIsCurrent(sequence)) _setMarketStatus('error', 'Market data could not be refreshed', 'Please try again in a moment.');
+    })
+    .finally(() => {
+      if (_marketsRefreshPromise !== promise) return;
+      _marketsRefreshPromise = null;
+      if (_marketsRefreshQueued) {
+        _marketsRefreshQueued = false;
+        loadAll();
+      } else {
+        _setMarketBusy(false);
+      }
+    });
+  _marketsRefreshPromise = promise;
+  return promise;
+}
 
 document.addEventListener('app:ready', () => {
+  if (_marketsBooted) return;
+  _marketsBooted = true;
   if (typeof Chart !== 'undefined') Chart.defaults.color = _cv('--text-muted', '#94a3b8');
   _setActiveTab();
   loadAll();
-  document.querySelectorAll('.mkt-tab').forEach(t => t.addEventListener('click', () => { _filter = t.dataset.market || ''; _setActiveTab(); loadKPIs(); loadLiveSignals(); loadAiHeat(); }));
-  document.getElementById('tfFilter')?.addEventListener('change', loadLiveSignals);
-  document.getElementById('typeFilter')?.addEventListener('change', loadLiveSignals);
+  document.querySelectorAll('.mkt-tab').forEach(t => t.addEventListener('click', () => { _filter = t.dataset.market || ''; _marketsSelectionSequence++; _setActiveTab(); loadAll(); }));
+  document.querySelectorAll('.mkt-tab').forEach((tab, index, tabs) => tab.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus(); tabs[next].click();
+  }));
+  document.getElementById('tfFilter')?.addEventListener('change', () => { _marketsSelectionSequence++; loadAll(); });
+  document.getElementById('typeFilter')?.addEventListener('change', () => { _marketsSelectionSequence++; loadAll(); });
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
   wireSearchClear('assetSearch');
   document.getElementById('generateAll')?.addEventListener('click', generateAll);

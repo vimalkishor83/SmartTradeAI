@@ -11,7 +11,8 @@
   padding:8px 16px; border-radius:var(--radius-sm, 8px);
   border:1px solid var(--border); background:var(--glass);
   color:var(--text-secondary); font-size:13px; font-weight:600;
-  cursor:pointer; user-select:none; transition:all .15s;
+  cursor:pointer; user-select:none; transition:all .15s; font-family:inherit;
+  appearance:none; -webkit-appearance:none;
 }
 .terminal-tab:hover { color:var(--text-primary); border-color:var(--border-hover); }
 .terminal-tab.active { color:#0b0d12; background:var(--accent); border-color:var(--accent); }
@@ -77,6 +78,7 @@
 .terminal-search .term-search-clear {
   position:absolute; right:8px; top:50%; transform:translateY(-50%);
   color:var(--text-muted); cursor:pointer; font-size:13px; display:none;
+  padding:0; border:0; background:transparent; line-height:1;
 }
 .terminal-search.has-value .term-search-clear { display:block; }
 
@@ -99,43 +101,44 @@
     <p class="page-subtitle mb-0">All current signals for the selected market and timeframe — entry, stop loss, targets and rationale on one board</p>
   </div>
   <div class="dash-header-actions">
-    <button class="btn btn-sm btn-primary" id="terminalRefresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    <button type="button" class="btn btn-sm btn-primary" id="terminalRefresh" aria-label="Refresh terminal signals" aria-controls="terminalGrid" aria-busy="false"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Refresh</button>
   </div>
 </div>
 
 <div class="section-card mb-3">
   <div class="section-card-body py-3">
     <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
-      <div class="terminal-tabs" id="terminalMarketTabs">
-        <div class="terminal-tab active" data-market="crypto"><i class="bi bi-currency-bitcoin"></i>Crypto</div>
-        <div class="terminal-tab" data-market="forex"><i class="bi bi-currency-exchange"></i>Forex</div>
-        <div class="terminal-tab" data-market="commodity"><i class="bi bi-gem"></i>Commodities</div>
-        <div class="terminal-tab" data-market="indian_stock"><i class="bi bi-building"></i>Indian Stocks</div>
-        <div class="terminal-tab" data-market="index"><i class="bi bi-activity"></i>Indices</div>
+      <div class="terminal-tabs" id="terminalMarketTabs" role="tablist" aria-label="Terminal market">
+        <button type="button" class="terminal-tab active" id="terminalMarketCrypto" role="tab" aria-selected="true" aria-controls="terminalGrid" data-market="crypto"><i class="bi bi-currency-bitcoin" aria-hidden="true"></i>Crypto</button>
+        <button type="button" class="terminal-tab" id="terminalMarketForex" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="forex" tabindex="-1"><i class="bi bi-currency-exchange" aria-hidden="true"></i>Forex</button>
+        <button type="button" class="terminal-tab" id="terminalMarketCommodity" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="commodity" tabindex="-1"><i class="bi bi-gem" aria-hidden="true"></i>Commodities</button>
+        <button type="button" class="terminal-tab" id="terminalMarketIndianStock" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="indian_stock" tabindex="-1"><i class="bi bi-building" aria-hidden="true"></i>Indian Stocks</button>
+        <button type="button" class="terminal-tab" id="terminalMarketIndex" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="index" tabindex="-1"><i class="bi bi-activity" aria-hidden="true"></i>Indices</button>
       </div>
       <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="text-muted fs-xs">Timeframe</span>
-        <div class="terminal-tabs" id="terminalTfTabs">
+        <span class="text-muted fs-xs" id="terminalTfLabel">Timeframe</span>
+        <div class="terminal-tabs" id="terminalTfTabs" role="tablist" aria-labelledby="terminalTfLabel">
           {% for tf in display_timeframes %}
-          <div class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" data-tf="{{ tf|e }}">{{ tf|e }}</div>
+          <button type="button" class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" id="terminalTf-{{ tf|e }}" role="tab" aria-selected="{% if tf == terminal_default_timeframe %}true{% else %}false{% endif %}" aria-controls="terminalGrid" data-tf="{{ tf|e }}"{% if tf != terminal_default_timeframe %} tabindex="-1"{% endif %}>{{ tf|e }}</button>
           {% endfor %}
         </div>
       </div>
       <div class="terminal-search" id="terminalSearchWrap">
-        <i class="bi bi-search"></i>
+        <i class="bi bi-search" aria-hidden="true"></i>
+        <label class="visually-hidden" for="terminalSearch">Search terminal assets</label>
         <input type="text" id="terminalSearch" placeholder="Search asset…" autocomplete="off">
-        <i class="bi bi-x-circle-fill term-search-clear" id="terminalSearchClear"></i>
+        <button type="button" class="term-search-clear" id="terminalSearchClear" aria-label="Clear terminal asset search"><i class="bi bi-x-circle-fill" aria-hidden="true"></i></button>
       </div>
     </div>
   </div>
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-2">
-  <span class="text-muted fs-xs" id="terminalCount"></span>
+  <span class="text-muted fs-xs" id="terminalCount" role="status" aria-live="polite"></span>
   <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to <span id="terminalPinMaxLabel">5</span> assets to keep them pinned to the top</span>
 </div>
 
-<div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5" id="terminalGrid">
+<div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5" id="terminalGrid" role="tabpanel" tabindex="0" aria-labelledby="terminalMarketCrypto" aria-live="polite" aria-busy="true">
   <div class="col-12" style="flex:0 0 100%;max-width:100%">
     <div class="terminal-empty">
       <i class="bi bi-hourglass-split"></i>
@@ -214,6 +217,36 @@ function _termPrice(value, market) {
 }
 
 function _escHtmlLocal(value) { return _termHtml(value); }
+
+function _setTerminalBusy(busy) {
+  const grid = document.getElementById('terminalGrid');
+  if (grid) grid.setAttribute('aria-busy', busy ? 'true' : 'false');
+  const refresh = document.getElementById('terminalRefresh');
+  if (refresh) { refresh.disabled = !!busy; refresh.setAttribute('aria-busy', busy ? 'true' : 'false'); }
+}
+
+function _setTerminalTabState(selector, activeTab) {
+  const tabs = [...document.querySelectorAll(`${selector} .terminal-tab`)];
+  tabs.forEach(tab => {
+    const active = tab === activeTab;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', active ? 'true' : 'false');
+    tab.tabIndex = active ? 0 : -1;
+  });
+  const grid = document.getElementById('terminalGrid');
+  if (grid && activeTab?.id) grid.setAttribute('aria-labelledby', activeTab.id);
+}
+
+function _wireTerminalTabKeyboard(selector) {
+  const tabs = [...document.querySelectorAll(`${selector} .terminal-tab`)];
+  tabs.forEach((tab, index) => tab.addEventListener('keydown', e => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key)) return;
+    e.preventDefault();
+    const next = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (index + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+    tabs[next].focus();
+    tabs[next].click();
+  }));
+}
 
 // ─── Pinned assets (per-browser, capped at one row's worth) ────────
 // Pins are a personal "keep this on top" convenience, not account data,
@@ -570,6 +603,7 @@ let _termRequestSequence = 0;
 async function loadTerminal() {
   const grid = document.getElementById('terminalGrid');
   const countEl = document.getElementById('terminalCount');
+  if (!grid || !countEl) return;
   const market = _termMarketKey(_termMarket);
   const tf = _termTimeframe(_termTf);
   const requestKey = `${market}|${tf}`;
@@ -577,6 +611,7 @@ async function loadTerminal() {
   if (existing) return existing;
   const requestId = ++_termRequestSequence;
 
+  _setTerminalBusy(true);
   grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
 
   const request = (async () => {
@@ -586,6 +621,7 @@ async function loadTerminal() {
     if (!data || data.error) {
       grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
       countEl.textContent = '';
+      _setTerminalBusy(false);
       return;
     }
 
@@ -596,6 +632,7 @@ async function loadTerminal() {
     _termMarket = market;
     _termTf = tf;
     applyTerminalFilters();
+    _setTerminalBusy(false);
   })();
   _termLoading.set(requestKey, request);
   try {
@@ -606,16 +643,21 @@ async function loadTerminal() {
 }
 
 document.addEventListener('app:ready', () => {
+  if (document.body.dataset.terminalBooted === 'true') return;
+  document.body.dataset.terminalBooted = 'true';
   document.getElementById('terminalPinMaxLabel').textContent = _termPinMax();
+  _setTerminalTabState('#terminalMarketTabs', document.querySelector('#terminalMarketTabs .terminal-tab.active'));
+  _setTerminalTabState('#terminalTfTabs', document.querySelector('#terminalTfTabs .terminal-tab.active'));
+  _wireTerminalTabKeyboard('#terminalMarketTabs');
+  _wireTerminalTabKeyboard('#terminalTfTabs');
   loadTerminal();
 
   document.getElementById('terminalMarketTabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.terminal-tab');
     if (!tab) return;
-    document.querySelectorAll('#terminalMarketTabs .terminal-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
     const market = _termMarketKey(tab.dataset.market);
     if (market !== tab.dataset.market) return;
+    _setTerminalTabState('#terminalMarketTabs', tab);
     _termMarket = market;
     loadTerminal();
   });
@@ -623,10 +665,9 @@ document.addEventListener('app:ready', () => {
   document.getElementById('terminalTfTabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.terminal-tab');
     if (!tab) return;
-    document.querySelectorAll('#terminalTfTabs .terminal-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
     const tf = _termTimeframe(tab.dataset.tf);
     if (tf !== tab.dataset.tf) return;
+    _setTerminalTabState('#terminalTfTabs', tab);
     _termTf = tf;
     loadTerminal();
   });

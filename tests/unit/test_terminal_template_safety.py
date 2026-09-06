@@ -37,3 +37,19 @@ def test_terminal_rejects_stale_requests_and_untrusted_controls():
     assert "if (!data || data.error)" in source
     assert "const market = _termMarketKey(tab.dataset.market);" in source
     assert "const tf = _termTimeframe(tab.dataset.tf);" in source
+
+
+def test_terminal_controls_are_keyboard_accessible_and_expose_busy_state():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="terminalMarketTabs" role="tablist"' in source
+    assert 'id="terminalTfTabs" role="tablist"' in source
+    assert 'id="terminalMarketCrypto" role="tab" aria-selected="true"' in source
+    assert 'id="terminalGrid" role="tabpanel"' in source
+    assert 'aria-live="polite" aria-busy="true"' in source
+    assert 'aria-label="Refresh terminal signals"' in source
+    assert '<label class="visually-hidden" for="terminalSearch">Search terminal assets</label>' in source
+    assert 'aria-label="Clear terminal asset search"' in source
+    assert "function _setTerminalBusy(busy)" in source
+    assert "function _wireTerminalTabKeyboard(selector)" in source
+    assert "document.body.dataset.terminalBooted === 'true'" in source

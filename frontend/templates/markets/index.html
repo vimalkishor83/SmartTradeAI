@@ -11,37 +11,45 @@
     <p class="page-subtitle mb-0">All markets in one place. AI-powered insights and real-time signals.</p>
   </div>
   <div class="dash-header-actions">
+    <label class="visually-hidden" for="tfFilter">Signal timeframe</label>
     <select class="form-select form-select-sm" id="tfFilter" style="width:auto">
       <option value="" selected>All Timeframes</option>
       <option value="15m">15 Min</option><option value="30m">30 Min</option><option value="1h">1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
     </select>
+    <label class="visually-hidden" for="typeFilter">Signal type</label>
     <select class="form-select form-select-sm" id="typeFilter" style="width:auto">
       <option value="">All Signals</option><option value="BUY">Buy</option><option value="SELL">Sell</option><option value="HOLD">Hold</option>
     </select>
-    <div class="search-bar" style="width:160px"><i class="bi bi-search"></i><input type="text" id="assetSearch" placeholder="Search asset…"><i class="bi bi-x-circle-fill search-bar-clear"></i></div>
-    <button class="btn btn-sm px-3 btn-generate" id="generateAll"><i class="bi bi-lightning-charge-fill me-1"></i>Generate All</button>
+    <div class="search-bar" style="width:160px"><i class="bi bi-search" aria-hidden="true"></i><label class="visually-hidden" for="assetSearch">Search assets</label><input type="text" id="assetSearch" placeholder="Search asset…" autocomplete="off"><button type="button" class="search-bar-clear" aria-label="Clear asset search"><i class="bi bi-x-circle-fill" aria-hidden="true"></i></button></div>
+    <button type="button" class="btn btn-sm px-3 btn-generate" id="generateAll"><i class="bi bi-lightning-charge-fill me-1" aria-hidden="true"></i>Generate All</button>
   </div>
 </div>
 
-<!-- Market tabs -->
-<div class="mkt-tabs mb-3" id="mktTabs">
-  <button class="mkt-tab" data-market=""><i class="bi bi-grid-3x3-gap me-1"></i>All Markets</button>
-  <button class="mkt-tab" data-market="crypto"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button>
-  <button class="mkt-tab" data-market="forex"><i class="bi bi-currency-exchange me-1"></i>Forex</button>
-  <button class="mkt-tab" data-market="commodity"><i class="bi bi-gem me-1"></i>Commodities</button>
-  <button class="mkt-tab" data-market="indian_stock"><i class="bi bi-building me-1"></i>Indian Stocks</button>
-  <button class="mkt-tab" data-market="index"><i class="bi bi-graph-up me-1"></i>Indices</button>
+<div class="dashboard-context" id="marketsContext" role="status" aria-live="polite">
+  <span class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><span id="marketsLiveStatus">Loading market data…</span></span>
+  <span id="marketsUpdatedAt">Live conditions update automatically. Closed-trade metrics use historical signals.</span>
 </div>
 
+<!-- Market tabs -->
+<div class="mkt-tabs mb-3" id="mktTabs" role="tablist" aria-label="Markets">
+  <button type="button" class="mkt-tab" id="marketTabAll" role="tab" aria-selected="false" aria-controls="marketsContent" data-market=""><i class="bi bi-grid-3x3-gap me-1" aria-hidden="true"></i>All Markets</button>
+  <button type="button" class="mkt-tab" id="marketTabCrypto" role="tab" aria-selected="false" aria-controls="marketsContent" data-market="crypto"><i class="bi bi-currency-bitcoin me-1" aria-hidden="true"></i>Crypto</button>
+  <button type="button" class="mkt-tab" id="marketTabForex" role="tab" aria-selected="false" aria-controls="marketsContent" data-market="forex"><i class="bi bi-currency-exchange me-1" aria-hidden="true"></i>Forex</button>
+  <button type="button" class="mkt-tab" id="marketTabCommodity" role="tab" aria-selected="false" aria-controls="marketsContent" data-market="commodity"><i class="bi bi-gem me-1" aria-hidden="true"></i>Commodities</button>
+  <button type="button" class="mkt-tab" id="marketTabIndianStock" role="tab" aria-selected="false" aria-controls="marketsContent" data-market="indian_stock"><i class="bi bi-building me-1" aria-hidden="true"></i>Indian Stocks</button>
+  <button type="button" class="mkt-tab" id="marketTabIndex" role="tab" aria-selected="false" aria-controls="marketsContent" data-market="index"><i class="bi bi-graph-up me-1" aria-hidden="true"></i>Indices</button>
+</div>
+
+<div id="marketsContent" role="tabpanel" tabindex="-1" aria-labelledby="marketTabAll" aria-busy="true">
 <!-- KPI cards -->
 <div class="kpi-grid-auto mb-3">
   <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Signals Generated</div><div class="kpi-value" id="kpiGen">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-diagram-3"></i></div></div><div class="kpi-change" id="kpiGenSub">today</div></div>
   <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Active Signals</div><div class="kpi-value" id="kpiActive">—</div></div><div class="kpi-icon text-green"><i class="bi bi-lightning-charge-fill"></i></div></div><div class="kpi-change" id="kpiActiveSub">live now</div></div>
-  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="kpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="kpiWinSub">n = —</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Closed Win Rate</div><div class="kpi-value text-green" id="kpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="kpiWinSub">historical · n = —</div></div>
   <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="kpiRR">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-arrows-expand"></i></div></div><div class="kpi-change">reward per risk</div></div>
   <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Total P&amp;L (Open)</div><div class="kpi-value" id="kpiPnl">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-wallet2"></i></div></div><div class="kpi-change" id="kpiPnlSub">unrealised</div></div>
-  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Market Sentiment</div><div class="kpi-value" id="kpiSent" style="font-size:19px">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-emoji-neutral"></i></div></div><div class="kpi-change">across markets</div></div>
-  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Index</div><div class="kpi-value" id="kpiVol" style="font-size:19px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-activity"></i></div></div><div class="kpi-change">current regime</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Market Sentiment</div><div class="kpi-value" id="kpiSent" style="font-size:19px">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-emoji-neutral"></i></div></div><div class="kpi-change">live conditions</div></div>
+  <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Volatility Regime</div><div class="kpi-value" id="kpiVol" style="font-size:19px">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-activity"></i></div></div><div class="kpi-change">live conditions</div></div>
 </div>
 
 <!-- Row 1: Market Heatmap + AI Performance + Market Sentiment -->
@@ -61,14 +69,14 @@
   </div>
   <div class="col-lg-4">
     <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Performance</span><span class="badge-tag">7 Days</span></div>
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Performance</span><span class="badge-tag">Last 7 days</span></div>
       <div class="section-card-body">
         <div class="row g-2 mb-2 text-center">
           <div class="col-4"><div class="qs-label">Win Rate</div><div class="fw-800 text-green" id="apWin">—</div></div>
           <div class="col-4"><div class="qs-label">Profit Factor</div><div class="fw-800" id="apPF">—</div></div>
           <div class="col-4"><div class="qs-label">Total Trades</div><div class="fw-800" id="apTrades">—</div></div>
         </div>
-        <div class="chart-wrapper-sm"><canvas id="apChart"></canvas></div>
+        <div class="chart-wrapper-sm"><canvas id="apChart" role="img" aria-label="AI win rate and average risk reward over the last 7 days"></canvas></div>
       </div>
     </div>
   </div>
@@ -76,7 +84,7 @@
     <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-speedometer2 text-accent me-1"></i>Market Sentiment</span></div>
       <div class="section-card-body">
-        <div class="text-center"><div class="sent-gauge"><canvas id="mktGauge" width="170" height="100"></canvas><div class="sent-gauge-val" id="mktSentScore">—</div></div><div class="sent-gauge-lbl" id="mktSentLabel">—</div></div>
+        <div class="text-center"><div class="sent-gauge"><canvas id="mktGauge" width="170" height="100" role="img" aria-label="Current market sentiment score"></canvas><div class="sent-gauge-val" id="mktSentScore">—</div></div><div class="sent-gauge-lbl" id="mktSentLabel">—</div></div>
         <div class="sent-counts" id="sentCounts"></div>
         <div class="fs-xs text-muted mt-3 mb-2">By Market</div>
         <div id="mktByMarket"></div>
@@ -91,7 +99,7 @@
     <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals <span class="badge-tag ms-1" id="liveCount">—</span></span></div>
       <div class="table-responsive">
-        <table class="smart-table signals-table-adv">
+        <table class="smart-table signals-table-adv"><caption class="visually-hidden">Live signals for the selected market and filters</caption>
           <thead><tr><th>Asset</th><th>Market</th><th>Signal</th><th>TF</th><th>Entry</th><th>Stop Loss</th><th>T1</th><th>T2</th><th>Confidence</th><th>R:R</th><th>Age</th><th>Status</th></tr></thead>
           <tbody id="liveBody"><tr><td colspan="12" class="text-center text-muted py-5">Loading signals…</td></tr></tbody>
         </table>
@@ -113,7 +121,7 @@
     <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-pie-chart-fill text-accent me-1"></i>AI Model Consensus</span></div>
       <div class="section-card-body text-center">
-        <div class="consensus-donut"><canvas id="consensusDonut" width="130" height="130"></canvas><div class="consensus-center"><div class="fw-800" id="consensusPct" style="font-size:22px">—</div><div class="fs-xs" id="consensusLbl">—</div></div></div>
+        <div class="consensus-donut"><canvas id="consensusDonut" width="130" height="130" role="img" aria-label="AI model consensus across scored assets"></canvas><div class="consensus-center"><div class="fw-800" id="consensusPct" style="font-size:22px">—</div><div class="fs-xs" id="consensusLbl">—</div></div></div>
         <div id="consensusLegend" class="mt-2"></div>
       </div>
     </div>
@@ -139,6 +147,7 @@
       </div>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 
