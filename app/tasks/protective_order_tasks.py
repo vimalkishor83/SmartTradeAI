@@ -24,7 +24,10 @@ def check_protective_orders(app):
         from app.services.data.fetcher import market_fetcher
         from app.extensions import db
 
-        active = ProtectiveOrder.query.filter_by(status="active").all()
+        # Match the active-queue index and keep processing order stable.
+        active = (ProtectiveOrder.query.filter_by(status="active")
+                  .order_by(ProtectiveOrder.asset_id.asc(), ProtectiveOrder.id.asc())
+                  .all())
         if not active:
             return
 

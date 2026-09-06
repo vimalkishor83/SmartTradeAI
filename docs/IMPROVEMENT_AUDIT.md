@@ -136,6 +136,22 @@ Portfolio item serialization now tolerates positions with a missing `buy_date`, 
 
 **Database changes:** none. **API contract changes:** incomplete rows now return `holding_days: null`. **No new credentials or secrets introduced.**
 
+### 7.127 IMPLEMENTED - Index and stabilize protective-order monitor queue
+
+The protective-order monitor now processes active watches in deterministic asset/ID order and uses a composite `(status, asset_id, id)` index aligned with the active queue scan. The runtime index guard and reversible Alembic migration cover existing and fresh installations; breach detection, atomic trigger claims, dry-run defaults and real-order opt-in gates remain unchanged.
+
+**Risk level:** High trading-monitor latency and operational consistency value, low compatibility risk because only query planning and processing order change. **Affected modules:** `app/tasks/protective_order_tasks.py`, `app/models/protective_order.py`, `app/__init__.py`, `migrations/versions/e8b9c0d1e2f3_add_protective_order_active_queue_index.py`, `tests/unit/test_protective_order_queue.py`. **Migration:** apply `e8b9c0d1e2f3`.
+
+**Regression evidence:** Protective-order queue and breach-safety checks passed (**19 passed**) and whitespace validation passed. Existing SQLAlchemy, pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 107 (Protective-order queue performance):**
+- `app/tasks/protective_order_tasks.py` - add deterministic active-watch ordering.
+- `app/models/protective_order.py`, `app/__init__.py` - declare runtime queue index metadata.
+- `migrations/versions/e8b9c0d1e2f3_add_protective_order_active_queue_index.py` - add reversible production migration.
+- `tests/unit/test_protective_order_queue.py` - protect queue index and ordering contracts.
+
+**Database changes:** new non-unique index only. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

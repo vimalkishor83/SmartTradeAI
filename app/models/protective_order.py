@@ -64,6 +64,7 @@ class ProtectiveOrder(db.Model):
 
     __table_args__ = (
         db.Index("idx_protective_order_status", "status"),
+        db.Index("idx_protective_order_active_queue", "status", "asset_id", "id"),
     )
 
     def to_dict(self):
