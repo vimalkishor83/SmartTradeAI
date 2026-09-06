@@ -267,6 +267,10 @@ class APILog(db.Model):
     details         = db.Column(db.JSON, default=dict)
     created_at      = db.Column(db.DateTime, default=datetime.utcnow, index=True)
 
+    __table_args__ = (
+        db.Index("idx_api_logs_config_time_id", "api_config_id", "created_at", "id"),
+    )
+
     def to_dict(self):
         return {
             "id":               self.id,

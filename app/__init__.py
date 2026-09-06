@@ -526,6 +526,7 @@ def _migrate_columns(app):
         ("system_logs",    "idx_sys_logs_level_time",   "level, created_at"),
         ("journal_entries","idx_journal_user_date",     "user_id, trade_date"),
         ("api_logs",       "idx_api_logs_config_time",  "api_config_id, created_at"),
+        ("api_logs",       "idx_api_logs_config_time_id", "api_config_id, created_at, id"),
         ("backtests",      "idx_backtests_user_created","user_id, created_at"),
         ("predictions",    "idx_predictions_asset_tf",  "asset_id, timeframe, predicted_at"),
         ("news",           "idx_news_published",        "published_at"),

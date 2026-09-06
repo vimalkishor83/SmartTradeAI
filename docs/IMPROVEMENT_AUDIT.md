@@ -180,6 +180,23 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.148 IMPLEMENTED - Stabilize provider log retrieval
+
+The administrator provider-log feed now orders equal-timestamp rows by descending ID, preventing records from shifting unpredictably between requests. An additive composite index matches the filter and ordering pattern, improving the bounded 50-row diagnostic query as log volume grows; the endpoint shape and limit remain unchanged.
+
+**Risk level:** Medium operational visibility and query-performance value, low compatibility risk. **Affected modules:** `app/models/api_config.py`, `app/api/v1/admin.py`, `app/__init__.py`, `migrations/versions/f9c0d1e2f3a4_add_api_log_ordering_index.py`, `tests/unit/test_api_log_pagination.py`. **Migration:** additive, reversible index; runtime guard remains for legacy databases.
+
+**Regression evidence:** API-log index/order and provider-health checks passed (**10 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 128 (Provider log query stability):**
+- `app/models/api_config.py` - declare the composite provider-log retrieval index.
+- `app/api/v1/admin.py` - add ID tie-breaking to bounded log ordering.
+- `app/__init__.py` - add the additive runtime index guard.
+- `migrations/versions/f9c0d1e2f3a4_add_api_log_ordering_index.py` - add reversible migration.
+- `tests/unit/test_api_log_pagination.py` - protect index and ordering contracts.
+
+**Database changes:** additive composite index only. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.147 IMPLEMENTED - Harden signal timestamp serialization
 
 Signal payloads now tolerate legacy rows with a null `generated_at` instead of raising while loading active signals, history or analytical views. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.

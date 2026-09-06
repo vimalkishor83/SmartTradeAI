@@ -848,7 +848,7 @@ def test_api_config(cfg_id):
 def get_api_logs(cfg_id):
     APIConfig.query.get_or_404(cfg_id)
     logs = APILog.query.filter_by(api_config_id=cfg_id) \
-        .order_by(APILog.created_at.desc()).limit(50).all()
+        .order_by(APILog.created_at.desc(), APILog.id.desc()).limit(50).all()
     return jsonify({"logs": [l.to_dict() for l in logs]}), 200
 
 
