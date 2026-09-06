@@ -11,9 +11,14 @@
     <p class="page-subtitle mb-0">Screen all markets with technical filters in real-time</p>
   </div>
   <div class="dash-header-actions">
-    <button class="btn btn-sm btn-outline-secondary px-3" id="savePreset"><i class="bi bi-bookmark me-1"></i>Save Scan Preset</button>
-    <button class="btn btn-sm px-3 btn-generate" id="runScan"><i class="bi bi-play-fill me-1"></i>Run Scan</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary px-3" id="savePreset"><i class="bi bi-bookmark me-1"></i>Save Scan Preset</button>
+    <button type="button" class="btn btn-sm px-3 btn-generate" id="runScan"><i class="bi bi-play-fill me-1"></i>Run Scan</button>
   </div>
+</div>
+
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3" id="scanContext" role="status" aria-live="polite">
+  <span class="text-muted fs-xs" id="scanStatus">Preparing scanner...</span>
+  <span class="text-muted fs-xs" id="scanUpdatedAt"></span>
 </div>
 
 <!-- KPI cards -->
@@ -33,45 +38,45 @@
   <div class="section-card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-4">
-        <label class="scan-lbl">Market</label>
+        <label class="scan-lbl" for="scanMarket">Market</label>
         <select class="form-select form-select-sm" id="scanMarket">
           <option value="">All Markets</option>
         </select>
         <div class="scan-hint">Crypto, Forex, Commodities, Indian Stocks, Indices</div>
       </div>
       <div class="col-md-4">
-        <label class="scan-lbl">Timeframe</label>
+        <label class="scan-lbl" for="scanTf">Timeframe</label>
         <select class="form-select form-select-sm" id="scanTf">
           <option value="15m">15 Min</option><option value="1h" selected>1 Hour</option><option value="4h">4 Hours</option><option value="1d">Daily</option>
         </select>
       </div>
       <div class="col-md-4">
-        <label class="scan-lbl">Min Confidence</label>
+        <label class="scan-lbl" for="scanConf">Min Confidence</label>
         <div class="d-flex align-items-center gap-2">
-          <input type="range" class="form-range" id="scanConf" min="0" max="100" value="60">
+          <input type="range" class="form-range" id="scanConf" min="0" max="100" value="60" aria-describedby="scanConfVal">
           <span class="badge-tag" id="scanConfVal" style="min-width:40px">60%</span>
         </div>
       </div>
     </div>
     <label class="scan-lbl">Signal Filters <span class="text-muted" style="font-weight:400;text-transform:none">(select one or more)</span></label>
     <div class="scan-chips" id="scanChips">
-      <button class="scan-chip c-green" data-f="strong_buy">Strong Buy</button>
-      <button class="scan-chip c-green" data-f="buy">Buy</button>
-      <button class="scan-chip c-red" data-f="strong_sell">Strong Sell</button>
-      <button class="scan-chip c-red" data-f="sell">Sell</button>
-      <button class="scan-chip c-yellow" data-f="breakout">Breakout</button>
-      <button class="scan-chip c-red" data-f="breakdown">Breakdown</button>
-      <button class="scan-chip c-blue" data-f="volume_spike">Volume Spike</button>
-      <button class="scan-chip c-green" data-f="rsi_oversold">RSI Oversold</button>
-      <button class="scan-chip c-red" data-f="rsi_overbought">RSI Overbought</button>
-      <button class="scan-chip c-green" data-f="gap_up">Gap Up</button>
-      <button class="scan-chip c-red" data-f="gap_down">Gap Down</button>
-      <button class="scan-chip c-yellow" data-f="52w_high">52W High</button>
-      <button class="scan-chip c-yellow" data-f="52w_low">52W Low</button>
+      <button type="button" class="scan-chip c-green" data-f="strong_buy">Strong Buy</button>
+      <button type="button" class="scan-chip c-green" data-f="buy">Buy</button>
+      <button type="button" class="scan-chip c-red" data-f="strong_sell">Strong Sell</button>
+      <button type="button" class="scan-chip c-red" data-f="sell">Sell</button>
+      <button type="button" class="scan-chip c-yellow" data-f="breakout">Breakout</button>
+      <button type="button" class="scan-chip c-red" data-f="breakdown">Breakdown</button>
+      <button type="button" class="scan-chip c-blue" data-f="volume_spike">Volume Spike</button>
+      <button type="button" class="scan-chip c-green" data-f="rsi_oversold">RSI Oversold</button>
+      <button type="button" class="scan-chip c-red" data-f="rsi_overbought">RSI Overbought</button>
+      <button type="button" class="scan-chip c-green" data-f="gap_up">Gap Up</button>
+      <button type="button" class="scan-chip c-red" data-f="gap_down">Gap Down</button>
+      <button type="button" class="scan-chip c-yellow" data-f="52w_high">52W High</button>
+      <button type="button" class="scan-chip c-yellow" data-f="52w_low">52W Low</button>
     </div>
     <div class="d-flex justify-content-between align-items-center mt-3">
-      <button class="btn btn-sm btn-outline-secondary" id="advToggle"><i class="bi bi-chevron-right me-1"></i>Advanced Filters</button>
-      <button class="btn btn-sm btn-outline-secondary" id="clearFilters">Clear All</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="advToggle"><i class="bi bi-chevron-right me-1"></i>Advanced Filters</button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" id="clearFilters">Clear All</button>
     </div>
   </div>
 </div>
@@ -80,10 +85,11 @@
 <div class="section-card">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Scan Results <span class="badge-tag ms-1" id="resultCount">0 results</span></span>
-    <button class="btn btn-xs btn-outline-secondary" id="dlResults" title="Download CSV"><i class="bi bi-download"></i></button>
+    <button type="button" class="btn btn-xs btn-outline-secondary" id="dlResults" title="Download CSV" aria-label="Download scan results as CSV"><i class="bi bi-download"></i></button>
   </div>
   <div class="table-responsive">
     <table class="smart-table signals-table-adv">
+      <caption class="visually-hidden">Market scanner results</caption>
       <thead><tr><th></th><th>Symbol</th><th>Market</th><th>Price</th><th>Change</th><th>RSI</th><th>Volume</th><th>Signal</th><th>Confidence</th><th>Matched Filters</th><th>Action</th></tr></thead>
       <tbody id="scanBody"><tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-search d-block mb-2" style="font-size:26px;opacity:.4"></i>Set filters and click <strong class="text-accent">Run Scan</strong></td></tr></tbody>
     </table>

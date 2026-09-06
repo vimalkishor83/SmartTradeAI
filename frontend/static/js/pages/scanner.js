@@ -6,9 +6,11 @@ let _results = [];
 let _scannedCount = 0;
 let _symbolIds = Object.create(null);
 let _scanInFlight = false;
+let _scanBooted = false;
 const sset = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const sfmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
 const _num = (value, fallback = 0) => {
+  if (value === null || value === undefined || value === '') return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 };
@@ -38,7 +40,11 @@ const ALIAS = { buy: 'strong_buy', sell: 'strong_sell' };
 
 /* ── KPI strip (perf + heatmap) ── */
 async function loadScanKPIs() {
-  const [perf, pnl, heat] = await Promise.all([API.get('/signals/performance'), API.get('/signals/open-pnl'), API.get('/market-data/heatmap')]);
+  const results = await Promise.allSettled([API.get('/signals/performance'), API.get('/signals/open-pnl'), API.get('/market-data/heatmap')]);
+  const [perfResult, pnlResult, heatResult] = results;
+  const perf = perfResult.status === 'fulfilled' ? perfResult.value : null;
+  const pnl = pnlResult.status === 'fulfilled' ? pnlResult.value : null;
+  const heat = heatResult.status === 'fulfilled' ? heatResult.value : null;
   const ov = perf?.overall || {};
   const winRate = _num(ov.win_rate, NaN);
   sset('kpiWin', Number.isFinite(winRate) ? winRate.toFixed(1) + '%' : '—');
@@ -47,7 +53,7 @@ async function loadScanKPIs() {
     const avg = pnl.reduce((s, r) => s + _num(r.pnl_pct), 0) / pnl.length;
     const el = document.getElementById('kpiPnl'); if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
     sset('kpiPnlSub', pnl.length + ' open');
-  } else sset('kpiPnl', '—');
+  } else { sset('kpiPnl', '—'); sset('kpiPnlSub', 'unavailable'); }
   const rows = Array.isArray(heat?.heatmap) ? heat.heatmap : [];
   if (rows.length) {
     const ch = rows.map(r => _num(r.change_pct)); const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
@@ -60,7 +66,8 @@ async function loadScanKPIs() {
     const vlbl = std > 2 ? 'High' : std > 1 ? 'Moderate' : 'Low';
     const ve = document.getElementById('kpiVol'); if (ve) { ve.textContent = vlbl; ve.className = 'kpi-value ' + (std > 2 ? 'text-red' : std > 1 ? 'text-yellow' : 'text-green'); }
     sset('kpiVolSub', 'σ ' + std.toFixed(2) + '%');
-  }
+  } else { sset('kpiSent', '—'); sset('kpiSentSub', 'unavailable'); sset('kpiVol', '—'); sset('kpiVolSub', 'unavailable'); }
+  return results.some(result => result.status === 'fulfilled');
 }
 
 /* ── derive signal + confidence from matched filters ── */
@@ -133,20 +140,33 @@ async function runScan() {
   if (!filters.length) filters.push('strong_buy', 'strong_sell', 'breakout', 'volume_spike');
   const market = document.getElementById('scanMarket').value;
   const timeframe = document.getElementById('scanTf').value;
-  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Scanning…'; }
+  if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Scanning...'; }
+  sset('scanStatus', 'Scanning markets...');
   const tb = document.getElementById('scanBody');
   tb.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:24px"></i>Scanning markets…</td></tr>';
   let data = null;
   try {
     data = await API.post('/scanner/run', { filters, market, timeframe });
+    if (!data || data.error || !Array.isArray(data.results)) throw new Error('Scanner unavailable');
+  } catch (error) {
+    _results = [];
+    _scannedCount = 0;
+    const failedBody = document.getElementById('scanBody');
+    if (failedBody) failedBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-5"><i class="bi bi-exclamation-triangle d-block mb-2" style="font-size:24px"></i>Scanner data is temporarily unavailable. Try again.</td></tr>';
+    sset('scanStatus', 'Unable to run scan');
+    _notify('Scanner is temporarily unavailable', 'error');
+    return;
   } finally {
     _scanInFlight = false;
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Scan'; }
+    if (btn) { btn.disabled = false; btn.removeAttribute('aria-busy'); btn.innerHTML = '<i class="bi bi-play-fill me-1"></i>Run Scan'; }
   }
   _results = (data?.results || []).map(r => ({ ...r, signal: _deriveSignal(r.matched_filters || []), confidence: _deriveConfidence(r) }));
   _scannedCount = data?.scanned ?? _results.length;
   renderResults();
-  loadScanKPIs();
+  sset('scanStatus', `${_results.length} matches found`);
+  const updated = new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
+  sset('scanUpdatedAt', 'Updated ' + updated);
+  loadScanKPIs().then(ok => { if (!ok) sset('scanStatus', 'Results loaded; summary data unavailable'); });
 }
 
 function renderResults() {
@@ -193,8 +213,11 @@ async function _addWatch(sym) {
 
 /* ── init ── */
 document.addEventListener('app:ready', async () => {
+  if (_scanBooted) return;
+  _scanBooted = true;
   await populateMarketSelect(document.getElementById('scanMarket'), { includeAll: true });
-  loadScanKPIs();
+  sset('scanStatus', 'Ready to scan');
+  loadScanKPIs().then(ok => { if (!ok) sset('scanStatus', 'Ready; summary data unavailable'); });
   const assets = await API.get('/assets/').catch(() => null);
   (Array.isArray(assets?.assets) ? assets.assets : []).forEach(a => {
     if (a?.symbol) _symbolIds[a.symbol] = STSafe.assetId(a.id);

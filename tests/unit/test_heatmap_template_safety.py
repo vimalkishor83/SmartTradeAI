@@ -37,3 +37,14 @@ def test_heatmap_bounds_data_and_serializes_refreshes():
     assert "let _hmLoadPromise = null;" in source
     assert "if (_hmLoadPromise) return _hmLoadPromise;" in source
     assert "if (!Array.isArray(data?.heatmap) || data.error)" in source
+
+
+def test_heatmap_exposes_loading_and_accessible_view_state():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="heatmapContext"' in source
+    assert 'id="heatmapStatus"' in source
+    assert 'aria-busy="true"' in source
+    assert 'aria-pressed="true"' in source
+    assert "body.setAttribute('aria-busy', 'false')" in source
+    assert "if (_hmBooted) return;" in source

@@ -84,18 +84,24 @@
     <p class="page-subtitle">All assets color-coded by 24h price change</p>
   </div>
   <div class="hm-controls">
+    <label class="visually-hidden" for="hmMarket">Filter heatmap by market</label>
     <select class="form-select form-select-sm" id="hmMarket" style="width:auto">
       <option value="">All Markets</option>
     </select>
-    <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn btn-outline-secondary" id="viewCompact" data-view="compact">S</button>
-      <button type="button" class="btn btn-outline-secondary active" id="viewNormal" data-view="normal" style="background:var(--accent);border-color:var(--accent);color:#fff">M</button>
-      <button type="button" class="btn btn-outline-secondary" id="viewLarge" data-view="large">L</button>
+    <div class="btn-group btn-group-sm" role="group" aria-label="Heatmap tile size">
+      <button type="button" class="btn btn-outline-secondary" id="viewCompact" data-view="compact" aria-label="Compact tiles" aria-pressed="false">S</button>
+      <button type="button" class="btn btn-outline-secondary active" id="viewNormal" data-view="normal" aria-label="Normal tiles" aria-pressed="true" style="background:var(--accent);border-color:var(--accent);color:#fff">M</button>
+      <button type="button" class="btn btn-outline-secondary" id="viewLarge" data-view="large" aria-label="Large tiles" aria-pressed="false">L</button>
     </div>
-    <button class="btn btn-sm btn-outline-secondary" id="hmRefreshBtn">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="hmRefreshBtn" aria-controls="hmBody">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
   </div>
+</div>
+
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3" id="heatmapContext" role="status" aria-live="polite">
+  <span class="text-muted fs-xs" id="heatmapStatus">Loading heatmap data...</span>
+  <span class="text-muted fs-xs" id="heatmapUpdatedAt"></span>
 </div>
 
 <!-- Legend -->
@@ -111,7 +117,7 @@
 </div>
 
 <!-- Heatmap body -->
-<div id="hmBody">
+<div id="hmBody" aria-busy="true" aria-live="polite">
   <!-- skeleton -->
   <div class="hm-grid" id="hmSkeleton">
     {% for _ in range(16) %}<div class="skeleton-tile"></div>{% endfor %}
@@ -125,6 +131,7 @@
 let _hmView = 'normal';
 let _hmData = [];
 let _hmLoadPromise = null;
+let _hmBooted = false;
 
 const HM_MARKETS = new Set(['crypto', 'forex', 'commodity', 'indian_stock', 'index']);
 const HM_LABELS = {
@@ -133,6 +140,7 @@ const HM_LABELS = {
 };
 
 function _hmNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
@@ -226,6 +234,7 @@ function setView(v) {
     const btn = document.getElementById('view' + k.charAt(0).toUpperCase() + k.slice(1));
     if (!btn) return;
     btn.classList.toggle('active', k === v);
+    btn.setAttribute('aria-pressed', k === v ? 'true' : 'false');
     if (k === v) { btn.style.background = 'var(--accent)'; btn.style.borderColor = 'var(--accent)'; btn.style.color = '#fff'; }
     else         { btn.style.background = ''; btn.style.borderColor = ''; btn.style.color = ''; }
   });
@@ -238,6 +247,7 @@ function renderPage() {
   if (marketFilter && HM_MARKETS.has(marketFilter)) items = items.filter(i => i?.market === marketFilter);
 
   const body = document.getElementById('hmBody');
+  if (!body) return;
   if (!items.length) {
     body.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-grid-3x3-gap d-block mb-2" style="font-size:2rem;opacity:.3"></i>No data available.</div>';
     return;
@@ -259,7 +269,14 @@ function renderPage() {
 
 async function loadHeatmapPage() {
   if (_hmLoadPromise) return _hmLoadPromise;
-  document.getElementById('hmBody').innerHTML =
+  const body = document.getElementById('hmBody');
+  const refresh = document.getElementById('hmRefreshBtn');
+  const status = document.getElementById('heatmapStatus');
+  if (!body) return;
+  body.setAttribute('aria-busy', 'true');
+  if (refresh) { refresh.disabled = true; refresh.setAttribute('aria-busy', 'true'); }
+  if (status) status.textContent = 'Loading heatmap data...';
+  body.innerHTML =
     '<div class="hm-grid" id="hmSkeleton">' +
     Array(16).fill('<div class="skeleton-tile"></div>').join('') + '</div>';
 
@@ -268,12 +285,18 @@ async function loadHeatmapPage() {
       const data = await API.get('/market-data/heatmap');
       if (!Array.isArray(data?.heatmap) || data.error) throw new Error('No data');
       _hmData = data.heatmap.filter(item => item && typeof item === 'object');
-      document.getElementById('hmTimestamp').textContent =
-        'Updated ' + new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
+      const updated = new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
+      document.getElementById('hmTimestamp').textContent = 'Updated ' + updated;
+      document.getElementById('heatmapUpdatedAt').textContent = 'Updated ' + updated;
+      if (status) status.textContent = _hmData.length ? `${_hmData.length} assets available` : 'No market data available';
       renderPage();
     } catch (e) {
-      document.getElementById('hmBody').innerHTML =
-        '<div class="alert alert-warning">Failed to load heatmap data.</div>';
+      _hmData = [];
+      body.innerHTML = '<div class="alert alert-warning" role="alert">Heatmap data is temporarily unavailable. Try refreshing.</div>';
+      if (status) status.textContent = 'Unable to load market data';
+    } finally {
+      body.setAttribute('aria-busy', 'false');
+      if (refresh) { refresh.disabled = false; refresh.removeAttribute('aria-busy'); }
     }
   })();
   _hmLoadPromise = request;
@@ -289,6 +312,8 @@ async function loadHeatmapPage() {
 // that a sub-Premium account would briefly see real heatmap data flash in
 // before showTierLockOverlay() swaps in the upgrade card a moment later.
 document.addEventListener('app:ready', () => {
+  if (_hmBooted) return;
+  _hmBooted = true;
   document.getElementById('hmMarket').addEventListener('change', () => {
     if (HM_MARKETS.has(document.getElementById('hmMarket').value)) renderPage();
   });

@@ -31,6 +31,16 @@ def test_scanner_handles_malformed_data_and_duplicate_actions():
     assert "const _notify = (message, type = 'info')" in source
 
 
+def test_scanner_reports_request_state_and_isolates_kpi_failures():
+    source = SCANNER.read_text(encoding="utf-8")
+
+    assert "let _scanBooted = false;" in source
+    assert "Promise.allSettled" in source
+    assert "if (!data || data.error || !Array.isArray(data.results))" in source
+    assert "sset('scanStatus', 'Unable to run scan')" in source
+    assert "btn.setAttribute('aria-busy', 'true')" in source
+
+
 def test_scanner_csv_export_quotes_cells_and_revokes_blob_urls():
     source = SCANNER.read_text(encoding="utf-8")
 
