@@ -10,9 +10,13 @@
     <h1 class="page-title">My Performance</h1>
     <p class="page-subtitle">Aggregated stats from your closed signals</p>
   </div>
-  <button class="btn btn-sm btn-primary" id="refreshPerf">
+  <button type="button" class="btn btn-sm btn-primary" id="refreshPerf" aria-controls="kpiRow" aria-busy="false">
     <i class="bi bi-arrow-clockwise me-1"></i>Refresh
   </button>
+</div>
+
+<div class="data-context-bar mb-3" id="performanceStatus" role="status" aria-live="polite">
+  Historical closed-signal performance. Loading…
 </div>
 
 <!-- ── Row 1: KPI Cards ──────────────────────────────────────────────────── -->
@@ -72,7 +76,7 @@
         <span class="section-card-title">Win Rate by Timeframe</span>
       </div>
       <div style="height:220px;padding:12px">
-        <canvas id="tfWinChart"></canvas>
+        <canvas id="tfWinChart" role="img" aria-label="Historical win rate by timeframe chart"></canvas>
       </div>
     </div>
   </div>
@@ -82,7 +86,7 @@
         <span class="section-card-title">Signals by Type</span>
       </div>
       <div style="height:220px;padding:12px">
-        <canvas id="typeDonut"></canvas>
+        <canvas id="typeDonut" role="img" aria-label="Historical signals by type chart"></canvas>
       </div>
     </div>
   </div>
@@ -96,7 +100,7 @@
         <span class="section-card-title">Daily P&amp;L % — Last 30 Days (Running Total)</span>
       </div>
       <div style="height:220px;padding:12px">
-        <canvas id="dailyPnlChart"></canvas>
+        <canvas id="dailyPnlChart" role="img" aria-label="Historical cumulative daily profit and loss chart"></canvas>
       </div>
     </div>
   </div>
@@ -106,7 +110,7 @@
         <span class="section-card-title">Win Rate by Market</span>
       </div>
       <div style="height:220px;padding:12px">
-        <canvas id="mktWinChart"></canvas>
+        <canvas id="mktWinChart" role="img" aria-label="Historical win rate by market chart"></canvas>
       </div>
     </div>
   </div>
@@ -121,6 +125,7 @@
       </div>
       <div class="table-responsive">
         <table class="smart-table">
+          <caption class="visually-hidden">Historical performance by confidence bucket</caption>
           <thead>
             <tr>
               <th>Confidence</th><th>Trades</th><th>Win Rate</th><th>Avg P&amp;L</th>
@@ -184,6 +189,7 @@
         </div>
         <div class="table-responsive">
           <table class="smart-table">
+            <caption class="visually-hidden">Terminal live-read performance by timeframe</caption>
             <thead>
               <tr><th>Timeframe</th><th>Total</th><th>Completed</th><th>Expired Neutral</th><th>Win Rate</th></tr>
             </thead>
@@ -203,6 +209,24 @@
 <script>
 let _tfChart = null, _typeChart = null, _pnlChart = null, _mktChart = null;
 let _chartGridClr = 'rgba(255,255,255,0.04)';
+let _performanceRefreshPromise = null;
+
+function performanceNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function performanceCount(value) {
+  return Math.max(0, Math.trunc(performanceNumber(value)));
+}
+
+function performanceRate(value) {
+  return Math.max(0, Math.min(100, performanceNumber(value)));
+}
+
+function performanceRows(value) {
+  return Array.isArray(value) ? value.filter(row => row && typeof row === 'object' && !Array.isArray(row)) : [];
+}
 
 function _chartDefaults() {
   if (typeof Chart === 'undefined') return;
@@ -215,18 +239,20 @@ function _chartDefaults() {
 
 async function loadPerformance() {
   const data = await API.get('/signals/performance');
-  if (!data) return;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid performance response');
 
-  const o = data.overall || {};
+  const o = data.overall && typeof data.overall === 'object' ? data.overall : {};
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
 
-  set('kpiWinRate',   o.win_rate    != null ? o.win_rate.toFixed(1) + '%' : '—');
-  set('kpiClosed',    o.total_closed ?? 0);
-  set('kpiTotalClosed', `${o.total_closed ?? 0} closed trades`);
-  set('kpiAvgRR',     o.avg_rr       != null ? '1:' + o.avg_rr.toFixed(2) : '—');
+  set('kpiWinRate',   o.win_rate != null ? performanceRate(o.win_rate).toFixed(1) + '%' : '—');
+  set('kpiClosed',    performanceCount(o.total_closed));
+  set('kpiTotalClosed', `${performanceCount(o.total_closed)} closed trades`);
+  set('kpiAvgRR',     Number.isFinite(performanceNumber(o.avg_rr, NaN)) ? '1:' + Math.max(0, performanceNumber(o.avg_rr, NaN)).toFixed(2) : '—');
 
   // Best TF
-  const tfs = (data.by_timeframe || []).filter(t => t.trades >= 3);
+  const tfs = performanceRows(data.by_timeframe).map(t => ({
+    ...t, trades: performanceCount(t.trades), win_rate: performanceRate(t.win_rate),
+  })).filter(t => t.trades >= 3);
   if (tfs.length) {
     const best = tfs.reduce((a, b) => b.win_rate > a.win_rate ? b : a);
     set('kpiBestTF',   best.timeframe);
@@ -234,25 +260,31 @@ async function loadPerformance() {
   }
 
   // Best Market
-  const mkts = (data.by_market || []).filter(m => m.trades >= 3);
+  const mkts = performanceRows(data.by_market).map(m => ({
+    ...m, trades: performanceCount(m.trades), win_rate: performanceRate(m.win_rate),
+  })).filter(m => m.trades >= 3);
   if (mkts.length) {
     const best = mkts.reduce((a, b) => b.win_rate > a.win_rate ? b : a);
     set('kpiBestMkt',   (best.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()));
-    set('kpiBestMktWR', `${best.win_rate.toFixed(0)}% win rate · ${best.trades} trades`);
+    set('kpiBestMktWR', `${performanceRate(best.win_rate).toFixed(0)}% win rate · ${performanceCount(best.trades)} trades`);
   }
 
-  _buildTfChart(data.by_timeframe || []);
-  _buildTypeDonut(data.by_signal_type || []);
-  _buildDailyPnl(data.daily_pnl || []);
-  _buildMktChart(data.by_market || []);
-  _buildConfTable(data.by_confidence || []);
-  _buildHourHeatmap(data.hourly_win_rate || []);
+  _buildTfChart(performanceRows(data.by_timeframe));
+  _buildTypeDonut(performanceRows(data.by_signal_type));
+  _buildDailyPnl(performanceRows(data.daily_pnl));
+  _buildMktChart(performanceRows(data.by_market));
+  _buildConfTable(performanceRows(data.by_confidence));
+  _buildHourHeatmap(performanceRows(data.hourly_win_rate));
 }
 
 function _buildTfChart(rows) {
   const ctx = document.getElementById('tfWinChart');
   if (!ctx) return;
   if (_tfChart) { _tfChart.destroy(); _tfChart = null; }
+  rows = performanceRows(rows).map(r => ({
+    ...r, timeframe: String(r.timeframe ?? 'Unknown'),
+    trades: performanceCount(r.trades), win_rate: performanceRate(r.win_rate),
+  }));
   if (!rows.length) return;
 
   const TF_ORDER = ['1m','5m','15m','30m','1h','2h','4h','1d','1w'];
@@ -284,6 +316,7 @@ function _buildTypeDonut(rows) {
   const ctx = document.getElementById('typeDonut');
   if (!ctx) return;
   if (_typeChart) { _typeChart.destroy(); _typeChart = null; }
+  rows = performanceRows(rows).map(r => ({ ...r, trades: performanceCount(r.trades) }));
   if (!rows.length) return;
 
   const colorMap = { BUY: 'rgba(16,185,129,0.85)', SELL: 'rgba(239,68,68,0.85)', HOLD: 'rgba(245,158,11,0.85)', EXIT: 'rgba(139,92,246,0.85)' };
@@ -309,6 +342,9 @@ function _buildDailyPnl(rows) {
   const ctx = document.getElementById('dailyPnlChart');
   if (!ctx) return;
   if (_pnlChart) { _pnlChart.destroy(); _pnlChart = null; }
+  rows = performanceRows(rows).map(r => ({
+    ...r, date: String(r.date ?? ''), pnl_pct: performanceNumber(r.pnl_pct),
+  })).filter(r => r.date);
   if (!rows.length) return;
 
   // Build running total
@@ -345,6 +381,9 @@ function _buildMktChart(rows) {
   const ctx = document.getElementById('mktWinChart');
   if (!ctx) return;
   if (_mktChart) { _mktChart.destroy(); _mktChart = null; }
+  rows = performanceRows(rows).map(r => ({
+    ...r, market: String(r.market ?? 'Unknown'), win_rate: performanceRate(r.win_rate),
+  }));
   if (!rows.length) return;
 
   const labels = rows.map(r => (r.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()));
@@ -374,6 +413,10 @@ function _buildMktChart(rows) {
 function _buildConfTable(rows) {
   const tbody = document.getElementById('confTable');
   if (!tbody) return;
+  rows = performanceRows(rows).map(r => ({
+    ...r, bucket: String(r.bucket ?? 'Unknown'), trades: performanceCount(r.trades),
+    win_rate: performanceRate(r.win_rate), avg_pnl: performanceNumber(r.avg_pnl),
+  }));
   if (!rows.length) {
     tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No data yet</td></tr>';
     return;
@@ -382,7 +425,7 @@ function _buildConfTable(rows) {
     const wrColor = r.win_rate >= 70 ? 'var(--green)' : r.win_rate >= 50 ? 'var(--yellow)' : 'var(--red)';
     const pnlColor = r.avg_pnl >= 0 ? 'var(--green)' : 'var(--red)';
     return `<tr>
-      <td><span class="badge-tag">${r.bucket}</span></td>
+      <td><span class="badge-tag">${escapeHtml(r.bucket)}</span></td>
       <td>${r.trades}</td>
       <td style="color:${wrColor};font-weight:700">${r.win_rate.toFixed(1)}%</td>
       <td style="color:${pnlColor};font-weight:700">${r.avg_pnl >= 0 ? '+' : ''}${r.avg_pnl.toFixed(2)}%</td>
@@ -393,6 +436,10 @@ function _buildConfTable(rows) {
 function _buildHourHeatmap(rows) {
   const container = document.getElementById('hourHeatmap');
   if (!container) return;
+  rows = performanceRows(rows).map(r => ({
+    ...r, hour: performanceCount(r.hour), trades: performanceCount(r.trades),
+    win_rate: performanceRate(r.win_rate),
+  }));
   const byHour = {};
   rows.forEach(r => { byHour[r.hour] = r; });
 
@@ -410,7 +457,7 @@ function _buildHourHeatmap(rows) {
       const pct = Math.max(0, Math.min(1, (wr - 30) / 50));
       const hue = Math.round(pct * 120);
       bg = `hsla(${hue}, 70%, 45%, 0.85)`;
-      title = `${h}:00 IST — ${wr.toFixed(0)}% win rate (${d.trades} trades)`;
+      title = `${h}:00 IST — ${performanceRate(wr).toFixed(0)}% win rate (${performanceCount(d.trades)} trades)`;
       label = h + ':00';
     }
     html += `<div title="${title}" style="background:${bg};border-radius:6px;padding:6px 4px;text-align:center;font-size:10px;color:var(--text-primary);cursor:default;font-weight:600">${label}</div>`;
@@ -420,37 +467,52 @@ function _buildHourHeatmap(rows) {
 
 async function loadLiveReadPerformance() {
   const data = await API.get('/signals/live-read-performance');
-  if (!data) return;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid live-read response');
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
-  set('lrTotal', data.total_logged ?? 0);
-  set('lrResolved', data.resolved ?? 0);
-  set('lrOpen', data.open ?? 0);
-  set('lrExpired', data.expired ?? 0);
-  set('lrWinRate', data.win_rate != null ? data.win_rate.toFixed(1) + '%' : '—');
+  set('lrTotal', performanceCount(data.total_logged));
+  set('lrResolved', performanceCount(data.resolved));
+  set('lrOpen', performanceCount(data.open));
+  set('lrExpired', performanceCount(data.expired));
+  set('lrWinRate', data.win_rate != null ? performanceRate(data.win_rate).toFixed(1) + '%' : '—');
 
   const body = document.getElementById('lrTfTable');
-  const rows = data.by_timeframe || [];
+  const rows = performanceRows(data.by_timeframe);
   if (!rows.length) {
     body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No live reads logged yet.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => `<tr>
-    <td><span class="badge-tag">${r.timeframe}</span></td>
-    <td>${r.total}</td>
-    <td>${r.resolved}</td>
-    <td>${r.expired ?? 0}</td>
-    <td>${r.win_rate != null ? r.win_rate.toFixed(1) + '%' : '—'}</td>
+    <td><span class="badge-tag">${escapeHtml(String(r.timeframe ?? 'Unknown'))}</span></td>
+    <td>${performanceCount(r.total)}</td>
+    <td>${performanceCount(r.resolved)}</td>
+    <td>${performanceCount(r.expired)}</td>
+    <td>${r.win_rate != null ? performanceRate(r.win_rate).toFixed(1) + '%' : '—'}</td>
   </tr>`).join('');
 }
 
 document.addEventListener('app:ready', () => {
   _chartDefaults();
-  loadPerformance();
-  loadLiveReadPerformance();
-  document.getElementById('refreshPerf')?.addEventListener('click', () => {
-    loadPerformance();
-    loadLiveReadPerformance();
-  });
+  const refresh = document.getElementById('refreshPerf');
+  const status = document.getElementById('performanceStatus');
+  const refreshAll = () => {
+    if (_performanceRefreshPromise) return _performanceRefreshPromise;
+    if (refresh) { refresh.disabled = true; refresh.setAttribute('aria-busy', 'true'); }
+    if (status) status.textContent = 'Loading historical and Terminal performance…';
+    _performanceRefreshPromise = Promise.allSettled([loadPerformance(), loadLiveReadPerformance()])
+      .then(results => {
+        const failed = results.some(result => result.status === 'rejected');
+        if (status) status.textContent = failed
+          ? 'Some performance data is unavailable. Try refreshing.'
+          : `Performance updated at ${new Date().toLocaleTimeString()}.`;
+      })
+      .finally(() => {
+        _performanceRefreshPromise = null;
+        if (refresh) { refresh.disabled = false; refresh.setAttribute('aria-busy', 'false'); }
+      });
+    return _performanceRefreshPromise;
+  };
+  refreshAll();
+  refresh?.addEventListener('click', refreshAll);
 });
 </script>
 {% endblock %}
