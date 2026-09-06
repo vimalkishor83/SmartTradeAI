@@ -20,3 +20,15 @@ def test_news_template_escapes_provider_values_and_rejects_unsafe_links():
     assert '${e.forecast}' not in source
     assert '${e.previous}' not in source
     assert '${e.actual}' not in source
+
+
+def test_news_template_delegates_pagination_and_ignores_stale_refreshes():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "onclick=" not in source
+    assert 'data-page="${i}"' in source
+    assert "pagination.addEventListener('click'" in source
+    assert "_newsSequence" in source
+    assert "_econSequence" in source
+    assert "Promise.allSettled([loadNews(1), loadEcon()])" in source
+    assert "events.slice(0, 250)" in source

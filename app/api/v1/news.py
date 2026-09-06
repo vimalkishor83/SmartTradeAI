@@ -12,6 +12,7 @@ news_bp = Blueprint("news", __name__)
 _NEWS_FETCH_MARKER = "news_fetch_in_progress"
 _NEWS_FETCH_MARKER_TTL = 60
 _ECONOMIC_CALENDAR_FETCH_LOCK = threading.Lock()
+_ALLOWED_SENTIMENTS = frozenset({"positive", "negative", "neutral"})
 
 
 @news_bp.route("/", methods=["GET"])
@@ -21,7 +22,12 @@ def get_news():
     page = bounded_page(request.args.get("page", 1))
     per_page = bounded_per_page(request.args.get("per_page", 20))
     sentiment = request.args.get("sentiment")
-    market = request.args.get("market")
+    if sentiment:
+        sentiment = sentiment.strip().lower()
+        if sentiment not in _ALLOWED_SENTIMENTS:
+            return jsonify({
+                "error": "sentiment must be one of: positive, negative, neutral",
+            }), 400
 
     query = News.query
     if sentiment:
