@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.145 IMPLEMENTED - Harden provider log timestamp serialization
+
+Provider API-log payloads now tolerate legacy rows with a null `created_at` instead of raising while loading administrator connection diagnostics. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
+
+**Risk level:** Medium operational visibility value, low compatibility risk. **Affected modules:** `app/models/api_config.py`, `tests/unit/test_api_log_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Provider health and API-log serialization checks passed (**8 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 125 (Provider log serialization resilience):**
+- `app/models/api_config.py` - make legacy provider log timestamps null-safe.
+- `tests/unit/test_api_log_serialization.py` - verify null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.144 IMPLEMENTED - Harden backtest timestamp serialization
 
 Backtest payloads now tolerate legacy rows with a null `created_at` instead of raising while loading backtest history or detail results. Normal timestamps retain ISO-8601 output, all reproducibility fields remain unchanged, and no schema or data migration is required.

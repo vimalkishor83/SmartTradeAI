@@ -276,5 +276,5 @@ class APILog(db.Model):
             "response_time_ms": self.response_time_ms,
             "error_message":    self.error_message,
             "details":          self.details,
-            "created_at":       self.created_at.isoformat(),
+            "created_at":       self.created_at.isoformat() if self.created_at else None,
         }
