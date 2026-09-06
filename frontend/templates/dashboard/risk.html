@@ -207,8 +207,8 @@
           <div class="col-6">
             <label class="form-label">Direction</label>
             <div class="direction-toggle">
-              <button class="buy active" id="dirBuy" onclick="setDir('BUY')">BUY</button>
-              <button class="sell" id="dirSell" onclick="setDir('SELL')">SELL</button>
+              <button type="button" class="buy active" id="dirBuy" data-direction="BUY">BUY</button>
+              <button type="button" class="sell" id="dirSell" data-direction="SELL">SELL</button>
             </div>
           </div>
           <div class="col-4">
@@ -316,7 +316,22 @@
 <script>
 let _direction = 'BUY';
 
+function riskNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function riskText(value) {
+  return STSafe.html(value == null ? '' : String(value));
+}
+
+function riskNumberAttr(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? String(number) : '';
+}
+
 function setDir(d) {
+  if (d !== 'BUY' && d !== 'SELL') return;
   _direction = d;
   document.getElementById('dirBuy').classList.toggle('active', d === 'BUY');
   document.getElementById('dirSell').classList.toggle('active', d === 'SELL');
@@ -325,13 +340,14 @@ function setDir(d) {
 
 /* ── Auto-calculate ───────────────────────────────────── */
 function recalculate() {
-  const entry   = parseFloat(document.getElementById('calcEntry').value);
-  const sl      = parseFloat(document.getElementById('calcSL').value);
-  const target  = parseFloat(document.getElementById('calcTarget').value);
-  const account = parseFloat(document.getElementById('accAccountSize').value) || 100000;
-  const riskPct = parseFloat(document.getElementById('accRiskPct').value) || 1;
+  const entry   = riskNumber(document.getElementById('calcEntry').value, NaN);
+  const sl      = riskNumber(document.getElementById('calcSL').value, NaN);
+  const target  = riskNumber(document.getElementById('calcTarget').value, NaN);
+  const account = riskNumber(document.getElementById('accAccountSize').value, NaN);
+  const riskPct = riskNumber(document.getElementById('accRiskPct').value, NaN);
 
-  if (!entry || !sl || entry === sl) {
+  if (!Number.isFinite(entry) || !Number.isFinite(sl) || entry <= 0 || sl <= 0 || entry === sl
+      || !Number.isFinite(account) || account <= 0 || !Number.isFinite(riskPct) || riskPct <= 0 || riskPct > 20) {
     document.getElementById('calcResults').style.display   = 'none';
     document.getElementById('calcPlaceholder').style.display = 'flex';
     return;
@@ -352,7 +368,7 @@ function recalculate() {
   document.getElementById('rmMaxLoss').textContent =
     '₹' + maxLoss.toLocaleString('en-IN', {maximumFractionDigits: 2});
 
-  if (target) {
+  if (Number.isFinite(target) && target > 0) {
     const rr = Math.abs(target - entry) / riskPerUnit;
     const profit = positionSize * Math.abs(target - entry);
     const rrEl = document.getElementById('rmRR');
@@ -384,10 +400,17 @@ function recalculate() {
 
 /* ── Load signal into calculator ─────────────────────── */
 function loadSignal(entry, sl, target, symbol, type) {
+  entry = riskNumber(entry, NaN);
+  sl = riskNumber(sl, NaN);
+  target = riskNumber(target, NaN);
+  if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(sl) || sl <= 0 || entry === sl) {
+    Toast.show('This signal has invalid pricing data', 'warning');
+    return;
+  }
   document.getElementById('calcEntry').value  = entry  || '';
   document.getElementById('calcSL').value     = sl     || '';
   document.getElementById('calcTarget').value = target || '';
-  if (symbol) document.getElementById('calcSymbol').value = symbol;
+  if (symbol) document.getElementById('calcSymbol').value = String(symbol).slice(0, 40);
   if (type)   setDir(type === 'SELL' ? 'SELL' : 'BUY');
   recalculate();
   document.querySelector('.section-card').scrollIntoView({ behavior: 'smooth' });
@@ -398,28 +421,31 @@ function loadSignal(entry, sl, target, symbol, type) {
 async function loadQuickSignals() {
   const container = document.getElementById('quickSignalsList');
   const data = await API.get('/signals/', { per_page: 5, status: 'active' });
-  if (!data || !data.signals?.length) {
+  const signals = Array.isArray(data?.signals) ? data.signals.filter(signal => signal && typeof signal === 'object') : [];
+  if (!signals.length) {
     container.innerHTML = '<div class="text-center py-4 text-muted fs-xs">No active signals found.</div>';
     return;
   }
-  container.innerHTML = data.signals.map(s => {
+  container.innerHTML = signals.map(s => {
     const isBuy = s.signal_type === 'BUY';
     const badgeCls = isBuy ? 'text-green' : s.signal_type === 'SELL' ? 'text-red' : 'text-yellow';
-    const rr = parseFloat(s.risk_reward) || 0;
+    const rr = Math.max(0, riskNumber(s.risk_reward));
     return `<div class="quick-signal-row">
       <div>
-        <span class="fw-700">${s.asset}</span>
-        <span class="badge-tag ms-2">${s.timeframe}</span>
-        <span class="ms-2 fw-700 ${badgeCls}">${s.signal_type}</span>
+        <span class="fw-700">${riskText(s.asset || 'Unknown asset')}</span>
+        <span class="badge-tag ms-2">${riskText(s.timeframe || '—')}</span>
+        <span class="ms-2 fw-700 ${badgeCls}">${riskText(s.signal_type || '—')}</span>
       </div>
       <div class="d-flex gap-3 fs-xs text-muted">
-        <span>Entry: <span class="fw-700 text-primary">${s.entry_price ?? '—'}</span></span>
-        <span>SL: <span class="fw-700 text-red">${s.stop_loss ?? '—'}</span></span>
-        <span>T1: <span class="fw-700 text-green">${s.target1 ?? '—'}</span></span>
+        <span>Entry: <span class="fw-700 text-primary">${riskText(s.entry_price ?? '—')}</span></span>
+        <span>SL: <span class="fw-700 text-red">${riskText(s.stop_loss ?? '—')}</span></span>
+        <span>T1: <span class="fw-700 text-green">${riskText(s.target1 ?? '—')}</span></span>
         ${rr > 0 ? `<span>RR: <span class="fw-700">${rr.toFixed(1)}x</span></span>` : ''}
       </div>
-      <button class="btn btn-xs btn-outline-accent"
-        onclick="loadSignal(${s.entry_price}, ${s.stop_loss}, ${s.target1}, '${s.asset}', '${s.signal_type}')">
+      <button type="button" class="btn btn-xs btn-outline-accent" data-load-signal
+        data-entry="${riskNumberAttr(s.entry_price)}" data-stop-loss="${riskNumberAttr(s.stop_loss)}"
+        data-target="${riskNumberAttr(s.target1)}" data-symbol="${riskText(s.asset || '')}"
+        data-direction="${isBuy ? 'BUY' : s.signal_type === 'SELL' ? 'SELL' : ''}">
         <i class="bi bi-box-arrow-in-down-left me-1"></i>Load
       </button>
     </div>`;
@@ -455,6 +481,15 @@ document.getElementById('saveAccBtn').addEventListener('click', saveAccountSetti
 
 /* ── Init ─────────────────────────────────────────────── */
 document.addEventListener('app:ready', () => {
+  document.querySelectorAll('[data-direction]').forEach(button => {
+    button.addEventListener('click', () => setDir(button.dataset.direction));
+  });
+  document.getElementById('quickSignalsList')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-load-signal]');
+    if (!button) return;
+    loadSignal(button.dataset.entry, button.dataset.stopLoss, button.dataset.target,
+      button.dataset.symbol, button.dataset.direction);
+  });
   // Populate from Auth.user if available
   const u = Auth.user;
   if (u) {
@@ -497,15 +532,16 @@ async function loadPortfolioRisk() {
   const parts = [];
   // Backend warning strings embed the raw market key (e.g. "indian_stock
   // holdings are...") — cosmetic cleanup only, doesn't touch the API.
-  const prettyMarket = s => s.replace(/\b(indian_stock|index|crypto|forex|commodity)\b/gi,
+  const prettyMarket = s => String(s || '').replace(/\b(indian_stock|index|crypto|forex|commodity)\b/gi,
     m => m.replace('_', ' ').replace(/\w\S*/g, t => t[0].toUpperCase() + t.slice(1)));
 
   // Concentration warnings — the most actionable part, so it goes first.
-  if (conc.warnings && conc.warnings.length) {
-    parts.push(`<div class="mb-3">` + conc.warnings.map(w => `
+  const warnings = Array.isArray(conc.warnings) ? conc.warnings.filter(Boolean) : [];
+  if (warnings.length) {
+    parts.push(`<div class="mb-3">` + warnings.map(w => `
       <div class="d-flex align-items-start gap-2 mb-2" style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 12px">
         <i class="bi bi-exclamation-triangle-fill text-red mt-1"></i>
-        <span class="fs-sm">${prettyMarket(w)}</span>
+        <span class="fs-sm">${riskText(prettyMarket(w))}</span>
       </div>`).join('') + `</div>`);
   } else {
     parts.push(`<div class="d-flex align-items-center gap-2 mb-3" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.25);border-radius:8px;padding:10px 12px">
@@ -516,17 +552,19 @@ async function loadPortfolioRisk() {
 
   // Concentration by market — horizontal bars, reusing the same visual
   // language as the account-size / risk-pct bars elsewhere on this page.
-  if (conc.by_market && conc.by_market.length) {
-    const barRows = conc.by_market.map(m => {
-      const over = m.pct >= 40;
+  const byMarket = Array.isArray(conc.by_market) ? conc.by_market.filter(m => m && typeof m === 'object') : [];
+  if (byMarket.length) {
+    const barRows = byMarket.map(m => {
+      const pct = Math.max(0, Math.min(100, riskNumber(m.pct)));
+      const over = pct >= 40;
       return `
       <div class="mb-2">
         <div class="d-flex justify-content-between fs-xs mb-1">
-          <span class="text-capitalize">${(m.market || 'unknown').replace('_', ' ')}</span>
-          <span class="${over ? 'text-red' : 'text-muted'}">${m.pct.toFixed(1)}%</span>
+          <span class="text-capitalize">${riskText(String(m.market || 'unknown').replace('_', ' '))}</span>
+          <span class="${over ? 'text-red' : 'text-muted'}">${pct.toFixed(1)}%</span>
         </div>
         <div style="height:6px;border-radius:3px;background:var(--bg-secondary);overflow:hidden">
-          <div style="height:100%;width:${Math.min(m.pct, 100)}%;background:${over ? 'var(--red)' : 'var(--purple)'};border-radius:3px"></div>
+          <div style="height:100%;width:${pct}%;background:${over ? 'var(--red)' : 'var(--purple)'};border-radius:3px"></div>
         </div>
       </div>`;
     }).join('');
@@ -537,12 +575,16 @@ async function loadPortfolioRisk() {
 
   // High-correlation pairs — the "these two moves are basically the same
   // bet" signal per-trade sizing can never see.
-  if (corr.high_correlation_pairs && corr.high_correlation_pairs.length) {
-    const pairRows = corr.high_correlation_pairs.map(p => `
+  const pairs = Array.isArray(corr.high_correlation_pairs) ? corr.high_correlation_pairs.filter(p => p && typeof p === 'object') : [];
+  if (pairs.length) {
+    const pairRows = pairs.map(p => {
+      const correlation = Math.max(-1, Math.min(1, riskNumber(p.correlation)));
+      return `
       <div class="d-flex justify-content-between align-items-center fs-sm mb-2" style="padding:8px 10px;background:var(--bg-secondary);border-radius:6px">
-        <span><strong>${p.symbol_a}</strong> &harr; <strong>${p.symbol_b}</strong></span>
-        <span class="badge-tag ${Math.abs(p.correlation) >= 0.85 ? 'text-red' : 'text-yellow'}">${p.correlation.toFixed(2)} corr</span>
-      </div>`).join('');
+        <span><strong>${riskText(p.symbol_a || 'Unknown')}</strong> &harr; <strong>${riskText(p.symbol_b || 'Unknown')}</strong></span>
+        <span class="badge-tag ${Math.abs(correlation) >= 0.85 ? 'text-red' : 'text-yellow'}">${correlation.toFixed(2)} corr</span>
+      </div>`;
+    }).join('');
     parts.push(`<div class="col-md-6"><div class="fs-xs text-muted text-uppercase mb-2" style="letter-spacing:.05em">High-correlation pairs</div>${pairRows}
       <div class="fs-xs text-muted mt-1">These move together — a single macro swing affects both at once, so they don't diversify each other the way two "different" positions normally would.</div>
     </div></div>`);

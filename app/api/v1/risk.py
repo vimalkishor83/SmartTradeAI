@@ -1,3 +1,5 @@
+import math
+
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from app.auth.decorators import login_required
@@ -13,6 +15,27 @@ from app.services.risk.portfolio_risk import (
 
 risk_bp = Blueprint("risk", __name__)
 
+_MAX_RISK_NUMBER = 1_000_000_000_000.0
+_MAX_LOT_SIZE = 1_000_000.0
+_MAX_ATR_HISTORY = 500
+
+
+def _finite_number(data: dict, field: str, *, minimum: float, maximum: float,
+                   default: float | None = None) -> float:
+    """Parse bounded numeric input before it reaches sizing math."""
+    raw = data[field] if default is None else data.get(field, default)
+    if isinstance(raw, bool):
+        raise ValueError(f"{field} must be a number")
+    try:
+        value = float(raw)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{field} must be a number")
+    if not math.isfinite(value):
+        raise ValueError(f"{field} must be finite")
+    if value < minimum or value > maximum:
+        raise ValueError(f"{field} must be between {minimum:g} and {maximum:g}")
+    return value
+
 
 @risk_bp.route("/position-size", methods=["POST"])
 @login_required
@@ -26,18 +49,26 @@ def position_size():
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
     try:
-        capital   = float(data["capital"])
-        risk_pct  = float(data["risk_pct"])
-        entry     = float(data["entry"])
-        stop_loss = float(data["stop_loss"])
-        lot_size  = float(data.get("lot_size", 1.0))
+        capital   = _finite_number(data, "capital", minimum=0.000001, maximum=_MAX_RISK_NUMBER)
+        risk_pct  = _finite_number(data, "risk_pct", minimum=0.000001, maximum=100.0)
+        entry     = _finite_number(data, "entry", minimum=0.000001, maximum=_MAX_RISK_NUMBER)
+        stop_loss = _finite_number(data, "stop_loss", minimum=0.000001, maximum=_MAX_RISK_NUMBER)
+        lot_size  = _finite_number(data, "lot_size", minimum=0.000001, maximum=_MAX_LOT_SIZE, default=1.0)
         atr       = data.get("atr")
         atr_hist  = data.get("atr_history")   # optional list of recent ATR values
 
-        if atr:
+        if atr is not None and atr != "":
+            atr = _finite_number(data, "atr", minimum=0.0, maximum=_MAX_RISK_NUMBER)
+            if atr_hist is not None:
+                if not isinstance(atr_hist, list) or len(atr_hist) > _MAX_ATR_HISTORY:
+                    raise ValueError(f"atr_history must be a list of at most {_MAX_ATR_HISTORY} values")
+                atr_hist = [
+                    _finite_number({"value": value}, "value", minimum=0.0, maximum=_MAX_RISK_NUMBER)
+                    for value in atr_hist
+                ]
             result = calculate_position_volatility(
                 capital=capital, risk_pct=risk_pct, entry=entry, stop_loss=stop_loss,
-                atr=float(atr), atr_lookback_values=atr_hist, lot_size=lot_size,
+                atr=atr, atr_lookback_values=atr_hist, lot_size=lot_size,
             )
         else:
             result = calculate_position(
@@ -57,9 +88,9 @@ def risk_reward():
         return jsonify({"error": "request body must be a JSON object"}), 400
     try:
         result = calculate_risk_reward(
-            entry=float(data["entry"]),
-            stop_loss=float(data["stop_loss"]),
-            target=float(data["target"]),
+            entry=_finite_number(data, "entry", minimum=0.000001, maximum=_MAX_RISK_NUMBER),
+            stop_loss=_finite_number(data, "stop_loss", minimum=0.000001, maximum=_MAX_RISK_NUMBER),
+            target=_finite_number(data, "target", minimum=0.000001, maximum=_MAX_RISK_NUMBER),
         )
         return jsonify(result), 200
     except (KeyError, ValueError) as e:

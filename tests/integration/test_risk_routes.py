@@ -74,6 +74,16 @@ class TestPositionSizeRoute:
         body = resp.get_json()
         assert body["volatility_regime"] == "high"
 
+    @pytest.mark.parametrize("payload", [
+        {"capital": "nan", "risk_pct": 1, "entry": 100, "stop_loss": 95},
+        {"capital": True, "risk_pct": 1, "entry": 100, "stop_loss": 95},
+        {"capital": 100000, "risk_pct": 1, "entry": 100, "stop_loss": 95, "atr_history": "bad", "atr": 1},
+    ])
+    def test_rejects_non_finite_boolean_and_malformed_atr_input(self, authed_client, payload):
+        client, headers = authed_client
+        resp = client.post("/api/v1/risk/position-size", headers=headers, json=payload)
+        assert resp.status_code == 400
+
 
 class TestRiskRewardRoute:
     def test_non_object_json_body_returns_400(self, authed_client):
@@ -91,6 +101,16 @@ class TestRiskRewardRoute:
         body = resp.get_json()
         assert body["ratio"] == 2.0
         assert body["label"] == "Good"
+
+    @pytest.mark.parametrize("payload", [
+        {"entry": "nan", "stop_loss": 95, "target": 110},
+        {"entry": True, "stop_loss": 95, "target": 110},
+        {"entry": 100, "stop_loss": 0, "target": 110},
+    ])
+    def test_rejects_invalid_price_values(self, authed_client, payload):
+        client, headers = authed_client
+        resp = client.post("/api/v1/risk/risk-reward", headers=headers, json=payload)
+        assert resp.status_code == 400
 
 
 class TestPortfolioRiskRoute:
