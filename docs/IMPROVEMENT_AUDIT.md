@@ -1435,6 +1435,22 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.96 IMPLEMENTED - Harden the shared application shell
+
+The authenticated shell now exposes explicit labels and relationships for the sidebar, application toolbar, mobile navigation, command palette, notifications, theme control, ticker, and Ask AI widget. The command palette now behaves as a keyboard-accessible dialog with `aria-hidden` state, focus cycling, Escape handling and focus restoration. Mobile navigation and Ask AI keep their expanded/hidden state synchronized with the DOM. First-paint and runtime preference storage are guarded so blocked browser storage falls back safely.
+
+**Risk level:** Critical accessibility and cross-device usability value, low compatibility risk because route destinations, data contracts and existing element IDs are unchanged. **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/global_ask_ai.js`, `tests/unit/test_application_shell_safety.py`. **Migration:** none.
+
+**Regression evidence:** Application-shell, design-system and navigation checks passed (**6 passed**), both global JavaScript files passed Node syntax checks, the base inline scripts parsed successfully, the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+
+**Session 76 (shared shell accessibility and resilience - UI-3, §7.96):**
+- `frontend/templates/partials/base.html` - add shell landmarks, explicit control names, modal relationships, and storage-safe first-paint preference handling.
+- `frontend/templates/partials/base.html` - add keyboard focus cycling and opener focus restoration for the command palette.
+- `frontend/static/js/global_ask_ai.js` - synchronize Ask AI popup ARIA state and restore focus after close.
+- `tests/unit/test_application_shell_safety.py` - protect shell semantics, keyboard behavior and storage/overlay state contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.95 IMPLEMENTED - Establish the shared UI design-system foundation
 
 The primary dashboard stylesheet now exposes semantic surface, status, focus, control-size, motion and layering tokens while retaining the existing `--bg-*` compatibility aliases. Shared primitives cover elevated surfaces, responsive toolbars, loading/empty/error states, horizontally safe data tables, semantic chips, tabular metrics and visually hidden accessible text. The authenticated shell now opts into an explicit color scheme, applies a consistent keyboard focus ring and disables motion/hover transforms when the user requests reduced motion.

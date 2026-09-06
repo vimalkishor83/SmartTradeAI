@@ -55,20 +55,30 @@
     const input = document.getElementById('askAiFabInput');
     const sendBtn = document.getElementById('askAiFabSend');
     if (!fab || !popup) return;
+    let lastFocus = null;
 
     function open() {
+      lastFocus = document.activeElement;
       renderContextLine(contextLine);
       suggestions.style.display = '';
       renderSuggestions(suggestions, (q) => { input.value = q; submit(); });
       answerBox.style.display = 'none';
       answerBox.innerHTML = '';
       popup.classList.add('open');
+      popup.setAttribute('aria-hidden', 'false');
+      fab.setAttribute('aria-expanded', 'true');
+      fab.setAttribute('aria-label', 'Close Ask AI');
       fabIcon.className = 'bi bi-x-lg';
       input.focus();
     }
     function close() {
       popup.classList.remove('open');
+      popup.setAttribute('aria-hidden', 'true');
+      fab.setAttribute('aria-expanded', 'false');
+      fab.setAttribute('aria-label', 'Open Ask AI');
       fabIcon.className = 'bi bi-chat-left-text-fill';
+      if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+      lastFocus = null;
     }
     function toggle() { popup.classList.contains('open') ? close() : open(); }
 

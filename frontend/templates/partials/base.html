@@ -2,19 +2,22 @@
 <html lang="en" data-theme="dark">
 <head>
   <script>
-    // Applied synchronously, before CSS paints, so the page never flashes
-    // the default dark theme before switching to a saved light preference.
-    document.documentElement.setAttribute('data-theme', localStorage.getItem('theme') || 'dark');
-    // Same idea for a collapsed sidebar: #sidebar/#mainWrapper don't exist
-    // yet at this point in <head>, so the full .collapsed/.expanded classes
-    // (applied later, once those elements exist) can't be set this early.
-    // This just pre-applies the couple of rules that matter for first paint
-    // (width + hiding labels) via a class on <html>, which CSS can target
-    // regardless of whether the descendant elements exist yet — avoiding the
-    // flash of an expanded sidebar before JS collapses it a moment later.
-    if (localStorage.getItem('sidebar_collapsed') === '1' && window.innerWidth >= 993) {
-      document.documentElement.classList.add('sidebar-preload-collapsed');
-    }
+    // Apply saved preferences before CSS paints. Storage can be unavailable
+    // in privacy-restricted contexts, so the default shell must remain safe.
+    (() => {
+      let theme = 'dark';
+      let sidebarCollapsed = null;
+      try {
+        theme = localStorage.getItem('theme') || theme;
+        sidebarCollapsed = localStorage.getItem('sidebar_collapsed');
+      } catch (_) {}
+      document.documentElement.setAttribute('data-theme', theme);
+      // #sidebar/#mainWrapper do not exist yet, so pre-apply only the rules
+      // that prevent a collapsed-sidebar preference from flashing expanded.
+      if (sidebarCollapsed === '1' && window.innerWidth >= 993) {
+        document.documentElement.classList.add('sidebar-preload-collapsed');
+      }
+    })();
   </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -41,15 +44,15 @@
 
 {% if not hide_sidebar %}
 <!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->
-<aside class="sidebar" id="sidebar" aria-label="Primary navigation">
+<aside class="sidebar" id="sidebar" aria-labelledby="sidebarLabel">
 
   <!-- Brand -->
   <div class="sidebar-header">
     <a href="/home" class="brand">
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
-      <span class="brand-name">SmartTrade <span class="text-accent">AI</span></span>
+      <span class="brand-name" id="sidebarLabel">SmartTrade <span class="text-accent">AI</span></span>
     </a>
-    <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar" aria-controls="sidebar" aria-expanded="true">
+    <button type="button" class="sidebar-toggle" id="sidebarToggle" title="Collapse sidebar" aria-label="Collapse sidebar" aria-controls="sidebar" aria-expanded="true">
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
   </div>
@@ -64,7 +67,7 @@
   </div>
 
   <!-- Flat navigation -->
-  <nav class="sidebar-nav" id="sidebarNav">
+  <nav class="sidebar-nav" id="sidebarNav" aria-label="Primary application sections">
 
     {# Determine which group is active so it auto-expands #}
     {% set grp_overview  = active in ['dashboard','briefing'] %}
@@ -379,7 +382,7 @@
 </aside>
 
 <!-- Mobile sidebar backdrop -->
-<div id="sidebarBackdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;backdrop-filter:blur(2px)"></div>
+<div id="sidebarBackdrop" aria-hidden="true" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:999;backdrop-filter:blur(2px)"></div>
 
 <!-- Shared hover tooltip for collapsed-sidebar nav icons (see #sidebarTooltip CSS + JS below) -->
 <div id="sidebarTooltip"></div>
@@ -388,10 +391,10 @@
 <div class="main-wrapper" id="mainWrapper">
 
   <!-- Top Navbar -->
-  <nav class="top-navbar">
+  <nav class="top-navbar" aria-label="Application toolbar">
     <div class="navbar-left">
       <!-- Mobile toggle / desktop collapse trigger -->
-      <button type="button" class="btn-icon" id="mobileSidebarToggle" title="Toggle sidebar" aria-controls="sidebar" aria-expanded="false">
+      <button type="button" class="btn-icon" id="mobileSidebarToggle" title="Toggle sidebar" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
         <i class="bi bi-list"></i>
       </button>
       <div class="breadcrumb-nav">
@@ -400,7 +403,7 @@
     </div>
 
     <!-- Command palette trigger (center) -->
-    <div class="cmd-trigger" id="cmdTrigger" role="button" tabindex="0" title="Quick search (Ctrl+K)">
+    <div class="cmd-trigger" id="cmdTrigger" role="button" tabindex="0" title="Quick search (Ctrl+K)" aria-label="Open command palette" aria-controls="cmdOverlay" aria-expanded="false">
       <i class="bi bi-search" style="font-size:12px"></i>
       <span>Search or jump to…</span>
       <kbd>Ctrl K</kbd>
@@ -420,7 +423,7 @@
       </div>
 
       <!-- Theme toggle -->
-      <button class="btn-icon" id="themeToggle" title="Toggle theme">
+      <button type="button" class="btn-icon" id="themeToggle" title="Toggle theme" aria-label="Switch to light theme">
         <i class="bi bi-moon-fill"></i>
       </button>
 
@@ -448,7 +451,7 @@
   </div>
 
   <!-- Notification dropdown -->
-  <div class="notif-dropdown" id="notifDropdown" style="display:none">
+<div class="notif-dropdown" id="notifDropdown" role="region" aria-label="Notifications" style="display:none">
     <div class="notif-header">
       <span>Notifications</span>
       <a href="#" id="markAllRead" class="fs-sm text-decoration-none">Mark all read</a>
@@ -478,12 +481,13 @@
 </div><!-- /main-wrapper -->
 
 <!-- ═══ COMMAND PALETTE ═══════════════════════════════════════════════════ -->
-<div class="cmd-overlay" id="cmdOverlay" role="dialog" aria-label="Command Palette">
+<div class="cmd-overlay" id="cmdOverlay" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle" aria-hidden="true">
   <div class="cmd-palette" id="cmdPalette">
+    <span class="ui-visually-hidden" id="cmdPaletteTitle">Command Palette</span>
     <div class="cmd-input-wrap">
       <i class="bi bi-search"></i>
-      <input type="text" class="cmd-input" id="cmdInput" placeholder="Search pages, assets, signals…" autocomplete="off" spellcheck="false" />
-      <button class="cmd-esc" id="cmdClose">Esc</button>
+      <input type="text" class="cmd-input" id="cmdInput" placeholder="Search pages, assets, signals…" autocomplete="off" spellcheck="false" aria-label="Search pages, assets, and signals" aria-controls="cmdResults" />
+      <button type="button" class="cmd-esc" id="cmdClose">Esc</button>
     </div>
     <div class="cmd-results" id="cmdResults">
       <div class="cmd-group-label">Quick Navigation</div>
@@ -515,20 +519,20 @@
 </div>
 
 <!-- ═══ ASK AI — global floating widget (every page) ═══════════════════════ -->
-<button class="ask-ai-fab" id="askAiFab" title="Ask AI">
+<button type="button" class="ask-ai-fab" id="askAiFab" title="Ask AI" aria-label="Open Ask AI" aria-expanded="false" aria-controls="askAiPopup">
   <i class="bi bi-chat-left-text-fill" id="askAiFabIcon"></i>
 </button>
-<div class="ask-ai-popup" id="askAiPopup">
+<div class="ask-ai-popup" id="askAiPopup" role="dialog" aria-label="Ask AI" aria-hidden="true">
   <div class="ask-ai-popup-header">
     <span class="ask-ai-popup-title"><i class="bi bi-stars text-accent"></i>Ask AI<span class="badge-tag" style="font-size:9px">PRO</span></span>
-    <button class="ask-ai-popup-close" id="askAiPopupClose"><i class="bi bi-x-lg"></i></button>
+    <button type="button" class="ask-ai-popup-close" id="askAiPopupClose" aria-label="Close Ask AI"><i class="bi bi-x-lg"></i></button>
   </div>
   <div class="ask-ai-popup-context" id="askAiPopupContext">General market &amp; platform question</div>
   <div class="ask-ai-suggestions" id="askAiSuggestions"></div>
   <div class="ask-ai-popup-answer" id="askAiPopupAnswer" style="display:none"></div>
   <div class="ask-ai-input-row">
     <input type="text" id="askAiFabInput" class="form-control form-control-sm" placeholder="Ask a question…" maxlength="300">
-    <button class="btn btn-primary btn-sm" id="askAiFabSend" style="white-space:nowrap"><i class="bi bi-send"></i></button>
+    <button type="button" class="btn btn-primary btn-sm" id="askAiFabSend" style="white-space:nowrap" aria-label="Send question"><i class="bi bi-send"></i></button>
   </div>
   <div class="ask-ai-popup-footnote">Grounded in real platform data — not general knowledge.</div>
 </div>
@@ -589,6 +593,8 @@ if ('serviceWorker' in navigator) {
         ? 'bi bi-layout-sidebar-inset-reverse'
         : 'bi bi-layout-sidebar-inset';
       toggleBtn.setAttribute('aria-expanded', String(!collapsed));
+      toggleBtn.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+      toggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
     }
     try { localStorage.setItem('sidebar_collapsed', collapsed ? '1' : '0'); } catch {}
   }
@@ -596,17 +602,22 @@ if ('serviceWorker' in navigator) {
   function openMobile() {
     sidebar.classList.add('mobile-open');
     backdrop && (backdrop.style.display = 'block');
+    backdrop?.setAttribute('aria-hidden', 'false');
     mobileBtn?.setAttribute('aria-expanded', 'true');
+    mobileBtn?.setAttribute('aria-label', 'Close navigation');
   }
   function closeMobile() {
     sidebar.classList.remove('mobile-open');
     backdrop && (backdrop.style.display = 'none');
+    backdrop?.setAttribute('aria-hidden', 'true');
     mobileBtn?.setAttribute('aria-expanded', 'false');
+    mobileBtn?.setAttribute('aria-label', 'Open navigation');
   }
 
   // Restore desktop state
   if (!isMobile()) {
-    const saved = localStorage.getItem('sidebar_collapsed');
+    let saved = null;
+    try { saved = localStorage.getItem('sidebar_collapsed'); } catch {}
     if (saved === '1') applyCollapsed(true);
   }
 
@@ -672,7 +683,8 @@ document.querySelectorAll('[data-nav-group-toggle]').forEach(header => {
 (function () {
   document.querySelectorAll('.nav-group').forEach(g => {
     const key   = 'navgrp_' + g.dataset.group;
-    const saved = localStorage.getItem(key);
+    let saved = null;
+    try { saved = localStorage.getItem(key); } catch {}
     const hasActive = g.querySelector('.nav-item.active');
     if (hasActive) {
       g.classList.add('open');   // always keep active group open
@@ -704,6 +716,7 @@ document.querySelectorAll('[data-nav-group-toggle]').forEach(header => {
   // of only ever matching the ~15 hardcoded nav pages.
   const allItems = Array.from(results.querySelectorAll('.cmd-item'));
   let assetsLoaded = false;
+  let lastFocus = null;
 
   async function ensureAssetsLoaded() {
     if (assetsLoaded) return;
@@ -724,26 +737,49 @@ document.querySelectorAll('[data-nav-group-toggle]').forEach(header => {
   }
 
   function open() {
+    if (overlay.classList.contains('open')) return;
+    lastFocus = document.activeElement;
     overlay.classList.add('open');
+    overlay.setAttribute('aria-hidden', 'false');
+    trigger?.setAttribute('aria-expanded', 'true');
     ensureAssetsLoaded();
     setTimeout(() => input && input.focus(), 50);
   }
   function close() {
     overlay.classList.remove('open');
+    overlay.setAttribute('aria-hidden', 'true');
+    trigger?.setAttribute('aria-expanded', 'false');
     if (input) input.value = '';
     filterItems('');
     highlighted = -1;
+    if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();
+    lastFocus = null;
   }
 
   trigger  && trigger.addEventListener('click', open);
-  trigger  && trigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') open(); });
+  trigger  && trigger.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); }
+  });
   closeBtn && closeBtn.addEventListener('click', close);
   overlay.addEventListener('click', e => { if (e.target === overlay) close(); });
 
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); open(); }
-    if (e.key === 'Escape' && overlay.classList.contains('open')) close();
-    if (overlay.classList.contains('open')) handleArrow(e);
+    if (!overlay.classList.contains('open')) return;
+    if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+    if (e.key === 'Tab') {
+      const focusable = [input, closeBtn, ...visibleItems()]
+        .filter(el => el && el.offsetParent !== null);
+      if (!focusable.length) return;
+      const current = focusable.indexOf(document.activeElement);
+      const next = e.shiftKey
+        ? (current <= 0 ? focusable.length - 1 : current - 1)
+        : (current === focusable.length - 1 ? 0 : current + 1);
+      e.preventDefault();
+      focusable[next].focus();
+      return;
+    }
+    handleArrow(e);
   });
 
   let highlighted = -1;
