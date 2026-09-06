@@ -147,7 +147,7 @@ class Signal(db.Model):
                 "data_start": self.data_start.isoformat() if self.data_start else None,
                 "data_end": self.data_end.isoformat() if self.data_end else None,
             },
-            "generated_at": self.generated_at.isoformat(),
+            "generated_at": self.generated_at.isoformat() if self.generated_at else None,
             "expires_at": self.expires_at.isoformat() if self.expires_at else None,
         }
 

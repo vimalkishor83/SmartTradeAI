@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.147 IMPLEMENTED - Harden signal timestamp serialization
+
+Signal payloads now tolerate legacy rows with a null `generated_at` instead of raising while loading active signals, history or analytical views. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
+
+**Risk level:** High decision-support data-availability value, low compatibility risk. **Affected modules:** `app/models/signal.py`, `tests/unit/test_signal_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Signal serialization and existing signal quality/reproducibility checks passed (**4 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 127 (Signal serialization resilience):**
+- `app/models/signal.py` - make legacy signal generation timestamps null-safe.
+- `tests/unit/test_signal_serialization.py` - verify null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.146 IMPLEMENTED - Harden user timestamp serialization
 
 User payloads now tolerate legacy accounts with a null `created_at` instead of raising while loading profile or authenticated account context. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
