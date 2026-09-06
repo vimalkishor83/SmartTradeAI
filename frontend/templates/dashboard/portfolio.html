@@ -11,13 +11,18 @@
     <p class="page-subtitle">Track all your positions and P&amp;L in one place</p>
   </div>
   <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" id="exportPortfolioBtn">
+    <button type="button" class="btn btn-outline-secondary btn-sm" id="exportPortfolioBtn">
       <i class="bi bi-download me-1"></i>Download CSV
     </button>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
       <i class="bi bi-plus-circle me-1"></i> Add Position
     </button>
   </div>
+</div>
+
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3" id="portfolioContext" role="status" aria-live="polite">
+  <span class="text-muted fs-xs" id="portfolioStatus">Loading portfolio...</span>
+  <span class="text-muted fs-xs" id="portfolioUpdatedAt"></span>
 </div>
 
 <!-- Portfolio Summary -->
@@ -39,6 +44,7 @@
   </div>
   <div class="table-responsive">
     <table class="smart-table">
+      <caption class="visually-hidden">Open portfolio holdings and risk</caption>
       <thead>
         <tr><th>Asset</th><th>Qty</th><th>Buy Price</th><th>Current Price</th>
         <th>Invested</th><th>Current Value</th><th>Stop Loss</th><th>P&amp;L</th><th>P&amp;L %</th>
@@ -52,41 +58,41 @@
 </div>
 
 <!-- Add Position Modal -->
-<div class="modal fade" id="addPositionModal" tabindex="-1">
+<div class="modal fade" id="addPositionModal" tabindex="-1" aria-labelledby="addPositionTitle">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title">Add Position</h5>
+        <h5 class="modal-title" id="addPositionTitle">Add Position</h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <form id="addPositionForm">
           <div class="mb-3">
-            <label class="form-label">Symbol</label>
+            <label class="form-label" for="posSymbol">Symbol</label>
             <input type="text" class="form-control" id="posSymbol" placeholder="BTCUSDT" required />
           </div>
           <div class="row g-3 mb-3">
             <div class="col">
-              <label class="form-label">Quantity</label>
+              <label class="form-label" for="posQty">Quantity</label>
               <input type="number" class="form-control" id="posQty" step="any" min="0.00000001" max="1000000000" required />
             </div>
             <div class="col">
-              <label class="form-label">Buy Price</label>
+              <label class="form-label" for="posBuyPrice">Buy Price</label>
               <input type="number" class="form-control" id="posBuyPrice" step="any" min="0.00000001" max="1000000000000" required />
             </div>
           </div>
           <div class="row g-3 mb-3">
             <div class="col">
-              <label class="form-label">Stop Loss (optional)</label>
+              <label class="form-label" for="posSL">Stop Loss (optional)</label>
             <input type="number" class="form-control" id="posSL" step="any" min="0.00000001" max="1000000000000" />
             </div>
             <div class="col">
-              <label class="form-label">Target (optional)</label>
+              <label class="form-label" for="posTarget">Target (optional)</label>
             <input type="number" class="form-control" id="posTarget" step="any" min="0.00000001" max="1000000000000" />
             </div>
           </div>
           <div class="mb-3">
-            <label class="form-label">Notes</label>
+            <label class="form-label" for="posNotes">Notes</label>
             <textarea class="form-control" id="posNotes" rows="2" maxlength="255"></textarea>
           </div>
           <button type="submit" class="btn btn-primary w-100" id="addPositionBtn">Add Position</button>
@@ -113,6 +119,7 @@ const MAX_PORTFOLIO_QUANTITY = 1000000000;
 const MAX_PORTFOLIO_PRICE = 1000000000000;
 
 function _portfolioNumber(value, fallback = null) {
+  if (value === null || value === undefined || value === '') return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
@@ -136,6 +143,7 @@ function _portfolioPrice(value) {
 }
 
 let _portfolioLoadPromise = null;
+let _portfolioBooted = false;
 let _addPositionInFlight = false;
 let _stopLossInFlight = false;
 const _removePositionInFlight = new Set();
@@ -180,10 +188,15 @@ function _fmtCcyPnlHtml(sums) {
 async function loadPortfolio() {
   if (_portfolioLoadPromise) return _portfolioLoadPromise;
   const request = (async () => {
+    const body = document.getElementById('holdingsBody');
+    const status = document.getElementById('portfolioStatus');
+    if (body) body.setAttribute('aria-busy', 'true');
+    if (status) status.textContent = 'Loading portfolio...';
     try {
       const data = await API.get('/portfolio/');
       if (!data || data.error || !data.portfolio) {
-        document.getElementById('holdingsBody').innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+        if (body) body.innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+        if (status) status.textContent = 'Unable to load portfolio';
         return;
       }
 
@@ -219,6 +232,9 @@ async function loadPortfolio() {
   const pnlPct = _portfolioNumber(p.total_pnl_pct, 0);
   document.getElementById('totalPnlPct').textContent = (pnlPct >= 0 ? '+' : '') + pnlPct + '%';
   document.getElementById('holdingCount').textContent = `${holdings.length} positions`;
+  const updated = new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
+  document.getElementById('portfolioUpdatedAt').textContent = 'Updated ' + updated;
+  if (status) status.textContent = holdings.length ? `${holdings.length} open positions` : 'No open positions';
 
   // Open risk: capital that would actually be lost if every stop-set
   // position hit its stop right now — the number the aggregate KPIs above
@@ -280,7 +296,10 @@ async function loadPortfolio() {
     </tr>`;
   }).join('');
     } catch (error) {
-      document.getElementById('holdingsBody').innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+      if (body) body.innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+      if (status) status.textContent = 'Unable to load portfolio';
+    } finally {
+      if (body) body.setAttribute('aria-busy', 'false');
     }
   })();
   _portfolioLoadPromise = request;
@@ -413,6 +432,10 @@ document.getElementById('exportPortfolioBtn').addEventListener('click', () => {
   window.open('/api/v1/portfolio/export/csv', '_blank', 'noopener');
 });
 
-document.addEventListener('app:ready', loadPortfolio);
+document.addEventListener('app:ready', () => {
+  if (_portfolioBooted) return;
+  _portfolioBooted = true;
+  loadPortfolio();
+});
 </script>
 {% endblock %}

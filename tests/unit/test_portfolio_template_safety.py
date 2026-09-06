@@ -55,3 +55,14 @@ def test_portfolio_clears_stale_rows_after_empty_refresh():
     assert "MAX_PORTFOLIO_QUANTITY = 1000000000" in source
     assert "MAX_PORTFOLIO_PRICE = 1000000000000" in source
     assert "^[A-Z0-9][A-Z0-9._-]{0,29}$" in source
+
+
+def test_portfolio_exposes_freshness_and_accessible_loading_state():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="portfolioContext"' in source
+    assert 'id="portfolioStatus"' in source
+    assert 'caption class="visually-hidden"' in source
+    assert 'aria-labelledby="addPositionTitle"' in source
+    assert "if (body) body.setAttribute('aria-busy', 'false')" in source
+    assert "let _portfolioBooted = false;" in source
