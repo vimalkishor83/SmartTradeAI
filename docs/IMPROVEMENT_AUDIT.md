@@ -36,6 +36,20 @@ Delta product discovery now serializes only cold or expired refreshes and perfor
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.112 IMPLEMENTED - Aggregate signal summary history metrics
+
+The authenticated `/api/v1/signals/summary` endpoint now calculates historical totals/wins in one aggregate query and today’s closed count, wins, losses and P&L in a second aggregate query. This replaces six separate history scans while preserving the existing response fields, null semantics and cache contract used by the dashboard.
+
+**Risk level:** Medium database-latency and scale value, low compatibility risk because response keys and calculations are unchanged. **Affected modules:** `app/api/v1/signals.py`, `tests/integration/test_signal_summary_aggregation.py`. **Migration:** none.
+
+**Regression evidence:** The route-level contract test passed and confirmed exactly two SQL statements touching `signal_history`; Python compilation and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache permission warnings remain non-blocking. Commit: `b0961d5`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 94 (signal summary aggregation):**
+- `app/api/v1/signals.py` - replace repeated filtered counts with conditional aggregate queries.
+- `tests/integration/test_signal_summary_aggregation.py` - verify metric compatibility and query-count reduction.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
