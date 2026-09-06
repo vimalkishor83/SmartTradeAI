@@ -846,6 +846,14 @@ Login Sessions now escapes usernames, addresses, device labels and timestamps be
 
 **Regression evidence:** Sessions template checks passed (**2 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.61 IMPLEMENTED — Harden admin Telegram Alerts rendering
+
+Telegram Alerts now escapes channel names, chat IDs, market labels and configured timeframes before rendering. Channel IDs are validated before API paths are built, channel actions use dataset-backed listeners instead of embedding names in inline JavaScript, and the Add/Save/Test/Send controls use event bindings while preserving the existing permission behavior and API payloads.
+
+**Risk level:** High admin trust/security value, low workflow/API risk (approved Telegram configuration values and existing actions remain available). **Affected modules:** `frontend/templates/admin/telegram_alerts.html`, `tests/unit/test_admin_telegram_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Telegram Alerts safety checks and Telegram channel/delivery integration checks passed (**10 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1039,5 +1047,9 @@ Login Sessions now escapes usernames, addresses, device labels and timestamps be
 **Session 39 (UI security/accessibility — admin Login Sessions rendering safety, §7.60):**
 - `frontend/templates/admin/sessions.html` — escape session/account values, replace username-bearing inline revoke actions with dataset-backed event listeners, and fix all filter/pager controls to use event bindings.
 - `tests/unit/test_admin_sessions_template_safety.py` — protect the Login Sessions rendering and control-binding contract.
+
+**Session 40 (UI security/accessibility — Telegram Alerts rendering safety, §7.61):**
+- `frontend/templates/admin/telegram_alerts.html` — escape channel/config values, validate channel IDs, replace channel-name-bearing inline actions with dataset-backed event listeners, and bind admin controls without inline handlers.
+- `tests/unit/test_admin_telegram_template_safety.py` — protect the Telegram Alerts rendering and control-binding contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

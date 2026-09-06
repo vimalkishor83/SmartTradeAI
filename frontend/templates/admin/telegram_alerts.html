@@ -44,7 +44,7 @@
 <div class="section-card mb-4">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-bell text-accent"></i> Alert Categories</span>
-    <button class="btn btn-sm btn-primary" id="saveIndividualBtn" onclick="saveIndividualSettings()"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+    <button class="btn btn-sm btn-primary" id="saveIndividualBtn"><i class="bi bi-check2 me-1"></i>Save Changes</button>
   </div>
   <div class="section-card-body p-3">
     <p class="text-muted small mb-2">Per category, pick which markets go to <strong>Individual</strong> subscribers (each subscriber's own Telegram chat, Settings → Notifications) and which go to <strong>Group</strong> channels (any matching channel below) — independently. E.g. crypto signal alerts can go to both, forex signal alerts to the group only, gold to neither. Leave a market unchecked in a column to turn it off for that column only.</p>
@@ -72,7 +72,7 @@
 <div class="section-card mb-4">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-people-fill text-accent"></i> Group Channels <span class="text-muted fw-normal fs-xs ms-1">— shared destinations mapped to specific markets</span></span>
-    <button class="btn btn-sm btn-primary" id="addChannelBtn" onclick="openChannelModal()"><i class="bi bi-plus-lg me-1"></i>Add Channel</button>
+    <button class="btn btn-sm btn-primary" id="addChannelBtn"><i class="bi bi-plus-lg me-1"></i>Add Channel</button>
   </div>
   <div class="section-card-body p-0" id="channelsTableWrap">
     <div class="p-4 text-center text-muted">Loading channels…</div>
@@ -88,7 +88,7 @@
     <div class="d-flex gap-2 flex-wrap">
       <select class="form-select" id="tgTestChannelSelect" style="max-width:260px"></select>
       <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send right away…" style="min-width:220px;flex:1">
-      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn" onclick="sendTelegramBroadcast()"><i class="bi bi-send me-1"></i>Send</button>
+      <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn"><i class="bi bi-send me-1"></i>Send</button>
     </div>
     <div class="fs-xs text-muted mt-2">Confirms one channel's setup actually works, or for one-off announcements — doesn't affect the automatic alerts above.</div>
   </div>
@@ -152,7 +152,7 @@
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-light" data-bs-dismiss="modal">Cancel</button>
-        <button type="button" class="btn btn-primary" onclick="saveChannel()"><i class="bi bi-check2 me-1"></i>Save</button>
+        <button type="button" class="btn btn-primary" id="saveChannelBtn"><i class="bi bi-check2 me-1"></i>Save</button>
       </div>
     </div>
   </div>
@@ -221,16 +221,16 @@ let PLATFORM_TIMEFRAMES = ['1m', '5m', '15m', '30m', '1h', '2h', '4h', '1d', '1w
 function marketCheckboxesHtml(containerClass, selected, disabled) {
   return Object.keys(ALL_MARKETS_LABELS).map(m => `
     <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
-      <input type="checkbox" class="form-check-input ${containerClass}" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
-      ${ALL_MARKETS_LABELS[m]}
+      <input type="checkbox" class="form-check-input ${containerClass}" data-market="${STSafe.html(m)}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
+      ${STSafe.html(ALL_MARKETS_LABELS[m])}
     </label>`).join('');
 }
 
 function timeframeCheckboxesHtml(containerClass, selected, disabled) {
   return PLATFORM_TIMEFRAMES.map(tf => `
     <label class="d-flex align-items-center gap-2" style="font-size:13px;cursor:pointer">
-      <input type="checkbox" class="form-check-input ${containerClass}" data-tf="${tf}" ${selected.has(tf) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
-      ${tf}
+      <input type="checkbox" class="form-check-input ${containerClass}" data-tf="${STSafe.html(tf)}" ${selected.has(tf) ? 'checked' : ''} ${disabled ? 'disabled' : ''} style="margin:0">
+      ${STSafe.html(tf)}
     </label>`).join('');
 }
 
@@ -248,9 +248,9 @@ const ALERT_CATEGORIES = [
 
 function marketMatrixChipsHtml(cls, catKey, selected, disabled) {
   return Object.keys(ALL_MARKETS_LABELS).map(m => `
-    <label class="mchip" title="${ALL_MARKETS_LABELS[m]}">
-      <input type="checkbox" class="${cls}" data-cat="${catKey}" data-market="${m}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
-      <span>${MARKET_SHORT[m]}</span>
+    <label class="mchip" title="${STSafe.html(ALL_MARKETS_LABELS[m])}">
+      <input type="checkbox" class="${cls}" data-cat="${STSafe.html(catKey)}" data-market="${STSafe.html(m)}" ${selected.has(m) ? 'checked' : ''} ${disabled ? 'disabled' : ''}>
+      <span>${STSafe.html(MARKET_SHORT[m])}</span>
     </label>`).join('');
 }
 
@@ -261,8 +261,8 @@ function renderCategoryMatrix(cfg, disabled) {
       ? marketMatrixChipsHtml('cat-grp-toggle', cat.key, new Set(cfg[`telegram_${cat.key}_group_markets`] || []), disabled)
       : `<span class="text-muted small" title="Personal to one subscriber's own item/position — never a shared broadcast">Individual only</span>`;
     return `<tr>
-      <td class="text-muted">${cat.pages.map(p => `<div>${p}</div>`).join('')}</td>
-      <td><strong>${cat.label}</strong></td>
+      <td class="text-muted">${cat.pages.map(p => `<div>${STSafe.html(p)}</div>`).join('')}</td>
+      <td><strong>${STSafe.html(cat.label)}</strong></td>
       <td>${marketMatrixChipsHtml('cat-ind-toggle', cat.key, indSelected, disabled)}</td>
       <td>${grpCell}</td>
     </tr>`;
@@ -318,7 +318,7 @@ function categoryBadges(c) {
     c.alerts_rating_change && 'Rating',
   ].filter(Boolean);
   return cats.length
-    ? cats.map(c => `<span class="badge bg-secondary me-1" style="font-size:10px">${c}</span>`).join('')
+    ? cats.map(c => `<span class="badge bg-secondary me-1" style="font-size:10px">${STSafe.html(c)}</span>`).join('')
     : '<span class="text-muted small">None</span>';
 }
 
@@ -332,43 +332,56 @@ function renderChannelsTable() {
     return;
   }
   wrap.innerHTML = allChannels.map(c => {
+    const channelName = STSafe.html(c.name || '');
+    const groupChatId = STSafe.html(c.group_chat_id || '');
     const markets = (c.markets && c.markets.length)
-      ? c.markets.map(m => `<span class="badge bg-secondary me-1" style="font-size:10px">${ALL_MARKETS_LABELS[m] || m}</span>`).join('')
+      ? c.markets.map(m => `<span class="badge bg-secondary me-1" style="font-size:10px">${STSafe.html(ALL_MARKETS_LABELS[m] || m)}</span>`).join('')
       : '<span class="badge bg-accent" style="font-size:10px;background:var(--accent)!important">All markets</span>';
     const timeframes = (c.timeframes && c.timeframes.length)
-      ? c.timeframes.map(tf => `<span class="badge bg-secondary me-1" style="font-size:10px">${tf}</span>`).join('')
+      ? c.timeframes.map(tf => `<span class="badge bg-secondary me-1" style="font-size:10px">${STSafe.html(tf)}</span>`).join('')
       : '<span class="badge bg-accent" style="font-size:10px;background:var(--accent)!important">All timeframes</span>';
     return `<div class="channel-row px-3 py-3 d-flex align-items-center gap-3 flex-wrap">
       <div style="min-width:170px;flex:1">
         <div class="d-flex align-items-center gap-2">
-          <strong>${c.name}</strong>
+          <strong>${channelName}</strong>
           ${c.is_active ? '' : '<span class="badge bg-secondary" style="font-size:10px">Paused</span>'}
         </div>
-        <div class="text-muted mt-1" style="font-size:11px"><code>${c.group_chat_id}</code></div>
+        <div class="text-muted mt-1" style="font-size:11px"><code>${groupChatId}</code></div>
       </div>
       <div style="min-width:150px">${markets}</div>
       <div style="min-width:170px">${timeframes}</div>
       <div style="min-width:180px">${categoryBadges(c)}</div>
       <div class="d-flex gap-1 flex-wrap">
         ${isSuperAdmin ? `
-        <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openChannelModal(${c.id})"><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-sm btn-outline-info" title="Send test message" onclick="testChannel(${c.id})"><i class="bi bi-send"></i></button>
-        <button class="btn btn-sm btn-outline-danger" title="Delete" onclick="deleteChannel(${c.id},'${c.name.replace(/'/g,"\\'")}')"><i class="bi bi-trash"></i></button>` : ''}
+        <button class="btn btn-sm btn-outline-light" title="Edit" data-channel-action="edit" data-channel-id="${STSafe.html(STSafe.assetId(c.id))}"><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-info" title="Send test message" data-channel-action="test" data-channel-id="${STSafe.html(STSafe.assetId(c.id))}"><i class="bi bi-send"></i></button>
+        <button class="btn btn-sm btn-outline-danger" title="Delete" data-channel-action="delete" data-channel-id="${STSafe.html(STSafe.assetId(c.id))}" data-channel-name="${STSafe.html(c.name || '')}"><i class="bi bi-trash"></i></button>` : ''}
       </div>
     </div>`;
   }).join('');
+  wrap.querySelectorAll('[data-channel-action]').forEach(button => {
+    const id = Number(button.dataset.channelId);
+    if (button.dataset.channelAction === 'edit') {
+      button.addEventListener('click', () => openChannelModal(id));
+    } else if (button.dataset.channelAction === 'test') {
+      button.addEventListener('click', () => testChannel(id));
+    } else {
+      button.addEventListener('click', () => deleteChannel(id, button.dataset.channelName));
+    }
+  });
 }
 
 function renderTestChannelSelect() {
   const sel = document.getElementById('tgTestChannelSelect');
-  sel.innerHTML = allChannels.map(c => `<option value="${c.id}">${c.name}</option>`).join('')
+  sel.innerHTML = allChannels.map(c => `<option value="${STSafe.html(STSafe.assetId(c.id))}">${STSafe.html(c.name || '')}</option>`).join('')
     || '<option value="">No channels yet</option>';
 }
 
 function openChannelModal(id) {
-  const c = id ? allChannels.find(x => x.id === id) : null;
+  const channelId = STSafe.assetId(id);
+  const c = channelId ? allChannels.find(x => String(x.id) === channelId) : null;
   document.getElementById('channelModalTitle').textContent = c ? 'Edit Channel' : 'Add Channel';
-  document.getElementById('chId').value = c ? c.id : '';
+  document.getElementById('chId').value = c ? STSafe.assetId(c.id) : '';
   document.getElementById('chName').value = c ? c.name : '';
   document.getElementById('chGroupChatId').value = c ? c.group_chat_id : '';
   document.getElementById('chMarketCheckboxes').innerHTML = marketCheckboxesHtml('ch-market-toggle', new Set(c ? c.markets : []), false);
@@ -382,7 +395,7 @@ function openChannelModal(id) {
 }
 
 async function saveChannel() {
-  const id = document.getElementById('chId').value;
+  const id = STSafe.assetId(document.getElementById('chId').value);
   const payload = {
     name: document.getElementById('chName').value.trim(),
     group_chat_id: document.getElementById('chGroupChatId').value.trim(),
@@ -409,6 +422,8 @@ async function saveChannel() {
 }
 
 async function deleteChannel(id, name) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   const ok = await API.delete(`/admin/telegram/channels/${id}`);
   if (ok) { Toast.show(`"${name}" deleted`, 'success'); loadChannels(); }
@@ -416,6 +431,8 @@ async function deleteChannel(id, name) {
 }
 
 async function testChannel(id) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   const message = prompt('Message to send to this channel right now:', 'Test message from SmartTrade AI admin');
   if (!message) return;
   const res = await API.post(`/admin/telegram/channels/${id}/broadcast`, { message });
@@ -424,7 +441,7 @@ async function testChannel(id) {
 }
 
 async function sendTelegramBroadcast() {
-  const id = document.getElementById('tgTestChannelSelect').value;
+  const id = STSafe.assetId(document.getElementById('tgTestChannelSelect').value);
   const input = document.getElementById('tgBroadcastMsg');
   const message = input.value.trim();
   if (!id) { Toast.show('Add a group channel first', 'error'); return; }
@@ -446,6 +463,10 @@ document.addEventListener('app:ready', () => {
   document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
   document.getElementById('tgRatingSensitivity').disabled = !isSuperAdmin;
+  document.getElementById('saveIndividualBtn').addEventListener('click', saveIndividualSettings);
+  document.getElementById('addChannelBtn').addEventListener('click', () => openChannelModal());
+  document.getElementById('tgBroadcastBtn').addEventListener('click', sendTelegramBroadcast);
+  document.getElementById('saveChannelBtn').addEventListener('click', saveChannel);
   loadIndividualSettings();
   loadChannels();
 });
