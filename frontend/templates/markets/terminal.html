@@ -117,7 +117,7 @@
         <span class="text-muted fs-xs">Timeframe</span>
         <div class="terminal-tabs" id="terminalTfTabs">
           {% for tf in display_timeframes %}
-          <div class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</div>
+          <div class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" data-tf="{{ tf|e }}">{{ tf|e }}</div>
           {% endfor %}
         </div>
       </div>
@@ -163,6 +163,57 @@ const MARKET_LABEL = {
   crypto: 'Crypto', forex: 'Forex', commodity: 'Commodity',
   indian_stock: 'Indian Stock', index: 'Index',
 };
+const TERM_MARKETS = new Set(Object.keys(MARKET_LABEL));
+const TERM_TIMEFRAMES = new Set(
+  [...document.querySelectorAll('#terminalTfTabs .terminal-tab')]
+    .map(tab => tab.dataset.tf)
+    .filter(Boolean),
+);
+
+function _termMarketKey(value) {
+  const key = String(value ?? '').trim();
+  return TERM_MARKETS.has(key) ? key : 'crypto';
+}
+
+function _termTimeframe(value) {
+  const tf = String(value ?? '').trim();
+  return TERM_TIMEFRAMES.has(tf) ? tf : [...TERM_TIMEFRAMES][0] || '1h';
+}
+
+function _termAssetId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,12}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _termNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function _termPercent(value) {
+  const number = _termNumber(value, 0);
+  return Math.min(100, Math.max(0, number));
+}
+
+function _termHtml(value) {
+  return typeof STSafe?.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _termAssetHref(value) {
+  const id = _termAssetId(value);
+  return id ? `/asset/${id}` : '#';
+}
+
+function _termPrice(value, market) {
+  const number = _termNumber(value);
+  return number === null ? '—' : _termHtml(formatPrice(number, market));
+}
+
+function _escHtmlLocal(value) { return _termHtml(value); }
 
 // ─── Pinned assets (per-browser, capped at one row's worth) ────────
 // Pins are a personal "keep this on top" convenience, not account data,
@@ -195,7 +246,9 @@ function _loadPinnedEntries() {
     if (!Array.isArray(raw)) return [];
     return raw.map(e => typeof e === 'object' && e !== null
       ? { id: Number(e.id), market: e.market || null }
-      : { id: Number(e), market: null });
+      : { id: Number(e), market: null })
+      .filter(e => Number.isSafeInteger(e.id) && e.id > 0
+        && (e.market === null || TERM_MARKETS.has(e.market)));
   } catch { return []; }
 }
 function _savePinnedEntries() {
@@ -215,7 +268,10 @@ _syncPinnedSet();
 // recorded against a different market, so switching tabs can't lose pins
 // that just haven't loaded yet.
 function _prunePinnedForMarket(market, cards) {
-  const liveIds = new Set(cards.map(c => c.asset_id));
+  market = _termMarketKey(market);
+  const liveIds = new Set((Array.isArray(cards) ? cards : [])
+    .map(c => Number(_termAssetId(c?.asset_id)))
+    .filter(Number.isSafeInteger));
   const before = _pinnedEntries.length;
   _pinnedEntries = _pinnedEntries.filter(e => {
     if (e.market !== market && e.market !== null) return true;
@@ -253,19 +309,20 @@ function _sideColor(type) {
 // to the old flat `|`-joined string for signals generated before this
 // field existed.
 function _renderReasoning(s) {
-  const detail = s.reasoning_detail;
-  if (Array.isArray(detail) && detail.length) {
+  const detail = Array.isArray(s?.reasoning_detail)
+    ? s.reasoning_detail.filter(r => r && typeof r === 'object').slice(0, 12)
+    : [];
+  if (detail.length) {
     return detail.map(r => {
       const icon = r.aligned ? '<i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i>'
                               : '<i class="bi bi-x-circle" style="color:var(--text-muted);font-size:10px"></i>';
       const style = r.aligned ? '' : 'opacity:.55;text-decoration:line-through';
-      return `<div style="display:flex;align-items:center;gap:5px;${style}">${icon}<span>${_escHtmlLocal(r.text)}</span></div>`;
+      return `<div style="display:flex;align-items:center;gap:5px;${style}">${icon}<span>${_termHtml(r.text)}</span></div>`;
     }).join('');
   }
-  const reasoning = (s.reasoning || '').trim();
-  return reasoning ? _escHtmlLocal(reasoning) : '';
+  const reasoning = String(s?.reasoning || '').trim();
+  return reasoning ? _termHtml(reasoning) : '';
 }
-function _escHtmlLocal(s) { return String(s).replace(/</g, '&lt;'); }
 
 function _timeAgo(iso, persisted) {
   if (!iso) return '';
@@ -283,20 +340,28 @@ function _timeAgo(iso, persisted) {
   }
   const str  = /[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso + 'Z';
   const date = new Date(str);
-  const diff = Math.floor((Date.now() - date) / 1000);
+  if (Number.isNaN(date.getTime())) return '';
+  const diff = Math.max(0, Math.floor((Date.now() - date) / 1000));
   const rel  = diff < 5 ? 'just now'
     : diff < 60   ? `${diff}s ago`
     : diff < 3600 ? `${Math.floor(diff / 60)}m ago`
     : diff < 86400 ? `${Math.floor(diff / 3600)}h ago`
     : `${Math.floor(diff / 86400)}d ago`;
-  return `<span class="sc-generated" title="${date.toLocaleString()}"><i class="bi bi-clock-history"></i> Generated ${rel}</span>`;
+  return `<span class="sc-generated" title="${_termHtml(date.toLocaleString())}"><i class="bi bi-clock-history"></i> Generated ${rel}</span>`;
 }
 
 function renderTerminalCard(s) {
-  const mkt = s.market;
+  s = s && typeof s === 'object' ? s : {};
+  const mkt = _termMarketKey(s.market);
+  const assetId = _termAssetId(s.asset_id);
+  const assetName = _termHtml(s.asset || '—');
+  const timeframe = _termHtml(_termTimeframe(s.timeframe));
+  const marketLabel = _termHtml(MARKET_LABEL[mkt]);
 
-  const pinned = _pinnedAssets.has(s.asset_id);
-  const pinBtn = `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${s.asset_id}" data-pin-market="${mkt}" title="${pinned ? 'Unpin' : `Pin to top (max ${_termPinMax()})`}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`;
+  const pinned = assetId ? _pinnedAssets.has(Number(assetId)) : false;
+  const pinBtn = assetId
+    ? `<button type="button" class="term-pin-btn${pinned ? ' pinned' : ''}" data-pin-asset="${assetId}" data-pin-market="${mkt}" title="${pinned ? 'Unpin' : `Pin to top (max ${_termPinMax()})`}"><i class="bi bi-pin-angle${pinned ? '-fill' : ''}"></i></button>`
+    : '';
 
   if (s.available === false) {
     return `
@@ -305,15 +370,15 @@ function renderTerminalCard(s) {
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
-                <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
-                <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
+                <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
+                <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
               </div>
               <div class="d-flex align-items-center gap-1">
                 ${pinBtn}
                 <span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border)">N/A</span>
               </div>
             </div>
-            <div class="text-muted fs-xs">${s.message || 'No analysis available right now.'}</div>
+            <div class="text-muted fs-xs">${_termHtml(s.message || 'No analysis available right now.')}</div>
           </div>
         </div>
       </div>`;
@@ -333,8 +398,8 @@ function renderTerminalCard(s) {
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
-                <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
-                <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
+                <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
+                <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
               </div>
               <div class="d-flex align-items-center gap-1">
                 ${pinBtn}
@@ -342,9 +407,9 @@ function renderTerminalCard(s) {
               </div>
             </div>
             <div class="signal-card-price">
-              Current: <span class="tabular fw-700" style="color:var(--text-primary)">${s.current_price ? formatPrice(s.current_price, mkt) : '—'}</span>
+              Current: <span class="tabular fw-700" style="color:var(--text-primary)">${_termPrice(s.current_price, mkt)}</span>
             </div>
-            <div class="text-muted fs-xs">${_escHtmlLocal(s.no_signal_message || 'No qualifying setup on this timeframe right now — sitting out.')}</div>
+            <div class="text-muted fs-xs">${_termHtml(s.no_signal_message || 'No qualifying setup on this timeframe right now — sitting out.')}</div>
             ${_timeAgo(s.generated_at, s.persisted)}
             ${whyHtml}
           </div>
@@ -352,18 +417,18 @@ function renderTerminalCard(s) {
       </div>`;
   }
 
-  const conf  = s.confidence_score || 0;
+  const conf  = _termPercent(s.confidence_score);
   const confC = _termConfColor(conf);
-  const cur   = s.current_price;
+  const cur   = _termNumber(s.current_price);
 
   const targetsHtml = [
-    ['Target 1', s.target1],
-    ['Target 2', s.target2],
-    ['Target 3', s.target3],
+    ['Target 1', _termNumber(s.target1)],
+    ['Target 2', _termNumber(s.target2)],
+    ['Target 3', _termNumber(s.target3)],
   ].map(([label, v]) => `
     <div class="sc-cell">
-      <span class="sc-grid-label">${label}</span>
-      <span class="sc-grid-val tabular" style="color:${v !== null && v !== undefined ? 'var(--green)' : 'var(--text-muted)'}">${v !== null && v !== undefined ? formatPrice(v, mkt) : '—'}</span>
+      <span class="sc-grid-label">${_termHtml(label)}</span>
+      <span class="sc-grid-val tabular" style="color:${v !== null ? 'var(--green)' : 'var(--text-muted)'}">${_termPrice(v, mkt)}</span>
     </div>`).join('');
 
   const reasoningHtml = _renderReasoning(s);
@@ -380,8 +445,8 @@ function renderTerminalCard(s) {
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
             <div>
-              <a href="/asset/${s.asset_id}" class="signal-card-asset" style="text-decoration:none">${s.asset}</a>
-              <div class="signal-card-mkt">${MARKET_LABEL[mkt] || mkt || '—'} · ${s.timeframe}</div>
+              <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
+              <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
             </div>
             <div class="d-flex align-items-center gap-1">
               ${pinBtn}
@@ -391,24 +456,24 @@ function renderTerminalCard(s) {
           </div>
 
           <div class="signal-card-price">
-            Current: <span class="tabular fw-700" style="color:var(--text-primary)">${cur ? formatPrice(cur, mkt) : '—'}</span>
+            Current: <span class="tabular fw-700" style="color:var(--text-primary)">${_termPrice(cur, mkt)}</span>
           </div>
 
           <div class="sc-conf-row">
             <div class="confidence-bar" style="flex:1"><div class="confidence-fill" style="width:${conf}%;background:${confC}"></div></div>
             <span class="tabular fw-700 fs-xs" style="color:${confC};min-width:34px;text-align:right">${conf.toFixed(0)}%</span>
-            <span class="text-muted fs-xs">${s.confidence_label || ''}</span>
+            <span class="text-muted fs-xs">${_termHtml(s.confidence_label || '')}</span>
           </div>
 
           <div class="sc-band">
             <div class="sc-row sc-row-2">
               <div class="sc-cell">
                 <span class="sc-grid-label">Entry</span>
-                <span class="sc-grid-val tabular">${formatPrice(s.entry_price, mkt)}</span>
+                <span class="sc-grid-val tabular">${_termPrice(s.entry_price, mkt)}</span>
               </div>
               <div class="sc-cell">
                 <span class="sc-grid-label">Stop Loss</span>
-                <span class="sc-grid-val tabular" style="color:var(--red)">${formatPrice(s.stop_loss, mkt)}</span>
+                <span class="sc-grid-val tabular" style="color:var(--red)">${_termPrice(s.stop_loss, mkt)}</span>
               </div>
             </div>
             <div class="sc-row sc-row-3">
@@ -416,7 +481,7 @@ function renderTerminalCard(s) {
             </div>
           </div>
 
-          ${s.risk_reward ? `<div class="fs-xs text-muted">R:R <span class="tabular fw-700" style="color:var(--text-secondary)">1:${parseFloat(s.risk_reward).toFixed(1)}</span></div>` : ''}
+          ${_termNumber(s.risk_reward) !== null ? `<div class="fs-xs text-muted">R:R <span class="tabular fw-700" style="color:var(--text-secondary)">1:${_termNumber(s.risk_reward).toFixed(1)}</span></div>` : ''}
 
           ${_timeAgo(s.generated_at, s.persisted)}
           ${whyHtml}
@@ -434,8 +499,8 @@ function _terminalCardSort(a, b) {
   // Pinned assets always float to the top, regardless of signal quality —
   // that's the whole point of pinning. Within each group (pinned / not),
   // fall back to the original actionable-then-confidence ranking.
-  const aPinned = _pinnedAssets.has(a.asset_id);
-  const bPinned = _pinnedAssets.has(b.asset_id);
+  const aPinned = _pinnedAssets.has(Number(_termAssetId(a?.asset_id)));
+  const bPinned = _pinnedAssets.has(Number(_termAssetId(b?.asset_id)));
   if (aPinned !== bPinned) return aPinned ? -1 : 1;
 
   if (a.available === false || b.available === false) {
@@ -445,7 +510,7 @@ function _terminalCardSort(a, b) {
   const bActionable = b.signal_type === 'BUY' || b.signal_type === 'SELL';
   if (aActionable !== bActionable) return aActionable ? -1 : 1;
   if (!aActionable) return 0;   // both HOLD — no ranking basis, keep original order
-  return (b.confidence_score || 0) - (a.confidence_score || 0);
+  return _termNumber(b.confidence_score, 0) - _termNumber(a.confidence_score, 0);
 }
 
 // Re-renders the grid from the already-fetched _lastCards, applying the
@@ -457,7 +522,7 @@ function applyTerminalFilters() {
   const q = _termSearch.trim().toLowerCase();
 
   const filtered = q
-    ? _lastCards.filter(s => (s.asset || '').toLowerCase().includes(q))
+    ? _lastCards.filter(s => String(s.asset || '').toLowerCase().includes(q))
     : _lastCards;
   const cards = filtered.slice().sort(_terminalCardSort);
 
@@ -479,9 +544,11 @@ function applyTerminalFilters() {
 }
 
 function toggleTerminalPin(assetId, market) {
-  assetId = Number(assetId);
-  if (_pinnedAssets.has(assetId)) {
-    _pinnedEntries = _pinnedEntries.filter(e => e.id !== assetId);
+  assetId = _termAssetId(assetId);
+  if (!assetId) return;
+  const numericId = Number(assetId);
+  if (_pinnedAssets.has(numericId)) {
+    _pinnedEntries = _pinnedEntries.filter(e => e.id !== numericId);
   } else {
     const max = _termPinMax();
     if (_pinnedAssets.size >= max) {
@@ -490,31 +557,52 @@ function toggleTerminalPin(assetId, market) {
       }
       return;
     }
-    _pinnedEntries.push({ id: assetId, market: market || null });
+    _pinnedEntries.push({ id: numericId, market: TERM_MARKETS.has(market) ? market : null });
   }
   _savePinnedEntries();
   _syncPinnedSet();
   applyTerminalFilters();
 }
 
+const _termLoading = new Map();
+let _termRequestSequence = 0;
+
 async function loadTerminal() {
   const grid = document.getElementById('terminalGrid');
   const countEl = document.getElementById('terminalCount');
-  const tf = _termTf;
+  const market = _termMarketKey(_termMarket);
+  const tf = _termTimeframe(_termTf);
+  const requestKey = `${market}|${tf}`;
+  const existing = _termLoading.get(requestKey);
+  if (existing) return existing;
+  const requestId = ++_termRequestSequence;
 
   grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
 
-  const data = await API.get('/signals/market-board', { market: _termMarket, timeframe: tf });
+  const request = (async () => {
+    const data = await API.get('/signals/market-board', { market, timeframe: tf });
+    if (requestId !== _termRequestSequence) return;
 
-  if (!data) {
-    grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
-    countEl.textContent = '';
-    return;
+    if (!data || data.error) {
+      grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
+      countEl.textContent = '';
+      return;
+    }
+
+    _lastCards = Array.isArray(data.cards)
+      ? data.cards.filter(card => card && typeof card === 'object')
+      : [];
+    _prunePinnedForMarket(market, _lastCards);
+    _termMarket = market;
+    _termTf = tf;
+    applyTerminalFilters();
+  })();
+  _termLoading.set(requestKey, request);
+  try {
+    return await request;
+  } finally {
+    if (_termLoading.get(requestKey) === request) _termLoading.delete(requestKey);
   }
-
-  _lastCards = data.cards || [];
-  _prunePinnedForMarket(_termMarket, _lastCards);
-  applyTerminalFilters();
 }
 
 document.addEventListener('app:ready', () => {
@@ -526,7 +614,9 @@ document.addEventListener('app:ready', () => {
     if (!tab) return;
     document.querySelectorAll('#terminalMarketTabs .terminal-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    _termMarket = tab.dataset.market;
+    const market = _termMarketKey(tab.dataset.market);
+    if (market !== tab.dataset.market) return;
+    _termMarket = market;
     loadTerminal();
   });
 
@@ -535,7 +625,9 @@ document.addEventListener('app:ready', () => {
     if (!tab) return;
     document.querySelectorAll('#terminalTfTabs .terminal-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    _termTf = tab.dataset.tf;
+    const tf = _termTimeframe(tab.dataset.tf);
+    if (tf !== tab.dataset.tf) return;
+    _termTf = tf;
     loadTerminal();
   });
 
