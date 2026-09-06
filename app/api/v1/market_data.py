@@ -126,14 +126,11 @@ def ta_summary():
         return jsonify({"assets": assets, "timeframes": global_cache["timeframes"]}), 200
 
     # ── Cold path: compute on-demand (first boot before scheduler runs) ──
-    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
     from app.services.indicators.ema_mtf import get_ta_timeframes
     tfs = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
-    if market != "all":
-        asset_q = asset_q.filter_by(market=market)
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+    assets = all_assets
 
     # Drop paused-feed markets before any compute — fetch_many refuses them
     # anyway, so building their all-None TA rows and caching them is waste.
@@ -195,7 +192,11 @@ def ta_summary():
     # silently undoing the fix until the next scheduled prewarm
     # overwrote it.
     cache.set("ta_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
-    return jsonify(payload), 200
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    assets_out = [a for a in result if market == "all" or a.get("market") == market]
+    if prefs:
+        assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
+    return jsonify({"assets": assets_out, "timeframes": tfs}), 200
 
 
 def _compute_ta_rating(ind, close):
@@ -300,13 +301,10 @@ def ema_summary():
         }), 200
 
     # ── Cold path: compute on-demand (first boot before scheduler runs) ──
-    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
     tfs = get_ta_timeframes()
     asset_q = Asset.query.filter_by(is_active=True)
-    if market != "all":
-        asset_q = asset_q.filter_by(market=market)
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+    assets = all_assets
 
     # Drop paused-feed markets before any compute — fetch_many refuses them,
     # so their EMA cells would all be None; skip building/caching them.
@@ -346,7 +344,11 @@ def ema_summary():
     # key, but this cold-path re-cache had never received the TTL fix and
     # was still using 150s, shorter than the prewarm interval.
     cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
-    return jsonify({"assets": result, "timeframes": tfs, "higher_tf_map": higher_tf_map}), 200
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    assets_out = [a for a in result if market == "all" or a.get("market") == market]
+    if prefs:
+        assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
+    return jsonify({"assets": assets_out, "timeframes": tfs, "higher_tf_map": higher_tf_map}), 200
 
 
 #: Cap on how far back a single request may scrub, per timeframe's own bars.
@@ -491,12 +493,9 @@ def ai_summary():
     from app.services.platform_config import get_display_timeframes
     _configured = [tf for tf in get_display_timeframes() if tf in _AI_SUMMARY_SUBSET]
     tfs      = _configured or _AI_SUMMARY_SUBSET
-    prefs    = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
     asset_q  = Asset.query.filter_by(is_active=True)
-    if market != "all":
-        asset_q = asset_q.filter_by(market=market)
     all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets     = [a for a in all_assets if prefs.get(a.id, True)] if prefs else all_assets
+    assets     = all_assets
 
     # Drop paused-feed markets up front — fetch_many refuses them, so they'd
     # only produce neutral-default AI cells; filtering here also narrows the
@@ -600,7 +599,11 @@ def ai_summary():
     # was still using the old 150s, undoing that fix until the next
     # scheduled prewarm ran.
     cache.set("ai_summary_all:v4", payload, timeout=1980)
-    return jsonify(payload), 200
+    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
+    assets_out = [a for a in result if market == "all" or a.get("market") == market]
+    if prefs:
+        assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
+    return jsonify({"assets": assets_out, "timeframes": tfs}), 200
 
 
 @market_data_bp.route("/live-prices", methods=["GET"])
