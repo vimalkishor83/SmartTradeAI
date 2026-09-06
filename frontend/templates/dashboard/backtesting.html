@@ -11,6 +11,7 @@
     <p class="page-subtitle">Test your strategies on historical data with full statistics</p>
   </div>
 </div>
+<div id="backtestingStatus" class="visually-hidden" role="status" aria-live="polite"></div>
 
 <div class="row g-4">
   <div class="col-lg-4">
@@ -20,13 +21,13 @@
       </div>
       <div class="section-card-body">
         <div class="mb-3">
-          <label class="form-label">Asset Symbol</label>
+          <label class="form-label" for="btSymbol">Asset Symbol</label>
           <select class="form-select" id="btSymbol">
             <option value="">Loading assets…</option>
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label">Timeframe</label>
+          <label class="form-label" for="btTf">Timeframe</label>
           <select class="form-select" id="btTf">
             <option value="1h" selected>1 Hour</option>
             <option value="4h">4 Hours</option>
@@ -35,7 +36,7 @@
           </select>
         </div>
         <div class="mb-3">
-          <label class="form-label">Strategy</label>
+          <label class="form-label" for="btStrategy">Strategy</label>
           <select class="form-select" id="btStrategy">
             <option value="__live__" selected>Live Signal Engine ★ (Recommended)</option>
             <option value="Default Multi-Indicator">Multi-Indicator</option>
@@ -67,7 +68,7 @@
           <div class="fs-xs text-muted mt-2">Spread is the full bid/ask width; the engine applies half on entry and exit.</div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Lookback (days)</label>
+          <label class="form-label" for="btDays">Lookback (days)</label>
           <select class="form-select" id="btDays">
             <option value="30">30 days</option>
             <option value="60" selected>60 days</option>
@@ -75,7 +76,7 @@
             <option value="180">180 days</option>
           </select>
         </div>
-        <button class="btn btn-primary w-100" id="runBt">
+        <button type="button" class="btn btn-primary w-100" id="runBt">
           <i class="bi bi-play-circle me-1"></i> Run Backtest
         </button>
       </div>
@@ -160,14 +161,18 @@ function onStrategyChange() {
 async function loadHistory() {
   const request = ++_historyRequestSeq;
   const history = document.getElementById('btHistory');
-  const data = await API.get('/backtesting/');
-  if (request !== _historyRequestSeq || !history) return;
-  const backtests = Array.isArray(data?.backtests) ? data.backtests : [];
+  const status = document.getElementById('backtestingStatus');
+  if (status) status.textContent = 'Loading backtest history…';
+  try {
+    const data = await API.get('/backtesting/');
+    if (request !== _historyRequestSeq || !history) return;
+    const backtests = Array.isArray(data?.backtests) ? data.backtests : [];
   if (!backtests.length) {
     history.innerHTML = '<div class="p-3 text-muted small">No backtests yet</div>';
+    if (status) status.textContent = 'No saved backtests yet.';
     return;
   }
-  history.innerHTML = backtests.map(bt => {
+    history.innerHTML = backtests.map(bt => {
     const id = btId(bt?.id);
     if (!id) return '';
     const netProfitPct = btNumber(bt.net_profit_pct);
@@ -180,9 +185,10 @@ async function loadHistory() {
       </div>
       <small class="text-muted">${btText(bt.strategy || 'Unknown strategy')} • ${Math.max(0, Math.trunc(btNumber(bt.total_trades)))} trades • ${btNumber(bt.win_rate).toFixed(1)}% WR</small>
     </div>`;
-  }).join('') || '<div class="p-3 text-muted small">No readable backtests yet</div>';
+    }).join('') || '<div class="p-3 text-muted small">No readable backtests yet</div>';
+    if (status) status.textContent = backtests.length ? 'Backtest history updated.' : 'No saved backtests yet.';
 
-  if (!history.dataset.bound) {
+    if (!history.dataset.bound) {
     history.addEventListener('click', event => {
       const item = event.target.closest('[data-backtest-id]');
       if (item && history.contains(item)) loadBacktestDetails(item.dataset.backtestId);
@@ -194,7 +200,11 @@ async function loadHistory() {
       event.preventDefault();
       loadBacktestDetails(item.dataset.backtestId);
     });
-    history.dataset.bound = '1';
+      history.dataset.bound = '1';
+    }
+  } catch (error) {
+    if (status) status.textContent = 'Backtest history is unavailable.';
+    if (history && request === _historyRequestSeq) history.innerHTML = '<div class="p-3 text-muted small">Unable to load backtest history.</div>';
   }
 }
 
@@ -202,13 +212,22 @@ async function loadBacktestDetails(id) {
   const safeId = btId(id);
   if (!safeId) return;
   const request = ++_detailRequestSeq;
-  const data = await API.get(`/backtesting/${safeId}`);
-  if (request !== _detailRequestSeq || !data) return;
-  showResults(data, false);
+  const status = document.getElementById('backtestingStatus');
+  if (status) status.textContent = 'Loading saved backtest…';
+  try {
+    const data = await API.get(`/backtesting/${safeId}`);
+    if (request !== _detailRequestSeq || !data) return;
+    showResults(data, false);
+    if (status) status.textContent = 'Saved backtest loaded.';
+  } catch (error) {
+    if (status) status.textContent = 'Saved backtest is unavailable.';
+    Toast.show('Failed to load backtest details', 'danger');
+  }
 }
 
 document.getElementById('runBt').addEventListener('click', async () => {
   const btn     = document.getElementById('runBt');
+  const status  = document.getElementById('backtestingStatus');
   const isLive  = document.getElementById('btStrategy').value === '__live__';
   const symbol  = document.getElementById('btSymbol').value.trim().toUpperCase();
   const tf      = document.getElementById('btTf').value;
@@ -231,10 +250,13 @@ document.getElementById('runBt').addEventListener('click', async () => {
   }
 
   btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  if (status) status.textContent = 'Running backtest…';
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running…';
 
   let res;
-  if (isLive) {
+  try {
+    if (isLive) {
     // Use the walk-forward engine — same engine as live signals.
     // getWithError() (not the usual API.get) so a 403 tier-gate response's
     // real {error: "..."} body survives instead of being discarded and
@@ -242,7 +264,7 @@ document.getElementById('runBt').addEventListener('click', async () => {
     // seeing that instead of knowing this needs an upgrade.
     res = await API.getWithError('/signals/backtest', { symbol, timeframe: tf, days });
     res._isLive = true;
-  } else {
+    } else {
     res = await API.post('/backtesting/run', {
       symbol,
       timeframe: tf,
@@ -252,11 +274,17 @@ document.getElementById('runBt').addEventListener('click', async () => {
       slippage,
       spread,
     });
-    if (res && !res.error) { loadHistory(); }
+      if (res && !res.error) { loadHistory(); }
+    }
+  } catch (error) {
+    if (status) status.textContent = 'Backtest failed before a result was returned.';
+    Toast.show('Backtest failed. Please try again.', 'danger');
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Run Backtest';
   }
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-play-circle me-1"></i> Run Backtest';
 
   // API.post() doesn't surface a status code, only the JSON body — detect
   // the tier-gate case by the decorators' known error text (premium_required
@@ -276,6 +304,7 @@ document.getElementById('runBt').addEventListener('click', async () => {
     }
     return;
   }
+  if (status) status.textContent = 'Backtest completed.';
   showResults(res, isLive);
 });
 

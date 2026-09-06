@@ -22,6 +22,20 @@ The Model Performance dashboard now announces loading, successful, empty and una
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.119 IMPLEMENTED - Harden Backtesting request lifecycle feedback
+
+The Backtesting page now exposes accessible status announcements for history, saved-result loading, empty states and completed or failed runs. History/detail fetches render a clear unavailable state instead of failing silently, and the run button is restored through `finally` even when a provider or API exception occurs. Existing backtest validation, execution engines, premium gates and result rendering are unchanged.
+
+**Risk level:** High workflow reliability and decision-context value, low compatibility risk because the change is client-side and preserves all backend contracts. **Affected modules:** `frontend/templates/dashboard/backtesting.html`, `tests/unit/test_backtesting_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Backtesting template, request-boundary and reproducibility checks passed (**20 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 99 (Backtesting lifecycle resilience):**
+- `frontend/templates/dashboard/backtesting.html` - add failure-safe request cleanup, inline status messaging, labels and button semantics.
+- `tests/unit/test_backtesting_template_safety.py` - protect status and cleanup contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
