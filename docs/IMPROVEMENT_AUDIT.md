@@ -854,6 +854,14 @@ Telegram Alerts now escapes channel names, chat IDs, market labels and configure
 
 **Regression evidence:** Telegram Alerts safety checks and Telegram channel/delivery integration checks passed (**10 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.62 IMPLEMENTED — Harden admin API Configurations rendering
+
+API Configurations now escapes provider metadata, numeric status details and connection-test responses before HTML insertion. Configuration IDs and supported actions are validated before API paths are built, while tabs, modal controls and dynamic config actions use event listeners instead of inline handlers; secret credential values remain input-only and are never rendered in rows or logs.
+
+**Risk level:** High admin trust/security value, low workflow/API risk (provider management, tests, logs and credential entry retain their existing behavior). **Affected modules:** `frontend/templates/admin/api_configs.html`, `tests/unit/test_admin_api_configs_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** API Configurations safety, provider-health and credential checks passed (**10 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1051,5 +1059,9 @@ Telegram Alerts now escapes channel names, chat IDs, market labels and configure
 **Session 40 (UI security/accessibility — Telegram Alerts rendering safety, §7.61):**
 - `frontend/templates/admin/telegram_alerts.html` — escape channel/config values, validate channel IDs, replace channel-name-bearing inline actions with dataset-backed event listeners, and bind admin controls without inline handlers.
 - `tests/unit/test_admin_telegram_template_safety.py` — protect the Telegram Alerts rendering and control-binding contract.
+
+**Session 41 (UI security/accessibility — API Configurations rendering safety, §7.62):**
+- `frontend/templates/admin/api_configs.html` — escape provider/test-result metadata, validate configuration IDs and actions, replace inline tab/modal/config handlers with event bindings, and keep credential values out of rendered markup.
+- `tests/unit/test_admin_api_configs_template_safety.py` — protect the API Configurations rendering and control-binding contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

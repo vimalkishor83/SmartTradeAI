@@ -11,7 +11,7 @@
     <h1 class="page-title">API Configurations</h1>
     <p class="text-muted mb-0">Manage data providers and broker connections per market</p>
   </div>
-  <button class="btn btn-primary" id="addConfigBtn" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
+  <button class="btn btn-primary" id="addConfigBtn"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
@@ -69,13 +69,13 @@
 <div class="section-card mb-0">
   <div class="section-card-header p-0" style="border-bottom:1px solid var(--border);padding:0!important">
     <ul class="nav nav-tabs border-0" id="marketTabs" style="flex-wrap:nowrap;overflow-x:auto;margin-bottom:0">
-      <li class="nav-item"><button class="nav-link active" data-market="all"     onclick="switchTab(this,'all')">All</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="crypto"        onclick="switchTab(this,'crypto')"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="indian_stock"  onclick="switchTab(this,'indian_stock')"><i class="bi bi-building me-1"></i>Indian Stocks</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="us_stock"      onclick="switchTab(this,'us_stock')"><i class="bi bi-flag-fill me-1"></i>US Stocks</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="forex"         onclick="switchTab(this,'forex')"><i class="bi bi-currency-exchange me-1"></i>Forex</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="commodity"     onclick="switchTab(this,'commodity')"><i class="bi bi-gem me-1"></i>Commodity</button></li>
-      <li class="nav-item"><button class="nav-link"        data-market="index"         onclick="switchTab(this,'index')"><i class="bi bi-bar-chart-fill me-1"></i>Indices</button></li>
+      <li class="nav-item"><button class="nav-link active" data-market="all">All</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="crypto"><i class="bi bi-currency-bitcoin me-1"></i>Crypto</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="indian_stock"><i class="bi bi-building me-1"></i>Indian Stocks</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="us_stock"><i class="bi bi-flag-fill me-1"></i>US Stocks</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="forex"><i class="bi bi-currency-exchange me-1"></i>Forex</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="commodity"><i class="bi bi-gem me-1"></i>Commodity</button></li>
+      <li class="nav-item"><button class="nav-link" data-market="index"><i class="bi bi-bar-chart-fill me-1"></i>Indices</button></li>
     </ul>
   </div>
   <div id="configTableWrap">
@@ -88,7 +88,7 @@
 ════════════════════════════════════════════════════════════════════════ -->
 
 <!-- Backdrop -->
-<div id="cfgBackdrop" class="cfg-backdrop" onclick="closeCfgModal()"></div>
+<div id="cfgBackdrop" class="cfg-backdrop"></div>
 
 <!-- Main Add/Edit Panel -->
 <div id="cfgPanel" class="cfg-panel" role="dialog" aria-modal="true">
@@ -98,7 +98,7 @@
       <div class="cfg-header-title" id="cfgPanelTitle">Add API Configuration</div>
       <div class="cfg-header-sub" id="cfgPanelSub">Fill in the details below and test before saving</div>
     </div>
-    <button class="cfg-close" onclick="closeCfgModal()" title="Close">
+    <button class="cfg-close" id="cfgCloseBtn" title="Close">
       <i class="bi bi-x-lg"></i>
     </button>
   </div>
@@ -116,7 +116,7 @@
       <div class="cfg-grid-3">
         <div class="cfg-field">
           <label>📈 Market <span class="req">*</span></label>
-          <select id="cfgMarket" class="cfg-input" onchange="onMarketChange()">
+          <select id="cfgMarket" class="cfg-input">
             <option value="">— Select Market —</option>
             <option value="crypto">Crypto</option>
             <option value="indian_stock">Indian Stocks</option>
@@ -129,7 +129,7 @@
         </div>
         <div class="cfg-field">
           <label>🏦 Provider <span class="req">*</span></label>
-          <select id="cfgProvider" class="cfg-input" onchange="onProviderChange()">
+          <select id="cfgProvider" class="cfg-input">
             <option value="">— Select Provider —</option>
           </select>
         </div>
@@ -160,7 +160,7 @@
       <div class="cfg-section-title"><i class="bi bi-shield-lock me-2"></i>Authentication</div>
       <div class="cfg-field mb-3" style="max-width:260px">
         <label>🔐 Auth Type</label>
-        <select id="cfgAuthType" class="cfg-input" onchange="onAuthTypeChange()">
+        <select id="cfgAuthType" class="cfg-input">
           <option value="api_key">API Key + Secret</option>
           <option value="token">Bearer Token</option>
           <option value="oauth">OAuth</option>
@@ -242,14 +242,14 @@
 
   <!-- Sticky Footer -->
   <div class="cfg-footer">
-    <button class="cfg-btn cfg-btn-cancel" onclick="closeCfgModal()">
+    <button class="cfg-btn cfg-btn-cancel" id="cfgCancelBtn">
       <i class="bi bi-x me-1"></i>Cancel
     </button>
     <div class="d-flex gap-2">
-      <button class="cfg-btn cfg-btn-test" id="cfgTestBtn" onclick="testFromModal()">
+      <button class="cfg-btn cfg-btn-test" id="cfgTestBtn">
         <i class="bi bi-wifi me-1"></i>Test Connection
       </button>
-      <button class="cfg-btn cfg-btn-save" onclick="saveConfig()">
+      <button class="cfg-btn cfg-btn-save" id="cfgSaveBtn">
         <i class="bi bi-check-lg me-1"></i>Save Configuration
       </button>
     </div>
@@ -544,6 +544,18 @@ async function init() {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
   document.getElementById('addConfigBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('addConfigBtn').addEventListener('click', openAddModal);
+  document.querySelectorAll('#marketTabs [data-market]').forEach(button => {
+    button.addEventListener('click', () => switchTab(button, button.dataset.market));
+  });
+  document.getElementById('cfgBackdrop').addEventListener('click', closeCfgModal);
+  document.getElementById('cfgCloseBtn').addEventListener('click', closeCfgModal);
+  document.getElementById('cfgCancelBtn').addEventListener('click', closeCfgModal);
+  document.getElementById('cfgMarket').addEventListener('change', () => onMarketChange());
+  document.getElementById('cfgProvider').addEventListener('change', onProviderChange);
+  document.getElementById('cfgAuthType').addEventListener('change', onAuthTypeChange);
+  document.getElementById('cfgTestBtn').addEventListener('click', testFromModal);
+  document.getElementById('cfgSaveBtn').addEventListener('click', saveConfig);
 
   // Load provider metadata
   const pd = await API.get('/admin/api-configs/providers');
@@ -585,8 +597,9 @@ function renderTable(market) {
     wrap.innerHTML = `<div class="p-5 text-center text-muted">
       <i class="bi bi-plug" style="font-size:2rem;opacity:.3"></i>
       <p class="mt-2">No configurations for this market yet.</p>
-      ${isSuperAdmin ? `<button class="btn btn-accent btn-sm" onclick="openAddModal()"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>` : ''}
+      ${isSuperAdmin ? `<button class="btn btn-accent btn-sm" data-config-action="add"><i class="bi bi-plus-lg me-1"></i>Add Configuration</button>` : ''}
     </div>`;
+    bindConfigActions(wrap);
     return;
   }
 
@@ -595,11 +608,12 @@ function renderTable(market) {
     const groups = {};
     filtered.forEach(c => { const m = c.market || 'other'; (groups[m] = groups[m]||[]).push(c); });
     wrap.innerHTML = Object.entries(groups).map(([m, cfgs]) =>
-      `<div class="market-section-header">${MARKET_LABELS[m]||m}</div>` + cfgs.map(configRow).join('')
+      `<div class="market-section-header">${escapeHtml(MARKET_LABELS[m]||m)}</div>` + cfgs.map(configRow).join('')
     ).join('');
   } else {
     wrap.innerHTML = filtered.map(configRow).join('');
   }
+  bindConfigActions(wrap);
 }
 
 function configRow(c) {
@@ -609,8 +623,8 @@ function configRow(c) {
   const healthBadge = `<span class="badge ${HEALTH_COLOR[health.state]||'bg-secondary'} provider-health-badge" title="${escapeHtml(health.detail)}">${escapeHtml(health.label || health.state || 'Unknown')}</span>`;
   const def   = c.is_default ? '<span class="badge bg-accent ms-1" style="font-size:10px;background:var(--accent)!important">DEFAULT</span>' : '';
   const lastSync = c.last_sync ? `<span title="Last successful connection test">Verified ${timeAgo(c.last_sync)}</span>` : '<span class="text-muted">Never verified</span>';
-  const latency  = c.last_latency_ms ? `<span class="text-muted ms-1">${c.last_latency_ms}ms</span>` : '';
-  const errBadge = c.error_count > 0 ? `<span class="badge bg-danger ms-1" style="font-size:10px">${c.error_count} err</span>` : '';
+  const latency  = c.last_latency_ms ? `<span class="text-muted ms-1">${escapeHtml(c.last_latency_ms)}ms</span>` : '';
+  const errBadge = c.error_count > 0 ? `<span class="badge bg-danger ms-1" style="font-size:10px">${escapeHtml(c.error_count)} err</span>` : '';
   const key_icon = c.has_key ? '<i class="bi bi-key-fill text-warning" title="API Key set"></i>' : '';
 
   return `<div class="api-row px-3 py-3 d-flex align-items-center gap-3" style="flex-wrap:wrap">
@@ -633,30 +647,46 @@ function configRow(c) {
     </div>
     <!-- Meta -->
     <div class="text-muted d-none d-md-block" style="font-size:11px;min-width:130px">
-      <div><i class="bi bi-clock me-1"></i>${c.refresh_interval}s interval</div>
-      <div><i class="bi bi-speedometer me-1"></i>${c.rate_limit} req/min</div>
+      <div><i class="bi bi-clock me-1"></i>${escapeHtml(c.refresh_interval)}s interval</div>
+      <div><i class="bi bi-speedometer me-1"></i>${escapeHtml(c.rate_limit)} req/min</div>
       ${c.websocket_url ? '<div><i class="bi bi-broadcast me-1 text-success"></i>WebSocket</div>' : ''}
     </div>
     <!-- Dates -->
     <div class="text-muted d-none d-lg-block" style="font-size:11px;min-width:110px">
-      <div>Created: ${c.created_at?.slice(0,10)||'—'}</div>
-      <div>Updated: ${c.updated_at?.slice(0,10)||'—'}</div>
+      <div>Created: ${escapeHtml(c.created_at?.slice(0,10)||'—')}</div>
+      <div>Updated: ${escapeHtml(c.updated_at?.slice(0,10)||'—')}</div>
     </div>
     <!-- Actions -->
     <div class="d-flex gap-1 flex-wrap">
       ${isSuperAdmin ? `
-      <button class="btn btn-sm btn-outline-light" title="Edit" onclick="openEditModal(${c.id})"><i class="bi bi-pencil"></i></button>
-      <button class="btn btn-sm btn-outline-info"  title="Test Connection" onclick="testConfig(${c.id})"><i class="bi bi-wifi"></i></button>
+      <button class="btn btn-sm btn-outline-light" title="Edit" data-config-action="edit" data-config-id="${escapeHtml(STSafe.assetId(c.id))}"><i class="bi bi-pencil"></i></button>
+      <button class="btn btn-sm btn-outline-info"  title="Test Connection" data-config-action="test" data-config-id="${escapeHtml(STSafe.assetId(c.id))}"><i class="bi bi-wifi"></i></button>
       ${c.status === 'paused'
-        ? `<button class="btn btn-sm btn-outline-success" title="Resume" onclick="doAction(${c.id},'resume')"><i class="bi bi-play-fill"></i></button>`
-        : `<button class="btn btn-sm btn-outline-warning" title="Pause"  onclick="doAction(${c.id},'pause')"><i class="bi bi-pause-fill"></i></button>`
+        ? `<button class="btn btn-sm btn-outline-success" title="Resume" data-config-action="action" data-config-id="${escapeHtml(STSafe.assetId(c.id))}" data-action="resume"><i class="bi bi-play-fill"></i></button>`
+        : `<button class="btn btn-sm btn-outline-warning" title="Pause" data-config-action="action" data-config-id="${escapeHtml(STSafe.assetId(c.id))}" data-action="pause"><i class="bi bi-pause-fill"></i></button>`
       }
-      ${!c.is_default ? `<button class="btn btn-sm btn-outline-secondary" title="Set as Default" onclick="doAction(${c.id},'set-default')"><i class="bi bi-star"></i></button>` : `<button class="btn btn-sm btn-warning" title="Default" disabled><i class="bi bi-star-fill"></i></button>`}
-      <button class="btn btn-sm btn-outline-secondary" title="Duplicate" onclick="doAction(${c.id},'duplicate')"><i class="bi bi-copy"></i></button>` : ''}
-      <button class="btn btn-sm btn-outline-secondary" title="View Logs"  onclick="viewLogs(${c.id})"><i class="bi bi-list-ul"></i></button>
-      ${isSuperAdmin ? `<button class="btn btn-sm btn-outline-danger"    title="Delete"     onclick="deleteConfig(${c.id})"><i class="bi bi-trash"></i></button>` : ''}
+      ${!c.is_default ? `<button class="btn btn-sm btn-outline-secondary" title="Set as Default" data-config-action="action" data-config-id="${escapeHtml(STSafe.assetId(c.id))}" data-action="set-default"><i class="bi bi-star"></i></button>` : `<button class="btn btn-sm btn-warning" title="Default" disabled><i class="bi bi-star-fill"></i></button>`}
+      <button class="btn btn-sm btn-outline-secondary" title="Duplicate" data-config-action="action" data-config-id="${escapeHtml(STSafe.assetId(c.id))}" data-action="duplicate"><i class="bi bi-copy"></i></button>` : ''}
+      <button class="btn btn-sm btn-outline-secondary" title="View Logs" data-config-action="logs" data-config-id="${escapeHtml(STSafe.assetId(c.id))}"><i class="bi bi-list-ul"></i></button>
+      ${isSuperAdmin ? `<button class="btn btn-sm btn-outline-danger" title="Delete" data-config-action="delete" data-config-id="${escapeHtml(STSafe.assetId(c.id))}"><i class="bi bi-trash"></i></button>` : ''}
     </div>
   </div>`;
+}
+
+function bindConfigActions(root) {
+  root.querySelectorAll('[data-config-action]').forEach(button => {
+    const action = button.dataset.configAction;
+    if (action === 'add') {
+      button.addEventListener('click', openAddModal);
+      return;
+    }
+    const id = Number(button.dataset.configId);
+    if (action === 'edit') button.addEventListener('click', () => openEditModal(id));
+    else if (action === 'test') button.addEventListener('click', () => testConfig(id));
+    else if (action === 'logs') button.addEventListener('click', () => viewLogs(id));
+    else if (action === 'delete') button.addEventListener('click', () => deleteConfig(id));
+    else if (action === 'action') button.addEventListener('click', () => doAction(id, button.dataset.action));
+  });
 }
 
 // ── Custom overlay open/close ───────────────────────────────────
@@ -690,8 +720,9 @@ function openAddModal() {
 
 // ── Open Edit Modal ────────────────────────────────────────────
 function openEditModal(id) {
+  id = STSafe.assetId(id);
   resetModal();
-  const c = allConfigs.find(x => x.id === id);
+  const c = allConfigs.find(x => String(x.id) === id);
   if (!c) return;
   document.getElementById('cfgPanelTitle').textContent = 'Edit Configuration';
   document.getElementById('cfgPanelSub').textContent   = c.name;
@@ -735,7 +766,7 @@ function onMarketChange(selectProvider) {
   const psel   = document.getElementById('cfgProvider');
   const list   = PROVIDERS[market] || ['custom'];
   psel.innerHTML = '<option value="">— Select Provider —</option>' +
-    list.map(p => `<option value="${p}">${providerLabel(p)}</option>`).join('');
+    list.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(providerLabel(p))}</option>`).join('');
   if (selectProvider) psel.value = selectProvider;
 }
 
@@ -753,7 +784,7 @@ function onProviderChange() {
     if (defs.base_url && !document.getElementById('cfgBaseUrl').value) document.getElementById('cfgBaseUrl').value = defs.base_url;
     if (defs.websocket_url)  document.getElementById('cfgWsUrl').value = defs.websocket_url;
     const hint = document.getElementById('providerHint');
-    hint.innerHTML = `<i class="bi bi-info-circle me-1 text-accent"></i>Pre-filled defaults for <strong>${providerLabel(p)}</strong>. You can override any field.`;
+    hint.innerHTML = `<i class="bi bi-info-circle me-1 text-accent"></i>Pre-filled defaults for <strong>${escapeHtml(providerLabel(p))}</strong>. You can override any field.`;
     hint.style.display = 'block';
   }
 
@@ -778,7 +809,7 @@ function onAuthTypeChange() {
 }
 
 async function saveConfig() {
-  const id = document.getElementById('cfgId').value;
+  const id = STSafe.assetId(document.getElementById('cfgId').value);
   const payload = {
     name:             document.getElementById('cfgName').value.trim(),
     provider:         document.getElementById('cfgProvider').value,
@@ -811,13 +842,17 @@ async function saveConfig() {
 }
 
 async function doAction(id, action) {
+  id = STSafe.assetId(id);
+  if (!id || !['pause', 'resume', 'set-default', 'duplicate'].includes(action)) return;
   if (action === 'set-default' && !confirm('Set this as the default provider for its market?')) return;
   const res = await API.post(`/admin/api-configs/${id}/${action}`);
   if (res) { Toast.show(res.message || 'Done', 'success'); loadConfigs(); }
 }
 
 async function deleteConfig(id) {
-  const config = allConfigs.find(x => x.id === id);
+  id = STSafe.assetId(id);
+  if (!id) return;
+  const config = allConfigs.find(x => String(x.id) === id);
   const name = config?.name || 'this configuration';
   if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
   const res = await API.delete(`/admin/api-configs/${id}`);
@@ -825,8 +860,10 @@ async function deleteConfig(id) {
 }
 
 async function testConfig(id) {
+  id = STSafe.assetId(id);
+  if (!id) return;
   // Open the cfg panel for the given config, then trigger test inline
-  const c = allConfigs.find(x => x.id === id);
+  const c = allConfigs.find(x => String(x.id) === id);
   if (c) {
     openEditModal(id);
     // short delay so panel renders before scrolling
@@ -835,7 +872,7 @@ async function testConfig(id) {
 }
 
 async function testFromModal() {
-  const id = document.getElementById('cfgId').value;
+  const id = STSafe.assetId(document.getElementById('cfgId').value);
   if (!id) { Toast.show('Save the configuration first, then test', 'warning'); return; }
 
   const resultBox  = document.getElementById('cfgTestResult');
@@ -872,8 +909,8 @@ function renderTestResult(r) {
   const check = (label, ok, detail='') =>
     `<div class="test-check ${ok ? 'ok' : 'fail'}">
       <i class="bi bi-${ok ? 'check-circle-fill' : 'x-circle-fill'}"></i>
-      <span class="test-check-label">${label}</span>
-      <span class="test-check-detail">${detail}</span>
+      <span class="test-check-label">${escapeHtml(label)}</span>
+      <span class="test-check-detail">${escapeHtml(detail)}</span>
     </div>`;
 
   const safeError = escapeHtml(r.error || '');
@@ -892,14 +929,16 @@ function renderTestResult(r) {
 }
 
 async function viewLogs(id) {
-  const config = allConfigs.find(x => x.id === id);
+  id = STSafe.assetId(id);
+  if (!id) return;
+  const config = allConfigs.find(x => String(x.id) === id);
   const name = config?.name || 'Configuration';
   const modal = new bootstrap.Modal(document.getElementById('logsModal'));
   document.getElementById('logsModalTitle').textContent = `Logs — ${name}`;
   document.getElementById('logsModalBody').innerHTML = '<div class="text-center py-3 text-muted">Loading…</div>';
   modal.show();
   const data = await API.get(`/admin/api-configs/${id}/logs`);
-  if (!data || !data.logs.length) {
+  if (!data || !data.logs?.length) {
     document.getElementById('logsModalBody').innerHTML = '<p class="p-3 text-muted">No logs found.</p>';
     return;
   }
@@ -910,9 +949,9 @@ async function viewLogs(id) {
       </thead>
       <tbody>${data.logs.map(l => `
         <tr>
-          <td class="px-3"><code style="font-size:11px">${escapeHtml(l.action)}</code></td>
-          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${escapeHtml(l.status)}</span></td>
-          <td class="text-muted small">${l.response_time_ms ? l.response_time_ms+'ms' : '—'}</td>
+          <td class="px-3"><code style="font-size:11px">${escapeHtml(l.action || '—')}</code></td>
+          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${escapeHtml(l.status || 'unknown')}</span></td>
+          <td class="text-muted small">${l.response_time_ms ? escapeHtml(l.response_time_ms)+'ms' : '—'}</td>
           <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.error_message || '—')}</td>
           <td class="text-muted small">${timeAgo(l.created_at)}</td>
         </tr>`).join('')}
