@@ -63,17 +63,17 @@ services:
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
-    # The Dockerfile bakes in a HEALTHCHECK that curls the web app's
-    # /api/v1/system/ready over HTTP on :8000 — inherited here unless
-    # overridden, even though worker.py explicitly binds no HTTP port at
-    # all (see its own docstring). That check can never succeed, so this
-    # container reported "unhealthy" unconditionally, permanently, since
-    # the RUN_SCHEDULER web/worker split was introduced — not a real
-    # signal of anything, just a copy-pasted check that doesn't apply
-    # here. Disabled until a check that actually reflects worker liveness
-    # (e.g. a scheduler heartbeat) replaces it.
+    # The worker owns no HTTP port, so its liveness check reads the same
+    # short-lived Redis heartbeat consumed by /system/ready on the web tier.
     healthcheck:
-      disable: true
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import os,time,redis; c=redis.Redis.from_url(os.environ['REDIS_URL'], socket_connect_timeout=2, socket_timeout=2); v=c.get('smarttradeai:worker:heartbeat'); raise SystemExit(0 if v and time.time()-float(v)<90 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   db:
     image: postgres:16

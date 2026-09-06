@@ -208,6 +208,20 @@ Startup compatibility checks no longer drop the legacy `market_data` and `techni
 
 **Database changes:** none; legacy tables are preserved. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.152 IMPLEMENTED - Give the worker a real healthcheck
+
+The Docker Compose worker now reports liveness by checking the existing Redis heartbeat that the web readiness endpoint already consumes, with bounded socket timeouts, a 90-second freshness threshold, retries and startup grace. This replaces the invalid inherited HTTP probe that could never work because the worker intentionally binds no HTTP port, improving orchestration visibility without changing scheduler or market-stream behavior.
+
+**Risk level:** High operational observability value, low runtime compatibility risk. **Affected modules:** `docker-compose.yml`, `tests/unit/test_compose_config_safety.py`. **Migration:** none.
+
+**Regression evidence:** Compose configuration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this healthcheck slice.
+
+**Session 132 (Worker liveness observability):**
+- `docker-compose.yml` - replace the disabled worker HTTP probe with a Redis-heartbeat healthcheck.
+- `tests/unit/test_compose_config_safety.py` - protect the worker probe and timeout contract.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.149 IMPLEMENTED - Remove obsolete Compose metadata
 
 The Docker Compose deployment definition no longer declares the obsolete top-level `version` key, eliminating a warning emitted on every operational command under the current Compose specification. Services, health checks, environment wiring and persistent volumes are unchanged.
