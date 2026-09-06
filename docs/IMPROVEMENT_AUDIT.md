@@ -1337,4 +1337,33 @@ Admin asset create, update and add-from-search endpoints now require JSON object
 - `frontend/templates/admin/assets.html` - replace inline controls, safely render provider values, sequence reads and bound bulk mutations.
 - `tests/integration/test_asset_routes_validation.py`, `tests/unit/test_admin_assets_template_safety.py` - cover route and UI safety boundaries.
 
+### 7.88 IMPLEMENTED - Harden Commodities market workflow
+
+Commodity price, sentiment and signal displays now validate provider payloads, bound percentages and counts, reject unknown generation inputs, suppress duplicate generation, guard stale signal/sentiment reads, and expose working pagination. Cards and actions are keyboard-capable and no longer depend on inline handlers.
+
+**Risk level:** High decision-support trust and user-experience value, low API compatibility risk. **Affected modules:** `frontend/templates/markets/commodities.html`, `tests/unit/test_commodities_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Commodities checks passed (**3 passed**), browser JavaScript parsing and inline handler audit passed. Commit: `643f583`.
+
+### 7.89 IMPLEMENTED - Harden AI Insights and model analytics surfaces
+
+AI Insights now safely normalizes asset and prediction payloads, bounds probabilities/quality/history values, serializes one prediction run at a time, and prevents stale results from replacing a newer run. Model Performance now guards malformed analytics records, finite numeric displays, chart-library absence and duplicate refreshes. Signal Analytics now safely renders provider aggregates, bounds counts/rates, protects chart lifecycle and uses dataset-bound exports.
+
+**Risk level:** Critical decision-support trust and observability value, low API compatibility risk. **Affected modules:** `frontend/templates/dashboard/ai_insights.html`, `frontend/templates/dashboard/model_performance.html`, `frontend/templates/dashboard/analytics.html`, `tests/unit/test_ai_insights_template_safety.py`, `tests/unit/test_model_performance_template_safety.py`, `tests/unit/test_analytics_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** AI Insights, Model Performance and Analytics checks each passed (**3 passed each**), rendered JavaScript parsing passed, and inline handler audits passed. Commits: `a712b49`, `060f9b9`, `260e5a7`.
+
+**Session 67 (UI safety/performance - Commodities market workflow, §7.88):**
+- `frontend/templates/markets/commodities.html` - validate commodity payloads, guard reads/generation, remove inline controls and add pagination.
+- `tests/unit/test_commodities_template_safety.py` - protect commodity rendering and action contracts.
+
+**Session 68 (UI safety/decision-support integrity - AI Insights and Model Performance, §7.89):**
+- `frontend/templates/dashboard/ai_insights.html` - bound model values, escape asset/prediction metadata and guard concurrent runs.
+- `frontend/templates/dashboard/model_performance.html` - bound analytics values, protect chart fallback and serialize refreshes.
+- `tests/unit/test_ai_insights_template_safety.py`, `tests/unit/test_model_performance_template_safety.py` - protect both analytical screens.
+
+**Session 69 (UI safety/performance - Signal Analytics, §7.89):**
+- `frontend/templates/dashboard/analytics.html` - safely render aggregate values, protect chart lifecycle, serialize refreshes and bind exports without inline handlers.
+- `tests/unit/test_analytics_template_safety.py` - protect the Analytics rendering and export contract.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
