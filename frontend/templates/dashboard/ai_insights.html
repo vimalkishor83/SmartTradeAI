@@ -78,8 +78,8 @@
             {% endfor %}
           </div>
           <div class="d-flex gap-2 mt-2">
-            <button class="btn btn-xs btn-outline-secondary" onclick="setAllTfs(true)">All</button>
-            <button class="btn btn-xs btn-outline-secondary" onclick="setAllTfs(false)">None</button>
+            <button type="button" class="btn btn-xs btn-outline-secondary" data-action="select-all-timeframes">All</button>
+            <button type="button" class="btn btn-xs btn-outline-secondary" data-action="clear-all-timeframes">None</button>
           </div>
         </div>
 
@@ -146,19 +146,33 @@ const TF_LABEL = {'1m':'1 Min','5m':'5 Min','15m':'15 Min','30m':'30 Min','1h':'
 
 const MARKET_LABELS = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
   indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
+const AI_TIMEFRAMES = new Set(Object.keys(TF_LABEL));
+const AI_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
+let _predictionRunSequence = 0;
+let _predictionRunning = false;
 
 async function loadAssets() {
   const data = await API.get('/assets/');
-  if (!data?.assets) return;
+  const select = document.getElementById('aiAsset');
+  if (!select) return;
+  const assets = (Array.isArray(data?.assets) ? data.assets : []).map(asset => {
+    if (!asset || typeof asset !== 'object') return null;
+    const id = Number(asset.id);
+    const symbol = String(asset.symbol ?? '').trim();
+    if (!Number.isInteger(id) || id < 1 || !symbol) return null;
+    return { ...asset, id, symbol, name: String(asset.name ?? symbol), market: String(asset.market ?? 'other') };
+  }).filter(Boolean);
+  if (!assets.length) return;
   const byMarket = {};
-  data.assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
-  document.getElementById('aiAsset').innerHTML = Object.keys(byMarket).sort().map(m => `
-    <optgroup label="${MARKET_LABELS[m] || m}">
-      ${byMarket[m].map(a => `<option value="${a.id}">${a.symbol} — ${a.name}</option>`).join('')}
+  assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
+  select.innerHTML = Object.keys(byMarket).sort().map(m => `
+    <optgroup label="${escapePredictionMeta(MARKET_LABELS[m] || m)}">
+      ${byMarket[m].map(a => `<option value="${STSafe.assetId(a.id)}">${escapePredictionMeta(a.symbol)} — ${escapePredictionMeta(a.name)}</option>`).join('')}
     </optgroup>`).join('');
 }
 
 function setAllTfs(val) {
+  if (typeof val !== 'boolean') return;
   document.querySelectorAll('input[name="aiTf"]').forEach(cb => cb.checked = val);
   updateTfCount();
 }
@@ -168,14 +182,10 @@ function updateTfCount() {
   document.getElementById('tfSelectedCount').textContent = `${checked} selected`;
 }
 
-document.querySelectorAll('input[name="aiTf"]').forEach(cb =>
-  cb.addEventListener('change', updateTfCount)
-);
-
 function buildSkeletonCard(tf) {
   return `<div class="pred-card loading" id="predCard_${tf}">
     <div class="d-flex justify-content-between align-items-center mb-2">
-      <span class="pred-tf-badge">${TF_LABEL[tf] || tf}</span>
+      <span class="pred-tf-badge">${escapePredictionMeta(TF_LABEL[tf] || tf)}</span>
       <span style="font-size:11px;color:var(--text-muted)">Predicting...</span>
     </div>
     <div style="background:var(--border);border-radius:4px;height:14px;width:60%;margin-bottom:8px"></div>
@@ -190,19 +200,22 @@ function escapePredictionMeta(value) {
 }
 
 function buildResultCard(tf, data) {
+  const tfLabel = escapePredictionMeta(TF_LABEL[tf] || tf);
   if (!data) {
     return `<div class="pred-card" id="predCard_${tf}">
       <div class="d-flex justify-content-between align-items-center">
-        <span class="pred-tf-badge">${TF_LABEL[tf] || tf}</span>
+        <span class="pred-tf-badge">${tfLabel}</span>
         <span style="font-size:11px;color:var(--red)">Failed — insufficient data</span>
       </div>
     </div>`;
   }
 
-  const dir     = (data.predicted_direction || 'neutral').toLowerCase();
-  const bull    = parseFloat(data.bullish_probability) || 0;
-  const bear    = parseFloat(data.bearish_probability) || 0;
-  const conf    = parseFloat(data.confidence) || 0;
+  const rawDir  = String(data.predicted_direction ?? 'neutral').toLowerCase();
+  const dir     = AI_DIRECTIONS.has(rawDir) ? rawDir : 'neutral';
+  const bounded = value => Math.max(0, Math.min(100, Number.isFinite(Number(value)) ? Number(value) : 0));
+  const bull    = bounded(data.bullish_probability);
+  const bear    = bounded(data.bearish_probability);
+  const conf    = bounded(data.confidence);
   const dirCls  = dir === 'bullish' ? 'bullish' : dir === 'bearish' ? 'bearish' : 'neutral';
   const dirClr  = dir === 'bullish' ? 'var(--green)' : dir === 'bearish' ? 'var(--red)' : 'var(--yellow)';
   const dirIcon = dir === 'bullish' ? 'bi-arrow-up-right' : dir === 'bearish' ? 'bi-arrow-down-right' : 'bi-dash';
@@ -210,7 +223,9 @@ function buildResultCard(tf, data) {
   const modelVersion = data.model_version
     ? escapePredictionMeta(data.model_version)
     : 'unavailable (legacy or fallback)';
-  const modelOutputs = data.model_outputs && typeof data.model_outputs === 'object' ? data.model_outputs : {};
+  const modelOutputs = data.model_outputs && typeof data.model_outputs === 'object' && !Array.isArray(data.model_outputs) ? data.model_outputs : {};
+  const target = Number.isFinite(Number(data.predicted_target)) && Number(data.predicted_target) > 0 ? Number(data.predicted_target) : null;
+  const stop = Number.isFinite(Number(data.predicted_stop)) && Number(data.predicted_stop) > 0 ? Number(data.predicted_stop) : null;
   const memberEntries = Object.entries(modelOutputs)
     .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
     .map(([name, value]) => [name, Math.max(0, Math.min(100, Number(value)))]);
@@ -233,32 +248,38 @@ function buildResultCard(tf, data) {
     <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--yellow)">
       Heuristic fallback active; no trained ensemble member output is available.
     </div>` : '');
-  const quality = data.data_quality;
-  const qualityStatus = String(quality?.status || 'UNKNOWN').toUpperCase();
+  const quality = data.data_quality && typeof data.data_quality === 'object' && !Array.isArray(data.data_quality) ? data.data_quality : null;
+  const qualityStatusRaw = String(quality?.status || 'UNKNOWN').toUpperCase();
+  const qualityStatus = ['GREEN', 'YELLOW', 'RED'].includes(qualityStatusRaw) ? qualityStatusRaw : 'UNKNOWN';
   const qualityColor = qualityStatus === 'GREEN' ? 'var(--green)' : qualityStatus === 'YELLOW' ? 'var(--yellow)' : qualityStatus === 'RED' ? 'var(--red)' : 'var(--text-muted)';
   const qualityAge = Number(quality?.last_candle_age_seconds);
+  const candleCount = Math.max(0, Math.trunc(Number(quality?.candle_count || 0) || 0));
   const qualityDetail = quality
-    ? `${Number(quality.candle_count || 0)} candles${Number.isFinite(qualityAge) ? ` · latest ${Math.max(0, qualityAge / 60).toFixed(0)} min old` : ''}`
+    ? `${candleCount} candles${Number.isFinite(qualityAge) ? ` · latest ${Math.max(0, qualityAge / 60).toFixed(0)} min old` : ''}`
     : 'Unavailable for legacy prediction';
-  const qualityIssue = quality?.issues?.length
+  const qualityIssue = Array.isArray(quality?.issues) && quality.issues.length
     ? `<div style="font-size:10px;color:${qualityColor};margin-top:3px">${escapePredictionMeta(quality.issues[0])}</div>`
     : '';
-  const history = data.historical_context;
+  const history = data.historical_context && typeof data.historical_context === 'object' && !Array.isArray(data.historical_context)
+    ? data.historical_context : null;
+  const historyAccuracy = history?.accuracy == null ? null : bounded(history.accuracy);
+  const historySample = Math.max(0, Math.trunc(Number(history?.sample_size || 0) || 0));
+  const historyCorrect = Math.max(0, Math.min(historySample, Math.trunc(Number(history?.correct || 0) || 0)));
   const historyHtml = history ? `
     <div class="mt-3 pt-2" style="border-top:1px solid var(--border)">
       <div class="d-flex justify-content-between align-items-center" style="font-size:11px;color:var(--text-muted)">
         <span><i class="bi bi-bar-chart-line me-1"></i>Observed history</span>
-        <span style="font-weight:700;color:var(--text-secondary)">${history.accuracy == null ? 'No resolved sample' : `${Number(history.accuracy).toFixed(1)}% accurate`}</span>
+        <span style="font-weight:700;color:var(--text-secondary)">${historyAccuracy == null ? 'No resolved sample' : `${historyAccuracy.toFixed(1)}% accurate`}</span>
       </div>
       <div style="font-size:10px;color:var(--text-muted);margin-top:3px">
-        ${history.sample_size ? `${history.correct}/${history.sample_size} recent resolved predictions for this asset and timeframe.` : 'Accuracy will appear after predictions are resolved.'}
+        ${historySample ? `${historyCorrect}/${historySample} recent resolved predictions for this asset and timeframe.` : 'Accuracy will appear after predictions are resolved.'}
       </div>
     </div>` : '';
 
   return `<div class="pred-card ${dirCls}" id="predCard_${tf}">
     <div class="d-flex justify-content-between align-items-start mb-3">
       <div>
-        <span class="pred-tf-badge">${TF_LABEL[tf] || tf}</span>
+        <span class="pred-tf-badge">${tfLabel}</span>
         <span class="ms-2" style="font-size:18px;font-weight:900;color:${dirClr}">
           <i class="bi ${dirIcon} me-1"></i>${dir.toUpperCase()}
         </span>
@@ -286,18 +307,18 @@ function buildResultCard(tf, data) {
       </div>
     </div>
 
-    ${(data.predicted_target || data.predicted_stop) ? `
+    ${(target || stop) ? `
     <div class="row g-2 mt-2">
-      ${data.predicted_target ? `<div class="col-6">
+      ${target ? `<div class="col-6">
         <div style="padding:8px;border-radius:6px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)">
           <div style="font-size:10px;color:var(--text-muted)">Target</div>
-          <div style="font-size:14px;font-weight:700;color:var(--green)">${formatPrice(data.predicted_target)}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--green)">${formatPrice(target)}</div>
         </div>
       </div>` : ''}
-      ${data.predicted_stop ? `<div class="col-6">
+      ${stop ? `<div class="col-6">
         <div style="padding:8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2)">
           <div style="font-size:10px;color:var(--text-muted)">Stop Loss</div>
-          <div style="font-size:14px;font-weight:700;color:var(--red)">${formatPrice(data.predicted_stop)}</div>
+          <div style="font-size:14px;font-weight:700;color:var(--red)">${formatPrice(stop)}</div>
         </div>
       </div>` : ''}
     </div>` : ''}
@@ -319,115 +340,112 @@ function buildResultCard(tf, data) {
   </div>`;
 }
 
-document.getElementById('runAI').addEventListener('click', async () => {
-  const assetId  = document.getElementById('aiAsset').value;
-  const selected = [...document.querySelectorAll('input[name="aiTf"]:checked')].map(c => c.value);
-  if (!assetId)       { Toast.show('Select an asset first', 'warning'); return; }
+async function runPrediction() {
+  if (_predictionRunning) return;
+  const assetId = Number(document.getElementById('aiAsset')?.value);
+  const selected = [...document.querySelectorAll('input[name="aiTf"]:checked')]
+    .map(control => control.value).filter(tf => AI_TIMEFRAMES.has(tf));
+  if (!Number.isInteger(assetId) || assetId < 1) { Toast.show('Select an asset first', 'warning'); return; }
   if (!selected.length) { Toast.show('Select at least one timeframe', 'warning'); return; }
 
-  const assetLabel = document.getElementById('aiAsset').selectedOptions[0]?.text || '';
-  const panel      = document.getElementById('aiRightPanel');
-  const btn        = document.getElementById('runAI');
-  btn.disabled     = true;
-  btn.innerHTML    = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
+  const sequence = ++_predictionRunSequence;
+  _predictionRunning = true;
+  const assetLabel = escapePredictionMeta(document.getElementById('aiAsset')?.selectedOptions[0]?.textContent || 'Selected asset');
+  const panel = document.getElementById('aiRightPanel');
+  const btn = document.getElementById('runAI');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
 
-  // Show skeleton immediately — replaces placeholder entirely
-  panel.innerHTML = `
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
-      <span class="badge-tag">${assetLabel}</span>
-    </div>
-    <div id="aiResultCards" class="d-flex flex-column gap-3">
-      ${selected.map(buildSkeletonCard).join('')}
-    </div>`;
-
-  // Fetch all TFs in parallel — getWithError() (not the usual API.get) so a
-  // 403 tier-gate response's status/error body survives instead of being
-  // discarded, letting us show a real upgrade prompt instead of treating
-  // every timeframe as a silent "no data" result.
-  const results = await Promise.all(
-    selected.map(tf =>
-      API.getWithError(`/predictions/${assetId}`, { timeframe: tf })
-        .then(d => ({ tf, data: d }))
-        .catch(() => ({ tf, data: null }))
-    )
-  );
-
-  const tierGated = results.find(r => r.data?.status === 403);
-  if (tierGated) {
+  try {
     panel.innerHTML = `
-      <div class="section-card">
-        <div class="section-card-body p-4 text-center">
-          <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
-          <h5 class="mt-3 mb-2">AI Insights is a Premium feature</h5>
-          <p class="text-muted small mb-3">AI predictions require a Premium or Pro subscription. Upgrade your plan to unlock this.</p>
-          <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
-        </div>
-      </div>`;
-    btn.disabled  = false;
-    btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Prediction';
-    return;
-  }
-
-  // Compute confluence
-  let bull = 0, bear = 0, neut = 0;
-  results.forEach(r => {
-    if (!r.data) return;
-    const dir = (r.data.predicted_direction || '').toLowerCase();
-    if (dir === 'bullish') bull++;
-    else if (dir === 'bearish') bear++;
-    else neut++;
-  });
-  const total = bull + bear + neut;
-  let verdict = '', vClr = 'var(--text-muted)';
-  if (total > 0) {
-    if      (bull >= total * 0.7) { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Strong Bullish Confluence (${bull}/${total} TFs agree)`;  vClr = 'var(--green)'; }
-    else if (bear >= total * 0.7) { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Strong Bearish Confluence (${bear}/${total} TFs agree)`; vClr = 'var(--red)'; }
-    else if (bull > bear)         { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Mild Bullish Bias (${bull} bullish, ${bear} bearish)`;      vClr = 'var(--green)'; }
-    else if (bear > bull)         { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Mild Bearish Bias (${bear} bearish, ${bull} bullish)`;    vClr = 'var(--red)'; }
-    else                          { verdict = `<i class="bi bi-dash me-1"></i>Mixed — No Clear Direction`;                                           vClr = 'var(--yellow)'; }
-  }
-
-  const confluenceHtml = selected.length > 1 ? `
-    <div class="section-card mb-3">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent"></i> Confluence Summary</span>
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
         <span class="badge-tag">${assetLabel}</span>
       </div>
-      <div class="section-card-body">
-        <div class="row g-3 text-center mb-3">
-          <div class="col-4"><div class="p-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)">
-            <div class="fw-900" style="font-size:28px;color:var(--green)">${bull}</div>
-            <div style="font-size:12px;color:var(--text-muted)">Bullish TFs</div>
-          </div></div>
-          <div class="col-4"><div class="p-3 rounded" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)">
-            <div class="fw-900" style="font-size:28px;color:var(--red)">${bear}</div>
-            <div style="font-size:12px;color:var(--text-muted)">Bearish TFs</div>
-          </div></div>
-          <div class="col-4"><div class="p-3 rounded" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2)">
-            <div class="fw-900" style="font-size:28px;color:var(--yellow)">${neut}</div>
-            <div style="font-size:12px;color:var(--text-muted)">Neutral TFs</div>
-          </div></div>
+      <div id="aiResultCards" class="d-flex flex-column gap-3">
+        ${selected.map(buildSkeletonCard).join('')}
+      </div>`;
+
+    // Keep timeframe requests parallel, but one run owns the panel until all
+    // responses arrive so an older click cannot overwrite newer state.
+    const results = await Promise.all(selected.map(tf =>
+      API.getWithError(`/predictions/${assetId}`, { timeframe: tf })
+        .then(data => ({ tf, data }))
+        .catch(() => ({ tf, data: null }))
+    ));
+    if (sequence !== _predictionRunSequence) return;
+
+    const tierGated = results.some(result => result.data?.status === 403);
+    if (tierGated) {
+      panel.innerHTML = `
+        <div class="section-card">
+          <div class="section-card-body p-4 text-center">
+            <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
+            <h5 class="mt-3 mb-2">AI Insights is a Premium feature</h5>
+            <p class="text-muted small mb-3">AI predictions require a Premium or Pro subscription. Upgrade your plan to unlock this.</p>
+            <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
+          </div>
+        </div>`;
+      return;
+    }
+
+    const predictions = results.map(result => ({
+      ...result,
+      prediction: result.data && typeof result.data === 'object' && !Array.isArray(result.data) ? result.data : null,
+    }));
+    let bull = 0, bear = 0, neut = 0;
+    predictions.forEach(result => {
+      const dir = String(result.prediction?.predicted_direction ?? '').toLowerCase();
+      if (dir === 'bullish') bull++;
+      else if (dir === 'bearish') bear++;
+      else if (dir === 'neutral') neut++;
+    });
+    const total = bull + bear + neut;
+    let verdict = '', vClr = 'var(--text-muted)';
+    if (total > 0) {
+      if (bull >= total * 0.7) { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Strong Bullish Confluence (${bull}/${total} TFs agree)`; vClr = 'var(--green)'; }
+      else if (bear >= total * 0.7) { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Strong Bearish Confluence (${bear}/${total} TFs agree)`; vClr = 'var(--red)'; }
+      else if (bull > bear) { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Mild Bullish Bias (${bull} bullish, ${bear} bearish)`; vClr = 'var(--green)'; }
+      else if (bear > bull) { verdict = `<i class="bi bi-arrow-down-right me-1"></i>Mild Bearish Bias (${bear} bearish, ${bull} bullish)`; vClr = 'var(--red)'; }
+      else { verdict = '<i class="bi bi-dash me-1"></i>Mixed - No Clear Direction'; vClr = 'var(--yellow)'; }
+    }
+
+    const confluenceHtml = selected.length > 1 ? `
+      <div class="section-card mb-3">
+        <div class="section-card-header">
+          <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent"></i> Confluence Summary</span>
+          <span class="badge-tag">${assetLabel}</span>
         </div>
-        <div class="text-center"><span style="font-size:15px;font-weight:700;color:${vClr}">${verdict}</span></div>
-      </div>
-    </div>` : '';
+        <div class="section-card-body">
+          <div class="row g-3 text-center mb-3">
+            <div class="col-4"><div class="p-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)"><div class="fw-900" style="font-size:28px;color:var(--green)">${bull}</div><div style="font-size:12px;color:var(--text-muted)">Bullish TFs</div></div></div>
+            <div class="col-4"><div class="p-3 rounded" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)"><div class="fw-900" style="font-size:28px;color:var(--red)">${bear}</div><div style="font-size:12px;color:var(--text-muted)">Bearish TFs</div></div></div>
+            <div class="col-4"><div class="p-3 rounded" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2)"><div class="fw-900" style="font-size:28px;color:var(--yellow)">${neut}</div><div style="font-size:12px;color:var(--text-muted)">Neutral TFs</div></div></div>
+          </div>
+          <div class="text-center"><span style="font-size:15px;font-weight:700;color:${vClr}">${verdict}</span></div>
+        </div>
+      </div>` : '';
 
-  // Replace panel with final content
-  panel.innerHTML = `
-    ${confluenceHtml}
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
-      <span class="badge-tag">${assetLabel}</span>
-    </div>
-    <div class="d-flex flex-column gap-3">
-      ${results.map(r => buildResultCard(r.tf, r.data)).join('')}
-    </div>`;
+    panel.innerHTML = `
+      ${confluenceHtml}
+      <div class="d-flex justify-content-between align-items-center mb-3"><span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span><span class="badge-tag">${assetLabel}</span></div>
+      <div class="d-flex flex-column gap-3">${predictions.map(result => buildResultCard(result.tf, result.prediction)).join('')}</div>`;
+  } finally {
+    if (sequence === _predictionRunSequence) {
+      _predictionRunning = false;
+      btn.disabled = false;
+      btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Prediction';
+    }
+  }
+}
 
-  btn.disabled  = false;
-  btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Prediction';
+document.addEventListener('app:ready', () => {
+  document.getElementById('runAI')?.addEventListener('click', runPrediction);
+  document.querySelector('[data-action="select-all-timeframes"]')?.addEventListener('click', () => setAllTfs(true));
+  document.querySelector('[data-action="clear-all-timeframes"]')?.addEventListener('click', () => setAllTfs(false));
+  document.querySelectorAll('input[name="aiTf"]').forEach(cb => cb.addEventListener('change', updateTfCount));
+  updateTfCount();
+  loadAssets();
 });
-
-document.addEventListener('app:ready', loadAssets);
 </script>
 {% endblock %}
