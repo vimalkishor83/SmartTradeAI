@@ -16,7 +16,7 @@
       <option value="week">Next 7 Days</option>
       <option value="all">Next 14 Days</option>
     </select>
-    <button class="btn btn-primary btn-sm px-3" onclick="loadCalendar()">
+    <button class="btn btn-primary btn-sm px-3" id="calRefreshBtn">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
   </div>
@@ -39,9 +39,37 @@
 
 {% block extra_js %}
 <script>
-async function loadCalendar() {
-  const data = await API.get('/news/economic-calendar');
-  const events = data?.events || [];
+let _calendarEvents = [];
+let _calendarLoading = false;
+
+function _calendarDate(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const normalized = /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + 'Z';
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function _calendarHtml(value) {
+  return typeof STSafe?.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _calendarIstDay(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(date).reduce((out, part) => {
+    out[part.type] = part.value;
+    return out;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function renderCalendar() {
+  const events = Array.isArray(_calendarEvents) ? _calendarEvents : [];
   const el = document.getElementById('calendarBody');
   if (!el) return;
 
@@ -49,20 +77,21 @@ async function loadCalendar() {
   const range = document.getElementById('calDayFilter').value;
   const daysAhead = range === 'today' ? 1 : range === 'week' ? 7 : 14;
   const cutoff = new Date(now.getTime() + daysAhead * 86400000);
+  const todayIst = _calendarIstDay(now);
 
   const filtered = events.filter(e => {
-    if (!e.event_time) return false;
-    const evDate = new Date(e.event_time + 'Z');
+    const evDate = _calendarDate(e.event_time);
+    if (!evDate) return false;
     if (evDate < now) return false;
     if (range === 'today') {
-      return e.event_time.slice(0, 10) === now.toISOString().slice(0, 10);
+      return _calendarIstDay(evDate) === todayIst;
     }
     return evDate <= cutoff;
-  }).sort((a, b) => new Date(a.event_time) - new Date(b.event_time));
+  }).sort((a, b) => _calendarDate(a.event_time) - _calendarDate(b.event_time));
 
   const byImpact = { high: [], medium: [], low: [] };
   filtered.forEach(e => {
-    const imp = (e.impact || 'low').toLowerCase();
+    const imp = String(e.impact || 'low').toLowerCase();
     (byImpact[imp] || byImpact.low).push(e);
   });
 
@@ -76,13 +105,13 @@ async function loadCalendar() {
   }
 
   function eventRow(e) {
-    const d = new Date(e.event_time + 'Z');
+    const d = _calendarDate(e.event_time);
     const dateStr = d.toLocaleDateString('en-GB', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
     const time = d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
     return `<div class="event-row">
       <div style="flex:1">
-        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${e.title || '—'}</div>
-        <div style="font-size:11px;color:var(--text-muted)">${dateStr}, ${time} IST &nbsp;·&nbsp; ${e.currency || e.country || ''}</div>
+        <div style="font-weight:600;font-size:13px;color:var(--text-primary)">${_calendarHtml(e.title || '—')}</div>
+        <div style="font-size:11px;color:var(--text-muted)">${_calendarHtml(dateStr)}, ${_calendarHtml(time)} IST &nbsp;·&nbsp; ${_calendarHtml(e.currency || e.country || '')}</div>
       </div>
     </div>`;
   }
@@ -105,7 +134,29 @@ async function loadCalendar() {
     </div>`).join('')}</div>`;
 }
 
-document.getElementById('calDayFilter')?.addEventListener('change', loadCalendar);
-document.addEventListener('app:ready', loadCalendar);
+async function loadCalendar() {
+  if (_calendarLoading) return;
+  const button = document.getElementById('calRefreshBtn');
+  _calendarLoading = true;
+  if (button) { button.disabled = true; button.classList.add('disabled'); }
+  try {
+    const data = await API.get('/news/economic-calendar');
+    if (!data || data.error || !Array.isArray(data.events)) {
+      document.getElementById('calendarBody').innerHTML = '<div class="alert alert-warning">Failed to load calendar data. Try refreshing.</div>';
+      return;
+    }
+    _calendarEvents = data.events.filter(event => event && typeof event === 'object');
+    renderCalendar();
+  } finally {
+    _calendarLoading = false;
+    if (button) { button.disabled = false; button.classList.remove('disabled'); }
+  }
+}
+
+document.addEventListener('app:ready', () => {
+  document.getElementById('calDayFilter')?.addEventListener('change', renderCalendar);
+  document.getElementById('calRefreshBtn')?.addEventListener('click', loadCalendar);
+  loadCalendar();
+});
 </script>
 {% endblock %}
