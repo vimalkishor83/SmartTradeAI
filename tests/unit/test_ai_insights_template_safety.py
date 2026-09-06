@@ -35,3 +35,16 @@ def test_ai_insights_serializes_run_lifecycle():
     assert "if (_predictionRunning) return;" in source
     assert "if (sequence !== _predictionRunSequence) return;" in source
     assert "Promise.all(selected.map(tf =>" in source
+
+
+def test_ai_insights_exposes_prediction_context_and_unavailable_states():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="aiContext" role="status" aria-live="polite"' in source
+    assert 'id="aiContent" aria-busy="false"' in source
+    assert 'id="aiRightPanel" role="region" aria-live="polite"' in source
+    assert 'for="aiAsset">Select Asset</label>' in source
+    assert 'id="tfCheckboxGrid" role="group" aria-labelledby="aiTfLabel"' in source
+    assert "function setAiBusy(busy)" in source
+    assert "Assets temporarily unavailable" in source
+    assert "Prediction results are incomplete" in source

@@ -49,7 +49,12 @@
   </div>
 </div>
 
-<div class="row g-4">
+<div class="dashboard-context" id="aiContext" role="status" aria-live="polite">
+  <span class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><span id="aiLiveStatus">Ready for a prediction</span></span>
+  <span id="aiUpdatedAt">Predictions are model outputs, not guarantees. Input quality and observed history appear with each result.</span>
+</div>
+
+<div class="row g-4" id="aiContent" aria-busy="false">
   <!-- ── Left: Controls ─────────────────────────────── -->
   <div class="col-lg-4">
     <div class="section-card">
@@ -58,18 +63,19 @@
       </div>
       <div class="section-card-body">
         <div class="mb-3">
-          <label class="form-label">Select Asset</label>
-          <select class="form-select" id="aiAsset">
+          <label class="form-label" for="aiAsset">Select Asset</label>
+          <select class="form-select" id="aiAsset" aria-describedby="aiAssetHelp">
             <option value="">Loading assets...</option>
           </select>
+          <div class="form-text" id="aiAssetHelp">Choose one asset to compare its selected timeframes.</div>
         </div>
 
         <div class="mb-4">
-          <label class="form-label d-flex justify-content-between">
+          <div class="form-label d-flex justify-content-between" id="aiTfLabel">
             <span>Timeframes</span>
             <span style="font-size:11px;color:var(--text-muted)" id="tfSelectedCount">3 selected</span>
           </label>
-          <div class="tf-checkbox-grid" id="tfCheckboxGrid">
+          <div class="tf-checkbox-grid" id="tfCheckboxGrid" role="group" aria-labelledby="aiTfLabel">
             {% for tf, label in [('1m','1m'),('5m','5m'),('15m','15m'),('30m','30m'),('1h','1H'),('2h','2H'),('4h','4H'),('1d','1D')] %}
             <label class="tf-cb-label">
               <input type="checkbox" name="aiTf" value="{{ tf }}" {% if tf in ['1h','4h','1d'] %}checked{% endif %}>
@@ -83,8 +89,8 @@
           </div>
         </div>
 
-        <button class="btn btn-primary w-100" id="runAI">
-          <i class="bi bi-cpu me-1"></i> Run Prediction
+        <button type="button" class="btn btn-primary w-100" id="runAI" aria-controls="aiRightPanel" aria-busy="false">
+          <i class="bi bi-cpu me-1" aria-hidden="true"></i> Run Prediction
         </button>
 
         <div class="mt-3 p-3 rounded" style="background:rgba(245, 166, 35, 0.08);border:1px solid rgba(245, 166, 35, 0.2)">
@@ -128,7 +134,7 @@
 
   <!-- ── Right: single panel, JS replaces innerHTML ── -->
   <div class="col-lg-8">
-    <div id="aiRightPanel">
+    <div id="aiRightPanel" role="region" aria-live="polite" aria-busy="false" aria-label="AI prediction results">
       <!-- Placeholder — shown by default -->
       <div class="section-card text-center py-5">
         <i class="bi bi-cpu" style="font-size:64px;color:var(--accent);opacity:0.35"></i>
@@ -150,11 +156,35 @@ const AI_TIMEFRAMES = new Set(Object.keys(TF_LABEL));
 const AI_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
 let _predictionRunSequence = 0;
 let _predictionRunning = false;
+let _aiBooted = false;
+
+function setAiStatus(state, message, detail) {
+  const context = document.getElementById('aiContext');
+  if (context) context.className = `dashboard-context is-${state}`;
+  const status = document.getElementById('aiLiveStatus');
+  if (status) status.textContent = message;
+  if (detail !== undefined) document.getElementById('aiUpdatedAt').textContent = detail;
+}
+
+function setAiBusy(busy) {
+  const panel = document.getElementById('aiRightPanel');
+  if (panel) panel.setAttribute('aria-busy', busy ? 'true' : 'false');
+  const button = document.getElementById('runAI');
+  if (button) button.setAttribute('aria-busy', busy ? 'true' : 'false');
+  const content = document.getElementById('aiContent');
+  if (content) content.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
 
 async function loadAssets() {
   const data = await API.get('/assets/');
   const select = document.getElementById('aiAsset');
   if (!select) return;
+  if (!data) {
+    select.innerHTML = '<option value="">Assets temporarily unavailable</option>';
+    select.disabled = true;
+    setAiStatus('degraded', 'Assets are temporarily unavailable', 'Try refreshing the page before running a prediction.');
+    return false;
+  }
   const assets = (Array.isArray(data?.assets) ? data.assets : []).map(asset => {
     if (!asset || typeof asset !== 'object') return null;
     const id = Number(asset.id);
@@ -162,13 +192,21 @@ async function loadAssets() {
     if (!Number.isInteger(id) || id < 1 || !symbol) return null;
     return { ...asset, id, symbol, name: String(asset.name ?? symbol), market: String(asset.market ?? 'other') };
   }).filter(Boolean);
-  if (!assets.length) return;
+  if (!assets.length) {
+    select.innerHTML = '<option value="">No assets configured</option>';
+    select.disabled = true;
+    setAiStatus('degraded', 'No assets are configured for prediction', 'Configure an asset universe before running the AI engine.');
+    return true;
+  }
   const byMarket = {};
   assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
   select.innerHTML = Object.keys(byMarket).sort().map(m => `
     <optgroup label="${escapePredictionMeta(MARKET_LABELS[m] || m)}">
       ${byMarket[m].map(a => `<option value="${STSafe.assetId(a.id)}">${escapePredictionMeta(a.symbol)} — ${escapePredictionMeta(a.name)}</option>`).join('')}
     </optgroup>`).join('');
+  select.disabled = false;
+  setAiStatus('ready', 'Ready for a prediction', `${assets.length} assets available · select timeframes to compare confluence`);
+  return true;
 }
 
 function setAllTfs(val) {
@@ -179,7 +217,8 @@ function setAllTfs(val) {
 
 function updateTfCount() {
   const checked = document.querySelectorAll('input[name="aiTf"]:checked').length;
-  document.getElementById('tfSelectedCount').textContent = `${checked} selected`;
+  const count = document.getElementById('tfSelectedCount');
+  if (count) count.textContent = `${checked} selected`;
 }
 
 function buildSkeletonCard(tf) {
@@ -212,7 +251,7 @@ function buildResultCard(tf, data) {
 
   const rawDir  = String(data.predicted_direction ?? 'neutral').toLowerCase();
   const dir     = AI_DIRECTIONS.has(rawDir) ? rawDir : 'neutral';
-  const bounded = value => Math.max(0, Math.min(100, Number.isFinite(Number(value)) ? Number(value) : 0));
+  const bounded = value => { if (value === null || value === undefined || value === '') return 0; const number = Number(value); return Math.max(0, Math.min(100, Number.isFinite(number) ? number : 0)); };
   const bull    = bounded(data.bullish_probability);
   const bear    = bounded(data.bearish_probability);
   const conf    = bounded(data.confidence);
@@ -228,7 +267,8 @@ function buildResultCard(tf, data) {
   const stop = Number.isFinite(Number(data.predicted_stop)) && Number(data.predicted_stop) > 0 ? Number(data.predicted_stop) : null;
   const memberEntries = Object.entries(modelOutputs)
     .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
-    .map(([name, value]) => [name, Math.max(0, Math.min(100, Number(value)))]);
+    .slice(0, 3)
+    .map(([name, value]) => [name, bounded(value)]);
   const memberSpread = memberEntries.length > 1
     ? Math.max(...memberEntries.map(([, value]) => value)) - Math.min(...memberEntries.map(([, value]) => value))
     : null;
@@ -353,7 +393,10 @@ async function runPrediction() {
   const assetLabel = escapePredictionMeta(document.getElementById('aiAsset')?.selectedOptions[0]?.textContent || 'Selected asset');
   const panel = document.getElementById('aiRightPanel');
   const btn = document.getElementById('runAI');
+  if (!panel || !btn) return;
   btn.disabled = true;
+  setAiBusy(true);
+  setAiStatus('loading', `Running ${selected.length} timeframe prediction${selected.length === 1 ? '' : 's'}…`, 'Requests are running in parallel and will be compared when all responses arrive.');
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running...';
 
   try {
@@ -386,6 +429,7 @@ async function runPrediction() {
             <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
           </div>
         </div>`;
+      setAiStatus('degraded', 'AI prediction requires a Premium plan', 'Upgrade to unlock model predictions for this asset.');
       return;
     }
 
@@ -410,6 +454,8 @@ async function runPrediction() {
       else { verdict = '<i class="bi bi-dash me-1"></i>Mixed - No Clear Direction'; vClr = 'var(--yellow)'; }
     }
 
+    if (!total) verdict = '<i class="bi bi-exclamation-triangle me-1"></i>No valid prediction returned for the selected timeframes';
+
     const confluenceHtml = selected.length > 1 ? `
       <div class="section-card mb-3">
         <div class="section-card-header">
@@ -430,16 +476,20 @@ async function runPrediction() {
       ${confluenceHtml}
       <div class="d-flex justify-content-between align-items-center mb-3"><span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span><span class="badge-tag">${assetLabel}</span></div>
       <div class="d-flex flex-column gap-3">${predictions.map(result => buildResultCard(result.tf, result.prediction)).join('')}</div>`;
+    setAiStatus(total ? 'ready' : 'degraded', total ? 'Prediction results are ready' : 'Prediction results are incomplete', `${total}/${selected.length} timeframes returned usable model output · review input quality and observed history`);
   } finally {
     if (sequence === _predictionRunSequence) {
       _predictionRunning = false;
       btn.disabled = false;
+      setAiBusy(false);
       btn.innerHTML = '<i class="bi bi-cpu me-1"></i> Run Prediction';
     }
   }
 }
 
 document.addEventListener('app:ready', () => {
+  if (_aiBooted) return;
+  _aiBooted = true;
   document.getElementById('runAI')?.addEventListener('click', runPrediction);
   document.querySelector('[data-action="select-all-timeframes"]')?.addEventListener('click', () => setAllTfs(true));
   document.querySelector('[data-action="clear-all-timeframes"]')?.addEventListener('click', () => setAllTfs(false));

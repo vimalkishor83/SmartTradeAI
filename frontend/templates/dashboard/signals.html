@@ -29,9 +29,14 @@
     <div class="ms-item"><span class="ms-label">AI Confidence</span><span class="ms-value text-accent" id="msConf">—</span></div>
   </div>
   <div class="dash-header-actions">
-    <button class="btn btn-sm btn-primary" id="refreshSignals"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
-    <button class="btn btn-sm btn-outline-secondary" id="exportSignalsCsv"><i class="bi bi-download me-1"></i>Download CSV</button>
+    <button type="button" class="btn btn-sm btn-primary" id="refreshSignals" aria-label="Refresh signal data" aria-controls="liveTab"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Refresh</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="exportSignalsCsv"><i class="bi bi-download me-1" aria-hidden="true"></i>Download CSV</button>
   </div>
+</div>
+
+<div class="dashboard-context" id="signalContext" role="status" aria-live="polite">
+  <span class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><span id="signalLiveStatus">Loading signal data…</span></span>
+  <span id="signalUpdatedAt">Live signals and open P&amp;L are current data. Win rate and history are closed-trade results.</span>
 </div>
 
 <!-- Win Rate Summary Row -->
@@ -80,7 +85,7 @@
   </div>
   <div id="pnlPanelBody">
     <div class="table-responsive">
-      <table class="smart-table" id="pnlTable" style="font-size:12px">
+      <table class="smart-table" id="pnlTable" style="font-size:12px" aria-busy="true"><caption class="visually-hidden">Open positions with live profit and loss</caption>
         <thead>
           <tr>
             <th>Asset</th>
@@ -113,41 +118,44 @@
 </div>
 
 <!-- Tabs -->
-<ul class="nav nav-tabs mb-4" id="signalTabs" style="border-color:var(--border)">
+<ul class="nav nav-tabs mb-4" id="signalTabs" role="tablist" style="border-color:var(--border)">
   <li class="nav-item">
-    <a class="nav-link {% if active_tab != 'history' %}active{% endif %}" id="tabLiveBtn" href="#" data-signal-tab="live" role="tab" aria-controls="liveTab">
+    <a class="nav-link {% if active_tab != 'history' %}active{% endif %}" id="tabLiveBtn" href="#" data-signal-tab="live" role="tab" aria-selected="{% if active_tab != 'history' %}true{% else %}false{% endif %}" aria-controls="liveTab"{% if active_tab == 'history' %} tabindex="-1"{% endif %}>
       <i class="bi bi-lightning-charge me-1"></i>Live Signals
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link {% if active_tab == 'history' %}active{% endif %}" id="tabHistBtn" href="#" data-signal-tab="history" role="tab" aria-controls="historyTab">
+    <a class="nav-link {% if active_tab == 'history' %}active{% endif %}" id="tabHistBtn" href="#" data-signal-tab="history" role="tab" aria-selected="{% if active_tab == 'history' %}true{% else %}false{% endif %}" aria-controls="historyTab"{% if active_tab != 'history' %} tabindex="-1"{% endif %}>
       <i class="bi bi-clock-history me-1"></i>Signal History
     </a>
   </li>
 </ul>
 
 <!-- ── LIVE TAB ──────────────────────────────────────── -->
-<div id="liveTab" {% if active_tab == 'history' %}style="display:none"{% endif %}>
+<div id="liveTab" role="tabpanel" aria-labelledby="tabLiveBtn" aria-busy="true" {% if active_tab == 'history' %}style="display:none" aria-hidden="true"{% endif %}>
   <div class="section-card mb-3">
     <div class="section-card-body py-2">
       <div class="d-flex flex-wrap gap-2 align-items-center">
+        <label class="visually-hidden" for="allMkt">Live signal market</label>
         <select class="form-select form-select-sm" id="allMkt" style="width:auto">
           <option value="">All Markets</option>
         </select>
+        <label class="visually-hidden" for="allTf">Live signal timeframe</label>
         <select class="form-select form-select-sm" id="allTf" style="width:auto">
           <option value="">All TF</option>
           <option value="1m">1m</option><option value="5m">5m</option><option value="15m">15m</option>
           <option value="30m">30m</option><option value="1h">1h</option>
           <option value="4h">4h</option><option value="1d">1d</option>
         </select>
+        <label class="visually-hidden" for="allType">Live signal type</label>
         <select class="form-select form-select-sm" id="allType" style="width:auto">
           <option value="">All Types</option>
           <option value="BUY">BUY</option><option value="SELL">SELL</option>
           <option value="HOLD">HOLD</option><option value="EXIT">EXIT</option>
         </select>
         <div class="d-flex align-items-center gap-2">
-          <span class="text-muted fs-xs">Min:</span>
-          <input type="range" class="form-range" id="allConf" min="0" max="100" value="0" style="width:90px" />
+          <label class="text-muted fs-xs" for="allConf">Minimum confidence:</label>
+          <input type="range" class="form-range" id="allConf" min="0" max="100" value="0" style="width:90px" aria-describedby="allConfVal" />
           <span class="badge-tag" id="allConfVal" style="min-width:32px">0%</span>
         </div>
       </div>
@@ -156,7 +164,7 @@
 
   <div class="section-card">
     <div class="table-responsive">
-      <table class="smart-table signals-table-adv">
+      <table class="smart-table signals-table-adv"><caption class="visually-hidden">Active trading signals and model context</caption>
         <thead>
           <tr>
             <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
@@ -179,13 +187,15 @@
 </div>
 
 <!-- ── HISTORY TAB ──────────────────────────────────── -->
-<div id="historyTab" {% if active_tab != 'history' %}style="display:none"{% endif %}>
+<div id="historyTab" role="tabpanel" aria-labelledby="tabHistBtn" aria-busy="true" {% if active_tab != 'history' %}style="display:none" aria-hidden="true"{% endif %}>
   <div id="histFilters" class="section-card mb-3">
     <div class="section-card-body py-2">
       <div class="d-flex flex-wrap gap-2 align-items-center">
+        <label class="visually-hidden" for="histMkt">History market</label>
         <select class="form-select form-select-sm" id="histMkt" style="width:auto">
           <option value="">All Markets</option>
         </select>
+        <label class="visually-hidden" for="histOutcome">History outcome</label>
         <select class="form-select form-select-sm" id="histOutcome" style="width:auto">
           <option value="">All Outcomes</option>
           <option value="win">Win ✓</option><option value="loss">Loss ✗</option><option value="neutral">Neutral</option>
@@ -196,7 +206,7 @@
 
   <div id="histTableWrap" class="section-card">
     <div class="table-responsive">
-      <table class="smart-table">
+      <table class="smart-table"><caption class="visually-hidden">Closed signal history and outcomes</caption>
         <thead>
           <tr>
             <th>Asset</th><th>TF</th><th>Signal</th>
@@ -234,8 +244,13 @@ function shortTime(iso) {
 }
 
 function signalNumber(value, fallback = 0) {
+  if (value === null || value === undefined || value === '') return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function signalPercent(value, fallback = 0) {
+  return Math.max(0, Math.min(100, signalNumber(value, fallback)));
 }
 
 function signalText(value) {
@@ -244,6 +259,44 @@ function signalText(value) {
 
 let _signalsRequestSeq = 0;
 let _historyRequestSeq = 0;
+let _liveRefreshPromise = null;
+let _signalsBooted = false;
+
+function setSignalStatus(state, message, detail) {
+  const context = document.getElementById('signalContext');
+  if (context) context.className = `dashboard-context is-${state}`;
+  const status = document.getElementById('signalLiveStatus');
+  if (status) status.textContent = message;
+  if (detail !== undefined) document.getElementById('signalUpdatedAt').textContent = detail;
+}
+
+function setSignalPanelBusy(panelId, busy) {
+  const panel = document.getElementById(panelId);
+  if (panel) panel.setAttribute('aria-busy', busy ? 'true' : 'false');
+}
+
+function refreshLiveData() {
+  if (_liveRefreshPromise) return _liveRefreshPromise;
+  setSignalPanelBusy('liveTab', true);
+  const refreshButton = document.getElementById('refreshSignals');
+  if (refreshButton) refreshButton.disabled = true;
+  setSignalStatus('loading', 'Refreshing live signal data…', 'Open P&L and active signals are being updated.');
+  const promise = Promise.allSettled([loadSummary(), loadSignalsMarketState(), loadSignals(1), loadOpenPnl()])
+    .then(results => {
+      const failed = results.filter(result => result.status === 'rejected' || result.value === false).length;
+      const stamp = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      if (failed) setSignalStatus('degraded', 'Live signal data is partially available', `Updated ${stamp} IST · ${failed} feed${failed === 1 ? '' : 's'} unavailable`);
+      else setSignalStatus('ready', 'Live signal data is current', `Updated ${stamp} IST · history and win rate remain closed-trade metrics`);
+    })
+    .catch(() => setSignalStatus('error', 'Signal data could not be refreshed', 'Please try again in a moment.'))
+    .finally(() => {
+      if (_liveRefreshPromise === promise) _liveRefreshPromise = null;
+      setSignalPanelBusy('liveTab', false);
+      if (refreshButton) refreshButton.disabled = false;
+    });
+  _liveRefreshPromise = promise;
+  return promise;
+}
 
 function showTab(tab) {
   if (tab !== 'live' && tab !== 'history') return;
@@ -254,6 +307,10 @@ function showTab(tab) {
   document.getElementById('tabHistBtn').classList.toggle('active', tab === 'history');
   document.getElementById('tabLiveBtn').setAttribute('aria-selected', String(tab === 'live'));
   document.getElementById('tabHistBtn').setAttribute('aria-selected', String(tab === 'history'));
+  document.getElementById('tabLiveBtn').tabIndex = tab === 'live' ? 0 : -1;
+  document.getElementById('tabHistBtn').tabIndex = tab === 'history' ? 0 : -1;
+  document.getElementById('liveTab').setAttribute('aria-hidden', String(tab !== 'live'));
+  document.getElementById('historyTab').setAttribute('aria-hidden', String(tab !== 'history'));
 
   // Signal History requires Basic+ — All Signals (the "live" tab) stays
   // free. This is a client-side tab swap (not a page nav), so instead of
@@ -270,6 +327,7 @@ function showTab(tab) {
 }
 
 function showHistoryLockCard() {
+  setSignalPanelBusy('historyTab', false);
   document.getElementById('histFilters').style.display = 'none';
   document.getElementById('histTableWrap').style.display = 'none';
   let el = document.getElementById('histLockCard');
@@ -300,16 +358,17 @@ function hideHistoryLockCard() {
 
 async function loadSummary() {
   const data = await API.get('/signals/summary');
-  if (!data) return;
+  if (!data) return false;
   const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val ?? '—'; };
-  set('statWinRate',      data.win_rate != null ? signalNumber(data.win_rate).toFixed(1) + '%' : '—');
+  set('statWinRate',      data.win_rate != null ? signalPercent(data.win_rate).toFixed(1) + '%' : '—');
   set('statTotalHistory', `${Math.max(0, Math.trunc(signalNumber(data.total_historical)))} closed trades`);
   set('statActive',       Math.max(0, Math.trunc(signalNumber(data.open_alerts))));
   set('statConf',         data.avg_confidence != null ? signalNumber(data.avg_confidence).toFixed(1) + '%' : '—');
   if (data.top_signal && typeof data.top_signal === 'object') {
     set('statTop',    data.top_signal.asset || '—');
-    set('statTopConf', `${data.top_signal.signal_type || '—'} · ${signalNumber(data.top_signal.confidence_score).toFixed(0)}% conf.`);
+    set('statTopConf', `${data.top_signal.signal_type || '—'} · ${signalPercent(data.top_signal.confidence_score).toFixed(0)}% conf.`);
   }
+  return true;
 }
 
 function clearSignalFilters() {
@@ -334,10 +393,15 @@ async function loadSignals(page = 1) {
   if (type) params.signal_type = type;
 
   const data = await API.get('/signals/', params);
-  if (!data || request !== _signalsRequestSeq) return;
-
-  document.getElementById('allCount').textContent = `${data.total} signals found`;
+  if (request !== _signalsRequestSeq) return null;
   const tbody = document.getElementById('allSignalsBody');
+  if (!data) {
+    document.getElementById('allCount').textContent = 'unavailable';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">Active signals are temporarily unavailable.</td></tr>';
+    return false;
+  }
+
+  document.getElementById('allCount').textContent = `${Math.max(0, Math.trunc(signalNumber(data.total)))} signals found`;
 
   const signals = Array.isArray(data.signals) ? data.signals.filter(signal => signal && typeof signal === 'object') : [];
   if (!signals.length) {
@@ -362,26 +426,26 @@ async function loadSignals(page = 1) {
           <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
           No signals generated yet.
         </td></tr>`;
-    return;
+    return true;
   }
 
   tbody.innerHTML = signals.map(s => {
-    const conf    = Math.max(0, Math.min(100, signalNumber(s.confidence_score)));
+    const conf    = signalPercent(s.confidence_score);
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
     const rr      = Math.max(0, signalNumber(s.risk_reward));
     const rrClr   = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
-    const cur     = s.current_price || s.entry_price;
+    const cur     = signalNumber(s.current_price, null) ?? signalNumber(s.entry_price, null);
     const st      = _statusOf(s);
     const mkt     = String(s.market || '').replace('_', ' ');
     return `<tr>
       <td><a href="${STSafe.assetHref(s.asset_id)}" class="asset-cell-name" style="text-decoration:none">${signalText(s.asset || 'Unknown asset')}</a><div class="asset-cell-sub"><span class="badge-tag">${signalText(mkt)}</span></div></td>
       <td><span class="badge-tag">${signalText(s.timeframe || '—')}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td class="num">${formatPrice(s.entry_price, s.market)}</td>
+      <td class="num">${formatPrice(signalNumber(s.entry_price, null), s.market)}</td>
       <td class="num">${formatPrice(cur, s.market)}</td>
-      <td class="num" style="color:var(--red)">${formatPrice(s.stop_loss, s.market)}</td>
-      <td class="num" style="color:var(--green)">${formatPrice(s.target1, s.market)}</td>
-      <td class="num" style="color:var(--green)">${s.target2 ? formatPrice(s.target2, s.market) : '—'}</td>
+      <td class="num" style="color:var(--red)">${formatPrice(signalNumber(s.stop_loss, null), s.market)}</td>
+      <td class="num" style="color:var(--green)">${formatPrice(signalNumber(s.target1, null), s.market)}</td>
+      <td class="num" style="color:var(--green)">${signalNumber(s.target2, null) === null ? '—' : formatPrice(signalNumber(s.target2, null), s.market)}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
       <td class="num">${typeof relativeTime==='function'?relativeTime(s.generated_at):shortTime(s.generated_at)}</td>
@@ -392,25 +456,28 @@ async function loadSignals(page = 1) {
   }).join('');
 
   _buildPag('allPagination', data.pages, page, 'loadSignals');
+  return true;
 }
 
 /* ── shared per-signal derivations (match dashboard) ── */
-function _regimeOf(s){const t=s.trend_score||0,m=s.momentum_score||0;if(t>=60)return'Trending';if(m>=65&&t<45)return'Volatile';return'Ranging';}
-function _statusOf(s){const age=s.generated_at?(Date.now()-new Date(s.generated_at))/60000:999;const cur=s.current_price,entry=s.entry_price;if(cur&&entry){if((s.signal_type==='BUY'&&cur>=entry)||(s.signal_type==='SELL'&&cur<=entry))return{t:'ENTRY HIT',c:'var(--green)'};}if(age<30)return{t:'NEW',c:'var(--accent-light)'};return{t:'WATCHING',c:'var(--yellow)'};}
-function _modelBars(s){const dir=s.signal_type==='SELL'?'var(--red)':'var(--green)';const sc=[s.trend_score,s.momentum_score,s.volume_score,s.pattern_score].map(v=>Math.max(0,Math.min(100,signalNumber(v))));const lb=['Trend','Momentum','Volume','Pattern'];return`<div class="model-bars" title="${signalText(lb.map((l,i)=>l+' '+Math.round(sc[i])).join(' · '))}">`+sc.map(v=>{const h=Math.max(3,v);const c=v>=50?dir:'rgba(148,163,184,.45)';return`<span class="mbar" style="height:${h}%;background:${c}"></span>`;}).join('')+'</div>';}
+function _regimeOf(s){const t=signalPercent(s.trend_score),m=signalPercent(s.momentum_score);if(t>=60)return'Trending';if(m>=65&&t<45)return'Volatile';return'Ranging';}
+function _statusOf(s){const age=s.generated_at?(Date.now()-new Date(s.generated_at))/60000:999;const cur=signalNumber(s.current_price,null),entry=signalNumber(s.entry_price,null);if(cur!==null&&entry!==null){if((s.signal_type==='BUY'&&cur>=entry)||(s.signal_type==='SELL'&&cur<=entry))return{t:'ENTRY HIT',c:'var(--green)'};}if(age<30)return{t:'NEW',c:'var(--accent-light)'};return{t:'WATCHING',c:'var(--yellow)'};}
+function _modelBars(s){const dir=s.signal_type==='SELL'?'var(--red)':'var(--green)';const sc=[s.trend_score,s.momentum_score,s.volume_score,s.pattern_score].map(v=>signalPercent(v));const lb=['Trend','Momentum','Volume','Pattern'];return`<div class="model-bars" title="${signalText(lb.map((l,i)=>l+' '+Math.round(sc[i])).join(' · '))}">`+sc.map(v=>{const h=Math.max(3,v);const c=v>=50?dir:'rgba(148,163,184,.45)';return`<span class="mbar" style="height:${h}%;background:${c}"></span>`;}).join('')+'</div>';}
 
 /* ── Market-state strip (heatmap-derived) ── */
 async function loadSignalsMarketState(){
-  const d=await API.get('/market-data/heatmap');const rows=d?.heatmap||[];if(!rows.length)return;
-  const ch=rows.map(r=>r.change_pct||0);const avg=ch.reduce((a,b)=>a+b,0)/ch.length;
+  const d=await API.get('/market-data/heatmap');const rows=Array.isArray(d?.heatmap)?d.heatmap:[];if(!d)return false;if(!rows.length){const r=document.getElementById('msRegime'),v=document.getElementById('msVol');if(r)r.textContent='—';if(v)v.textContent='—';return true;}
+  const ch=rows.map(r=>signalNumber(r.change_pct));const avg=ch.reduce((a,b)=>a+b,0)/ch.length;
   const std=Math.sqrt(ch.reduce((a,b)=>a+(b-avg)**2,0)/ch.length);
   const r=document.getElementById('msRegime');if(r){const up=avg>0.4,dn=avg<-0.4;r.textContent=up?'Trending ↑':dn?'Trending ↓':'Ranging →';r.className='ms-value '+(up?'text-green':dn?'text-red':'text-yellow');}
   const v=document.getElementById('msVol');if(v){const hi=std>2,mid=std>1;v.textContent=hi?'High ↑':mid?'Moderate →':'Low ↓';v.className='ms-value '+(hi?'text-red':mid?'text-yellow':'text-green');}
-  const s=await API.get('/signals/summary');if(s?.avg_confidence!=null){const c=document.getElementById('msConf');if(c)c.textContent=signalNumber(s.avg_confidence).toFixed(1)+'%';}
+  const s=await API.get('/signals/summary');if(s?.avg_confidence!=null){const c=document.getElementById('msConf');if(c)c.textContent=signalPercent(s.avg_confidence).toFixed(1)+'%';}
+  return !!s;
 }
 
 async function loadHistory(page = 1) {
   const request = ++_historyRequestSeq;
+  setSignalPanelBusy('historyTab', true);
   const params = { page, per_page: 25 };
   const mkt = document.getElementById('histMkt').value;
   const out = document.getElementById('histOutcome').value;
@@ -418,10 +485,16 @@ async function loadHistory(page = 1) {
   if (out) params.outcome = out;
 
   const data = await API.get('/signals/history', params);
-  if (!data || request !== _historyRequestSeq) return;
+  if (request !== _historyRequestSeq) return null;
+  const tbody = document.getElementById('historyBody');
+  if (!data) {
+    document.getElementById('histCount').textContent = 'unavailable';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="text-center py-5 text-muted">Signal history is temporarily unavailable.</td></tr>';
+    setSignalPanelBusy('historyTab', false);
+    return false;
+  }
 
   document.getElementById('histCount').textContent = `${Math.max(0, Math.trunc(signalNumber(data.total)))} records`;
-  const tbody = document.getElementById('historyBody');
 
   const history = Array.isArray(data.history) ? data.history.filter(entry => entry && typeof entry === 'object') : [];
   if (!history.length) {
@@ -429,7 +502,8 @@ async function loadHistory(page = 1) {
       <i class="bi bi-clock-history d-block mb-2" style="font-size:28px"></i>
       No closed signals yet.
     </td></tr>`;
-    return;
+    setSignalPanelBusy('historyTab', false);
+    return true;
   }
 
   tbody.innerHTML = history.map(h => {
@@ -449,8 +523,8 @@ async function loadHistory(page = 1) {
       <td class="${pnlCls} fw-700">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</td>
       <td><span class="signal-badge ${outCls}">${signalText(String(h.outcome || '—').toUpperCase())}</span></td>
       <td>
-        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${Math.max(0, Math.min(100, signalNumber(h.confidence)))}%;background:var(--accent)"></div></div>
-        <div class="text-muted fs-xs">${signalNumber(h.confidence).toFixed(0)}%</div>
+        <div class="confidence-bar mb-1"><div class="confidence-fill" style="width:${signalPercent(h.confidence)}%;background:var(--accent)"></div></div>
+        <div class="text-muted fs-xs">${signalPercent(h.confidence).toFixed(0)}%</div>
       </td>
       <td class="text-muted fs-xs">${signalText(dur)}</td>
       <td class="text-muted fs-xs" style="white-space:nowrap">${shortTime(h.closed_at)}</td>
@@ -458,6 +532,8 @@ async function loadHistory(page = 1) {
   }).join('');
 
   _buildPag('histPagination', data.pages, page, 'loadHistory');
+  setSignalPanelBusy('historyTab', false);
+  return true;
 }
 
 function _buildPag(id, total, cur, fn) {
@@ -500,11 +576,11 @@ function togglePnlPanel() {
   document.getElementById('pnlPanelHeader')?.setAttribute('aria-expanded', String(!_pnlCollapsed));
 }
 
-async function loadOpenPnl() {
+  async function loadOpenPnl() {
   const tbody = document.getElementById('pnlTableBody');
   const btn   = document.getElementById('pnlRefreshBtn');
   const ts    = document.getElementById('pnlLastUpdated');
-  if (!tbody || !btn || _pnlInFlight) return;
+  if (!tbody || !btn || _pnlInFlight) return null;
   _pnlInFlight = true;
 
   btn.querySelector('i')?.classList.add('spin');
@@ -517,7 +593,8 @@ async function loadOpenPnl() {
   if (!data || !Array.isArray(data)) {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted fs-xs">
       Failed to load P&L data.</td></tr>`;
-    return;
+    document.getElementById('pnlTable')?.setAttribute('aria-busy', 'false');
+    return false;
   }
 
   const rows = data.filter(row => row && typeof row === 'object');
@@ -529,7 +606,8 @@ async function loadOpenPnl() {
     tbody.innerHTML = `<tr><td colspan="9" class="text-center py-4 text-muted fs-xs">
       <i class="bi bi-inbox me-2"></i>No open positions.</td></tr>`;
     ts.textContent = 'No active signals.';
-    return;
+    document.getElementById('pnlTable')?.setAttribute('aria-busy', 'false');
+    return true;
   }
 
   function fmtDist(pct) {
@@ -577,13 +655,24 @@ async function loadOpenPnl() {
 
   const now = new Date();
   ts.textContent = `Last updated: ${now.toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata',hour:'2-digit',minute:'2-digit',second:'2-digit'})} · Auto-refreshes every 60s`;
+  document.getElementById('pnlTable')?.setAttribute('aria-busy', 'false');
+  return true;
 }
 
 document.addEventListener('app:ready', () => {
+  if (_signalsBooted) return;
+  _signalsBooted = true;
   document.querySelectorAll('[data-signal-tab]').forEach(tab => {
     tab.addEventListener('click', event => {
       event.preventDefault();
       showTab(tab.dataset.signalTab);
+    });
+    tab.addEventListener('keydown', event => {
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      const tabs = [...document.querySelectorAll('[data-signal-tab]')];
+      const index = tabs.indexOf(tab);
+      tabs[(index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length].focus();
     });
   });
   const pnlHeader = document.getElementById('pnlPanelHeader');
@@ -617,17 +706,12 @@ document.addEventListener('app:ready', () => {
 
   populateMarketSelect(document.getElementById('allMkt'), { includeAll: true });
   populateMarketSelect(document.getElementById('histMkt'), { includeAll: true });
-  loadSummary();
-  loadSignalsMarketState();
+  refreshLiveData();
   if (location.search.includes('tab=history')) {
     loadHistory(1);
-  } else {
-    loadSignals(1);
   }
-  loadOpenPnl();
-  setInterval(loadOpenPnl, 60000);
 
-  document.getElementById('refreshSignals').addEventListener('click', () => { loadSummary(); loadSignals(1); });
+  document.getElementById('refreshSignals').addEventListener('click', refreshLiveData);
   document.getElementById('exportSignalsCsv').addEventListener('click', () => {
     const params = new URLSearchParams();
     const mkt  = document.getElementById('allMkt').value;
@@ -649,7 +733,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('histMkt')?.addEventListener('change',     () => loadHistory(1));
   document.getElementById('histOutcome')?.addEventListener('change', () => loadHistory(1));
 
-  setInterval(() => { loadSummary(); loadSignals(1); }, 60000);
+  setInterval(refreshLiveData, 60000);
 });
 </script>
 {% endblock %}
