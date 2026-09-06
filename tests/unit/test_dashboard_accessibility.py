@@ -9,9 +9,9 @@ def test_dashboard_shell_has_keyboard_navigation_landmarks():
     template = BASE_TEMPLATE.read_text(encoding="utf-8")
     assert '<a class="skip-link" href="#pageContent">' in template
     assert '<main class="page-content" id="pageContent">' in template
-    assert '<aside class="sidebar" id="sidebar" aria-label="Primary navigation">' in template
-    assert template.count('class="nav-group-header"') == 6
-    assert template.count('type="button" class="nav-group-header"') == 6
+    assert '<aside class="sidebar" id="sidebar" aria-labelledby="sidebarLabel">' in template
+    assert template.count('class="nav-group-header"') == 8
+    assert template.count('type="button" class="nav-group-header"') == 8
     assert 'aria-controls="navGroupBodyOverview"' in template
     assert 'role="status" aria-live="polite"' in template
 
