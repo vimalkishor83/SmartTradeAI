@@ -11,10 +11,10 @@
     <p class="page-subtitle">Historical win rates, R:R analysis, and performance breakdowns</p>
   </div>
   <div class="d-flex gap-2">
-    <button class="btn btn-sm btn-outline-secondary" onclick="window.open('/api/v1/signals/export/csv','_blank')">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-export-url="/api/v1/signals/export/csv">
       <i class="bi bi-download me-1"></i>Export Signals CSV
     </button>
-    <button class="btn btn-sm btn-outline-secondary" onclick="window.open('/api/v1/signals/history/export/csv','_blank')">
+    <button type="button" class="btn btn-sm btn-outline-secondary" data-export-url="/api/v1/signals/history/export/csv">
       <i class="bi bi-download me-1"></i>Export History CSV
     </button>
     <button class="btn btn-sm btn-primary" id="refreshAnalytics">
@@ -157,8 +157,24 @@
 <script>
 let _marketChart = null;
 let _typeChart   = null;
+let _analyticsLoadSequence = 0;
+let _analyticsRequestInFlight = false;
+
+function analyticsNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function analyticsCount(value) {
+  return Math.max(0, Math.trunc(analyticsNumber(value)));
+}
+
+function analyticsStats(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
 
 function winRateColor(rate) {
+  rate = analyticsNumber(rate);
   if (rate >= 60) return 'var(--green, #22c55e)';
   if (rate >= 45) return 'var(--yellow, #eab308)';
   return 'var(--red, #ef4444)';
@@ -169,10 +185,13 @@ function _themeColor(varName, fallback) {
 }
 
 function buildMarketChart(data) {
-  const ctx = document.getElementById('chartMarket').getContext('2d');
+  const canvas = document.getElementById('chartMarket');
+  if (!canvas || typeof Chart !== 'function') return;
+  const ctx = canvas.getContext('2d');
   if (_marketChart) _marketChart.destroy();
-  const labels = data.map(d => d.market);
-  const rates  = data.map(d => d.win_rate);
+  const rows = (Array.isArray(data) ? data : []).filter(d => d && typeof d === 'object');
+  const labels = rows.map(d => escapeHtml(String(d.market ?? 'Unknown')));
+  const rates  = rows.map(d => safeRate(d.win_rate));
   const mutedClr = _themeColor('--text-secondary', '#95a2b8');
   const gridClr  = _themeColor('--border', 'rgba(255,255,255,0.08)');
   _marketChart = new Chart(ctx, {
@@ -198,10 +217,13 @@ function buildMarketChart(data) {
 }
 
 function buildTypeChart(data) {
-  const ctx = document.getElementById('chartType').getContext('2d');
+  const canvas = document.getElementById('chartType');
+  if (!canvas || typeof Chart !== 'function') return;
+  const ctx = canvas.getContext('2d');
   if (_typeChart) _typeChart.destroy();
-  const labels = data.map(d => d.signal_type);
-  const totals = data.map(d => d.total);
+  const rows = (Array.isArray(data) ? data : []).filter(d => d && typeof d === 'object');
+  const labels = rows.map(d => escapeHtml(String(d.signal_type ?? 'Unknown')));
+  const totals = rows.map(d => analyticsCount(d.total));
   const mutedClr = _themeColor('--text-secondary', '#95a2b8');
   _typeChart = new Chart(ctx, {
     type: 'doughnut',
@@ -224,60 +246,101 @@ function buildTypeChart(data) {
 
 function renderTfTable(data) {
   const tbody = document.getElementById('tfTableBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr>'; return; }
-  tbody.innerHTML = data.map(r => `<tr>
-    <td><span class="badge-tag">${r.timeframe}</span></td>
-    <td>${r.total}</td>
-    <td class="text-green">${r.wins}</td>
-    <td style="color:${winRateColor(r.win_rate)};font-weight:700">${r.win_rate.toFixed(1)}%</td>
-  </tr>`).join('');
+  const rows = (Array.isArray(data) ? data : []).filter(r => r && typeof r === 'object');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">No data</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => {
+    const rate = safeRate(r.win_rate);
+    return `<tr>
+    <td><span class="badge-tag">${escapeHtml(String(r.timeframe ?? 'Unknown'))}</span></td>
+    <td>${analyticsCount(r.total)}</td>
+    <td class="text-green">${Math.min(analyticsCount(r.total), analyticsCount(r.wins))}</td>
+    <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
+  </tr>`;
+  }).join('');
 }
 
 function renderConfTable(data) {
   const tbody = document.getElementById('confTableBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No data</td></tr>'; return; }
-  tbody.innerHTML = data.map(r => `<tr>
-    <td><span class="badge-tag">${r.range}</span></td>
-    <td>${r.total}</td>
-    <td style="color:${winRateColor(r.win_rate)};font-weight:700">${r.win_rate.toFixed(1)}%</td>
-  </tr>`).join('');
+  const rows = (Array.isArray(data) ? data : []).filter(r => r && typeof r === 'object');
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">No data</td></tr>'; return; }
+  tbody.innerHTML = rows.map(r => {
+    const rate = safeRate(r.win_rate);
+    return `<tr>
+    <td><span class="badge-tag">${escapeHtml(String(r.range ?? 'Unknown'))}</span></td>
+    <td>${analyticsCount(r.total)}</td>
+    <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
+  </tr>`;
+  }).join('');
 }
 
 function renderTopAssets(data) {
   const tbody = document.getElementById('topAssetsBody');
-  if (!data.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No assets with 5+ trades yet</td></tr>'; return; }
-  tbody.innerHTML = data.slice(0, 20).map((a, idx) => `<tr>
+  const rows = (Array.isArray(data) ? data : []).filter(a => a && typeof a === 'object').slice(0, 20);
+  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No assets with 5+ trades yet</td></tr>'; return; }
+  tbody.innerHTML = rows.map((a, idx) => {
+    const total = analyticsCount(a.total);
+    const wins = Math.min(total, analyticsCount(a.wins));
+    const rate = safeRate(a.win_rate);
+    return `<tr>
     <td class="text-muted">${idx + 1}</td>
-    <td><strong>${a.symbol}</strong></td>
-    <td><span class="badge-tag">${(a.market||'').replace('_',' ')}</span></td>
-    <td>${a.total}</td>
-    <td class="text-green">${a.wins}</td>
-    <td style="color:${winRateColor(a.win_rate)};font-weight:700">${a.win_rate.toFixed(1)}%</td>
-  </tr>`).join('');
+    <td><strong>${escapeHtml(String(a.symbol ?? 'Unknown'))}</strong></td>
+    <td><span class="badge-tag">${escapeHtml(String(a.market ?? '').replace('_',' '))}</span></td>
+    <td>${total}</td>
+    <td class="text-green">${wins}</td>
+    <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
+  </tr>`;
+  }).join('');
+}
+
+function safeRate(value) {
+  return Math.max(0, Math.min(100, analyticsNumber(value)));
 }
 
 async function loadAnalytics() {
-  const data = await API.get('/signals/analytics');
-  if (!data) return;
+  if (_analyticsRequestInFlight) return;
+  _analyticsRequestInFlight = true;
+  const sequence = ++_analyticsLoadSequence;
+  try {
+    const response = await API.get('/signals/analytics');
+    if (sequence !== _analyticsLoadSequence) return;
+    const data = analyticsStats(response);
+    const o = analyticsStats(data.overall);
+    const total = analyticsCount(o.total_signals);
+    const closed = Math.min(total, analyticsCount(o.closed));
+    const active = analyticsCount(o.active);
+    const wins = Math.min(closed, analyticsCount(o.total_wins));
+    const losses = Math.min(closed, analyticsCount(o.total_losses));
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    set('kpiTotal', total.toLocaleString());
+    set('kpiWinRate', o.win_rate == null ? '—' : `${safeRate(o.win_rate).toFixed(1)}%`);
+    const avgRr = analyticsNumber(o.avg_rr_achieved, NaN);
+    set('kpiAvgRR', Number.isFinite(avgRr) ? `1:${Math.max(0, avgRr).toFixed(2)}` : '—');
+    set('kpiClosed', closed.toLocaleString());
+    set('kpiActiveClose', `${active} active / ${closed} closed`);
+    set('kpiWL', `${wins}W / ${losses}L`);
 
-  const o = data.overall;
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
-  set('kpiTotal',       o.total_signals.toLocaleString());
-  set('kpiWinRate',     o.win_rate != null ? o.win_rate.toFixed(1) + '%' : '—');
-  set('kpiAvgRR',       o.avg_rr_achieved != null ? '1:' + o.avg_rr_achieved.toFixed(2) : '—');
-  set('kpiClosed',      o.closed.toLocaleString());
-  set('kpiActiveClose', `${o.active} active / ${o.closed} closed`);
-  set('kpiWL',          `${o.total_wins}W / ${o.total_losses}L`);
-
-  if (data.by_market.length)      buildMarketChart(data.by_market);
-  if (data.by_signal_type.length) buildTypeChart(data.by_signal_type);
-  renderTfTable(data.by_timeframe);
-  renderConfTable(data.confidence_buckets);
-  renderTopAssets(data.top_assets);
+    const byMarket = Array.isArray(data.by_market) ? data.by_market : [];
+    const byType = Array.isArray(data.by_signal_type) ? data.by_signal_type : [];
+    if (byMarket.length) buildMarketChart(byMarket);
+    else if (_marketChart) { _marketChart.destroy(); _marketChart = null; }
+    if (byType.length) buildTypeChart(byType);
+    else if (_typeChart) { _typeChart.destroy(); _typeChart = null; }
+    renderTfTable(data.by_timeframe);
+    renderConfTable(data.confidence_buckets);
+    renderTopAssets(data.top_assets);
+  } catch (_) {
+    Toast.show('Failed to load signal analytics', 'danger');
+  } finally {
+    _analyticsRequestInFlight = false;
+  }
 }
 
 document.addEventListener('app:ready', () => {
   loadAnalytics();
+  document.querySelectorAll('[data-export-url]').forEach(button => button.addEventListener('click', () => {
+    const url = button.dataset.exportUrl;
+    if (url === '/api/v1/signals/export/csv' || url === '/api/v1/signals/history/export/csv') window.open(url, '_blank', 'noopener');
+  }));
   document.getElementById('refreshAnalytics').addEventListener('click', loadAnalytics);
 });
 </script>
