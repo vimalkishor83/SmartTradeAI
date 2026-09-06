@@ -42,7 +42,7 @@
           <th>Actual</th>
         </tr>
       </thead>
-      <tbody id="econBody"><tr><td colspan="7" class="text-center py-3 text-muted">Loading...</td></tr></tbody>
+  <tbody id="econBody" role="status" aria-live="polite"><tr><td colspan="7" class="text-center py-3 text-muted">Loading...</td></tr></tbody>
     </table>
   </div>
 </div>
@@ -196,7 +196,10 @@ function _compareValues(actual, forecast) {
 async function loadEcon() {
   const sequence = ++_econSequence;
   let data;
-  try { data = await API.get('/news/economic-calendar'); } catch (_) { return; }
+  try { data = await API.get('/news/economic-calendar'); } catch (_) {
+    if (sequence === _econSequence) document.getElementById('econBody').innerHTML = '<tr><td colspan="7" class="text-center py-3 text-muted">Calendar temporarily unavailable. Try refreshing.</td></tr>';
+    return;
+  }
   if (sequence !== _econSequence || !data) return;
 
   const tbody = document.getElementById('econBody');

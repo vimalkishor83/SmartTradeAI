@@ -16,7 +16,7 @@
       <option value="week">Next 7 Days</option>
       <option value="all">Next 14 Days</option>
     </select>
-    <button class="btn btn-primary btn-sm px-3" id="calRefreshBtn">
+    <button type="button" class="btn btn-primary btn-sm px-3" id="calRefreshBtn" aria-busy="false">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
   </div>
@@ -31,7 +31,7 @@
       <span class="badge-tag" id="calCountLow">0 Low</span>
     </div>
   </div>
-  <div class="section-card-body" id="calendarBody">
+  <div class="section-card-body" id="calendarBody" role="status" aria-live="polite">
     <div class="text-muted fs-sm">Loading...</div>
   </div>
 </div>
@@ -138,7 +138,11 @@ async function loadCalendar() {
   if (_calendarLoading) return;
   const button = document.getElementById('calRefreshBtn');
   _calendarLoading = true;
-  if (button) { button.disabled = true; button.classList.add('disabled'); }
+  if (button) {
+    button.disabled = true;
+    button.classList.add('disabled');
+    button.setAttribute('aria-busy', 'true');
+  }
   try {
     const data = await API.get('/news/economic-calendar');
     if (!data || data.error || !Array.isArray(data.events)) {
@@ -147,9 +151,15 @@ async function loadCalendar() {
     }
     _calendarEvents = data.events.filter(event => event && typeof event === 'object');
     renderCalendar();
+  } catch (_) {
+    document.getElementById('calendarBody').innerHTML = '<div class="alert alert-warning">Calendar temporarily unavailable. Try refreshing.</div>';
   } finally {
     _calendarLoading = false;
-    if (button) { button.disabled = false; button.classList.remove('disabled'); }
+    if (button) {
+      button.disabled = false;
+      button.classList.remove('disabled');
+      button.setAttribute('aria-busy', 'false');
+    }
   }
 }
 

@@ -11,6 +11,8 @@ def test_calendar_uses_event_bound_refresh_and_local_filtering():
 
     assert "onclick=" not in source
     assert 'id="calRefreshBtn"' in source
+    assert 'type="button"' in source
+    assert 'id="calendarBody" role="status" aria-live="polite"' in source
     assert "let _calendarEvents = [];" in source
     assert "let _calendarLoading = false;" in source
     assert "if (_calendarLoading) return;" in source
@@ -35,3 +37,6 @@ def test_calendar_rejects_malformed_api_payloads():
     assert "!data || data.error || !Array.isArray(data.events)" in source
     assert "data.events.filter(event => event && typeof event === 'object')" in source
     assert "const imp = String(e.impact || 'low').toLowerCase();" in source
+    assert "button.setAttribute('aria-busy', 'true');" in source
+    assert "button.setAttribute('aria-busy', 'false');" in source
+    assert "catch (_)" in source

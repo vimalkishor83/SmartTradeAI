@@ -32,3 +32,5 @@ def test_news_template_delegates_pagination_and_ignores_stale_refreshes():
     assert "_econSequence" in source
     assert "Promise.allSettled([loadNews(1), loadEcon()])" in source
     assert "events.slice(0, 250)" in source
+    assert 'id="econBody" role="status" aria-live="polite"' in source
+    assert "Calendar temporarily unavailable. Try refreshing." in source

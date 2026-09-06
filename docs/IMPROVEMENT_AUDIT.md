@@ -180,6 +180,21 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.136 IMPLEMENTED - Harden news calendar recovery states
+
+News and the standalone Economic Calendar now expose calendar content as a live status region and use explicit refresh-button semantics. Provider exceptions show a retryable unavailable state instead of leaving a loading placeholder indefinitely, while refresh disabled/busy state is restored in `finally`; event filtering, time-zone handling and API contracts are unchanged.
+
+**Risk level:** Medium research-data clarity value, low compatibility risk because the change is client-side failure-state handling only. **Affected modules:** `frontend/templates/dashboard/news.html`, `frontend/templates/dashboard/economic_calendar.html`, `tests/unit/test_news_template_safety.py`, `tests/unit/test_economic_calendar_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** News and Economic Calendar safety checks passed (**5 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 116 (News calendar recovery):**
+- `frontend/templates/dashboard/news.html` - expose calendar status and recover from provider exceptions.
+- `frontend/templates/dashboard/economic_calendar.html` - add busy semantics and exception-safe refresh cleanup.
+- Existing tests - protect retry and status contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.135 IMPLEMENTED - Harden AI Insights asset bootstrap
 
 AI Insights now handles an asset-list request exception with the same explicit degraded state used for an empty response, disabling prediction until assets are available instead of leaving an unhandled bootstrap rejection. The prediction-running guard is also set only after required controls are confirmed, preventing a defensive early return from permanently blocking later runs; prediction payloads and model behavior are unchanged.
