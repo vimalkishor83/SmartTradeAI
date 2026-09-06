@@ -1435,6 +1435,21 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.109 IMPLEMENTED - Add worker liveness observability
+
+The split web/worker deployment now publishes a short-lived Redis heartbeat from the dedicated background worker. Web readiness checks include that heartbeat only when Redis-backed split mode is active, so a stopped worker becomes visible to orchestration and monitoring while single-process deployments remain unaffected. No per-request database writes or external provider calls were added.
+
+**Risk level:** Critical operational visibility for scheduled signal/protective-order work, low runtime overhead and low compatibility risk. **Affected modules:** `worker.py`, `app/api/v1/system.py`, `tests/integration/test_request_observability.py`. **Migration:** none.
+
+**Regression evidence:** Request-observability and provider-health checks passed (**13 passed**), Python compilation and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `c59aa28`.
+
+**Session 88 (Worker heartbeat and readiness observability - operations):**
+- `worker.py` - publish an expiring heartbeat every 30 seconds from the dedicated worker.
+- `app/api/v1/system.py` - report missing/stale worker heartbeat as a hard readiness failure only in Redis-backed split mode.
+- `tests/integration/test_request_observability.py` - cover single-process bypass and missing/fresh heartbeat states.
+
+**Database changes:** none. **API contract changes:** readiness payload gains an additive `worker` check. **No new credentials or secrets introduced.**
+
 ### 7.108 IMPLEMENTED - Add Risk Manager direction safeguards
 
 The Risk Manager now checks trade direction before showing sizing results: BUY requires the stop below entry and target above entry, while SELL requires the inverse. Direction buttons expose their selected state, calculator inputs have explicit relationships, blank numeric inputs are handled safely, and invalid setups receive actionable guidance instead of a misleading position size.
