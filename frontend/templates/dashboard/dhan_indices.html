@@ -60,64 +60,117 @@
 <script>
 let _dhanConfigured = false;
 let _dhanUnderlyings = [];
+let _dhanRunSequence = 0;
+let _dhanStatusSequence = 0;
+let _dhanIndexSequence = 0;
+let _dhanExpirySequence = 0;
+let _dhanChainSequence = 0;
+let _dhanAllInFlight = false;
+
+function dhanEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function dhanNumber(value, digits = 2) {
+  const number = Number(value);
+  if (!Number.isFinite(number) || Math.abs(number) > 1e15) return '—';
+  return digits === null ? String(number) : number.toFixed(digits);
+}
+
+function dhanExpiry(value) {
+  const text = String(value ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const parsed = new Date(`${text}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === text && parsed.getTime() >= Date.now() - 86400000 ? text : null;
+}
+
+function dhanUnderlying(value) {
+  const text = String(value ?? '').trim().toLowerCase();
+  return _dhanUnderlyings.find(name => name.toLowerCase() === text) || null;
+}
 
 async function loadDhanStatus() {
-  const data = await API.get('/dhan/status');
-  if (!data) return;
+  const run = arguments[0] ?? _dhanRunSequence;
+  const sequence = ++_dhanStatusSequence;
+  let data;
+  try { data = await API.get('/dhan/status'); } catch (_) { return false; }
+  if (!data || run !== _dhanRunSequence || sequence !== _dhanStatusSequence) return false;
   _dhanConfigured = !!data.configured;
-  _dhanUnderlyings = data.available_underlyings || [];
+  _dhanUnderlyings = Array.isArray(data.available_underlyings)
+    ? [...new Set(data.available_underlyings.map(value => String(value ?? '').trim()).filter(Boolean))].slice(0, 3)
+    : [];
   document.getElementById('dhanNotConfigured').style.display = _dhanConfigured ? 'none' : '';
 
   const sel = document.getElementById('dhanUnderlying');
-  sel.innerHTML = _dhanUnderlyings.map(u => `<option value="${u}">${u}</option>`).join('');
+  sel.innerHTML = _dhanUnderlyings.map(u => `<option value="${dhanEscape(u)}">${dhanEscape(u)}</option>`).join('');
+  return true;
 }
 
 async function loadDhanIndices() {
+  const run = arguments[0] ?? _dhanRunSequence;
   const wrap = document.getElementById('dhanIndexCards');
+  const sequence = ++_dhanIndexSequence;
+  if (run !== _dhanRunSequence) return;
   if (!_dhanConfigured) {
     wrap.innerHTML = _dhanUnderlyings.map(name => `
       <div class="col-6 col-md-4 col-lg-3">
         <div class="kpi-card"><div class="kpi-top">
-          <div><div class="kpi-label">${name}</div><div class="kpi-value">—</div></div>
+          <div><div class="kpi-label">${dhanEscape(name)}</div><div class="kpi-value">—</div></div>
         </div><div class="kpi-change text-muted">not connected</div></div>
       </div>`).join('');
     return;
   }
-  const data = await API.get('/dhan/indices');
-  const quotes = data?.quotes || {};
-  const names = Object.keys(quotes).length ? Object.keys(quotes) : _dhanUnderlyings;
+  let data;
+  try { data = await API.get('/dhan/indices'); } catch (_) { data = null; }
+  if (run !== _dhanRunSequence || sequence !== _dhanIndexSequence) return;
+  const quotes = data?.quotes && typeof data.quotes === 'object' ? data.quotes : {};
+  const names = _dhanUnderlyings;
   wrap.innerHTML = names.map(name => {
-    const q = quotes[name] || {};
+    const q = quotes[name] && typeof quotes[name] === 'object' ? quotes[name] : {};
     // Field names below follow Dhan's typical quote shape (last_price /
     // net_change) — adjust here if real responses use different keys.
     const price = q.last_price ?? q.ltp ?? null;
     const change = q.net_change ?? q.change_pct ?? null;
-    const up = (change ?? 0) >= 0;
+    const changeNumber = Number(change);
+    const changeText = dhanNumber(change);
+    const hasChange = changeText !== '—';
+    const up = hasChange && changeNumber >= 0;
     return `<div class="col-6 col-md-4 col-lg-3">
-      <div class="kpi-card ${up ? 'green' : 'red'}"><div class="kpi-top">
-        <div><div class="kpi-label">${name}</div>
-          <div class="kpi-value">${price != null ? price : '—'}</div></div>
-      </div><div class="kpi-change ${up ? 'text-green' : 'text-red'}">${change != null ? (up ? '+' : '') + change : '—'}</div></div>
+      <div class="kpi-card ${hasChange ? (up ? 'green' : 'red') : ''}"><div class="kpi-top">
+        <div><div class="kpi-label">${dhanEscape(name)}</div>
+          <div class="kpi-value">${dhanNumber(price)}</div></div>
+      </div><div class="kpi-change ${hasChange ? (up ? 'text-green' : 'text-red') : 'text-muted'}">${hasChange ? (up ? '+' : '') + changeText : '—'}</div></div>
     </div>`;
   }).join('');
 }
 
 async function loadDhanExpiries() {
-  const underlying = document.getElementById('dhanUnderlying').value;
+  const run = arguments[0] ?? _dhanRunSequence;
+  const sequence = ++_dhanExpirySequence;
+  const underlying = dhanUnderlying(document.getElementById('dhanUnderlying').value);
   const expirySel = document.getElementById('dhanExpiry');
-  if (!_dhanConfigured || !underlying) { expirySel.innerHTML = ''; return; }
-  const data = await API.get('/dhan/options/expiries', { underlying });
-  const expiries = data?.expiries || [];
+  if (run !== _dhanRunSequence || !_dhanConfigured || !underlying) { expirySel.innerHTML = ''; return; }
+  let data;
+  try { data = await API.get('/dhan/options/expiries', { underlying }); } catch (_) { data = null; }
+  if (run !== _dhanRunSequence || sequence !== _dhanExpirySequence) return;
+  const expiries = Array.isArray(data?.expiries)
+    ? [...new Set(data.expiries.map(dhanExpiry).filter(Boolean))].slice(0, 100)
+    : [];
   expirySel.innerHTML = expiries.length
-    ? expiries.map(e => `<option value="${e}">${e}</option>`).join('')
+    ? expiries.map(e => `<option value="${dhanEscape(e)}">${dhanEscape(e)}</option>`).join('')
     : '<option value="">No expiries</option>';
-  loadDhanChain();
+  await loadDhanChain(run);
 }
 
 async function loadDhanChain() {
+  const run = arguments[0] ?? _dhanRunSequence;
+  const sequence = ++_dhanChainSequence;
   const body = document.getElementById('dhanChainBody');
-  const underlying = document.getElementById('dhanUnderlying').value;
-  const expiry = document.getElementById('dhanExpiry').value;
+  const underlying = dhanUnderlying(document.getElementById('dhanUnderlying').value);
+  const expiry = dhanExpiry(document.getElementById('dhanExpiry').value);
+  if (run !== _dhanRunSequence) return;
   if (!_dhanConfigured) {
     body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">Dhan isn\'t connected yet.</td></tr>';
     return;
@@ -126,37 +179,64 @@ async function loadDhanChain() {
     body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">Select an underlying and expiry to load the chain.</td></tr>';
     return;
   }
-  const data = await API.get('/dhan/options/chain', { underlying, expiry });
+  let data;
+  try { data = await API.get('/dhan/options/chain', { underlying, expiry }); } catch (_) { data = null; }
+  if (run !== _dhanRunSequence || sequence !== _dhanChainSequence) return;
   // Dhan's option chain shape is typically {last_price, oc: {"<strike>": {ce:{...}, pe:{...}}}}
-  const oc = data?.chain?.oc || {};
-  const strikes = Object.keys(oc).sort((a, b) => parseFloat(a) - parseFloat(b));
+  const oc = data?.chain?.oc && typeof data.chain.oc === 'object' ? data.chain.oc : {};
+  const strikes = Object.keys(oc)
+    .filter(strike => Number.isFinite(Number(strike)))
+    .sort((a, b) => Number(a) - Number(b))
+    .slice(0, 500);
   if (!strikes.length) {
     body.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-5">No chain data — check the underlying/expiry, or that Dhan credentials are valid.</td></tr>';
     return;
   }
   body.innerHTML = strikes.map(strike => {
-    const ce = oc[strike]?.ce || {};
-    const pe = oc[strike]?.pe || {};
-    const f = (v) => v ?? '—';
+    const row = oc[strike] && typeof oc[strike] === 'object' ? oc[strike] : {};
+    const ce = row.ce && typeof row.ce === 'object' ? row.ce : {};
+    const pe = row.pe && typeof row.pe === 'object' ? row.pe : {};
+    const f = (v, digits = 2) => dhanNumber(v, digits);
     return `<tr>
-      <td>${f(ce.oi)}</td><td>${f(ce.volume)}</td><td>${f(ce.implied_volatility)}</td><td class="fw-700">${f(ce.last_price)}</td>
-      <td class="fw-800 text-center">${strike}</td>
-      <td class="fw-700">${f(pe.last_price)}</td><td>${f(pe.implied_volatility)}</td><td>${f(pe.volume)}</td><td>${f(pe.oi)}</td>
+      <td>${f(ce.oi, 0)}</td><td>${f(ce.volume, 0)}</td><td>${f(ce.implied_volatility)}</td><td class="fw-700">${f(ce.last_price)}</td>
+      <td class="fw-800 text-center">${f(strike)}</td>
+      <td class="fw-700">${f(pe.last_price)}</td><td>${f(pe.implied_volatility)}</td><td>${f(pe.volume, 0)}</td><td>${f(pe.oi, 0)}</td>
     </tr>`;
   }).join('');
 }
 
 async function loadAll() {
-  await loadDhanStatus();
-  await loadDhanIndices();
-  await loadDhanExpiries();
+  if (_dhanAllInFlight) return;
+  _dhanAllInFlight = true;
+  const run = ++_dhanRunSequence;
+  const refresh = document.getElementById('dhanRefresh');
+  if (refresh) refresh.disabled = true;
+  try {
+    if (!await loadDhanStatus(run)) return;
+    await Promise.all([loadDhanIndices(run), loadDhanExpiries(run)]);
+  } finally {
+    if (run === _dhanRunSequence && refresh) refresh.disabled = false;
+    _dhanAllInFlight = false;
+  }
 }
 
 document.addEventListener('app:ready', () => {
+  const refresh = document.getElementById('dhanRefresh');
+  if (refresh && refresh.dataset.bound !== 'true') {
+    refresh.dataset.bound = 'true';
+    refresh.addEventListener('click', loadAll);
+  }
+  const underlying = document.getElementById('dhanUnderlying');
+  if (underlying && underlying.dataset.bound !== 'true') {
+    underlying.dataset.bound = 'true';
+    underlying.addEventListener('change', () => loadDhanExpiries());
+  }
+  const expiry = document.getElementById('dhanExpiry');
+  if (expiry && expiry.dataset.bound !== 'true') {
+    expiry.dataset.bound = 'true';
+    expiry.addEventListener('change', () => loadDhanChain());
+  }
   loadAll();
-  document.getElementById('dhanRefresh').addEventListener('click', loadAll);
-  document.getElementById('dhanUnderlying').addEventListener('change', loadDhanExpiries);
-  document.getElementById('dhanExpiry').addEventListener('change', loadDhanChain);
 });
 </script>
 {% endblock %}
