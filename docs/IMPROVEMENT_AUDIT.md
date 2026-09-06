@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.143 IMPLEMENTED - Harden journal timestamp serialization
+
+JournalEntry payloads now tolerate legacy rows with a null `created_at` instead of raising during Journal, analytics or tax-related API serialization. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
+
+**Risk level:** Medium data-availability value, low compatibility risk. **Affected modules:** `app/models/journal.py`, `tests/unit/test_journal_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Journal serialization, route validation, stats aggregation and tax-report checks passed (**22 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 123 (Journal serialization resilience):**
+- `app/models/journal.py` - make legacy journal timestamps null-safe.
+- `tests/unit/test_journal_serialization.py` - verify null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.142 IMPLEMENTED - Harden audit log timestamp serialization
 
 Audit and system-log payloads now tolerate legacy rows with a null `created_at` instead of raising during admin/API serialization. Normal timestamps retain their ISO-8601 representation, so the fix is backward-compatible and requires no data migration.

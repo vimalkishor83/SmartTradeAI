@@ -54,5 +54,5 @@ class JournalEntry(db.Model):
             "emotion_tag": self.emotion_tag,
             "setup_tags": self.setup_tags or [],
             "notes": self.notes,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
