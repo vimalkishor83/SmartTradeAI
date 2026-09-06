@@ -369,6 +369,9 @@
           <a href="/admin/audit-log" data-tooltip="Audit Log" class="nav-item {% if active == 'admin_audit_log' %}active{% endif %}">
             <i class="bi bi-journal-check nav-icon-red"></i><span class="nav-text">Audit Log</span>
           </a>
+          <a href="/admin/daily-compound-calculator" data-tooltip="Daily Compound Calculator — super admin only" class="nav-item {% if active == 'admin_daily_compound_calculator' %}active{% endif %}">
+            <i class="bi bi-calculator-fill nav-icon-red"></i><span class="nav-text">Compound Calculator</span>
+          </a>
           {% if '/auto-generate' not in disabled_nav_items %}
           <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
             <i class="bi bi-robot nav-icon-red"></i><span class="nav-text">Auto Generate</span>
