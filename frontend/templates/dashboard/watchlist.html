@@ -8,16 +8,16 @@
   <div><span class="page-eyebrow">Portfolio</span>
 <h1 class="page-title">Watchlist</h1></div>
   <div class="d-flex gap-2 align-items-center">
-    <button class="btn btn-sm btn-outline-secondary" id="viewListBtn" onclick="switchView('list')">
+    <button class="btn btn-sm btn-outline-secondary" id="viewListBtn" data-view="list">
       <i class="bi bi-list-ul me-1"></i>List View
     </button>
-    <button class="btn btn-sm btn-primary" id="viewContextBtn" onclick="switchView('context')">
+    <button class="btn btn-sm btn-primary" id="viewContextBtn" data-view="context">
       <i class="bi bi-grid-3x3-gap me-1"></i>Context View
     </button>
     <div class="btn-group btn-group-sm" id="cardSizeGroup" role="group" style="display:none">
-      <button class="btn btn-outline-secondary" data-size="sm" onclick="setCardSize('sm')" title="Small">S</button>
-      <button class="btn btn-outline-secondary active" data-size="md" onclick="setCardSize('md')" title="Medium">M</button>
-      <button class="btn btn-outline-secondary" data-size="lg" onclick="setCardSize('lg')" title="Large">L</button>
+      <button class="btn btn-outline-secondary" data-size="sm" title="Small">S</button>
+      <button class="btn btn-outline-secondary active" data-size="md" title="Medium">M</button>
+      <button class="btn btn-outline-secondary" data-size="lg" title="Large">L</button>
     </div>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
       <i class="bi bi-plus-circle me-1"></i> New List
@@ -82,8 +82,51 @@
 let _contextLoaded = false;
 let _currentView = 'context';
 let _cardSize = 'md';
+let _watchlistLoadPromise = null;
+let _contextLoadPromise = null;
+let _contextRequestSeq = 0;
+let _createWatchlistInFlight = false;
+let _addAssetInFlight = false;
+const _watchlistRemoveInFlight = new Set();
+const _watchlistDeleteInFlight = new Set();
+
+const MAX_WATCHLIST_NAME = 100;
+const MAX_WATCHLIST_SYMBOL = 30;
+const MAX_WATCHLIST_ALERT_PRICE = 1000000000000;
+
+function _watchlistHtml(value) {
+  return typeof STSafe !== 'undefined' && typeof STSafe.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _watchlistId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,18}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _watchlistNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function _watchlistText(value, fallback = '') {
+  return typeof value === 'string' ? value : fallback;
+}
+
+function _watchlistError(container, message) {
+  container.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">${_watchlistHtml(message)}</div></div>`;
+}
+
+function _invalidateWatchlistContext() {
+  _contextLoaded = false;
+  _contextRequestSeq += 1;
+}
 
 function switchView(view) {
+  if (!['list', 'context'].includes(view)) return;
   _currentView = view;
   document.getElementById('listView').style.display    = view === 'list'    ? 'block' : 'none';
   document.getElementById('contextView').style.display = view === 'context' ? 'block' : 'none';
@@ -101,37 +144,59 @@ function switchView(view) {
 
 /* ── List View ─────────────────────────────────────── */
 async function loadWatchlists() {
-  const data = await API.get('/watchlist/');
-  if (!data) return;
+  if (_watchlistLoadPromise) return _watchlistLoadPromise;
+  const request = (async () => {
+    const container = document.getElementById('watchlistsContainer');
+    try {
+      const data = await API.get('/watchlist/');
+      if (!data || !Array.isArray(data.watchlists)) {
+        _watchlistError(container, 'Unable to load watchlists. Try refreshing.');
+        return;
+      }
+      if (!data.watchlists.length) {
+        container.innerHTML = '<div class="col-12"><div class="glass-card text-center py-5"><i class="bi bi-star" style="font-size:48px;color:var(--border)"></i><p class="text-muted mt-3">No watchlists yet. Create your first one.</p></div></div>';
+        return;
+      }
 
-  const container = document.getElementById('watchlistsContainer');
-  if (!data.watchlists?.length) {
-    container.innerHTML = '<div class="col-12"><div class="glass-card text-center py-5"><i class="bi bi-star" style="font-size:48px;color:var(--border)"></i><p class="text-muted mt-3">No watchlists yet. Create your first one.</p></div></div>';
-    return;
-  }
-
-  container.innerHTML = data.watchlists.map(wl => `
+      container.innerHTML = data.watchlists.filter(wl => wl && typeof wl === 'object').map(wl => {
+        const id = _watchlistId(wl.id);
+        const name = _watchlistText(wl.name, 'Untitled watchlist').slice(0, MAX_WATCHLIST_NAME);
+        const items = Array.isArray(wl.items) ? wl.items.filter(item => item && typeof item === 'object') : [];
+        return `
     <div class="col-md-6 col-lg-4">
       <div class="section-card">
         <div class="section-card-header">
-          <span class="section-card-title">${wl.is_pinned ? '📌 ' : ''}${wl.name}</span>
+          <span class="section-card-title">${wl.is_pinned ? '📌 ' : ''}${_watchlistHtml(name)}</span>
           <div class="d-flex gap-1">
-            <button class="btn btn-sm btn-outline-light" onclick="openAddAsset(${wl.id})" title="Add asset"><i class="bi bi-plus"></i></button>
-            <button class="btn btn-sm btn-outline-danger" onclick="deleteWatchlist(${wl.id}, '${wl.name.replace(/'/g, "\\'")}')" title="Delete watchlist"><i class="bi bi-trash"></i></button>
+            <button class="btn btn-sm btn-outline-light" data-open-add="${id}" ${id ? '' : 'disabled'} title="Add asset"><i class="bi bi-plus"></i></button>
+            <button class="btn btn-sm btn-outline-danger" data-delete-watchlist="${id}" data-name="${_watchlistHtml(name)}" ${id ? '' : 'disabled'} title="Delete watchlist"><i class="bi bi-trash"></i></button>
           </div>
         </div>
         <div>
-          ${wl.items?.length ? wl.items.map(item => `
+          ${items.length ? items.map(item => {
+            const itemId = _watchlistId(item.id);
+            const symbol = _watchlistText(item.symbol, '—');
+            const market = _watchlistText(item.market, '');
+            return `
             <div class="d-flex justify-content-between align-items-center p-3 border-bottom" style="border-color:var(--border)!important">
               <div>
-                <strong>${item.symbol}</strong>
-                <span class="badge bg-secondary ms-2">${item.market || ''}</span>
+                <strong>${_watchlistHtml(symbol)}</strong>
+                <span class="badge bg-secondary ms-2">${_watchlistHtml(market)}</span>
               </div>
-              <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.id})"><i class="bi bi-x"></i></button>
-            </div>`).join('') : '<div class="p-3 text-muted small">No assets added yet</div>'}
+              <button class="btn btn-sm btn-outline-danger" data-remove-watchlist-item="${itemId}" ${itemId ? '' : 'disabled'}><i class="bi bi-x"></i></button>
+            </div>`;
+          }).join('') : '<div class="p-3 text-muted small">No assets added yet</div>'}
         </div>
       </div>
-    </div>`).join('');
+    </div>`;
+      }).join('');
+    } catch (_) {
+      _watchlistError(container, 'Unable to load watchlists. Try refreshing.');
+    }
+  })();
+  _watchlistLoadPromise = request;
+  try { return await request; }
+  finally { if (_watchlistLoadPromise === request) _watchlistLoadPromise = null; }
 }
 
 function openAddAsset(wlId) {
@@ -139,74 +204,130 @@ function openAddAsset(wlId) {
   new bootstrap.Modal(document.getElementById('addAssetModal')).show();
 }
 
-document.getElementById('addAssetBtn').addEventListener('click', async () => {
-  const wlId = document.getElementById('addAssetWlId').value;
-  const res = await API.post(`/watchlist/${wlId}/items`, {
-    symbol: document.getElementById('addAssetSymbol').value,
-    alert_price: document.getElementById('addAlertPrice').value || null,
-  });
-  if (res?.id) {
-    bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
-    Toast.show('Asset added!', 'success');
-    loadWatchlists();
-    _contextLoaded = false;  // invalidate context cache
-  } else Toast.show(res?.error || 'Failed', 'error');
+document.getElementById('addAssetBtn').addEventListener('click', async (event) => {
+  if (_addAssetInFlight) return;
+  const wlId = _watchlistId(document.getElementById('addAssetWlId').value);
+  const symbol = document.getElementById('addAssetSymbol').value.trim().toUpperCase();
+  const alertRaw = document.getElementById('addAlertPrice').value.trim();
+  const alertPrice = alertRaw === '' ? null : _watchlistNumber(alertRaw);
+  if (!wlId || !/^[A-Z0-9][A-Z0-9._-]{0,29}$/.test(symbol)
+      || (alertPrice !== null && (alertPrice <= 0 || alertPrice > MAX_WATCHLIST_ALERT_PRICE))) {
+    Toast.show('Enter a valid symbol and alert price.', 'warning');
+    return;
+  }
+  _addAssetInFlight = true;
+  event.currentTarget.disabled = true;
+  try {
+    const res = await API.post(`/watchlist/${wlId}/items`, { symbol, alert_price: alertPrice });
+    if (res?.id && !res?.error) {
+      bootstrap.Modal.getInstance(document.getElementById('addAssetModal')).hide();
+      document.getElementById('addAssetSymbol').value = '';
+      document.getElementById('addAlertPrice').value = '';
+      Toast.show('Asset added!', 'success');
+      _invalidateWatchlistContext();
+      loadWatchlists();
+      if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+    } else Toast.show(res?.error || 'Failed to add asset', 'error');
+  } finally {
+    _addAssetInFlight = false;
+    event.currentTarget.disabled = false;
+  }
 });
 
 async function removeItem(id) {
-  await API.delete(`/watchlist/items/${id}`);
-  Toast.show('Removed', 'success');
-  loadWatchlists();
-  _contextLoaded = false;
-  if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+  id = _watchlistId(id);
+  if (!id || _watchlistRemoveInFlight.has(id)) return;
+  _watchlistRemoveInFlight.add(id);
+  try {
+    if (await API.delete(`/watchlist/items/${id}`)) {
+      Toast.show('Removed', 'success');
+      _invalidateWatchlistContext();
+      loadWatchlists();
+      if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+    } else Toast.show('Unable to remove asset', 'error');
+  } finally { _watchlistRemoveInFlight.delete(id); }
 }
 
 async function deleteWatchlist(id, name) {
+  id = _watchlistId(id);
+  if (!id || _watchlistDeleteInFlight.has(id)) return;
   if (!confirm(`Delete watchlist "${name}"? This removes all assets in it too.`)) return;
-  await API.delete(`/watchlist/${id}`);
-  Toast.show('Watchlist deleted', 'success');
-  loadWatchlists();
-  _contextLoaded = false;
-  if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+  _watchlistDeleteInFlight.add(id);
+  try {
+    if (await API.delete(`/watchlist/${id}`)) {
+      Toast.show('Watchlist deleted', 'success');
+      _invalidateWatchlistContext();
+      loadWatchlists();
+      if (_currentView === 'context') { _contextLoaded = true; loadContextView(); }
+    } else Toast.show('Unable to delete watchlist', 'error');
+  } finally { _watchlistDeleteInFlight.delete(id); }
 }
 
-document.getElementById('createWl').addEventListener('click', async () => {
-  const name = document.getElementById('wlName').value;
-  if (!name) return;
-  const res = await API.post('/watchlist/', { name });
-  if (res?.id) {
-    bootstrap.Modal.getInstance(document.getElementById('newWlModal')).hide();
-    document.getElementById('wlName').value = '';
-    Toast.show(`"${name}" created`, 'success');
-    loadWatchlists();
-    // Context View shows a flat feed of items across all lists (with no
-    // per-list grouping), so a brand-new empty list produces zero visible
-    // change there — the toast fires and the page looks unchanged. Switch
-    // to List View, where the new list actually appears as its own card.
-    switchView('list');
+document.getElementById('createWl').addEventListener('click', async (event) => {
+  if (_createWatchlistInFlight) return;
+  const name = document.getElementById('wlName').value.trim();
+  if (!name || name.length > MAX_WATCHLIST_NAME) {
+    Toast.show(`Watchlist name must be 1-${MAX_WATCHLIST_NAME} characters.`, 'warning');
+    return;
+  }
+  _createWatchlistInFlight = true;
+  event.currentTarget.disabled = true;
+  try {
+    const res = await API.post('/watchlist/', { name });
+    if (res?.id && !res?.error) {
+      bootstrap.Modal.getInstance(document.getElementById('newWlModal')).hide();
+      document.getElementById('wlName').value = '';
+      Toast.show(`"${name}" created`, 'success');
+      loadWatchlists();
+      // Context View is a flat feed, so a new empty list is visible in List View.
+      switchView('list');
+    } else Toast.show(res?.error || 'Unable to create watchlist', 'error');
+  } finally {
+    _createWatchlistInFlight = false;
+    event.currentTarget.disabled = false;
   }
 });
 
 /* ── Context View ──────────────────────────────────── */
 async function loadContextView() {
+  if (_contextLoadPromise) return _contextLoadPromise;
   const grid = document.getElementById('contextGrid');
   grid.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">
     <div class="spinner-border spinner-border-sm me-2"></div> Fetching live context…
   </div></div>`;
 
-  const data = await API.get('/watchlist/context');
-  if (!data?.context?.length) {
-    grid.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">
-      <i class="bi bi-star d-block mb-2" style="font-size:40px;color:var(--border)"></i>
-      No watchlist items yet. Add some assets to see context.
-    </div></div>`;
-    return;
-  }
-
-  grid.innerHTML = data.context.map(item => _buildContextCard(item)).join('');
+  const requestSeq = ++_contextRequestSeq;
+  const request = (async () => {
+    try {
+      const data = await API.get('/watchlist/context');
+      if (requestSeq !== _contextRequestSeq) return;
+      if (!data || !Array.isArray(data.context)) {
+        _watchlistError(grid, 'Unable to load live watchlist context. Try refreshing.');
+        return;
+      }
+      if (!data.context.length) {
+        grid.innerHTML = `<div class="col-12"><div class="section-card text-center py-5 text-muted">
+          <i class="bi bi-star d-block mb-2" style="font-size:40px;color:var(--border)"></i>
+          No watchlist items yet. Add some assets to see context.
+        </div></div>`;
+        return;
+      }
+      grid.innerHTML = data.context
+        .filter(item => item && typeof item === 'object')
+        .map(item => _buildContextCard(item)).join('');
+    } catch (_) {
+      if (requestSeq === _contextRequestSeq) {
+        _watchlistError(grid, 'Unable to load live watchlist context. Try refreshing.');
+      }
+    }
+  })();
+  _contextLoadPromise = request;
+  try { return await request; }
+  finally { if (_contextLoadPromise === request) _contextLoadPromise = null; }
 }
 
 function setCardSize(size) {
+  if (!['sm', 'md', 'lg'].includes(size)) return;
   _cardSize = size;
   document.querySelectorAll('#cardSizeGroup button').forEach(b => b.classList.toggle('active', b.dataset.size === size));
   if (_contextLoaded) loadContextView();
@@ -221,38 +342,47 @@ function _confBadgeClass(score) {
 }
 
 function _buildContextCard(item) {
-  const priceStr   = item.current_price != null ? formatPrice(item.current_price, item.market) : '—';
-  const changePct  = item.change_pct;
+  const symbol = _watchlistHtml(_watchlistText(item.symbol, '—'));
+  const market = _watchlistText(item.market, '');
+  const price = _watchlistNumber(item.current_price);
+  const priceStr = price === null ? '—' : _watchlistHtml(formatPrice(price, market));
+  const changePct  = _watchlistNumber(item.change_pct);
   const changeStr  = changePct != null
     ? `<span style="color:${changePct >= 0 ? 'var(--green)' : 'var(--red)'};font-size:13px;font-weight:600">${changePct >= 0 ? '▲' : '▼'}${Math.abs(changePct).toFixed(2)}%</span>`
     : '';
 
-  const mktLabel = (item.market || '').replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+  const mktLabel = _watchlistHtml(market.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase()));
 
   let confluenceBadge = '';
-  if (item.confluence_score) {
-    const isBuy  = item.confluence_score.includes('BUY');
-    const isSell = item.confluence_score.includes('SELL');
-    const is3    = item.confluence_score.startsWith('3/3');
+  const confluence = _watchlistText(item.confluence_score, '').slice(0, 40);
+  if (confluence) {
+    const isBuy  = confluence.includes('BUY');
+    const isSell = confluence.includes('SELL');
+    const is3    = confluence.startsWith('3/3');
     const bg     = is3 && isBuy ? 'var(--green)' : is3 && isSell ? 'var(--red)' : 'var(--border)';
     const fg     = is3 && (isBuy || isSell) ? '#fff' : 'var(--text-secondary)';
-    confluenceBadge = `<span style="background:${bg};color:${fg};font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${item.confluence_score}</span>`;
+    confluenceBadge = `<span style="background:${bg};color:${fg};font-size:10px;font-weight:700;padding:2px 7px;border-radius:10px">${_watchlistHtml(confluence)}</span>`;
   }
 
   let lastSigStr = '—';
-  if (item.last_signal_type) {
-    const elapsed = item.last_signal_time
-      ? _elapsed(item.last_signal_time) : '';
-    const conf = item.last_signal_confidence ? `, ${Math.round(item.last_signal_confidence)}%` : '';
-    lastSigStr = `${item.last_signal_type} ${item.last_signal_tf || ''}${elapsed ? ' (' + elapsed + ')' : ''}${conf}`;
+  const signalType = _watchlistText(item.last_signal_type, '');
+  if (signalType) {
+    const elapsed = _elapsed(item.last_signal_time);
+    const signalTf = _watchlistText(item.last_signal_tf, '');
+    const confidence = _watchlistNumber(item.last_signal_confidence);
+    const conf = confidence === null ? '' : `, ${Math.round(confidence)}%`;
+    lastSigStr = _watchlistHtml(`${signalType} ${signalTf}${elapsed ? ` (${elapsed})` : ''}${conf}`.trim());
   }
 
-  const alertStr = item.alert_price
-    ? `Alert: ${formatPrice(item.alert_price, item.market)}${item.distance_to_alert_pct != null ? ` (${item.distance_to_alert_pct > 0 ? '+' : ''}${item.distance_to_alert_pct.toFixed(1)}% away)` : ''}`
+  const alertPrice = _watchlistNumber(item.alert_price);
+  const distance = _watchlistNumber(item.distance_to_alert_pct);
+  const alertStr = alertPrice !== null && alertPrice > 0
+    ? _watchlistHtml(`Alert: ${formatPrice(alertPrice, market)}${distance === null ? '' : ` (${distance > 0 ? '+' : ''}${distance.toFixed(1)}% away)`}`)
     : 'No alert set';
 
-  const slHover = item.last_signal_stop_loss && item.current_price
-    ? `Distance to SL: ${Math.abs(((item.last_signal_stop_loss - item.current_price) / item.current_price) * 100).toFixed(2)}%`
+  const stopLoss = _watchlistNumber(item.last_signal_stop_loss);
+  const slHover = stopLoss !== null && price !== null && price > 0
+    ? _watchlistHtml(`Distance to SL: ${Math.abs(((stopLoss - price) / price) * 100).toFixed(2)}%`)
     : '';
 
   // ── Small: compact single-line card, more per row ──────────────
@@ -260,7 +390,7 @@ function _buildContextCard(item) {
     return `<div class="col-6 col-md-3 col-xl-2">
       <div class="section-card h-100" style="cursor:default;padding:10px 12px" title="${slHover}">
         <div class="d-flex justify-content-between align-items-center">
-          <span style="font-weight:800;font-size:13px;color:var(--text-primary)">${item.symbol}</span>
+          <span style="font-weight:800;font-size:13px;color:var(--text-primary)">${symbol}</span>
           ${confluenceBadge}
         </div>
         <div style="font-size:15px;font-weight:800;color:var(--text-primary);margin-top:4px">${priceStr}</div>
@@ -275,7 +405,7 @@ function _buildContextCard(item) {
       <div class="section-card h-100" style="cursor:default" title="${slHover}">
         <div class="d-flex justify-content-between align-items-start p-4 pb-2">
           <div>
-            <div style="font-weight:800;font-size:22px;color:var(--text-primary)">${item.symbol}</div>
+            <div style="font-weight:800;font-size:22px;color:var(--text-primary)">${symbol}</div>
             <span style="background:var(--bg-secondary);color:var(--text-muted);font-size:11px;padding:3px 8px;border-radius:9px">${mktLabel}</span>
           </div>
           <div>${confluenceBadge}</div>
@@ -305,7 +435,7 @@ function _buildContextCard(item) {
       <!-- Top row -->
       <div class="d-flex justify-content-between align-items-start p-3 pb-1">
         <div>
-          <div style="font-weight:800;font-size:16px;color:var(--text-primary)">${item.symbol}</div>
+            <div style="font-weight:800;font-size:16px;color:var(--text-primary)">${symbol}</div>
           <span style="background:var(--bg-secondary);color:var(--text-muted);font-size:10px;padding:2px 6px;border-radius:8px">${mktLabel}</span>
         </div>
         <div>${confluenceBadge}</div>
@@ -332,11 +462,29 @@ function _buildContextCard(item) {
 }
 
 function _elapsed(iso) {
-  const diff = (Date.now() - new Date(iso).getTime()) / 1000;
+  const timestamp = new Date(iso).getTime();
+  if (!Number.isFinite(timestamp)) return '';
+  const diff = Math.max(0, (Date.now() - timestamp) / 1000);
   if (diff < 3600) return Math.round(diff / 60) + 'm ago';
   if (diff < 86400) return Math.round(diff / 3600) + 'h ago';
   return Math.round(diff / 86400) + 'd ago';
 }
+
+document.getElementById('watchlistsContainer').addEventListener('click', event => {
+  const add = event.target.closest('[data-open-add]');
+  if (add) { openAddAsset(add.dataset.openAdd); return; }
+  const remove = event.target.closest('[data-remove-watchlist-item]');
+  if (remove) { removeItem(remove.dataset.removeWatchlistItem); return; }
+  const del = event.target.closest('[data-delete-watchlist]');
+  if (del) deleteWatchlist(del.dataset.deleteWatchlist, del.dataset.name || 'this watchlist');
+});
+
+document.getElementById('viewListBtn').addEventListener('click', () => switchView('list'));
+document.getElementById('viewContextBtn').addEventListener('click', () => switchView('context'));
+document.getElementById('cardSizeGroup').addEventListener('click', event => {
+  const button = event.target.closest('[data-size]');
+  if (button) setCardSize(button.dataset.size);
+});
 
 document.addEventListener('app:ready', () => {
   loadWatchlists();
