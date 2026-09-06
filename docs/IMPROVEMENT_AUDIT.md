@@ -1226,4 +1226,28 @@ Portfolio rendering now escapes asset data and validates IDs/numbers before DOM 
 
 **Regression evidence:** Portfolio template/input/risk checks passed (**20 passed**), extracted browser JavaScript passed `node --check`, and whitespace validation passed. Production deployment verification is pending because the security reviewer requires explicit authorization for source transfer to `ubuntu@140.238.247.245`; the safe production plan is source/health checks plus isolated tests only, not the mutating integration suite.
 
+**Session 54 (backend safety/performance - portfolio input boundaries, §7.75):**
+- `app/api/v1/portfolio.py` - validate symbols, finite bounded financial values and the persisted notes length before ORM writes.
+- `tests/unit/test_portfolio_input_validation.py` - cover malformed types, bounds, symbol normalization and schema-aligned notes.
+
+**Session 55 (UI safety/risk workflow - portfolio position controls, §7.76):**
+- `frontend/templates/dashboard/portfolio.html` - escape holdings, validate IDs/numbers, coalesce reads, guard mutations, support post-entry stop-loss editing and clear stale rows.
+- `tests/unit/test_portfolio_template_safety.py` - protect portfolio event wiring, numeric limits, rendering and empty-state refresh behavior.
+
+**Session 56 (backend safety/performance - Watchlist API boundaries, §7.77):**
+- `app/api/v1/watchlist.py` - validate list/item payloads, enforce bounded alert prices and strict booleans, and invalidate per-user context cache after mutations.
+- `tests/unit/test_watchlist_input_validation.py`, `tests/integration/test_watchlist_routes_validation.py` - cover helper and authenticated HTTP request-shape rejection.
+
+**Session 57 (UI safety/performance - Watchlist workflow, §7.78):**
+- `frontend/templates/dashboard/watchlist.html` - replace inline actions with delegated listeners, escape live context, coalesce list/context loads, suppress duplicate mutations and show API failures.
+- `tests/unit/test_watchlist_template_safety.py` - protect Watchlist rendering and control-binding contracts.
+
+**Session 58 (backend safety/correctness - Journal payloads and detail reads, §7.79):**
+- `app/api/v1/journal.py` - normalize and bound Journal JSON before auto-P&L/ORM assignment, validate date/filter inputs, and add an ownership-scoped detail GET for editing.
+- `tests/unit/test_journal_input_validation.py`, `tests/integration/test_journal_routes_validation.py` - cover malformed payloads, finite values, dates and detail reads.
+
+**Session 59 (UI safety/correctness - Journal workflow, §7.80):**
+- `frontend/templates/dashboard/journal.html` - escape table/insight values, bind entry actions through datasets, use detail reads for edits, correctly interpret delete responses, guard duplicate saves, and scope weekly notes by user.
+- `tests/unit/test_journal_template_safety.py` - protect Journal rendering and mutation contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
