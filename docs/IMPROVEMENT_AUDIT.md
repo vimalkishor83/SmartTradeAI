@@ -50,6 +50,20 @@ The authenticated `/api/v1/signals/summary` endpoint now calculates historical t
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.113 IMPLEMENTED - Improve Trade Journal accessibility and state feedback
+
+The Trade Journal now associates every filter and modal field with an explicit label, identifies the entries table with a caption, names edit/delete icon actions, and exposes a live status region for loading, unavailable and loaded-result states. Existing journal routes, element IDs, API payloads, mutation guards and rendering safeguards remain unchanged.
+
+**Risk level:** High workflow accessibility and decision-context value, low compatibility risk because the change is semantic/additive and preserves existing behavior. **Affected modules:** `frontend/templates/dashboard/journal.html`, `tests/unit/test_journal_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Journal UI and input-boundary checks passed (**7 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache permission warnings remain non-blocking. Commit: `d5e775e`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 95 (Trade Journal UX and accessibility):**
+- `frontend/templates/dashboard/journal.html` - add field relationships, table semantics, named row actions and live loading/unavailable feedback.
+- `tests/unit/test_journal_template_safety.py` - protect label, caption, status and action-name contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
