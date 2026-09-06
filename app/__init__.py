@@ -583,15 +583,9 @@ def _migrate_columns(app):
         except Exception:
             pass
 
-        # Drop OHLCV and indicator tables — data is served from the API cache,
-        # not stored in the DB.  We drop them here once (safe — they are never
-        # written to in the current code, only legacy schema).
-        for dead_table in ("market_data", "technical_indicators"):
-            try:
-                cur.execute(f"DROP TABLE IF EXISTS {dead_table}")
-                conn.commit()
-            except Exception:
-                pass
+        # Legacy OHLCV/indicator tables are no longer used by the application,
+        # but startup must never destroy persisted data. Keep them intact so a
+        # deliberate, separately reviewed cleanup migration can handle them.
 
         conn.close()
 

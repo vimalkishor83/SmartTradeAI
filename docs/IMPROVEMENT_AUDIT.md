@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.150 IMPLEMENTED - Make startup compatibility non-destructive
+
+Startup compatibility checks no longer drop the legacy `market_data` and `technical_indicators` tables. Current application code uses provider/API caches instead, but preserving those tables prevents an application restart from irreversibly deleting historical data; any cleanup can now be planned as a separately reviewed migration with backup and rollback evidence.
+
+**Risk level:** High data-protection value, low runtime compatibility risk because current code does not query or write these legacy tables. **Affected modules:** `app/__init__.py`, `tests/unit/test_startup_migration_safety.py`. **Migration:** none; existing legacy tables are intentionally retained.
+
+**Regression evidence:** Startup migration safety checks passed (**1 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this safety slice.
+
+**Session 130 (Non-destructive startup compatibility):**
+- `app/__init__.py` - remove destructive legacy-table drops from startup.
+- `tests/unit/test_startup_migration_safety.py` - prevent implicit table deletion from returning.
+
+**Database changes:** none; legacy tables are preserved. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.149 IMPLEMENTED - Remove obsolete Compose metadata
 
 The Docker Compose deployment definition no longer declares the obsolete top-level `version` key, eliminating a warning emitted on every operational command under the current Compose specification. Services, health checks, environment wiring and persistent volumes are unchanged.
