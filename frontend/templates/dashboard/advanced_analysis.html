@@ -208,6 +208,18 @@
   background-size: 400% 100%; animation: aa-shimmer 1.4s ease infinite;
 }
 @keyframes aa-shimmer { 0% { background-position: 100% 50%; } 100% { background-position: 0 50%; } }
+
+@media (max-width: 991.98px) {
+  #aaChartWrap { height: 480px; }
+  #aaRight { height: auto !important; min-height: 360px; }
+}
+@media (max-width: 575.98px) {
+  .aa-select { width: 100%; min-width: 0; }
+  .aa-toolbar .d-flex { width: 100%; overflow-x: auto; padding-bottom: 2px; }
+  .tf-btn { flex: 0 0 auto; }
+  #aaChartWrap { height: 400px; }
+  .overlay-toggles { gap: 8px; padding: 9px 10px; }
+}
 </style>
 {% endblock %}
 
@@ -216,15 +228,15 @@
 
   <!-- Toolbar -->
   <div class="aa-toolbar">
-    <select class="aa-select" id="aaAssetSelect">
+    <select class="aa-select" id="aaAssetSelect" aria-label="Select asset">
       <option value="">— Select Asset —</option>
     </select>
     <div class="d-flex gap-1" id="tfButtons">
       {% for tf in display_timeframes %}
-      <button class="tf-btn {% if tf == '1h' %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</button>
+      <button type="button" class="tf-btn {% if tf == '1h' %}active{% endif %}" data-tf="{{ tf }}">{{ tf }}</button>
       {% endfor %}
     </div>
-    <button class="btn-analyze" id="btnAnalyze" disabled>
+    <button type="button" class="btn-analyze" id="btnAnalyze" disabled>
       <i class="bi bi-play-fill"></i> Analyze
     </button>
     <span class="text-muted" style="font-size:12px" id="aaStatusText"></span>
@@ -262,12 +274,12 @@
       <div class="aa-card" id="aaRight" style="height:620px; display:flex; flex-direction:column">
 
         <div class="aa-tabs" id="aaTabs">
-          <button class="aa-tab active" data-panel="struct" title="Market Structure"><i class="bi bi-diagram-3"></i></button>
-          <button class="aa-tab" data-panel="fib" title="Fibonacci Levels"><i class="bi bi-rulers"></i></button>
-          <button class="aa-tab" data-panel="liq" title="Liquidity Pools"><i class="bi bi-droplet-fill"></i></button>
-          <button class="aa-tab" data-panel="fvg" title="Fair Value Gaps"><i class="bi bi-layout-split"></i></button>
-          <button class="aa-tab" data-panel="ob" title="Order Blocks"><i class="bi bi-bounding-box"></i></button>
-          <button class="aa-tab" data-panel="vp" title="Volume Profile"><i class="bi bi-bar-chart-horizontal-fill"></i></button>
+          <button type="button" class="aa-tab active" data-panel="struct" title="Market Structure" aria-label="Market Structure"><i class="bi bi-diagram-3"></i></button>
+          <button type="button" class="aa-tab" data-panel="fib" title="Fibonacci Levels" aria-label="Fibonacci Levels"><i class="bi bi-rulers"></i></button>
+          <button type="button" class="aa-tab" data-panel="liq" title="Liquidity Pools" aria-label="Liquidity Pools"><i class="bi bi-droplet-fill"></i></button>
+          <button type="button" class="aa-tab" data-panel="fvg" title="Fair Value Gaps" aria-label="Fair Value Gaps"><i class="bi bi-layout-split"></i></button>
+          <button type="button" class="aa-tab" data-panel="ob" title="Order Blocks" aria-label="Order Blocks"><i class="bi bi-bounding-box"></i></button>
+          <button type="button" class="aa-tab" data-panel="vp" title="Volume Profile" aria-label="Volume Profile"><i class="bi bi-bar-chart-horizontal-fill"></i></button>
         </div>
 
         <div class="aa-tab-body">
@@ -346,22 +358,46 @@ let structMarkers = [];
 let analysisData = null;
 let currentClose = 0;
 let selectedTf = '1h';
+let _aaRunSequence = 0;
+let _aaAssetsSequence = 0;
+let _aaRunInFlight = false;
+let _aaResizeBound = false;
+let zoneLines = [];
+const AA_TIMEFRAMES = [...document.querySelectorAll('.tf-btn')]
+  .map(button => String(button.dataset.tf || '').trim())
+  .filter(Boolean);
+if (!AA_TIMEFRAMES.includes(selectedTf)) selectedTf = AA_TIMEFRAMES[0] || '1h';
 
 // ── Helpers ────────────────────────────────────────────────────
+function aaNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= 1e15 ? number : fallback;
+}
+
+function aaEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
 function fmtPrice(p) {
-  if (!p && p !== 0) return '—';
-  const n = parseFloat(p);
+  const n = aaNumber(p);
+  if (n === null || n <= 0) return '—';
   return '₹' + n.toLocaleString('en-IN', { maximumFractionDigits: n >= 1 ? 2 : 6 });
 }
 function fmtPct(p) {
-  const s = p >= 0 ? '+' : '';
-  return s + p.toFixed(2) + '%';
+  const n = aaNumber(p);
+  if (n === null) return '—';
+  return (n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 }
 function tsToTime(ms) {
-  return Math.floor(ms / 1000);
+  const n = aaNumber(ms);
+  return n !== null && n > 0 ? Math.floor(n / 1000) : null;
 }
 function timeSince(ms) {
-  const sec = Math.floor((Date.now() - ms) / 1000);
+  const timestamp = aaNumber(ms);
+  if (timestamp === null) return '—';
+  const sec = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
   if (sec < 60) return sec + 's ago';
   if (sec < 3600) return Math.floor(sec / 60) + 'm ago';
   if (sec < 86400) return Math.floor(sec / 3600) + 'h ago';
@@ -371,9 +407,10 @@ function timeSince(ms) {
 // ── Init chart ─────────────────────────────────────────────────
 function initChart() {
   const el = document.getElementById('aaChart');
-  if (chart) { chart.remove(); chart = null; }
+  if (!el || typeof LightweightCharts === 'undefined') return false;
+  if (chart && candleSeries) return true;
   chart = LightweightCharts.createChart(el, {
-    width: el.parentElement.clientWidth,
+    width: Math.max(320, el.parentElement.clientWidth),
     height: 620,
     layout: { background: { color: '#0f1117' }, textColor: '#94a3b8' },
     grid: { vertLines: { color: 'rgba(255,255,255,0.05)' }, horzLines: { color: 'rgba(255,255,255,0.05)' } },
@@ -386,42 +423,57 @@ function initChart() {
     borderUpColor: '#10b981', borderDownColor: '#ef4444',
     wickUpColor: '#10b981', wickDownColor: '#ef4444',
   });
-  window.addEventListener('resize', () => {
-    if (chart) chart.applyOptions({ width: el.parentElement.clientWidth });
-  });
+  if (!_aaResizeBound) {
+    _aaResizeBound = true;
+    window.addEventListener('resize', () => {
+      if (chart) chart.applyOptions({ width: Math.max(320, el.parentElement.clientWidth) });
+    });
+  }
+  return true;
 }
 
 // ── Load assets ────────────────────────────────────────────────
 async function loadAssets() {
+  const sequence = ++_aaAssetsSequence;
   try {
     const data = await API.get('/assets/');
-    if (!data) return;
+    if (!data || sequence !== _aaAssetsSequence) return;
     const sel = document.getElementById('aaAssetSelect');
-    const assets = data.assets || data;
-    assets.forEach(a => {
+    const assets = Array.isArray(data.assets) ? data.assets : Array.isArray(data) ? data : [];
+    const normalized = assets.filter(a => {
+      const id = Number(a?.id);
+      return a && Number.isInteger(id) && id > 0 && id <= 2147483647;
+    }).slice(0, 500);
+    sel.replaceChildren(new Option('— Select Asset —', ''));
+    normalized.forEach(a => {
+      const id = Number(a.id);
       const opt = document.createElement('option');
-      opt.value = a.id;
-      opt.textContent = `${a.symbol} — ${a.name} (${a.market})`;
+      opt.value = String(id);
+      opt.textContent = `${String(a.symbol ?? 'Unknown')} — ${String(a.name ?? '')} (${String(a.market ?? '')})`;
       sel.appendChild(opt);
     });
 
     // Auto-select a sensible default (prefer BTCUSDT, else first asset) and
     // run analysis immediately so the page never shows a fully blank state.
-    if (assets.length) {
-      const preferred = assets.find(a => a.symbol === 'BTCUSDT') || assets[0];
-      sel.value = preferred.id;
+    if (normalized.length) {
+      const preferred = normalized.find(a => a.symbol === 'BTCUSDT') || normalized[0];
+      sel.value = String(preferred.id);
       document.getElementById('btnAnalyze').disabled = false;
       runAnalysis();
     }
   } catch(e) {
-    console.error('Assets load failed', e);
+    if (sequence === _aaAssetsSequence) showToast('Unable to load assets right now', 'error');
   }
 }
 
 // ── Run analysis ───────────────────────────────────────────────
 async function runAnalysis() {
-  const assetId = document.getElementById('aaAssetSelect').value;
-  if (!assetId) return;
+  if (_aaRunInFlight) return;
+  const assetId = Number(document.getElementById('aaAssetSelect')?.value);
+  if (!Number.isInteger(assetId) || assetId <= 0 || assetId > 2147483647) return;
+  if (!AA_TIMEFRAMES.includes(selectedTf)) selectedTf = AA_TIMEFRAMES[0] || '1h';
+  const sequence = ++_aaRunSequence;
+  _aaRunInFlight = true;
 
   // show loading
   document.getElementById('chartEmpty').classList.add('d-none');
@@ -430,22 +482,30 @@ async function runAnalysis() {
   document.getElementById('aaStatusText').textContent = 'Fetching data…';
 
   try {
-    // fetch OHLCV
-    const ohlcvData = await API.get(`/market-data/${assetId}/ohlcv`, { timeframe: selectedTf, limit: 500 });
+    const [ohlcvData, adv] = await Promise.all([
+      API.get(`/market-data/${assetId}/ohlcv`, { timeframe: selectedTf, limit: 500 }),
+      API.get(`/market-data/${assetId}/advanced`, { timeframe: selectedTf }),
+    ]);
+    if (sequence !== _aaRunSequence) return;
     if (!ohlcvData) throw new Error('Failed to load candle data');
-
-    // fetch advanced
-    const adv = await API.get(`/market-data/${assetId}/advanced`, { timeframe: selectedTf });
     if (!adv) throw new Error('Failed to load analysis data');
     if (adv.error) throw new Error(adv.error);
 
+    const rawCandles = Array.isArray(ohlcvData.data) ? ohlcvData.data : [];
+    const candlesByTime = new Map();
+    rawCandles.forEach(c => {
+      const time = tsToTime(c?.t);
+      const open = aaNumber(c?.o), high = aaNumber(c?.h), low = aaNumber(c?.l), close = aaNumber(c?.c);
+      if (time === null || [open, high, low, close].some(v => v === null || v <= 0)) return;
+      if (high < Math.max(open, close) || low > Math.min(open, close) || low <= 0) return;
+      candlesByTime.set(time, { time, open, high, low, close });
+    });
+    const candles = [...candlesByTime.values()].sort((a, b) => a.time - b.time).slice(-500);
+    if (!candles.length) throw new Error('No valid candle data returned');
     analysisData = adv;
 
     // render chart candles
-    if (!chart) initChart();
-    const candles = (ohlcvData.data || []).map(c => ({
-      time: tsToTime(c.t), open: c.o, high: c.h, low: c.l, close: c.c
-    })).sort((a, b) => a.time - b.time);
+    if (!chart && !initChart()) throw new Error('Chart library unavailable');
     candleSeries.setData(candles);
     currentClose = candles.length ? candles[candles.length - 1].close : 0;
 
@@ -461,15 +521,20 @@ async function runAnalysis() {
     renderVpPanel(adv.volume_profile);
 
     document.getElementById('aaStatusText').textContent =
-      `${adv.symbol} · ${adv.timeframe} · ${candles.length} candles`;
+      `${String(adv.symbol || ohlcvData.symbol || 'Asset')} · ${String(adv.timeframe || selectedTf)} · ${candles.length} candles`;
 
   } catch(e) {
-    console.error('Analysis failed', e);
-    showToast('Analysis failed: ' + (e.message || 'Unknown error'), 'error');
-    document.getElementById('aaStatusText').textContent = 'Error — try again';
+    if (sequence === _aaRunSequence) {
+      showToast('Analysis failed. Please try again.', 'error');
+      document.getElementById('aaStatusText').textContent = 'Error — try again';
+      if (!analysisData) document.getElementById('chartEmpty').classList.remove('d-none');
+    }
   } finally {
-    document.getElementById('chartLoading').classList.add('d-none');
-    document.getElementById('btnAnalyze').disabled = false;
+    if (sequence === _aaRunSequence) {
+      document.getElementById('chartLoading').classList.add('d-none');
+      document.getElementById('btnAnalyze').disabled = false;
+    }
+    _aaRunInFlight = false;
   }
 }
 
@@ -481,6 +546,8 @@ function clearOverlays() {
   // remove liq price lines
   liqLines.forEach(pl => { try { candleSeries.removePriceLine(pl); } catch(e){} });
   liqLines = [];
+  zoneLines.forEach(pl => { try { candleSeries.removePriceLine(pl); } catch(e){} });
+  zoneLines = [];
   // remove vwap
   if (vwapSeries) { try { chart.removeSeries(vwapSeries); } catch(e){} vwapSeries = null; }
   // remove trend lines
@@ -496,32 +563,44 @@ function renderAllOverlays() {
   clearOverlays();
   if (document.getElementById('togFib').checked)    renderFibOverlay(analysisData.fib);
   if (document.getElementById('togLiq').checked)    renderLiqOverlay(analysisData.liquidity);
+  if (document.getElementById('togFvg').checked)    renderFvgOverlay(analysisData.fvg);
+  if (document.getElementById('togOB').checked)     renderObOverlay(analysisData.order_blocks);
   if (document.getElementById('togVwap').checked)   renderVwapOverlay(analysisData.vwap);
   if (document.getElementById('togTL').checked)     renderTLOverlay(analysisData.trend_lines);
   if (document.getElementById('togStruct').checked) renderStructOverlay(analysisData.market_structure);
 }
 
 function renderFibOverlay(fib) {
-  if (!fib || !fib.levels) return;
+  if (!candleSeries || !fib || !Array.isArray(fib.levels)) return;
   // Only label the levels traders actually watch — rest still draw as unlabeled lines
   const KEY_LABELS = new Set(['0.5', '0.618', '0.786', '1.0', '1.618']);
-  fib.levels.forEach(lvl => {
+  fib.levels.slice(0, 30).forEach(lvl => {
+    const price = aaNumber(lvl?.price);
+    if (price === null || price <= 0) return;
     const isExt = lvl.type === 'extension';
-    const showLabel = KEY_LABELS.has(lvl.label);
+    const label = String(lvl.label ?? '').slice(0, 20);
+    const showLabel = KEY_LABELS.has(label);
     const pl = candleSeries.createPriceLine({
-      price: lvl.price,
+      price,
       color: isExt ? 'rgba(139,92,246,0.55)' : 'rgba(245,158,11,0.5)',
       lineWidth: 1,
       lineStyle: LightweightCharts.LineStyle.Dashed,
       axisLabelVisible: showLabel,
-      title: showLabel ? lvl.label + (isExt ? ' ext' : '') : '',
+      title: showLabel ? label + (isExt ? ' ext' : '') : '',
     });
     fibLines.push(pl);
   });
 }
 
 function renderLiqOverlay(liq) {
-  if (!liq) return;
+  if (!candleSeries || !liq || typeof liq !== 'object') return;
+  const normalize = arr => (Array.isArray(arr) ? arr : []).slice(0, 100).map(item => ({
+    price: aaNumber(item?.price),
+    hits: aaNumber(item?.hits, 0),
+    strength: ['strong', 'medium', 'weak'].includes(String(item?.strength)) ? String(item.strength) : 'weak',
+  })).filter(item => item.price !== null && item.price > 0);
+  const buySide = normalize(liq.buy_side);
+  const sellSide = normalize(liq.sell_side);
   // Chart stays readable: label only the strongest pools per side, skipping any
   // that sit within 0.5% of an already-labeled price (avoids stacked/overlapping labels)
   const topLabeled = (arr) => {
@@ -538,10 +617,10 @@ function renderLiqOverlay(liq) {
     return set;
   };
 
-  const buyLabelSet  = topLabeled(liq.buy_side  || []);
-  const sellLabelSet = topLabeled(liq.sell_side || []);
+  const buyLabelSet  = topLabeled(buySide);
+  const sellLabelSet = topLabeled(sellSide);
 
-  (liq.buy_side || []).forEach(l => {
+  buySide.forEach(l => {
     const showLabel = buyLabelSet.has(l.price);
     const pl = candleSeries.createPriceLine({
       price: l.price,
@@ -553,7 +632,7 @@ function renderLiqOverlay(liq) {
     });
     liqLines.push(pl);
   });
-  (liq.sell_side || []).forEach(l => {
+  sellSide.forEach(l => {
     const showLabel = sellLabelSet.has(l.price);
     const pl = candleSeries.createPriceLine({
       price: l.price,
@@ -567,42 +646,94 @@ function renderLiqOverlay(liq) {
   });
 }
 
+function renderFvgOverlay(fvgs) {
+  if (!candleSeries || !Array.isArray(fvgs)) return;
+  fvgs.slice(-10).forEach(fvg => {
+    const type = fvg?.type === 'bearish' ? 'bearish' : fvg?.type === 'bullish' ? 'bullish' : null;
+    const bottom = aaNumber(fvg?.bottom), top = aaNumber(fvg?.top);
+    if (!type || bottom === null || top === null || bottom <= 0 || top <= 0 || bottom > top) return;
+    const color = type === 'bullish' ? 'rgba(16,185,129,0.45)' : 'rgba(239,68,68,0.45)';
+    [bottom, top].forEach((price, index) => {
+      const line = candleSeries.createPriceLine({
+        price, color, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+        axisLabelVisible: false, title: index === 0 ? type.toUpperCase() + ' FVG' : '',
+      });
+      zoneLines.push(line);
+    });
+  });
+}
+
+function renderObOverlay(obs) {
+  if (!candleSeries || !Array.isArray(obs)) return;
+  obs.slice(-8).forEach(ob => {
+    const type = ob?.type === 'bearish' ? 'bearish' : ob?.type === 'bullish' ? 'bullish' : null;
+    const bottom = aaNumber(ob?.bottom), top = aaNumber(ob?.top);
+    if (!type || bottom === null || top === null || bottom <= 0 || top <= 0 || bottom > top) return;
+    const color = type === 'bullish' ? 'rgba(16,185,129,0.28)' : 'rgba(239,68,68,0.28)';
+    [bottom, top].forEach((price, index) => {
+      const line = candleSeries.createPriceLine({
+        price, color, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+        axisLabelVisible: false, title: index === 0 ? type.toUpperCase() + ' OB' : '',
+      });
+      zoneLines.push(line);
+    });
+  });
+}
+
 function renderVwapOverlay(vwap) {
-  if (!vwap || !vwap.length) return;
+  if (!chart || !Array.isArray(vwap)) return;
+  const pointsByTime = new Map();
+  vwap.slice(0, 500).forEach(v => {
+    const point = { time: tsToTime(v?.t), value: aaNumber(v?.vwap) };
+    if (point.time !== null && point.value !== null && point.value > 0) pointsByTime.set(point.time, point);
+  });
+  const points = [...pointsByTime.values()].sort((a, b) => a.time - b.time).slice(-500);
+  if (!points.length) return;
   vwapSeries = chart.addLineSeries({
     color: '#3b82f6', lineWidth: 2, title: 'VWAP', priceLineVisible: false,
   });
-  vwapSeries.setData(vwap.map(v => ({ time: tsToTime(v.t), value: v.vwap })));
+  vwapSeries.setData(points);
 }
 
 function renderTLOverlay(lines) {
-  if (!lines || !lines.length) return;
-  lines.forEach(tl => {
+  if (!chart || !Array.isArray(lines)) return;
+  lines.slice(0, 20).forEach(tl => {
+    const x1 = tsToTime(tl?.x1_time), x2 = tsToTime(tl?.x2_time);
+    const y1 = aaNumber(tl?.y1), y2 = aaNumber(tl?.y2);
+    if (x1 === null || x2 === null || y1 === null || y2 === null || y1 <= 0 || y2 <= 0 || x1 >= x2) return;
+    const type = tl?.type === 'resistance' ? 'resistance' : 'support';
     const s = chart.addLineSeries({
-      color: tl.type === 'resistance' ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)',
+      color: type === 'resistance' ? 'rgba(239,68,68,0.7)' : 'rgba(16,185,129,0.7)',
       lineWidth: 2,
       lineStyle: LightweightCharts.LineStyle.Dashed,
       priceLineVisible: false,
-      title: tl.type,
+      title: type,
     });
     s.setData([
-      { time: tsToTime(tl.x1_time), value: tl.y1 },
-      { time: tsToTime(tl.x2_time), value: tl.y2 },
+      { time: x1, value: y1 },
+      { time: x2, value: y2 },
     ]);
     tlSeries.push(s);
   });
 }
 
 function renderStructOverlay(ms) {
-  if (!ms || !ms.points || !ms.points.length) return;
-  const markers = ms.points.map(p => ({
-    time: tsToTime(p.time),
-    position: (p.type === 'HH' || p.type === 'LH') ? 'aboveBar' : 'belowBar',
-    color: (p.type === 'HH' || p.type === 'HL') ? '#10b981' : '#ef4444',
-    shape: (p.type === 'HH' || p.type === 'LH') ? 'arrowDown' : 'arrowUp',
-    text: p.type,
-    size: 1,
-  }));
+  if (!candleSeries || !ms || !Array.isArray(ms.points)) return;
+  const markersByTime = new Map();
+  ms.points.slice(-100).forEach(p => {
+    const type = ['HH', 'HL', 'LH', 'LL'].includes(p?.type) ? p.type : null;
+    const time = tsToTime(p?.time);
+    if (time === null || !type) return;
+    markersByTime.set(time, {
+      time,
+      position: (type === 'HH' || type === 'LH') ? 'aboveBar' : 'belowBar',
+      color: (type === 'HH' || type === 'HL') ? '#10b981' : '#ef4444',
+      shape: (type === 'HH' || type === 'LH') ? 'arrowDown' : 'arrowUp',
+      text: type,
+      size: 1,
+    });
+  });
+  const markers = [...markersByTime.values()].sort((a, b) => a.time - b.time).slice(-100);
   candleSeries.setMarkers(markers);
 }
 
@@ -610,21 +741,25 @@ function renderStructOverlay(ms) {
 function renderStructPanel(ms) {
   const trendEl = document.getElementById('structTrend');
   const listEl  = document.getElementById('structList');
-  if (!ms || !ms.points || !ms.points.length) {
+  const points = ms && Array.isArray(ms.points) ? ms.points.slice(0, 100).filter(p =>
+    p && ['HH', 'HL', 'LH', 'LL'].includes(p.type) && tsToTime(p.time) !== null && aaNumber(p.price) > 0
+  ) : [];
+  if (!points.length) {
     trendEl.innerHTML = '';
     listEl.innerHTML = '<div class="aa-empty"><i class="bi bi-diagram-3"></i>No structure detected</div>';
     return;
   }
-  const trendClass = ms.trend === 'uptrend' ? 'up' : ms.trend === 'downtrend' ? 'down' : 'range';
-  const trendIcon  = ms.trend === 'uptrend' ? 'bi-arrow-up-right' : ms.trend === 'downtrend' ? 'bi-arrow-down-right' : 'bi-arrow-left-right';
-  const trendLabel = ms.trend === 'uptrend' ? 'Uptrend' : ms.trend === 'downtrend' ? 'Downtrend' : 'Ranging';
+  const trend = String(ms.trend || 'ranging');
+  const trendClass = trend === 'uptrend' ? 'up' : trend === 'downtrend' ? 'down' : 'range';
+  const trendIcon  = trend === 'uptrend' ? 'bi-arrow-up-right' : trend === 'downtrend' ? 'bi-arrow-down-right' : 'bi-arrow-left-right';
+  const trendLabel = trend === 'uptrend' ? 'Uptrend' : trend === 'downtrend' ? 'Downtrend' : 'Ranging';
   trendEl.innerHTML = `<div class="trend-badge ${trendClass}"><i class="bi ${trendIcon}"></i>${trendLabel}</div>`;
 
-  const last5 = ms.points.slice(-5).reverse();
+  const last5 = points.slice(-5).reverse();
   listEl.innerHTML = last5.map(p => `
     <div class="struct-item">
       <span class="struct-dot dot-${p.type}"></span>
-      <span class="struct-label lbl-${p.type}">${p.type}</span>
+      <span class="struct-label lbl-${p.type}">${aaEscape(p.type)}</span>
       <span style="font-size:11px;color:var(--text-muted)">${timeSince(p.time)}</span>
       <span class="struct-price">${fmtPrice(p.price)}</span>
     </div>`).join('');
@@ -632,23 +767,29 @@ function renderStructPanel(ms) {
 
 function renderFibPanel(fib, close) {
   const el = document.getElementById('fibTable');
-  if (!fib || !fib.levels || !fib.levels.length) {
+  const levels = fib && Array.isArray(fib.levels) ? fib.levels.slice(0, 30).map(lvl => ({
+    label: String(lvl?.label ?? '').slice(0, 20),
+    type: lvl?.type === 'extension' ? 'extension' : 'retracement',
+    price: aaNumber(lvl?.price),
+  })).filter(lvl => lvl.price !== null && lvl.price > 0) : [];
+  if (!levels.length) {
     el.innerHTML = '<div class="aa-empty"><i class="bi bi-rulers"></i>No data</div>';
     return;
   }
+  close = aaNumber(close, 0);
   // find nearest level
   let nearestDist = Infinity, nearestIdx = -1;
-  fib.levels.forEach((lvl, i) => {
+  levels.forEach((lvl, i) => {
     const d = Math.abs(lvl.price - close);
     if (d < nearestDist) { nearestDist = d; nearestIdx = i; }
   });
-  const rows = fib.levels.map((lvl, i) => {
+  const rows = levels.map((lvl, i) => {
     const pct = close ? ((lvl.price - close) / close * 100) : 0;
     const cls = i === nearestIdx ? 'nearest' : '';
     const extTag = lvl.type === 'extension' ? '<span class="fib-ext">ext</span>' : '';
     const distCls = pct >= 0 ? 'dist-pos' : 'dist-neg';
     return `<tr class="${cls}">
-      <td>${lvl.label}${extTag}</td>
+      <td>${aaEscape(lvl.label)}${extTag}</td>
       <td style="color:var(--text-primary)">${fmtPrice(lvl.price)}</td>
       <td class="${distCls}">${fmtPct(pct)}</td>
     </tr>`;
@@ -662,31 +803,38 @@ function renderFibPanel(fib, close) {
 
 function renderLiqPanel(liq) {
   const el = document.getElementById('liqPanel');
-  if (!liq || (!liq.buy_side.length && !liq.sell_side.length)) {
+  const normalize = arr => (Array.isArray(arr) ? arr : []).slice(0, 100).map(item => ({
+    price: aaNumber(item?.price),
+    hits: Math.max(0, Math.min(1000000, Math.floor(aaNumber(item?.hits, 0)))),
+    strength: ['strong', 'medium', 'weak'].includes(String(item?.strength)) ? String(item.strength) : 'weak',
+  })).filter(item => item.price !== null && item.price > 0);
+  const sellSide = normalize(liq?.sell_side);
+  const buySide = normalize(liq?.buy_side);
+  if (!sellSide.length && !buySide.length) {
     el.innerHTML = '<div class="aa-empty"><i class="bi bi-droplet-fill"></i>No liquidity zones</div>';
     return;
   }
   let html = '';
-  if (liq.sell_side.length) {
+  if (sellSide.length) {
     html += `<div class="liq-section">
-      <div class="liq-section-title sell"><i class="bi bi-caret-up-fill"></i>Sell-side (${liq.sell_side.length})</div>`;
-    liq.sell_side.forEach(l => {
+      <div class="liq-section-title sell"><i class="bi bi-caret-up-fill"></i>Sell-side (${sellSide.length})</div>`;
+    sellSide.forEach(l => {
       html += `<div class="liq-item">
         <span style="color:var(--text-primary)">${fmtPrice(l.price)}</span>
         <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
-        <span class="str-badge ${l.strength}">${l.strength}</span>
+        <span class="str-badge ${l.strength}">${aaEscape(l.strength)}</span>
       </div>`;
     });
     html += '</div>';
   }
-  if (liq.buy_side.length) {
+  if (buySide.length) {
     html += `<div class="liq-section">
-      <div class="liq-section-title buy"><i class="bi bi-caret-down-fill"></i>Buy-side (${liq.buy_side.length})</div>`;
-    liq.buy_side.forEach(l => {
+      <div class="liq-section-title buy"><i class="bi bi-caret-down-fill"></i>Buy-side (${buySide.length})</div>`;
+    buySide.forEach(l => {
       html += `<div class="liq-item">
         <span style="color:var(--text-primary)">${fmtPrice(l.price)}</span>
         <span style="color:var(--text-muted);font-size:11px">${l.hits} hits</span>
-        <span class="str-badge ${l.strength}">${l.strength}</span>
+        <span class="str-badge ${l.strength}">${aaEscape(l.strength)}</span>
       </div>`;
     });
     html += '</div>';
@@ -696,15 +844,22 @@ function renderLiqPanel(liq) {
 
 function renderFvgPanel(fvgs) {
   const el = document.getElementById('fvgList');
-  if (!fvgs || !fvgs.length) {
+  const rows = Array.isArray(fvgs) ? fvgs.slice(0, 100).map(f => ({
+    type: f?.type === 'bearish' ? 'bearish' : f?.type === 'bullish' ? 'bullish' : null,
+    filled: f?.filled === true,
+    time: aaNumber(f?.time),
+    bottom: aaNumber(f?.bottom),
+    top: aaNumber(f?.top),
+  })).filter(f => f.type && f.time !== null && f.bottom > 0 && f.top > 0 && f.bottom <= f.top) : [];
+  if (!rows.length) {
     el.innerHTML = '<div class="aa-empty"><i class="bi bi-layout-split"></i>No FVGs detected</div>';
     return;
   }
-  el.innerHTML = fvgs.map(f => {
+  el.innerHTML = rows.map(f => {
     const filledTag = f.filled ? '<span class="fvg-filled-badge">FILLED</span>' : '';
     return `<div class="fvg-item ${f.type} ${f.filled ? 'filled' : ''}">
       <div class="fvg-row">
-        <span class="fvg-type">${f.type} FVG</span>
+        <span class="fvg-type">${aaEscape(f.type)} FVG</span>
         ${filledTag}
         <span style="font-size:11px;color:var(--text-muted)">${timeSince(f.time)}</span>
       </div>
@@ -717,13 +872,19 @@ function renderFvgPanel(fvgs) {
 
 function renderObPanel(obs) {
   const el = document.getElementById('obList');
-  if (!obs || !obs.length) {
+  const rows = Array.isArray(obs) ? obs.slice(0, 100).map(ob => ({
+    type: ob?.type === 'bearish' ? 'bearish' : ob?.type === 'bullish' ? 'bullish' : null,
+    broken: ob?.broken === true,
+    bottom: aaNumber(ob?.bottom),
+    top: aaNumber(ob?.top),
+  })).filter(ob => ob.type && ob.bottom > 0 && ob.top > 0 && ob.bottom <= ob.top) : [];
+  if (!rows.length) {
     el.innerHTML = '<div class="aa-empty"><i class="bi bi-bounding-box"></i>No order blocks</div>';
     return;
   }
-  el.innerHTML = obs.map(ob => `
+  el.innerHTML = rows.map(ob => `
     <div class="ob-item ${ob.type} ${ob.broken ? 'broken' : ''}">
-      <span class="ob-type">${ob.type} OB</span>
+      <span class="ob-type">${aaEscape(ob.type)} OB</span>
       <span class="ob-range">${fmtPrice(ob.bottom)} – ${fmtPrice(ob.top)}</span>
       ${ob.broken ? '<span class="ob-broken">Broken</span>' : ''}
     </div>`).reverse().join('');
@@ -731,17 +892,22 @@ function renderObPanel(obs) {
 
 function renderVpPanel(vp) {
   const el = document.getElementById('vpChart');
-  if (!vp || !vp.length) {
+  const rowsData = Array.isArray(vp) ? vp.slice(0, 50).map(b => ({
+    price: aaNumber(b?.price_low),
+    volume: Math.max(0, aaNumber(b?.volume, 0)),
+    is_poc: b?.is_poc === true,
+  })).filter(b => b.price > 0 && Number.isFinite(b.volume)) : [];
+  if (!rowsData.length) {
     el.innerHTML = '<div class="aa-empty"><i class="bi bi-bar-chart-horizontal-fill"></i>No data</div>';
     return;
   }
-  const maxVol = Math.max(...vp.map(b => b.volume));
+  const maxVol = Math.max(...rowsData.map(b => b.volume));
   // show reversed (highest price at top)
-  const rows = [...vp].reverse().map(b => {
-    const pct = maxVol > 0 ? (b.volume / maxVol * 100) : 0;
+  const rows = [...rowsData].reverse().map(b => {
+    const pct = maxVol > 0 ? Math.max(0, Math.min(100, b.volume / maxVol * 100)) : 0;
     const poc = b.is_poc ? 'poc' : '';
     return `<div class="vp-row">
-      <div class="vp-label">${fmtPrice(b.price_low)}</div>
+      <div class="vp-label">${fmtPrice(b.price)}</div>
       <div class="vp-bar-bg"><div class="vp-bar-fill ${poc}" style="width:${pct.toFixed(1)}%"></div></div>
     </div>`;
   }).join('');
@@ -754,6 +920,8 @@ function showToast(msg, type) {
   console.warn(msg);
 }
 
+let _aaBootBound = false;
+
 // app:ready (fired from app.js), not an unconditional top-level block:
 // this page is tier-gated (requires_tier=2 in views.py), and app:ready is
 // deliberately skipped on a tier-locked page. Running this immediately
@@ -764,32 +932,44 @@ function showToast(msg, type) {
 // upgrade card a moment later (same bug class as journal.html's Trade
 // Journal and heatmap.html, this session).
 document.addEventListener('app:ready', () => {
+  if (_aaBootBound) return;
+  _aaBootBound = true;
   // ── Wire up controls ───────────────────────────────────────────
-  document.getElementById('aaAssetSelect').addEventListener('change', function() {
-    document.getElementById('btnAnalyze').disabled = !this.value;
+  const assetSelect = document.getElementById('aaAssetSelect');
+  const analyzeButton = document.getElementById('btnAnalyze');
+  const validAsset = () => {
+    const id = Number(assetSelect?.value);
+    return Number.isInteger(id) && id > 0 && id <= 2147483647;
+  };
+  assetSelect?.addEventListener('change', () => {
+    analyzeButton.disabled = !validAsset() || _aaRunInFlight;
   });
 
-  document.querySelectorAll('.aa-tab').forEach(tab => {
-    tab.addEventListener('click', function() {
-      const panelKey = this.dataset.panel;
-      document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === this));
-      document.querySelectorAll('.aa-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === panelKey));
+  document.getElementById('aaTabs')?.addEventListener('click', event => {
+    const tab = event.target?.closest?.('.aa-tab');
+    if (!tab || !event.currentTarget.contains(tab)) return;
+    const panelKey = String(tab.dataset.panel || '');
+    if (!['struct', 'fib', 'liq', 'fvg', 'ob', 'vp'].includes(panelKey)) return;
+    document.querySelectorAll('.aa-tab').forEach(t => t.classList.toggle('active', t === tab));
+    document.querySelectorAll('.aa-panel').forEach(panel => {
+      panel.classList.toggle('active', panel.dataset.panel === panelKey);
     });
   });
 
-  document.querySelectorAll('.tf-btn').forEach(btn => {
-    btn.addEventListener('click', function() {
-      document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
-      this.classList.add('active');
-      selectedTf = this.dataset.tf;
-    });
+  document.getElementById('tfButtons')?.addEventListener('click', event => {
+    const button = event.target?.closest?.('.tf-btn');
+    if (!button || !event.currentTarget.contains(button)) return;
+    const timeframe = String(button.dataset.tf || '').trim();
+    if (!AA_TIMEFRAMES.includes(timeframe)) return;
+    document.querySelectorAll('.tf-btn').forEach(b => b.classList.toggle('active', b === button));
+    selectedTf = timeframe;
   });
 
-  document.getElementById('btnAnalyze').addEventListener('click', runAnalysis);
+  analyzeButton?.addEventListener('click', runAnalysis);
 
   // overlay toggles — re-render overlays without re-fetching
   ['togFib','togLiq','togFvg','togOB','togStruct','togVwap','togTL'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => {
+    document.getElementById(id)?.addEventListener('change', () => {
       if (analysisData) renderAllOverlays();
     });
   });

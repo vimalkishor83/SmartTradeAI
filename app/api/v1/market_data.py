@@ -9,6 +9,7 @@ from app.services.data.fetcher import market_fetcher, blocked_data_markets
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.sentiment.engine import calculate_sentiment
 from app.services.pagination import bounded_per_page
+from app.services.platform_config import get_display_timeframes
 from sqlalchemy.orm import joinedload
 import pandas as pd
 
@@ -962,6 +963,11 @@ def _compute_volume_profile(highs, lows, closes, volumes, buckets=20):
 def get_advanced(asset_id):
     asset     = Asset.query.get_or_404(asset_id)
     timeframe = request.args.get("timeframe", "1h")
+    if not isinstance(timeframe, str):
+        return jsonify({"error": "timeframe must be a string"}), 400
+    timeframe = timeframe.strip()
+    if timeframe not in get_display_timeframes():
+        return jsonify({"error": "Unsupported timeframe"}), 400
 
     # This is the only per-timeframe analysis grid in this file with no
     # caching at all (contrast ta_summary/ema_summary/ai_summary/heatmap,
