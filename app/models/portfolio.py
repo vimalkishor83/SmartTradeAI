@@ -64,7 +64,7 @@ class PortfolioItem(db.Model):
 
     @property
     def holding_days(self):
-        return (datetime.utcnow() - self.buy_date).days
+        return (datetime.utcnow() - self.buy_date).days if self.buy_date else None
 
     def to_dict(self):
         return {

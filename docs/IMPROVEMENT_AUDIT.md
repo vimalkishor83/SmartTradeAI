@@ -122,6 +122,20 @@ Self-service account deletion now rejects non-object JSON bodies with a controll
 
 **Database changes:** none. **API contract changes:** malformed DELETE bodies now return a validation error instead of a server error. **No new credentials or secrets introduced.**
 
+### 7.126 IMPLEMENTED - Harden portfolio legacy-date serialization
+
+Portfolio item serialization now tolerates positions with a missing `buy_date`, returning `null` for `holding_days` instead of raising during portfolio reads or exports. Normal dated positions retain the existing day calculation and financial values are unchanged.
+
+**Risk level:** Medium resilience value, very low compatibility risk because only previously failing incomplete rows change from a server error to an explicit null field. **Affected modules:** `app/models/portfolio.py`, `tests/unit/test_portfolio_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Portfolio serialization checks passed (**1 passed**) and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 106 (Portfolio legacy-row resilience):**
+- `app/models/portfolio.py` - make `holding_days` safe for missing buy dates.
+- `tests/unit/test_portfolio_serialization.py` - verify null-date serialization and unchanged value/P&L math.
+
+**Database changes:** none. **API contract changes:** incomplete rows now return `holding_days: null`. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
