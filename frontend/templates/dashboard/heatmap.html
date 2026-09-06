@@ -88,11 +88,11 @@
       <option value="">All Markets</option>
     </select>
     <div class="btn-group btn-group-sm" role="group">
-      <button type="button" class="btn btn-outline-secondary active" id="viewCompact" onclick="setView('compact')">S</button>
-      <button type="button" class="btn btn-outline-secondary active" id="viewNormal"  onclick="setView('normal')" style="background:var(--accent);border-color:var(--accent);color:#fff">M</button>
-      <button type="button" class="btn btn-outline-secondary" id="viewLarge"  onclick="setView('large')">L</button>
+      <button type="button" class="btn btn-outline-secondary" id="viewCompact" data-view="compact">S</button>
+      <button type="button" class="btn btn-outline-secondary active" id="viewNormal" data-view="normal" style="background:var(--accent);border-color:var(--accent);color:#fff">M</button>
+      <button type="button" class="btn btn-outline-secondary" id="viewLarge" data-view="large">L</button>
     </div>
-    <button class="btn btn-sm btn-outline-secondary" onclick="loadHeatmapPage()">
+    <button class="btn btn-sm btn-outline-secondary" id="hmRefreshBtn">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
   </div>
@@ -124,6 +124,36 @@
 <script>
 let _hmView = 'normal';
 let _hmData = [];
+let _hmLoadPromise = null;
+
+const HM_MARKETS = new Set(['crypto', 'forex', 'commodity', 'indian_stock', 'index']);
+const HM_LABELS = {
+  crypto: 'Crypto', forex: 'Forex', commodity: 'Commodities',
+  indian_stock: 'Indian Stocks', index: 'Indices',
+};
+
+function _hmNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function _hmHtml(value) {
+  return typeof STSafe?.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _hmAssetId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,12}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _hmAssetHref(value) {
+  const id = _hmAssetId(value);
+  return id ? `/asset/${id}` : '#';
+}
 
 function tileClass(pct) {
   if (pct >=  3) return 'hm-strong-up';
@@ -136,8 +166,8 @@ function tileClass(pct) {
 }
 
 function formatPrice(p, market) {
-  if (p === null || p === undefined) return '—';
-  const n = parseFloat(p);
+  const n = _hmNumber(p, NaN);
+  if (!Number.isFinite(n)) return '—';
   if (market === 'crypto') {
     return n >= 1000 ? n.toLocaleString('en-US', {maximumFractionDigits:0})
          : n >= 1    ? n.toFixed(2)
@@ -150,28 +180,39 @@ function renderTiles(items) {
   const grid = document.createElement('div');
   grid.className = 'hm-grid' + (_hmView === 'large' ? ' view-large' : _hmView === 'compact' ? ' view-compact' : '');
 
-  items.forEach(item => {
-    const pct   = item.change_pct ?? 0;
+  (Array.isArray(items) ? items : []).forEach(item => {
+    if (!item || typeof item !== 'object') return;
+    const pct   = _hmNumber(item.change_pct);
     const sign  = pct >= 0 ? '+' : '';
+    const market = HM_MARKETS.has(item.market) ? item.market : '';
     const tile  = document.createElement('div');
     tile.className = `hm-tile ${tileClass(pct)}`;
-    tile.title  = `${item.name} — ${sign}${pct.toFixed(2)}%`;
-    tile.onclick = () => window.location.href = `/asset/${item.asset_id || ''}`;
+    tile.title  = `${String(item.name || 'Asset')} — ${sign}${pct.toFixed(2)}%`;
+    tile.setAttribute('role', 'link');
+    tile.tabIndex = 0;
+    const href = _hmAssetHref(item.asset_id);
+    const navigate = () => { if (href !== '#') window.location.assign(href); };
+    tile.addEventListener('click', navigate);
+    tile.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); navigate(); }
+    });
     tile.innerHTML = `
-      <div class="hm-sym">${item.symbol}</div>
-      <div class="hm-name">${item.name}</div>
+      <div class="hm-sym">${_hmHtml(item.symbol || '—')}</div>
+      <div class="hm-name">${_hmHtml(item.name || '—')}</div>
       <div class="hm-pct">${sign}${pct.toFixed(2)}%</div>
-      <div class="hm-price">${formatPrice(item.price, item.market)}</div>`;
+      <div class="hm-price">${formatPrice(item.price, market)}</div>`;
     grid.appendChild(tile);
   });
   return grid;
 }
 
 function groupByMarket(items) {
-  const groups = {};
+  const groups = Object.create(null);
   const ORDER = ['crypto','forex','commodity','indian_stock','index'];
-  items.forEach(it => {
-    const m = it.market || 'other';
+  (Array.isArray(items) ? items : []).forEach(it => {
+    if (!it || typeof it !== 'object') return;
+    const m = HM_MARKETS.has(it.market) ? it.market : '';
+    if (!m) return;
     if (!groups[m]) groups[m] = [];
     groups[m].push(it);
   });
@@ -179,6 +220,7 @@ function groupByMarket(items) {
 }
 
 function setView(v) {
+  if (!['compact', 'normal', 'large'].includes(v)) return;
   _hmView = v;
   ['compact','normal','large'].forEach(k => {
     const btn = document.getElementById('view' + k.charAt(0).toUpperCase() + k.slice(1));
@@ -192,8 +234,8 @@ function setView(v) {
 
 function renderPage() {
   const marketFilter = document.getElementById('hmMarket')?.value || '';
-  let items = _hmData;
-  if (marketFilter) items = items.filter(i => i.market === marketFilter);
+  let items = Array.isArray(_hmData) ? _hmData : [];
+  if (marketFilter && HM_MARKETS.has(marketFilter)) items = items.filter(i => i?.market === marketFilter);
 
   const body = document.getElementById('hmBody');
   if (!items.length) {
@@ -203,32 +245,40 @@ function renderPage() {
 
   body.innerHTML = '';
   const groups = groupByMarket(items);
-  const LABELS = { crypto:'Crypto', forex:'Forex', commodity:'Commodities', indian_stock:'Indian Stocks', index:'Indices' };
   groups.forEach(({ market, items: g }) => {
     const section = document.createElement('div');
     section.className = 'mb-4';
-    section.innerHTML = `<div class="market-group-header">${LABELS[market] || market}</div>`;
+    const heading = document.createElement('div');
+    heading.className = 'market-group-header';
+    heading.textContent = HM_LABELS[market] || 'Other';
+    section.appendChild(heading);
     section.appendChild(renderTiles(g));
     body.appendChild(section);
   });
 }
 
 async function loadHeatmapPage() {
+  if (_hmLoadPromise) return _hmLoadPromise;
   document.getElementById('hmBody').innerHTML =
     '<div class="hm-grid" id="hmSkeleton">' +
     Array(16).fill('<div class="skeleton-tile"></div>').join('') + '</div>';
 
-  try {
-    const data = await API.get('/market-data/heatmap');
-    if (!data?.heatmap) throw new Error('No data');
-    _hmData = data.heatmap;
-    document.getElementById('hmTimestamp').textContent =
-      'Updated ' + new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
-    renderPage();
-  } catch (e) {
-    document.getElementById('hmBody').innerHTML =
-      '<div class="alert alert-warning">Failed to load heatmap data.</div>';
-  }
+  const request = (async () => {
+    try {
+      const data = await API.get('/market-data/heatmap');
+      if (!Array.isArray(data?.heatmap) || data.error) throw new Error('No data');
+      _hmData = data.heatmap.filter(item => item && typeof item === 'object');
+      document.getElementById('hmTimestamp').textContent =
+        'Updated ' + new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
+      renderPage();
+    } catch (e) {
+      document.getElementById('hmBody').innerHTML =
+        '<div class="alert alert-warning">Failed to load heatmap data.</div>';
+    }
+  })();
+  _hmLoadPromise = request;
+  try { return await request; }
+  finally { if (_hmLoadPromise === request) _hmLoadPromise = null; }
 }
 
 // app:ready (fired from app.js), not an unconditional top-level call: this
@@ -239,7 +289,13 @@ async function loadHeatmapPage() {
 // that a sub-Premium account would briefly see real heatmap data flash in
 // before showTierLockOverlay() swaps in the upgrade card a moment later.
 document.addEventListener('app:ready', () => {
-  document.getElementById('hmMarket').addEventListener('change', renderPage);
+  document.getElementById('hmMarket').addEventListener('change', () => {
+    if (HM_MARKETS.has(document.getElementById('hmMarket').value)) renderPage();
+  });
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => setView(btn.dataset.view));
+  });
+  document.getElementById('hmRefreshBtn').addEventListener('click', loadHeatmapPage);
   populateMarketSelect(document.getElementById('hmMarket'), { includeAll: true });
   loadHeatmapPage();
   setInterval(loadHeatmapPage, 180000); // refresh every 3 min
