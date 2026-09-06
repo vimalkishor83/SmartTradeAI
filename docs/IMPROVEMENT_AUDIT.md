@@ -838,6 +838,14 @@ Admin User Management, Sessions and Audit Log queries now eager-load their relat
 
 **Regression evidence:** Admin log/audit template checks, audit-log, and session tracking checks passed (**13 passed**), Python compilation, inline-admin JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.60 IMPLEMENTED — Harden admin Login Sessions rendering
+
+Login Sessions now escapes usernames, addresses, device labels and timestamps before rendering. Revoke and selection actions carry validated numeric IDs through data attributes instead of embedding account names in inline JavaScript; refresh, filtering, selection and paging use event listeners. The pager is now able to become visible because its blocking `!important` inline style was removed.
+
+**Risk level:** High admin trust/security and accessibility value, low behavior/API risk (permission checks and session endpoints are unchanged). **Affected modules:** `frontend/templates/admin/sessions.html`, `tests/unit/test_admin_sessions_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Sessions template checks passed (**2 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1027,5 +1035,9 @@ Admin User Management, Sessions and Audit Log queries now eager-load their relat
 - `frontend/templates/admin/logs.html` — escape system-log values and activate the existing pagination surface with event-bound controls.
 - `frontend/templates/admin/audit_log.html` — escape audit values, replace inline controls with event listeners, and fix the pager visibility style.
 - `tests/unit/test_admin_logs_audit_template_safety.py` — protect the admin log/audit rendering and control-binding contracts.
+
+**Session 39 (UI security/accessibility — admin Login Sessions rendering safety, §7.60):**
+- `frontend/templates/admin/sessions.html` — escape session/account values, replace username-bearing inline revoke actions with dataset-backed event listeners, and fix all filter/pager controls to use event bindings.
+- `tests/unit/test_admin_sessions_template_safety.py` — protect the Login Sessions rendering and control-binding contract.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

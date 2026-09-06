@@ -9,7 +9,7 @@
   <div><span class="page-eyebrow">Admin</span>
   <h1 class="page-title">Login Sessions</h1>
   <p class="page-subtitle">Who's logged in, from where, and since when — for support, and to force a logout on any device</p></div>
-  <button class="btn btn-outline-light btn-sm" onclick="loadSessions()"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+  <button class="btn btn-outline-light btn-sm" id="refreshSessionsBtn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
@@ -22,12 +22,12 @@
   </div>
   <div class="section-card-body p-3">
     <div class="d-flex gap-2 flex-wrap align-items-center mb-3">
-      <input type="text" class="form-control" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px" oninput="renderSessionsTable()">
+      <input type="text" class="form-control" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px">
       <div class="form-check form-switch d-flex align-items-center gap-2 mb-0">
-        <input class="form-check-input" type="checkbox" id="activeOnlyToggle" onchange="loadSessions()" style="margin:0">
+        <input class="form-check-input" type="checkbox" id="activeOnlyToggle" style="margin:0">
         <label class="form-check-label" for="activeOnlyToggle">Active only</label>
       </div>
-      <button class="btn btn-sm btn-danger ms-auto" id="deleteSelectedSessionsBtn" onclick="deleteSelectedSessions()" style="display:none">
+      <button class="btn btn-sm btn-danger ms-auto" id="deleteSelectedSessionsBtn" style="display:none">
         <i class="bi bi-trash3 me-1"></i>Delete Selected (<span id="deleteSelectedSessionsCount">0</span>)
       </button>
     </div>
@@ -35,7 +35,7 @@
       <table class="table table-sm align-middle mb-0" id="sessionsTable" style="font-size:13px">
         <thead>
           <tr>
-            <th style="width:30px"><input class="form-check-input" type="checkbox" id="sessionSelectAll" onchange="toggleSelectAllSessions(this.checked)" title="Select all visible sessions"></th>
+            <th style="width:30px"><input class="form-check-input" type="checkbox" id="sessionSelectAll" title="Select all visible sessions"></th>
             <th>User</th><th>IP address</th><th>Device</th><th>Logged in</th><th>Last active</th><th>Status</th><th></th>
           </tr>
         </thead>
@@ -44,10 +44,10 @@
         </tbody>
       </table>
     </div>
-    <div class="d-flex justify-content-between align-items-center mt-2" id="pager" style="display:none!important">
-      <button class="btn btn-sm btn-outline-light" id="prevPageBtn" onclick="changePage(-1)"><i class="bi bi-chevron-left"></i></button>
+    <div class="d-flex justify-content-between align-items-center mt-2" id="pager" style="display:none">
+      <button class="btn btn-sm btn-outline-light" id="prevPageBtn"><i class="bi bi-chevron-left"></i></button>
       <span class="text-muted small" id="pageLabel"></span>
-      <button class="btn btn-sm btn-outline-light" id="nextPageBtn" onclick="changePage(1)"><i class="bi bi-chevron-right"></i></button>
+      <button class="btn btn-sm btn-outline-light" id="nextPageBtn"><i class="bi bi-chevron-right"></i></button>
     </div>
   </div>
 </div>
@@ -95,7 +95,7 @@ function statusBadge(s) {
 
 function renderSessionsTable() {
   const filter = document.getElementById('usernameFilter').value.trim().toLowerCase();
-  const rows = allSessions.filter(s => !filter || s.username.toLowerCase().includes(filter));
+  const rows = allSessions.filter(s => !filter || String(s.username || '').toLowerCase().includes(filter));
   const tbody = document.getElementById('sessionsTbody');
 
   if (!rows.length) {
@@ -104,28 +104,48 @@ function renderSessionsTable() {
     return;
   }
 
-  tbody.innerHTML = rows.map(s => `
+  tbody.innerHTML = rows.map(s => {
+    const id = STSafe.assetId(s.id);
+    const username = STSafe.html(s.username || '—');
+    const ipAddress = STSafe.html(s.ip_address || '—');
+    const device = STSafe.html(s.device || 'Unknown device');
+    const createdAt = STSafe.html(s.created_at || '');
+    const lastSeenAt = STSafe.html(s.last_seen_at || '');
+    return `
     <tr>
-      <td>${isSuperAdmin ? `<input class="form-check-input" type="checkbox" ${_selectedSessionIds.has(s.id) ? 'checked' : ''} onchange="toggleSessionSelect(${s.id},this.checked)">` : ''}</td>
-      <td><strong>${s.username}</strong></td>
-      <td class="text-muted"><code>${s.ip_address}</code></td>
-      <td class="text-muted">${s.device}</td>
-      <td class="text-muted" title="${s.created_at || ''}">${timeAgo(s.created_at)}</td>
-      <td class="text-muted" title="${s.last_seen_at || ''}">${timeAgo(s.last_seen_at)}</td>
+      <td>${isSuperAdmin ? `<input class="form-check-input session-row-checkbox" type="checkbox" data-session-id="${id}" ${_selectedSessionIds.has(s.id) ? 'checked' : ''}>` : ''}</td>
+      <td><strong>${username}</strong></td>
+      <td class="text-muted"><code>${ipAddress}</code></td>
+      <td class="text-muted">${device}</td>
+      <td class="text-muted" title="${createdAt}">${timeAgo(s.created_at)}</td>
+      <td class="text-muted" title="${lastSeenAt}">${timeAgo(s.last_seen_at)}</td>
       <td>${statusBadge(s)}</td>
       <td>
         ${(isSuperAdmin && s.is_active)
-          ? `<button class="btn btn-sm btn-outline-danger" onclick="revokeSession(${s.id},'${s.username.replace(/'/g,"\\'")}')"><i class="bi bi-x-circle me-1"></i>Revoke</button>`
+          ? `<button class="btn btn-sm btn-outline-danger" data-session-action="revoke" data-session-id="${id}" data-session-username="${username}"><i class="bi bi-x-circle me-1"></i>Revoke</button>`
           : ''}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('.session-row-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', () => {
+      toggleSessionSelect(Number(checkbox.dataset.sessionId), checkbox.checked);
+    });
+  });
+  tbody.querySelectorAll('[data-session-action="revoke"]').forEach(button => {
+    button.addEventListener('click', () => {
+      revokeSession(Number(button.dataset.sessionId), button.dataset.sessionUsername);
+    });
+  });
   updateSessionSelectedToolbar(rows);
 }
 
 function toggleSessionSelect(id, checked) {
   if (checked) _selectedSessionIds.add(id); else _selectedSessionIds.delete(id);
-  updateSessionSelectedToolbar(allSessions.filter(s => !document.getElementById('usernameFilter').value.trim()
-    || s.username.toLowerCase().includes(document.getElementById('usernameFilter').value.trim().toLowerCase())));
+  const filter = document.getElementById('usernameFilter').value.trim().toLowerCase();
+  updateSessionSelectedToolbar(allSessions.filter(s => !filter
+    || String(s.username || '').toLowerCase().includes(filter)));
 }
 
 function toggleSelectAllSessions(checked) {
@@ -191,6 +211,18 @@ async function revokeSession(id, username) {
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('refreshSessionsBtn').addEventListener('click', loadSessions);
+  document.getElementById('usernameFilter').addEventListener('input', renderSessionsTable);
+  document.getElementById('activeOnlyToggle').addEventListener('change', () => {
+    currentPage = 1;
+    loadSessions();
+  });
+  document.getElementById('deleteSelectedSessionsBtn').addEventListener('click', deleteSelectedSessions);
+  document.getElementById('sessionSelectAll').addEventListener('change', event => {
+    toggleSelectAllSessions(event.target.checked);
+  });
+  document.getElementById('prevPageBtn').addEventListener('click', () => changePage(-1));
+  document.getElementById('nextPageBtn').addEventListener('click', () => changePage(1));
   loadSessions();
 });
 </script>
