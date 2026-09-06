@@ -214,11 +214,11 @@ The Docker Compose worker now reports liveness by checking the existing Redis he
 
 **Risk level:** High operational observability value, low runtime compatibility risk. **Affected modules:** `docker-compose.yml`, `tests/unit/test_compose_config_safety.py`. **Migration:** none.
 
-**Regression evidence:** Compose configuration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this healthcheck slice.
+**Regression evidence:** Compose configuration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. The follow-up correction decodes Flask-Caching's serialized heartbeat value before applying the freshness threshold. Commits: `942b0ce`, `6a2fa2e`, `07fff5f`. Production deployment remains pending because the earlier explicit stop request withdrew transfer authorization.
 
 **Session 132 (Worker liveness observability):**
 - `docker-compose.yml` - replace the disabled worker HTTP probe with a Redis-heartbeat healthcheck.
-- `tests/unit/test_compose_config_safety.py` - protect the worker probe and timeout contract.
+- `tests/unit/test_compose_config_safety.py` - protect the worker probe, cache key prefix, serialized value decoding and timeout contract.
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
