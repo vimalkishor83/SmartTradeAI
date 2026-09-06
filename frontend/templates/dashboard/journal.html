@@ -10,7 +10,7 @@
     <h1 class="page-title">Trade Journal</h1>
     <p class="page-subtitle">Track, review, and improve your trading discipline</p>
   </div>
-  <button class="btn btn-primary" id="btnAddTrade">
+  <button type="button" class="btn btn-primary" id="btnAddTrade">
     <i class="bi bi-plus-lg me-1"></i> Add Trade
   </button>
 </div>
@@ -61,24 +61,29 @@
         <span class="section-card-title"><i class="bi bi-table text-accent"></i> Trade Log</span>
         <!-- Filters -->
         <div class="d-flex gap-2 flex-wrap">
+          <label class="visually-hidden" for="filterOutcome">Filter by outcome</label>
           <select class="form-select form-select-sm" id="filterOutcome" style="width:110px">
             <option value="">All outcomes</option>
             <option value="win">Win</option>
             <option value="loss">Loss</option>
             <option value="breakeven">Breakeven</option>
           </select>
+          <label class="visually-hidden" for="filterMarket">Filter by market</label>
           <select class="form-select form-select-sm" id="filterMarket" style="width:110px">
             <option value="">All markets</option>
           </select>
+          <label class="visually-hidden" for="filterDateFrom">Filter from date</label>
           <input type="date" class="form-control form-control-sm" id="filterDateFrom" placeholder="From" style="width:130px" title="Date from">
+          <label class="visually-hidden" for="filterDateTo">Filter to date</label>
           <input type="date" class="form-control form-control-sm" id="filterDateTo" placeholder="To" style="width:130px" title="Date to">
-          <button class="btn btn-sm btn-outline-secondary" id="btnFilter"><i class="bi bi-funnel"></i></button>
-          <button class="btn btn-sm btn-outline-secondary" id="btnClearFilter">Clear</button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnFilter" aria-label="Apply journal filters"><i class="bi bi-funnel" aria-hidden="true"></i></button>
+          <button type="button" class="btn btn-sm btn-outline-secondary" id="btnClearFilter">Clear</button>
         </div>
       </div>
       <div class="section-card-body p-0">
         <div class="table-responsive">
           <table class="smart-table mb-0" id="journalTable">
+            <caption class="visually-hidden">Trade journal entries</caption>
             <thead>
               <tr>
                 <th>Date</th>
@@ -90,7 +95,7 @@
                 <th>P&amp;L</th>
                 <th>Outcome</th>
                 <th>Emotion</th>
-                <th></th>
+                <th scope="col">Actions</th>
               </tr>
             </thead>
             <tbody id="journalBody">
@@ -103,6 +108,7 @@
             </tbody>
           </table>
         </div>
+        <div class="px-3 py-2 text-muted fs-sm" id="journalStatus" role="status" aria-live="polite">Loading journal entries…</div>
         <!-- Pagination -->
         <div class="d-flex justify-content-between align-items-center p-3" id="journalPagination" style="display:none!important">
           <span class="text-muted fs-sm" id="pageInfo"></span>
@@ -176,33 +182,33 @@
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title" id="journalModalTitle">Add Trade</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close trade form"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="editId" />
         <div class="row g-3">
 
           <div class="col-md-4">
-            <label class="form-label">Date <span class="text-danger">*</span></label>
+            <label class="form-label" for="fDate">Date <span class="text-danger">*</span></label>
             <input type="date" class="form-control" id="fDate" required />
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Asset</label>
+            <label class="form-label" for="fAsset">Asset</label>
             <select class="form-select" id="fAsset">
               <option value="">— None —</option>
             </select>
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Market</label>
+            <label class="form-label" for="fMarket">Market</label>
             <select class="form-select" id="fMarket">
               <option value="">— Select —</option>
             </select>
           </div>
 
           <div class="col-md-3">
-            <label class="form-label">Direction</label>
+            <label class="form-label" for="fDirection">Direction</label>
             <select class="form-select" id="fDirection">
               <option value="BUY">BUY</option>
               <option value="SELL">SELL</option>
@@ -210,7 +216,7 @@
           </div>
 
           <div class="col-md-3">
-            <label class="form-label">Timeframe</label>
+            <label class="form-label" for="fTimeframe">Timeframe</label>
             <select class="form-select" id="fTimeframe">
               <option value="">—</option>
               <option value="1m">1m</option>
@@ -225,27 +231,27 @@
           </div>
 
           <div class="col-md-3">
-            <label class="form-label">Entry Price</label>
+            <label class="form-label" for="fEntry">Entry Price</label>
             <input type="number" class="form-control" id="fEntry" step="any" placeholder="0.00" />
           </div>
 
           <div class="col-md-3">
-            <label class="form-label">Exit Price</label>
+            <label class="form-label" for="fExit">Exit Price</label>
             <input type="number" class="form-control" id="fExit" step="any" placeholder="0.00" />
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Quantity</label>
+            <label class="form-label" for="fQty">Quantity</label>
             <input type="number" class="form-control" id="fQty" step="any" placeholder="1" />
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Stop Loss</label>
+            <label class="form-label" for="fSL">Stop Loss</label>
             <input type="number" class="form-control" id="fSL" step="any" placeholder="0.00" />
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Target</label>
+            <label class="form-label" for="fTarget">Target</label>
             <input type="number" class="form-control" id="fTarget" step="any" placeholder="0.00" />
           </div>
 
@@ -259,7 +265,7 @@
           </div>
 
           <div class="col-md-4">
-            <label class="form-label">Emotion Tag</label>
+            <label class="form-label" for="fEmotion">Emotion Tag</label>
             <select class="form-select" id="fEmotion">
               <option value="">— None —</option>
               <option value="disciplined">Disciplined</option>
@@ -271,12 +277,12 @@
           </div>
 
           <div class="col-md-8">
-            <label class="form-label">Setup Tags <span class="text-muted fs-sm">(comma-separated)</span></label>
+            <label class="form-label" for="fSetupTags">Setup Tags <span class="text-muted fs-sm">(comma-separated)</span></label>
             <input type="text" class="form-control" id="fSetupTags" placeholder="breakout, ema_cross, rsi_oversold" />
           </div>
 
           <div class="col-12">
-            <label class="form-label">Notes</label>
+            <label class="form-label" for="fNotes">Notes</label>
             <textarea class="form-control" id="fNotes" rows="3" maxlength="5000" placeholder="Trade rationale, observations…"></textarea>
           </div>
 
@@ -344,6 +350,11 @@ function _journalTitle(value) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
+function _journalStatus(message) {
+  const el = document.getElementById('journalStatus');
+  if (el) el.textContent = _journalText(message, '');
+}
+
 // ── init ──────────────────────────────────────────────────────────────────
 // app:ready (fired from app.js), not DOMContentLoaded: this page is
 // tier-gated (data-requires-tier on <body>), and app:ready is deliberately
@@ -402,6 +413,7 @@ async function loadAssets() {
 
 // ── entries list ──────────────────────────────────────────────────────────
 async function loadEntries(page = 1) {
+  _journalStatus('Loading journal entries…');
   const outcome  = document.getElementById('filterOutcome').value;
   const market   = document.getElementById('filterMarket').value;
   const dateFrom = document.getElementById('filterDateFrom').value;
@@ -415,11 +427,15 @@ async function loadEntries(page = 1) {
 
   const requestSeq = ++_entriesRequestSeq;
   const res = await API.get(`/journal/?${params.toString()}`);
-  if (!res || requestSeq !== _entriesRequestSeq || !Array.isArray(res.entries)) return;
+  if (!res || requestSeq !== _entriesRequestSeq || !Array.isArray(res.entries)) {
+    if (requestSeq === _entriesRequestSeq) _journalStatus('Journal entries are unavailable. Try refreshing.');
+    return;
+  }
 
   _currentPage = _journalNumber(res.page, 1);
   _totalPages  = Math.max(1, _journalNumber(res.pages, 1));
   renderTable(res.entries.filter(e => e && typeof e === 'object'), _journalNumber(res.total, 0));
+  _journalStatus(`${_journalNumber(res.total, 0)} journal entr${_journalNumber(res.total, 0) === 1 ? 'y' : 'ies'} shown`);
 }
 
 function renderTable(entries, total) {
@@ -450,8 +466,8 @@ function renderTable(entries, total) {
       <td>${outcomeBadge(e.outcome)}</td>
       <td>${emotionBadge(e.emotion_tag)}</td>
       <td class="text-nowrap">
-        <button class="btn btn-xs btn-outline-secondary me-1" data-edit-entry="${id}" ${id ? '' : 'disabled'}><i class="bi bi-pencil"></i></button>
-        <button class="btn btn-xs btn-outline-danger" data-delete-entry="${id}" ${id ? '' : 'disabled'}><i class="bi bi-trash"></i></button>
+        <button type="button" class="btn btn-xs btn-outline-secondary me-1" data-edit-entry="${id}" aria-label="Edit journal entry" ${id ? '' : 'disabled'}><i class="bi bi-pencil" aria-hidden="true"></i></button>
+        <button type="button" class="btn btn-xs btn-outline-danger" data-delete-entry="${id}" aria-label="Delete journal entry" ${id ? '' : 'disabled'}><i class="bi bi-trash" aria-hidden="true"></i></button>
       </td>
     </tr>`;
   }).join('');

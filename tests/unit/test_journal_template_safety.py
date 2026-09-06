@@ -33,3 +33,18 @@ def test_journal_edit_delete_and_save_paths_are_safe():
     assert "let _saveTradeInFlight = false;" in source
     assert "if (_saveTradeInFlight) return;" in source
     assert "journal_weekly_notes_' + (userId || 'account')" in source
+
+
+def test_journal_controls_have_accessible_relationships_and_status():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    for field in [
+        "fDate", "fAsset", "fMarket", "fDirection", "fTimeframe", "fEntry",
+        "fExit", "fQty", "fSL", "fTarget", "fEmotion", "fSetupTags", "fNotes",
+    ]:
+        assert f'for="{field}"' in source
+    assert '<caption class="visually-hidden">Trade journal entries</caption>' in source
+    assert 'id="journalStatus" role="status" aria-live="polite"' in source
+    assert 'aria-label="Edit journal entry"' in source
+    assert 'aria-label="Delete journal entry"' in source
+    assert "function _journalStatus(message)" in source
