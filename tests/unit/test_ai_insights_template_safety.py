@@ -48,3 +48,6 @@ def test_ai_insights_exposes_prediction_context_and_unavailable_states():
     assert "function setAiBusy(busy)" in source
     assert "Assets temporarily unavailable" in source
     assert "Prediction results are incomplete" in source
+    assert "try {\n    data = await API.get('/assets/');" in source
+    assert "if (!panel || !btn) return;" in source
+    assert "_predictionRunning = true;" in source

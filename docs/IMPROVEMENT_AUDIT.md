@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.135 IMPLEMENTED - Harden AI Insights asset bootstrap
+
+AI Insights now handles an asset-list request exception with the same explicit degraded state used for an empty response, disabling prediction until assets are available instead of leaving an unhandled bootstrap rejection. The prediction-running guard is also set only after required controls are confirmed, preventing a defensive early return from permanently blocking later runs; prediction payloads and model behavior are unchanged.
+
+**Risk level:** Medium decision-support availability value, low compatibility risk because the change is client-side bootstrap and guard handling only. **Affected modules:** `frontend/templates/dashboard/ai_insights.html`, `tests/unit/test_ai_insights_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** AI Insights template safety checks passed (**4 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 115 (AI Insights bootstrap resilience):**
+- `frontend/templates/dashboard/ai_insights.html` - add exception-safe asset loading and defensive run-state initialization.
+- `tests/unit/test_ai_insights_template_safety.py` - protect unavailable-state and guard contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.134 IMPLEMENTED - Harden TA Summary loader failures
 
 TA Summary now exposes its last-updated value as a live status and uses explicit button semantics for refresh. Technical, AI and EMA loader failures render a safe retry state instead of leaving a spinner or stale first-load placeholder indefinitely; silent background refresh failures remain non-disruptive, and all existing endpoint parameters and tab behavior are preserved.

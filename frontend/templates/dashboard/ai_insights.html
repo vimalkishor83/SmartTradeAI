@@ -176,9 +176,17 @@ function setAiBusy(busy) {
 }
 
 async function loadAssets() {
-  const data = await API.get('/assets/');
   const select = document.getElementById('aiAsset');
   if (!select) return;
+  let data;
+  try {
+    data = await API.get('/assets/');
+  } catch (_) {
+    select.innerHTML = '<option value="">Assets temporarily unavailable</option>';
+    select.disabled = true;
+    setAiStatus('degraded', 'Assets are temporarily unavailable', 'Try refreshing the page before running a prediction.');
+    return false;
+  }
   if (!data) {
     select.innerHTML = '<option value="">Assets temporarily unavailable</option>';
     select.disabled = true;
@@ -389,11 +397,11 @@ async function runPrediction() {
   if (!selected.length) { Toast.show('Select at least one timeframe', 'warning'); return; }
 
   const sequence = ++_predictionRunSequence;
-  _predictionRunning = true;
   const assetLabel = escapePredictionMeta(document.getElementById('aiAsset')?.selectedOptions[0]?.textContent || 'Selected asset');
   const panel = document.getElementById('aiRightPanel');
   const btn = document.getElementById('runAI');
   if (!panel || !btn) return;
+  _predictionRunning = true;
   btn.disabled = true;
   setAiBusy(true);
   setAiStatus('loading', `Running ${selected.length} timeframe prediction${selected.length === 1 ? '' : 's'}…`, 'Requests are running in parallel and will be compared when all responses arrive.');
