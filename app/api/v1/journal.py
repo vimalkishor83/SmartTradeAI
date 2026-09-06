@@ -4,12 +4,25 @@ from flask_jwt_extended import get_jwt_identity
 from sqlalchemy import Integer, case, cast, func
 from app.extensions import db
 from app.models.journal import JournalEntry
+from app.models.asset import Asset
 from app.auth.decorators import login_required
 from app.services.pagination import bounded_page, bounded_per_page
+from urllib.parse import urlsplit
+import math
 import csv
 import io
 
 journal_bp = Blueprint("journal", __name__)
+
+MAX_JOURNAL_TEXT = 5000
+MAX_JOURNAL_TAGS = 20
+MAX_JOURNAL_TAG_LENGTH = 40
+MAX_JOURNAL_PRICE = 1_000_000_000_000
+MAX_JOURNAL_QUANTITY = 1_000_000_000
+_DIRECTIONS = {"BUY", "SELL"}
+_OUTCOMES = {"win", "loss", "breakeven"}
+_EMOTIONS = {"disciplined", "fomo", "revenge", "patient", "anxious"}
+_TIMEFRAMES = {"1m", "5m", "15m", "30m", "1h", "4h", "1d", "1w"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -53,11 +66,133 @@ def _auto_pnl(data):
     return data
 
 
+def _optional_number(value, field_name, *, minimum=None, maximum=None):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a number")
+    if not math.isfinite(number):
+        raise ValueError(f"{field_name} must be finite")
+    if minimum is not None and number < minimum:
+        raise ValueError(f"{field_name} must be at least {minimum:g}")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum:g}")
+    return number
+
+
+def _optional_asset_id(value):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise ValueError("asset_id must be a positive integer")
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw.isdigit():
+            raise ValueError("asset_id must be a positive integer")
+        asset_id = int(raw)
+    elif isinstance(value, int):
+        asset_id = value
+    else:
+        raise ValueError("asset_id must be a positive integer")
+    if asset_id <= 0:
+        raise ValueError("asset_id must be a positive integer")
+    return asset_id
+
+
+def _optional_text(value, field_name, maximum):
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    value = value.strip()
+    if len(value) > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum} characters")
+    return value or None
+
+
+def _validate_entry_payload(data, *, partial=False):
+    """Normalize journal JSON before auto-P&L or ORM assignment."""
+    if not isinstance(data, dict):
+        raise ValueError("request body must be a JSON object")
+
+    normalized = {}
+    if not partial or "asset_id" in data:
+        normalized["asset_id"] = _optional_asset_id(data.get("asset_id"))
+    if not partial or "market" in data:
+        normalized["market"] = _optional_text(data.get("market"), "market", 30)
+    if not partial or "direction" in data:
+        direction = (data.get("direction") or "BUY")
+        if not isinstance(direction, str) or direction.upper() not in _DIRECTIONS:
+            raise ValueError("direction must be BUY or SELL")
+        normalized["direction"] = direction.upper()
+    if not partial or "timeframe" in data:
+        timeframe = _optional_text(data.get("timeframe"), "timeframe", 10)
+        if timeframe is not None and timeframe not in _TIMEFRAMES:
+            raise ValueError("timeframe is not supported")
+        normalized["timeframe"] = timeframe
+    if not partial or "trade_date" in data:
+        normalized["trade_date"] = _parse_date(data.get("trade_date"))
+
+    for field in ("entry_price", "exit_price", "stop_loss", "target"):
+        if not partial or field in data:
+            normalized[field] = _optional_number(
+                data.get(field), field, minimum=0, maximum=MAX_JOURNAL_PRICE
+            )
+            if normalized[field] == 0:
+                raise ValueError(f"{field} must be greater than zero")
+    if not partial or "quantity" in data:
+        normalized["quantity"] = _optional_number(
+            data.get("quantity"), "quantity", minimum=0, maximum=MAX_JOURNAL_QUANTITY
+        )
+    for field in ("pnl_amount", "pnl_pct"):
+        if not partial or field in data:
+            normalized[field] = _optional_number(data.get(field), field)
+
+    if not partial or "outcome" in data:
+        outcome = _optional_text(data.get("outcome"), "outcome", 10)
+        if outcome is not None and outcome.lower() not in _OUTCOMES:
+            raise ValueError("outcome must be win, loss, or breakeven")
+        normalized["outcome"] = outcome.lower() if outcome else None
+    if not partial or "emotion_tag" in data:
+        emotion = _optional_text(data.get("emotion_tag"), "emotion_tag", 30)
+        if emotion is not None and emotion.lower() not in _EMOTIONS:
+            raise ValueError("emotion_tag is not supported")
+        normalized["emotion_tag"] = emotion.lower() if emotion else None
+    if not partial or "setup_tags" in data:
+        tags = data.get("setup_tags") or []
+        if not isinstance(tags, list) or len(tags) > MAX_JOURNAL_TAGS:
+            raise ValueError(f"setup_tags must be a list of at most {MAX_JOURNAL_TAGS} items")
+        normalized_tags = []
+        for tag in tags:
+            clean_tag = _optional_text(tag, "setup_tags item", MAX_JOURNAL_TAG_LENGTH)
+            if clean_tag:
+                normalized_tags.append(clean_tag)
+        normalized["setup_tags"] = normalized_tags
+    if not partial or "notes" in data:
+        normalized["notes"] = _optional_text(data.get("notes"), "notes", MAX_JOURNAL_TEXT)
+    if not partial or "screenshot_url" in data:
+        screenshot_url = _optional_text(data.get("screenshot_url"), "screenshot_url", 500)
+        if screenshot_url:
+            parsed = urlsplit(screenshot_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError("screenshot_url must be an HTTP(S) URL")
+        normalized["screenshot_url"] = screenshot_url
+    return normalized
+
+
 def _parse_date(val):
     if not val:
         return date.today()
+    if isinstance(val, datetime):
+        return val.date()
     if isinstance(val, date):
         return val
+    if not isinstance(val, str):
+        raise ValueError("trade_date must be YYYY-MM-DD")
     return datetime.strptime(val, "%Y-%m-%d").date()
 
 
@@ -74,6 +209,14 @@ def list_entries():
     date_from = request.args.get("date_from")
     date_to   = request.args.get("date_to")
 
+    if outcome and outcome not in _OUTCOMES:
+        return jsonify({"error": "outcome filter is not supported"}), 400
+    try:
+        parsed_date_from = _parse_date(date_from) if date_from else None
+        parsed_date_to = _parse_date(date_to) if date_to else None
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     q = JournalEntry.query.filter_by(user_id=user_id)
 
     if outcome:
@@ -81,9 +224,9 @@ def list_entries():
     if market:
         q = q.filter(JournalEntry.market == market)
     if date_from:
-        q = q.filter(JournalEntry.trade_date >= _parse_date(date_from))
+        q = q.filter(JournalEntry.trade_date >= parsed_date_from)
     if date_to:
-        q = q.filter(JournalEntry.trade_date <= _parse_date(date_to))
+        q = q.filter(JournalEntry.trade_date <= parsed_date_to)
 
     q = q.order_by(JournalEntry.trade_date.desc(), JournalEntry.id.desc())
     pagination = q.paginate(page=page, per_page=per_page, error_out=False)
@@ -101,14 +244,16 @@ def list_entries():
 @login_required
 def create_entry():
     user_id = get_jwt_identity()
-    data = request.get_json() or {}
-
-    data = _auto_pnl(data)
+    try:
+        data = _validate_entry_payload(request.get_json(silent=True))
+        data = _auto_pnl(data)
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
 
     entry = JournalEntry(
         user_id=user_id,
         asset_id=data.get("asset_id"),
-        trade_date=_parse_date(data.get("trade_date")),
+        trade_date=data.get("trade_date"),
         market=data.get("market"),
         direction=(data.get("direction") or "BUY").upper(),
         timeframe=data.get("timeframe"),
@@ -130,14 +275,24 @@ def create_entry():
     return jsonify(entry.to_dict()), 201
 
 
+@journal_bp.route("/<int:entry_id>", methods=["GET"])
+@login_required
+def get_entry(entry_id):
+    user_id = get_jwt_identity()
+    entry = JournalEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
+    return jsonify(entry.to_dict()), 200
+
+
 @journal_bp.route("/<int:entry_id>", methods=["PUT"])
 @login_required
 def update_entry(entry_id):
     user_id = get_jwt_identity()
     entry = JournalEntry.query.filter_by(id=entry_id, user_id=user_id).first_or_404()
-    data = request.get_json() or {}
-
-    data = _auto_pnl(data)
+    try:
+        data = _validate_entry_payload(request.get_json(silent=True), partial=True)
+        data = _auto_pnl(data)
+    except (TypeError, ValueError) as e:
+        return jsonify({"error": str(e)}), 400
 
     fields = [
         "asset_id", "market", "direction", "timeframe",
@@ -150,7 +305,7 @@ def update_entry(entry_id):
             setattr(entry, f, data[f])
 
     if "trade_date" in data:
-        entry.trade_date = _parse_date(data["trade_date"])
+        entry.trade_date = data["trade_date"]
     if "direction" in data:
         entry.direction = (data["direction"] or "BUY").upper()
 
