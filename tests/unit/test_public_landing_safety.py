@@ -19,6 +19,7 @@ def test_public_landing_has_skip_navigation_and_mobile_menu_contracts():
     assert "nav.classList.toggle('menu-open')" in source
     assert "links.querySelectorAll('a').forEach(link => link.addEventListener('click', close))" in source
     assert 'type="button" id="backToTop"' in source
+    assert '<a href="#signals" class="btn btn-outline btn-lg">View Live Signals →</a>' in source
 
 
 def test_public_live_data_is_bounded_escaped_and_does_not_overlap_polling():
