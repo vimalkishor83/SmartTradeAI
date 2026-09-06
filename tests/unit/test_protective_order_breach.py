@@ -6,8 +6,10 @@ ProtectiveOrder/DB row since these functions only read/write a few
 attributes.
 """
 from types import SimpleNamespace
+import pytest
 
-from app.tasks.protective_order_tasks import _check_breach, _update_trailing
+from app.tasks.protective_order_tasks import _check_breach, _update_trailing, _execute_close
+from app.api.v1.protective_orders import _positive_level, _strict_bool, _validate_levels
 
 
 def _order(side="long", stop_loss=None, take_profit=None,
@@ -102,3 +104,29 @@ class TestUpdateTrailing:
         order = _order(side="long", high_water_mark=None)
         _update_trailing(order, 100)
         assert order.high_water_mark == 100
+
+
+class TestProtectiveOrderSafety:
+    def test_rejects_ambiguous_booleans_and_non_finite_levels(self):
+        with pytest.raises(ValueError):
+            _strict_bool("false", "auto_execute")
+        with pytest.raises(ValueError):
+            _positive_level("NaN", "stop_loss")
+
+    def test_requires_levels_on_the_safe_side_of_entry(self):
+        item = SimpleNamespace(current_price=100, buy_price=90)
+        with pytest.raises(ValueError, match="below"):
+            _validate_levels(item, "long", 100, None)
+        with pytest.raises(ValueError, match="below"):
+            _validate_levels(item, "short", None, 100)
+
+    def test_auto_close_refuses_fractional_size_instead_of_under_closing(self, monkeypatch):
+        order = SimpleNamespace(
+            user_id=1, side="long", portfolio_item=SimpleNamespace(quantity=1.5),
+            error_message=None, id=9,
+        )
+        asset = SimpleNamespace(symbol="BTCUSD")
+        monkeypatch.setattr("app.services.data.fetcher.to_delta_symbol", lambda _symbol: "BTCUSD")
+        monkeypatch.setattr("app.services.trading.delta_trading.get_configured_client", lambda _id: object())
+        assert _execute_close(order, asset, 100) is False
+        assert "whole-number" in order.error_message

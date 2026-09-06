@@ -11,12 +11,47 @@ this feature to ever place a real order on their connected broker account.
 """
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
+import math
 from app.extensions import db
 from app.models.portfolio import Portfolio, PortfolioItem
 from app.models.protective_order import ProtectiveOrder
 from app.auth.decorators import login_required, approved_required
 
 protective_orders_bp = Blueprint("protective_orders", __name__)
+MAX_PROTECTIVE_PRICE = 1_000_000_000_000
+MAX_TRAILING_DISTANCE_PCT = 100.0
+
+
+def _strict_bool(value, field_name):
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"{field_name} must be a boolean")
+
+
+def _positive_level(value, field_name):
+    if value is None or isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a positive number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a positive number")
+    if not math.isfinite(number) or number <= 0 or number > MAX_PROTECTIVE_PRICE:
+        raise ValueError(f"{field_name} must be a positive finite number")
+    return number
+
+
+def _validate_levels(item, side, stop_loss, take_profit):
+    entry = float(item.current_price or item.buy_price)
+    if stop_loss is not None:
+        if side == "long" and stop_loss >= entry:
+            raise ValueError("stop_loss must be below the current price for a long position")
+        if side == "short" and stop_loss <= entry:
+            raise ValueError("stop_loss must be above the current price for a short position")
+    if take_profit is not None:
+        if side == "long" and take_profit <= entry:
+            raise ValueError("take_profit must be above the current price for a long position")
+        if side == "short" and take_profit >= entry:
+            raise ValueError("take_profit must be below the current price for a short position")
 
 
 def _owned_item_or_error(item_id, user_id):
@@ -48,7 +83,9 @@ def create_protective_order():
     the PATCH route), not bundle it into creation.
     """
     user_id = int(get_jwt_identity())
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
 
     item_id = data.get("portfolio_item_id")
     if not item_id:
@@ -61,9 +98,13 @@ def create_protective_order():
     if side not in ("long", "short"):
         return jsonify({"error": "side must be 'long' or 'short'"}), 400
 
-    stop_loss = data.get("stop_loss")
-    take_profit = data.get("take_profit")
-    trailing_enabled = bool(data.get("trailing_enabled", False))
+    try:
+        stop_loss = _positive_level(data["stop_loss"], "stop_loss") if data.get("stop_loss") is not None else None
+        take_profit = _positive_level(data["take_profit"], "take_profit") if data.get("take_profit") is not None else None
+        trailing_enabled = _strict_bool(data.get("trailing_enabled", False), "trailing_enabled")
+        auto_execute = _strict_bool(data.get("auto_execute", False), "auto_execute")
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     trailing_distance_pct = data.get("trailing_distance_pct")
 
     if trailing_enabled and not trailing_distance_pct:
@@ -73,11 +114,15 @@ def create_protective_order():
             trailing_distance_pct = float(trailing_distance_pct)
         except (TypeError, ValueError):
             return jsonify({"error": "trailing_distance_pct must be a number"}), 400
-        if trailing_distance_pct <= 0:
-            return jsonify({"error": "trailing_distance_pct must be greater than zero"}), 400
+        if not math.isfinite(trailing_distance_pct) or not 0 < trailing_distance_pct <= MAX_TRAILING_DISTANCE_PCT:
+            return jsonify({"error": "trailing_distance_pct must be between zero and 100"}), 400
 
     if stop_loss is None and take_profit is None and not trailing_enabled:
         return jsonify({"error": "at least one of stop_loss, take_profit, or trailing_enabled is required"}), 400
+    try:
+        _validate_levels(item, side, stop_loss, take_profit)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     order = ProtectiveOrder(
         user_id=user_id,
@@ -89,7 +134,7 @@ def create_protective_order():
         trailing_enabled=trailing_enabled,
         trailing_distance_pct=trailing_distance_pct,
         high_water_mark=item.current_price or item.buy_price,
-        auto_execute=bool(data.get("auto_execute", False)),
+        auto_execute=auto_execute,
         is_dry_run=True,   # always starts safe — flip off explicitly via PATCH
         status="active",
     )
@@ -111,19 +156,38 @@ def update_protective_order(order_id):
     if order.status != "active":
         return jsonify({"error": f"Cannot edit a protective order in status '{order.status}'"}), 400
 
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     for field in ("stop_loss", "take_profit", "trailing_distance_pct"):
         if field in data and data[field] is not None:
             try:
-                setattr(order, field, float(data[field]))
-            except (TypeError, ValueError):
-                return jsonify({"error": f"{field} must be a number"}), 400
+                value = _positive_level(data[field], field) if field != "trailing_distance_pct" else float(data[field])
+                if field == "trailing_distance_pct" and (not math.isfinite(value) or not 0 < value <= MAX_TRAILING_DISTANCE_PCT):
+                    raise ValueError("trailing_distance_pct must be between zero and 100")
+                setattr(order, field, value)
+            except (TypeError, ValueError) as exc:
+                return jsonify({"error": str(exc) or f"{field} must be a number"}), 400
     if "trailing_enabled" in data:
-        order.trailing_enabled = bool(data["trailing_enabled"])
+        try:
+            order.trailing_enabled = _strict_bool(data["trailing_enabled"], "trailing_enabled")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
     if "auto_execute" in data:
-        order.auto_execute = bool(data["auto_execute"])
+        try:
+            order.auto_execute = _strict_bool(data["auto_execute"], "auto_execute")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
     if "is_dry_run" in data:
-        order.is_dry_run = bool(data["is_dry_run"])
+        try:
+            order.is_dry_run = _strict_bool(data["is_dry_run"], "is_dry_run")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+    try:
+        _validate_levels(order.portfolio_item, order.side, order.stop_loss, order.take_profit)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     db.session.commit()
     return jsonify(order.to_dict()), 200

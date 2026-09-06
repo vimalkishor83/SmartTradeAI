@@ -173,12 +173,17 @@ def _execute_close(order, asset, current_price) -> bool:
             order.error_message = f"{asset.symbol} is not a tradeable Delta Exchange symbol"
             return False
 
+        quantity = order.portfolio_item.quantity if order.portfolio_item else None
+        if quantity is None or not float(quantity).is_integer() or int(quantity) <= 0:
+            order.error_message = "Auto-close requires a positive whole-number position size"
+            logger.error("Protective order %s cannot auto-close fractional or invalid size", order.id)
+            return False
+        size = int(quantity)
         product_id = client.get_product_id(delta_symbol)
         # Closing a long = sell; closing a short = buy.
         close_side = "sell" if order.side == "long" else "buy"
-        size = int(order.portfolio_item.quantity) if order.portfolio_item else 1
         result = client.place_order(
-            product_id=product_id, side=close_side, size=max(size, 1),
+            product_id=product_id, side=close_side, size=size,
             order_type="market_order", reduce_only=True,
         )
         order.broker_order_result = json.dumps(result)
