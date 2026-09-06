@@ -22,6 +22,17 @@ def test_public_landing_has_skip_navigation_and_mobile_menu_contracts():
     assert '<a href="#signals" class="btn btn-outline btn-lg">View Live Signals →</a>' in source
 
 
+def test_public_landing_centers_desktop_menu_and_uses_decorative_hero_asset():
+    source = LANDING.read_text(encoding="utf-8")
+    hero_asset = ROOT / "frontend" / "static" / "img" / "hero-market-atmosphere.png"
+
+    assert "grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);" in source
+    assert "justify-self: center;" in source
+    assert "url('/static/img/hero-market-atmosphere.png')" in source
+    assert hero_asset.is_file()
+    assert hero_asset.stat().st_size > 0
+
+
 def test_public_live_data_is_bounded_escaped_and_does_not_overlap_polling():
     source = LANDING.read_text(encoding="utf-8")
 
