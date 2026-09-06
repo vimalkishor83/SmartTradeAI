@@ -1843,9 +1843,15 @@ def get_summary():
 
     summary = {t: c for t, c in counts}
 
-    history = SignalHistory.query
-    total_h = history.count()
-    wins    = history.filter(SignalHistory.outcome == "win").count()
+    # Keep the headline history counters in one aggregate query. The previous
+    # count()+filtered-count pattern issued separate scans for total and wins,
+    # which became noticeable as history grew.
+    history_totals = db.session.query(
+        func.count(SignalHistory.id).label("total"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+    ).one()
+    total_h = int(history_totals.total or 0)
+    wins = int(history_totals.wins or 0)
     # None (not 0) when there's no history yet — the frontend already
     # renders null as "—"; a literal 0 reads as "0% win rate" instead of
     # "no data yet", which is what avg_confidence below had been doing.
@@ -1855,14 +1861,17 @@ def get_summary():
     # these exact keys (closed_today/wins_today/losses_today/total_pnl_today)
     # but this endpoint never returned them, so those cells always fell
     # through every frontend fallback straight to "—".
-    closed_today_q = SignalHistory.query.filter(SignalHistory.closed_at >= today)
-    closed_today = closed_today_q.count()
-    wins_today   = closed_today_q.filter(SignalHistory.outcome == "win").count()
-    losses_today = closed_today_q.filter(SignalHistory.outcome == "loss").count()
+    closed_today_row = db.session.query(
+        func.count(SignalHistory.id).label("total"),
+        func.sum(case((SignalHistory.outcome == "win", 1), else_=0)).label("wins"),
+        func.sum(case((SignalHistory.outcome == "loss", 1), else_=0)).label("losses"),
+        func.sum(func.coalesce(SignalHistory.pnl_pct, 0)).label("pnl"),
+    ).filter(SignalHistory.closed_at >= today).one()
+    closed_today = int(closed_today_row.total or 0)
+    wins_today = int(closed_today_row.wins or 0)
+    losses_today = int(closed_today_row.losses or 0)
     win_rate_today = round(wins_today / closed_today * 100, 1) if closed_today else None
-    total_pnl_today_row = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
-        SignalHistory.closed_at >= today).scalar()
-    total_pnl_today = round(float(total_pnl_today_row), 2) if total_pnl_today_row else 0.0
+    total_pnl_today = round(float(closed_today_row.pnl), 2) if closed_today_row.pnl else 0.0
 
     # Average confidence today — None when no signal has fired yet today,
     # not 0 (a thin watchlist can easily go hours into a new UTC day with
