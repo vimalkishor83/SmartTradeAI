@@ -18,6 +18,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from decimal import Decimal, InvalidOperation
 import re
+from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.auth.decorators import login_required, approved_required, subscription_feature_required
 from app.services.data.fetcher import to_delta_symbol
@@ -30,6 +31,7 @@ MAX_ORDER_SIZE = 10_000_000
 MAX_LEVERAGE = 200
 MAX_PRICE = Decimal("1000000000000")
 _SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,40}$")
+_MAX_CREDENTIAL_LENGTH = 1024
 
 
 def _positive_int(value, field_name, maximum=None):
@@ -73,6 +75,19 @@ def _parse_bool(value, field_name):
         if normalized in {"false", "0", "no", "off", ""}:
             return False
     raise ValueError(f"{field_name} must be a boolean")
+
+
+def _credential_text(value, field_name):
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    value = value.strip()
+    if not value:
+        raise ValueError(f"{field_name} is required")
+    if len(value) > _MAX_CREDENTIAL_LENGTH:
+        raise ValueError(f"{field_name} must be {_MAX_CREDENTIAL_LENGTH} characters or fewer")
+    if any(ord(char) < 32 for char in value):
+        raise ValueError(f"{field_name} contains unsupported control characters")
+    return value
 
 
 def _client_or_error():
@@ -154,7 +169,7 @@ def broker_connect():
     provider_raw = data.get("provider") or "delta_exchange"
     if not isinstance(provider_raw, str):
         return jsonify({"error": "provider must be a string"}), 400
-    provider = provider_raw.strip()
+    provider = provider_raw.strip().lower()
 
     meta = get_broker(provider)
     if not meta:
@@ -166,14 +181,11 @@ def broker_connect():
 
     needed = required_fields(provider)
     values = {}
-    for field in needed:
-        value = data.get(field) or ""
-        if not isinstance(value, str):
-            return jsonify({"error": f"{field} must be a string"}), 400
-        values[field] = value.strip()
-    missing = [f for f in needed if not values[f]]
-    if missing:
-        return jsonify({"error": f"{', '.join(missing)} {'is' if len(missing)==1 else 'are'} required for {meta['label']}"}), 400
+    try:
+        for field in needed:
+            values[field] = _credential_text(data.get(field), field)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     cred = UserBrokerCredential.query.filter_by(user_id=user_id, provider=provider).first()
     if not cred:
@@ -188,7 +200,11 @@ def broker_connect():
         cred.set_passphrase(values["passphrase"])
     cred.is_active = True
     cred.connection_status = "unknown"
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "This broker connection was updated by another request; please retry"}), 409
 
     _audit(user_id, "broker_connected", provider)
     return jsonify({"message": f"{meta['label']} connected", **cred.to_dict()}), 200
@@ -208,7 +224,7 @@ def broker_disconnect():
     provider_raw = data.get("provider") or "delta_exchange"
     if not isinstance(provider_raw, str):
         return jsonify({"error": "provider must be a string"}), 400
-    provider = provider_raw.strip()
+    provider = provider_raw.strip().lower()
 
     cred = UserBrokerCredential.query.filter_by(user_id=user_id, provider=provider).first()
     if cred:
@@ -233,7 +249,7 @@ def broker_test():
     provider_raw = data.get("provider") or "delta_exchange"
     if not isinstance(provider_raw, str):
         return jsonify({"error": "provider must be a string"}), 400
-    provider = provider_raw.strip()
+    provider = provider_raw.strip().lower()
 
     meta = get_broker(provider)
     if not meta:

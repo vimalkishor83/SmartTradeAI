@@ -152,7 +152,7 @@ BROKERS: dict[str, dict] = {
     "oanda": {
         "label": "OANDA",
         "category": CATEGORY_FOREX,
-        "auth_type": "api_key_secret",
+        "auth_type": "api_key_only",
         "trading_enabled": False,
         "docs_url": "https://developer.oanda.com/",
         "help": "OANDA uses a single API token (enter it as the API key; leave secret blank).",
@@ -186,7 +186,7 @@ BROKERS: dict[str, dict] = {
     "tradier": {
         "label": "Tradier",
         "category": CATEGORY_US_STOCK,
-        "auth_type": "api_key_secret",
+        "auth_type": "api_key_only",
         "trading_enabled": False,
         "docs_url": "https://documentation.tradier.com/",
         "help": "Create an access token from Tradier's developer dashboard (enter as API key; leave secret blank).",
@@ -210,6 +210,8 @@ def required_fields(provider: str) -> list[str]:
     auth_type = meta["auth_type"]
     if auth_type == "api_key_secret":
         return ["api_key", "api_secret"]
+    if auth_type == "api_key_only":
+        return ["api_key"]
     if auth_type == "api_key_secret_passphrase":
         return ["api_key", "api_secret", "passphrase"]
     if auth_type == "oauth":
