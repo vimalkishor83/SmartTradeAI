@@ -1250,4 +1250,78 @@ Portfolio rendering now escapes asset data and validates IDs/numbers before DOM 
 - `frontend/templates/dashboard/journal.html` - escape table/insight values, bind entry actions through datasets, use detail reads for edits, correctly interpret delete responses, guard duplicate saves, and scope weekly notes by user.
 - `tests/unit/test_journal_template_safety.py` - protect Journal rendering and mutation contracts.
 
+### 7.81 IMPLEMENTED - Harden shared navigation and ticker controls
+
+The shared navigation now uses delegated, keyboard-capable control bindings instead of inline handlers. Ticker visibility updates safely synchronize the icon, tooltip and ARIA state, while storage failures no longer break page initialization.
+
+**Risk level:** High cross-page reliability and accessibility value, low compatibility risk. **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/app.js`, `tests/unit/test_shared_navigation_safety.py`. **Migration:** none.
+
+**Regression evidence:** Shared navigation checks passed (**4 passed**), JavaScript parsing and whitespace validation passed. Commit: `a3ba4f9`.
+
+### 7.82 IMPLEMENTED - Harden Backtesting workflow
+
+Backtesting now validates user inputs before submission, ignores stale history/detail responses, safely renders provider data, suppresses duplicate history navigation, and keeps pagination usable for long histories. Result and upgrade states are bounded and escaped before they reach the DOM.
+
+**Risk level:** High analytical trust and UI safety value, low API compatibility risk. **Affected modules:** `frontend/templates/dashboard/backtesting.html`, `tests/unit/test_backtesting_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Backtesting checks passed (**6 passed**), extracted browser JavaScript parsing and whitespace validation passed. Commit: `cc1dfb3`.
+
+### 7.83 IMPLEMENTED - Harden Signals workflow
+
+Signals tabs, history, P&L, filters and pagination now use event delegation and safe rendering. Live/history requests reject stale responses, P&L refreshes cannot overlap, numeric fields are finite and bounded, and provider-controlled labels/details are escaped before rendering.
+
+**Risk level:** High decision-support trust and performance value, low API compatibility risk. **Affected modules:** `frontend/templates/dashboard/signals.html`, `tests/unit/test_signals_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Signals checks passed (**6 passed**), extracted browser JavaScript parsing and whitespace validation passed. Commit: `6087992`.
+
+### 7.84 IMPLEMENTED - Harden Technical Analysis Summary
+
+Technical Analysis Summary tabs and AI/EMA interactions now use delegated keyboard-capable controls. Asset, timeframe, rating, quote, AI and EMA payloads are validated and escaped, preventing malformed provider values from becoming selectors or executable markup.
+
+**Risk level:** High decision-support trust and accessibility value, low API compatibility risk. **Affected modules:** `frontend/templates/dashboard/ta_summary.html`, `tests/unit/test_ta_summary_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Technical Analysis checks passed (**6 passed**), extracted browser JavaScript parsing and whitespace validation passed. Commit: `f77979b`.
+
+### 7.85 IMPLEMENTED - Harden Risk Manager boundaries
+
+Risk calculation routes now reject non-finite, malformed and out-of-range values, including invalid ATR histories and price parameters. The Risk Manager UI validates calculation inputs, safely renders quick signals and portfolio-risk data, and removes inline action handlers without changing the existing API shape.
+
+**Risk level:** Critical financial-safety value, low compatibility risk for valid requests. **Affected modules:** `app/api/v1/risk.py`, `frontend/templates/dashboard/risk.html`, `tests/integration/test_risk_routes.py`, `tests/unit/test_risk_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Risk-focused checks passed (**48 passed**), Python and browser JavaScript parsing passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `bf7709c`.
+
+### 7.86 IMPLEMENTED - Harden account Settings and profile updates
+
+Account Settings controls now use delegated event listeners, escape user/plan/asset/2FA values, validate QR and backup-code payloads, and suppress repeated plan/2FA mutations. The profile API now requires an object body, enforces strict types and finite bounded financial settings, limits text fields, validates themes and password changes, and preserves the encrypted Telegram token when no replacement is supplied.
+
+**Risk level:** Critical account-integrity and security value, low compatibility risk for valid requests. **Affected modules:** `frontend/templates/dashboard/settings.html`, `app/auth/routes.py`, `tests/integration/test_profile_routes_validation.py`, `tests/unit/test_settings_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Profile/settings checks passed (**11 passed**), Python and browser JavaScript parsing passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `cba32a9`.
+
+**Session 60 (UI security/accessibility - shared navigation and ticker controls, §7.81):**
+- `frontend/templates/partials/base.html`, `frontend/static/js/app.js` - replace shared inline controls with delegated bindings and synchronize safe ticker state.
+- `tests/unit/test_shared_navigation_safety.py` - protect shared navigation control wiring.
+
+**Session 61 (UI security/performance - Backtesting workflow, §7.82):**
+- `frontend/templates/dashboard/backtesting.html` - validate inputs, bound rendering, ignore stale reads and guard duplicate history actions.
+- `tests/unit/test_backtesting_template_safety.py` - protect Backtesting control and rendering contracts.
+
+**Session 62 (UI security/performance - Signals workflow, §7.83):**
+- `frontend/templates/dashboard/signals.html` - harden tabs, history, P&L, filters, pagination and dynamic provider rendering.
+- `tests/unit/test_signals_template_safety.py` - protect Signals control and rendering contracts.
+
+**Session 63 (UI security/accessibility - Technical Analysis Summary, §7.84):**
+- `frontend/templates/dashboard/ta_summary.html` - validate and escape AI/EMA/quote data and replace inline interactions.
+- `tests/unit/test_ta_summary_template_safety.py` - protect Technical Analysis Summary controls.
+
+**Session 64 (backend/UI financial safety - Risk Manager, §7.85):**
+- `app/api/v1/risk.py` - reject malformed, non-finite and out-of-range risk inputs.
+- `frontend/templates/dashboard/risk.html` - validate calculator inputs and safely render risk data without inline actions.
+- `tests/integration/test_risk_routes.py`, `tests/unit/test_risk_template_safety.py` - cover route and UI risk boundaries.
+
+**Session 65 (account security/UI safety - account Settings and profile updates, §7.86):**
+- `app/auth/routes.py` - validate profile and password mutation payloads with strict types, bounds and secret-preserving behavior.
+- `frontend/templates/dashboard/settings.html` - safely render account settings, plans and 2FA flows and serialize mutations.
+- `tests/integration/test_profile_routes_validation.py`, `tests/unit/test_settings_template_safety.py` - cover authenticated profile validation and settings control contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
