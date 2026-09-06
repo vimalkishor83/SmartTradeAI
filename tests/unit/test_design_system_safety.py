@@ -49,3 +49,13 @@ def test_shared_shell_exposes_accessible_focus_and_motion_contracts():
     assert '@media (prefers-reduced-motion: reduce)' in css
     assert 'color-scheme: dark' in css
     assert 'color-scheme: light' in css
+
+
+def test_shared_shell_exposes_route_aware_visual_atmosphere():
+    css = CSS.read_text(encoding="utf-8")
+    base = BASE.read_text(encoding="utf-8")
+
+    assert 'data-active="{{ active|default(\'dashboard\') }}"' in base
+    assert ".page-content::before" in css
+    assert "markets-atmosphere.png" in css
+    assert "legal-center-atmosphere.png" in css
