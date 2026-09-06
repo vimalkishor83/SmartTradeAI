@@ -96,7 +96,7 @@
 
             <div class="mb-3">
               <label class="form-label">Size (contracts)</label>
-              <input type="number" class="form-control" id="ordSize" min="1" step="1" required />
+              <input type="number" class="form-control" id="ordSize" min="1" max="10000000" step="1" required />
             </div>
 
             <div class="mb-3" id="limitPriceField">
@@ -190,31 +190,71 @@
 {% block extra_js %}
 <script>
 function fmtNum(v, dp = 2) {
-  const n = parseFloat(v);
-  return isNaN(n) ? '—' : n.toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp });
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString('en-IN', { minimumFractionDigits: dp, maximumFractionDigits: dp }) : '—';
 }
 
-async function checkConnection() {
-  const data = await API.get('/trading/status');
-  const badge = document.getElementById('connStatus');
-  const connected = !!data?.connected;
+function _tradeNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 
-  if (connected) {
-    badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--green)"></i>Connected';
-    document.getElementById('notConnectedBanner').classList.add('d-none');
-    document.getElementById('brokerConnectedCard').classList.remove('d-none');
-    document.getElementById('tradingContent').classList.remove('d-none');
-    loadAll();
-  } else {
-    badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--red)"></i>Not Connected';
-    document.getElementById('notConnectedBanner').classList.remove('d-none');
-    document.getElementById('brokerConnectedCard').classList.add('d-none');
-    document.getElementById('tradingContent').classList.add('d-none');
-  }
+function _tradeHtml(value) {
+  return typeof STSafe?.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _tradeId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,18}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _tradeDate(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const normalized = /[Zz]|[+-]\d{2}:?\d{2}$/.test(raw) ? raw : raw + 'Z';
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+let _connectionCheckPromise = null;
+let _loadAllPromise = null;
+let _connectInFlight = false;
+let _disconnectInFlight = false;
+let _placeOrderInFlight = false;
+const _cancelOrderInFlight = new Set();
+
+async function checkConnection() {
+  if (_connectionCheckPromise) return _connectionCheckPromise;
+  const request = (async () => {
+    const data = await API.get('/trading/status');
+    const badge = document.getElementById('connStatus');
+    const connected = !!data?.connected && !data?.error;
+
+    if (connected) {
+      badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--green)"></i>Connected';
+      document.getElementById('notConnectedBanner').classList.add('d-none');
+      document.getElementById('brokerConnectedCard').classList.remove('d-none');
+      document.getElementById('tradingContent').classList.remove('d-none');
+      loadAll();
+    } else {
+      badge.innerHTML = '<i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--red)"></i>Not Connected';
+      document.getElementById('notConnectedBanner').classList.remove('d-none');
+      document.getElementById('brokerConnectedCard').classList.add('d-none');
+      document.getElementById('tradingContent').classList.add('d-none');
+    }
+  })();
+  _connectionCheckPromise = request;
+  try { return await request; }
+  finally { if (_connectionCheckPromise === request) _connectionCheckPromise = null; }
 }
 
 document.getElementById('connectBrokerForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (_connectInFlight) return;
 
   const apiKey = document.getElementById('brokerApiKey').value.trim();
   const apiSecret = document.getElementById('brokerApiSecret').value.trim();
@@ -235,51 +275,74 @@ document.getElementById('connectBrokerForm').addEventListener('submit', async (e
   }
 
   const btn = document.getElementById('connectBrokerBtn');
+  _connectInFlight = true;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Connecting…';
+  try {
+    const res = await API.post('/trading/broker/connect', {
+      api_key: apiKey,
+      api_secret: apiSecret,
+    });
 
-  const res = await API.post('/trading/broker/connect', {
-    api_key: apiKey,
-    api_secret: apiSecret,
-  });
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Connect Account';
-
-  if (res?.message) {
-    Toast.show('Broker connected — checking connection…', 'success');
-    e.target.reset();
-    checkConnection();
-  } else {
-    Toast.show(res?.error || 'Failed to connect broker', 'error');
+    if (res?.message && !res?.error) {
+      Toast.show('Broker connected — checking connection…', 'success');
+      e.target.reset();
+      checkConnection();
+    } else {
+      Toast.show(res?.error || 'Failed to connect broker', 'error');
+    }
+  } finally {
+    _connectInFlight = false;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Connect Account';
   }
 });
 
 document.getElementById('disconnectBrokerBtn').addEventListener('click', async () => {
+  if (_disconnectInFlight) return;
   if (!confirm('Disconnect your Delta Exchange account? You can reconnect any time.')) return;
-  await API.post('/trading/broker/disconnect', {});
-  Toast.show('Broker disconnected', 'success');
-  checkConnection();
+  _disconnectInFlight = true;
+  const button = document.getElementById('disconnectBrokerBtn');
+  button.disabled = true;
+  try {
+    const res = await API.post('/trading/broker/disconnect', {});
+    if (res?.message && !res?.error) {
+      Toast.show('Broker disconnected', 'success');
+      checkConnection();
+    } else {
+      Toast.show(res?.error || 'Failed to disconnect broker', 'error');
+    }
+  } finally {
+    _disconnectInFlight = false;
+    button.disabled = false;
+  }
 });
 
 async function loadAll() {
-  loadBalances();
-  loadPositions();
-  loadOpenOrders();
-  loadOrderHistory();
+  if (_loadAllPromise) return _loadAllPromise;
+  const request = Promise.allSettled([
+    loadBalances(), loadPositions(), loadOpenOrders(), loadOrderHistory()
+  ]);
+  _loadAllPromise = request;
+  try { return await request; }
+  finally { if (_loadAllPromise === request) _loadAllPromise = null; }
 }
 
 async function loadBalances() {
   const data = await API.get('/trading/balances');
   const wrap = document.getElementById('balanceCards');
-  if (!data?.balances?.length) {
-    wrap.innerHTML = '<div class="col-12"><div class="section-card"><div class="section-card-body text-center text-muted py-3">No balance data</div></div></div>';
+  const balances = Array.isArray(data?.balances)
+    ? data.balances.filter(balance => balance && typeof balance === 'object').slice(0, 4)
+    : [];
+  if (data?.error || !balances.length) {
+    const message = data?.error ? 'Unable to load balance data' : 'No balance data';
+    wrap.innerHTML = `<div class="col-12"><div class="section-card"><div class="section-card-body text-center text-muted py-3">${_tradeHtml(message)}</div></div></div>`;
     return;
   }
-  wrap.innerHTML = data.balances.slice(0, 4).map(b => `
+  wrap.innerHTML = balances.map(b => `
     <div class="col-6 col-md-3">
       <div class="kpi-card blue">
-        <div class="kpi-label">${b.asset_symbol || b.asset || 'Balance'}</div>
+        <div class="kpi-label">${_tradeHtml(b.asset_symbol || b.asset || 'Balance')}</div>
         <div class="kpi-value">${fmtNum(b.balance ?? b.available_balance, 4)}</div>
       </div>
     </div>`).join('');
@@ -288,19 +351,22 @@ async function loadBalances() {
 async function loadPositions() {
   const data = await API.get('/trading/positions');
   const body = document.getElementById('positionsBody');
-  const positions = (data?.positions || []).filter(p => parseFloat(p.size) !== 0);
+  const positions = Array.isArray(data?.positions)
+    ? data.positions.filter(p => p && typeof p === 'object' && _tradeNumber(p.size, 0) !== 0)
+    : [];
   document.getElementById('posCount').textContent = positions.length;
 
   if (!positions.length) {
-    body.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-graph-up-arrow d-block mb-2" style="font-size:28px;opacity:.3"></i>No open positions</td></tr>';
+    const message = data?.error ? 'Unable to load open positions' : 'No open positions';
+    body.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-graph-up-arrow d-block mb-2" style="font-size:28px;opacity:.3"></i>${_tradeHtml(message)}</td></tr>`;
     return;
   }
 
   body.innerHTML = positions.map(p => {
-    const size = parseFloat(p.size);
-    const pnl = parseFloat(p.unrealized_pnl ?? p.pnl ?? 0);
+    const size = _tradeNumber(p.size, 0);
+    const pnl = _tradeNumber(p.unrealized_pnl ?? p.pnl, 0);
     return `<tr>
-      <td><strong>${p.product_symbol || p.symbol || '—'}</strong></td>
+      <td><strong>${_tradeHtml(p.product_symbol || p.symbol || '—')}</strong></td>
       <td><span class="signal-badge ${size >= 0 ? 'signal-buy' : 'signal-sell'}">${size >= 0 ? 'LONG' : 'SHORT'}</span></td>
       <td>${Math.abs(size)}</td>
       <td>${fmtNum(p.entry_price)}</td>
@@ -314,95 +380,141 @@ async function loadPositions() {
 async function loadOpenOrders() {
   const data = await API.get('/trading/orders');
   const body = document.getElementById('openOrdersBody');
-  const orders = data?.orders || [];
+  const orders = Array.isArray(data?.orders)
+    ? data.orders.filter(order => order && typeof order === 'object')
+    : [];
   document.getElementById('orderCount').textContent = orders.length;
 
   if (!orders.length) {
-    body.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-list-check d-block mb-2" style="font-size:28px;opacity:.3"></i>No open orders</td></tr>';
+    const message = data?.error ? 'Unable to load open orders' : 'No open orders';
+    body.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-list-check d-block mb-2" style="font-size:28px;opacity:.3"></i>${_tradeHtml(message)}</td></tr>`;
     return;
   }
 
   body.innerHTML = orders.map(o => `
     <tr>
-      <td><strong>${o.product_symbol || '—'}</strong></td>
-      <td><span class="signal-badge ${o.side === 'buy' ? 'signal-buy' : 'signal-sell'}">${(o.side || '').toUpperCase()}</span></td>
-      <td class="text-muted fs-xs">${(o.order_type || '').replace('_order', '')}</td>
-      <td>${o.size}</td>
+      <td><strong>${_tradeHtml(o.product_symbol || '—')}</strong></td>
+      <td><span class="signal-badge ${o.side === 'buy' ? 'signal-buy' : 'signal-sell'}">${_tradeHtml(String(o.side || '').toUpperCase())}</span></td>
+      <td class="text-muted fs-xs">${_tradeHtml(String(o.order_type || '').replace('_order', ''))}</td>
+      <td>${fmtNum(o.size, 0)}</td>
       <td>${fmtNum(o.limit_price)}</td>
-      <td><span class="badge-tag">${o.state || '—'}</span></td>
-      <td><button class="btn btn-sm btn-outline-danger" onclick="cancelOrder(${o.id},${o.product_id})"><i class="bi bi-x-lg"></i></button></td>
+      <td><span class="badge-tag">${_tradeHtml(o.state || '—')}</span></td>
+      <td><button class="btn btn-sm btn-outline-danger" data-cancel-order="${_tradeId(o.id)}" data-cancel-product="${_tradeId(o.product_id)}" ${_tradeId(o.id) && _tradeId(o.product_id) ? '' : 'disabled'}><i class="bi bi-x-lg"></i></button></td>
     </tr>`).join('');
 }
 
 async function loadOrderHistory() {
   const data = await API.get('/trading/orders/history');
   const body = document.getElementById('orderHistoryBody');
-  const orders = data?.orders || [];
+  const orders = Array.isArray(data?.orders)
+    ? data.orders.filter(order => order && typeof order === 'object').slice(0, 50)
+    : [];
 
   if (!orders.length) {
-    body.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-clock-history d-block mb-2" style="font-size:28px;opacity:.3"></i>No order history</td></tr>';
+    const message = data?.error ? 'Unable to load order history' : 'No order history';
+    body.innerHTML = `<tr><td colspan="7" class="text-center py-5 text-muted"><i class="bi bi-clock-history d-block mb-2" style="font-size:28px;opacity:.3"></i>${_tradeHtml(message)}</td></tr>`;
     return;
   }
 
   body.innerHTML = orders.slice(0, 50).map(o => `
     <tr>
-      <td><strong>${o.product_symbol || '—'}</strong></td>
-      <td><span class="signal-badge ${o.side === 'buy' ? 'signal-buy' : 'signal-sell'}">${(o.side || '').toUpperCase()}</span></td>
-      <td class="text-muted fs-xs">${(o.order_type || '').replace('_order', '')}</td>
-      <td>${o.size}</td>
+      <td><strong>${_tradeHtml(o.product_symbol || '—')}</strong></td>
+      <td><span class="signal-badge ${o.side === 'buy' ? 'signal-buy' : 'signal-sell'}">${_tradeHtml(String(o.side || '').toUpperCase())}</span></td>
+      <td class="text-muted fs-xs">${_tradeHtml(String(o.order_type || '').replace('_order', ''))}</td>
+      <td>${fmtNum(o.size, 0)}</td>
       <td>${fmtNum(o.average_fill_price)}</td>
-      <td><span class="badge-tag">${o.state || '—'}</span></td>
-      <td class="text-muted fs-xs">${o.created_at ? new Date(/[Zz]|[+-]\d{2}:?\d{2}$/.test(o.created_at) ? o.created_at : o.created_at + 'Z').toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) : '—'}</td>
+      <td><span class="badge-tag">${_tradeHtml(o.state || '—')}</span></td>
+      <td class="text-muted fs-xs">${(() => { const d = _tradeDate(o.created_at); return d ? _tradeHtml(d.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })) : '—'; })()}</td>
     </tr>`).join('');
 }
 
 async function cancelOrder(orderId, productId) {
+  orderId = _tradeId(orderId);
+  productId = _tradeId(productId);
+  const key = `${orderId}:${productId}`;
+  if (!orderId || !productId || _cancelOrderInFlight.has(key)) return;
   if (!confirm('Cancel this order?')) return;
-  const ok = await API.delete(`/trading/orders/${orderId}?product_id=${productId}`);
-  if (ok) {
-    Toast.show('Order cancelled', 'success');
-    loadOpenOrders();
-  } else {
-    Toast.show('Failed to cancel order', 'error');
+  _cancelOrderInFlight.add(key);
+  try {
+    const ok = await API.delete(`/trading/orders/${orderId}?product_id=${productId}`);
+    if (ok) {
+      Toast.show('Order cancelled', 'success');
+      loadOpenOrders();
+    } else {
+      Toast.show('Failed to cancel order', 'error');
+    }
+  } finally {
+    _cancelOrderInFlight.delete(key);
   }
 }
 
-document.getElementById('ordType').addEventListener('change', function () {
-  document.getElementById('limitPriceField').style.display = this.value === 'limit_order' ? '' : 'none';
+document.getElementById('openOrdersBody').addEventListener('click', event => {
+  const button = event.target.closest('[data-cancel-order]');
+  if (!button) return;
+  cancelOrder(button.dataset.cancelOrder, button.dataset.cancelProduct);
 });
+
+function syncLimitPriceRequirement() {
+  const limit = document.getElementById('ordType').value === 'limit_order';
+  document.getElementById('limitPriceField').style.display = limit ? '' : 'none';
+  document.getElementById('ordLimitPrice').required = limit;
+}
+
+document.getElementById('ordType').addEventListener('change', syncLimitPriceRequirement);
+syncLimitPriceRequirement();
 
 document.getElementById('orderForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  if (_placeOrderInFlight) return;
   const btn = document.getElementById('submitOrderBtn');
-  const side = document.querySelector('input[name="ordSide"]:checked').value;
+  const side = document.querySelector('input[name="ordSide"]:checked')?.value;
   const orderType = document.getElementById('ordType').value;
+  const symbol = document.getElementById('ordSymbol').value.trim().toUpperCase();
+  const size = document.getElementById('ordSize').value.trim();
+  const leverage = document.getElementById('ordLeverage').value.trim();
+
+  if (!/^[A-Z0-9]{2,40}$/.test(symbol)) {
+    Toast.show('Enter a valid symbol such as BTCUSDT.', 'warning');
+    return;
+  }
+  if (!/^[1-9]\d*$/.test(size) || Number(size) > 10000000) {
+    Toast.show('Size must be a whole number between 1 and 10,000,000.', 'warning');
+    return;
+  }
+  if (!/^[1-9]\d*$/.test(leverage) || Number(leverage) > 200) {
+    Toast.show('Leverage must be a whole number between 1 and 200.', 'warning');
+    return;
+  }
 
   const payload = {
-    symbol: document.getElementById('ordSymbol').value.trim().toUpperCase(),
+    symbol,
     side,
     order_type: orderType,
-    size: document.getElementById('ordSize').value,
-    leverage: document.getElementById('ordLeverage').value,
+    size,
+    leverage,
     reduce_only: document.getElementById('ordReduceOnly').checked,
   };
   if (orderType === 'limit_order') payload.limit_price = document.getElementById('ordLimitPrice').value;
   const stopPrice = document.getElementById('ordStopPrice').value;
   if (stopPrice) payload.stop_price = stopPrice;
 
+  _placeOrderInFlight = true;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Placing…';
-
-  const res = await API.post('/trading/orders', payload);
-
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Place Order';
-
-  if (res?.order) {
-    Toast.show(`Order placed: ${payload.side.toUpperCase()} ${payload.size} ${payload.symbol}`, 'success');
-    e.target.reset();
-    loadAll();
-  } else {
-    Toast.show(res?.error || 'Failed to place order', 'error');
+  try {
+    const res = await API.post('/trading/orders', payload);
+    if (res?.order && !res?.error) {
+      Toast.show(`Order placed: ${payload.side.toUpperCase()} ${payload.size} ${payload.symbol}`, 'success');
+      e.target.reset();
+      syncLimitPriceRequirement();
+      loadAll();
+    } else {
+      Toast.show(res?.error || 'Failed to place order', 'error');
+    }
+  } finally {
+    _placeOrderInFlight = false;
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-send-fill me-1"></i>Place Order';
   }
 });
 
@@ -414,8 +526,8 @@ document.addEventListener('app:ready', checkConnection);
 // Only prefills the form; no order is placed until the user submits it themselves.
 (function prefillFromQuery() {
   const params = new URLSearchParams(window.location.search);
-  const symbol = params.get('symbol');
-  if (symbol) document.getElementById('ordSymbol').value = symbol.trim().toUpperCase();
+  const symbol = (params.get('symbol') || '').trim().toUpperCase();
+  if (/^[A-Z0-9]{2,40}$/.test(symbol)) document.getElementById('ordSymbol').value = symbol;
   const side = (params.get('side') || '').toLowerCase();
   if (side === 'sell') document.getElementById('sideSell').checked = true;
   else if (side === 'buy') document.getElementById('sideBuy').checked = true;
