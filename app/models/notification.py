@@ -22,6 +22,7 @@ class Notification(db.Model):
         db.Index("idx_notif_user_sent",  "user_id", "is_sent"),
         db.Index("idx_notif_user_read",  "user_id", "is_read"),
         db.Index("idx_notif_created",    "created_at"),
+        db.Index("idx_notif_delivery_queue", "is_sent", "created_at", "id"),
     )
 
     def to_dict(self):

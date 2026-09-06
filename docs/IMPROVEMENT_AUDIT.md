@@ -92,6 +92,22 @@ The authenticated notifications endpoint now uses notification ID as a determini
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.124 IMPLEMENTED - Index and stabilize notification delivery queue
+
+The background notification worker now selects pending rows in deterministic creation order with ID tie-breaking and uses a composite `(is_sent, created_at, id)` index aligned with its global pending-row scan. The runtime index guard and Alembic migration support existing and fresh installations; delivery claims, retry behavior, batch size and message contracts remain unchanged.
+
+**Risk level:** Medium queue-latency and fairness value, low compatibility risk because only selection order and database indexing change. **Affected modules:** `app/tasks/notification_tasks.py`, `app/models/notification.py`, `app/__init__.py`, `migrations/versions/d7a8b9c0d1e2_add_notification_delivery_queue_index.py`, `tests/unit/test_notification_delivery_queue.py`. **Migration:** apply `d7a8b9c0d1e2`.
+
+**Regression evidence:** Delivery queue model/order checks passed (**2 passed**) and whitespace validation passed. Existing SQLAlchemy, pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 104 (Notification delivery queue):**
+- `app/tasks/notification_tasks.py` - align pending selection with the composite queue index and deterministic order.
+- `app/models/notification.py`, `app/__init__.py` - declare runtime index metadata.
+- `migrations/versions/d7a8b9c0d1e2_add_notification_delivery_queue_index.py` - add reversible production migration.
+- `tests/unit/test_notification_delivery_queue.py` - protect index and worker-order contracts.
+
+**Database changes:** new non-unique index only. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

@@ -32,7 +32,10 @@ def send_pending_notifications(app):
         from app.extensions import db
         from datetime import datetime
 
-        pending = Notification.query.filter_by(is_sent=False).limit(50).all()
+        # Match the delivery-queue index and keep retries deterministic.
+        pending = (Notification.query.filter_by(is_sent=False)
+                   .order_by(Notification.created_at.asc(), Notification.id.asc())
+                   .limit(50).all())
         if not pending:
             return
 
