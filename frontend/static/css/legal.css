@@ -1,0 +1,83 @@
+/* Shared legal-page polish. Legal documents are standalone pages today, so
+   this layer keeps their navigation and reading surface consistent without
+   changing the document content or URL contract. */
+.navbar {
+  min-height: 64px;
+}
+
+.legal-doc,
+.legal-index {
+  overflow-wrap: anywhere;
+}
+
+.legal-doc table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.legal-doc a,
+.legal-index-card {
+  text-underline-offset: 3px;
+}
+
+.legal-doc a:focus-visible,
+.legal-index-card:focus-visible,
+.navbar a:focus-visible,
+.navbar button:focus-visible {
+  outline: 3px solid rgba(245, 166, 35, 0.42);
+  outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    height: auto;
+    padding-block: 12px;
+  }
+
+  .nav-links {
+    align-items: center;
+    display: flex;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    order: 3;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .nav-links a {
+    display: inline-block;
+    font-size: 12px;
+    padding: 4px 0;
+  }
+
+  .nav-cta {
+    margin-left: auto;
+  }
+
+  .legal-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .toc-desktop {
+    display: none;
+  }
+
+  .toc-mobile {
+    display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navbar *,
+  .navbar *::before,
+  .navbar *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
