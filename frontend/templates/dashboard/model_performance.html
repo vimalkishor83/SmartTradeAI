@@ -67,7 +67,7 @@
     <h1 class="page-title">Model Performance</h1>
     <p class="page-subtitle">Prediction accuracy tracking — evaluated against actual price movement after expiry</p>
   </div>
-  <button class="btn btn-sm btn-outline-secondary" onclick="loadPerf()">
+  <button type="button" class="btn btn-sm btn-outline-secondary" data-action="refresh-performance">
     <i class="bi bi-arrow-clockwise me-1"></i>Refresh
   </button>
 </div>
@@ -217,7 +217,7 @@
     <div class="section-card h-100">
       <div class="section-card-header">
         <span class="section-card-title fw-700">Per-Asset Accuracy</span>
-        <div class="search-bar" style="width:160px;padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="assetSearch" placeholder="Filter…" style="font-size:12.5px" oninput="filterAssets(this.value)"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
+        <div class="search-bar" style="width:160px;padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="assetSearch" placeholder="Filter…" style="font-size:12.5px"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
       </div>
       <div style="max-height:420px;overflow-y:auto">
         <table class="perf-table" id="assetTable">
@@ -243,8 +243,10 @@
 <script>
 let _allAssets = [];
 let _trendChart = null;
+let _perfLoadSequence = 0;
+let _perfRequestInFlight = false;
 
-const TF_ORDER = {{ display_timeframes | tojson }};
+const TF_ORDER = Array.isArray({{ display_timeframes | tojson }}) ? {{ display_timeframes | tojson }} : [];
 
 function accClass(acc) {
   if (acc >= 60) return 'acc-high';
@@ -268,6 +270,15 @@ function safeAccuracy(value) {
   return Number.isFinite(numeric) ? Math.min(100, Math.max(0, numeric)) : 0;
 }
 
+function safeCount(value, maximum = Number.MAX_SAFE_INTEGER) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.max(0, Math.min(maximum, Math.trunc(numeric))) : 0;
+}
+
+function safeStats(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
 function accBar(acc) {
   const value = safeAccuracy(acc);
   return `<div class="acc-bar-wrap">
@@ -277,53 +288,63 @@ function accBar(acc) {
 }
 
 async function loadPerf() {
+  if (_perfRequestInFlight) return;
+  _perfRequestInFlight = true;
+  const sequence = ++_perfLoadSequence;
   try {
-    const data = await API.get('/predictions/model-performance');
+    const response = await API.get('/predictions/model-performance');
+    if (sequence !== _perfLoadSequence) return;
+    const data = safeStats(response);
     renderStats(data);
-    renderTrend(data.trend || []);
-    renderTfTable(data.by_timeframe || {});
-    renderModelTable(data.by_model || {});
-    renderVersionTable(data.by_model_version || {});
+    renderTrend(Array.isArray(data.trend) ? data.trend : []);
+    renderTfTable(safeStats(data.by_timeframe));
+    renderModelTable(safeStats(data.by_model));
+    renderVersionTable(safeStats(data.by_model_version));
     renderCoverage(data);
-    _allAssets = data.by_asset || [];
+    _allAssets = Array.isArray(data.by_asset) ? data.by_asset.filter(asset => asset && typeof asset === 'object') : [];
     renderAssetTable(_allAssets);
   } catch (e) {
     Toast.show('Failed to load model performance', 'danger');
+  } finally {
+    _perfRequestInFlight = false;
   }
 }
 
 function renderStats(d) {
-  const o = d.overall || {};
-  const total = o.total || 0;
+  const o = safeStats(d.overall);
+  const total = safeCount(o.total);
+  const correct = Math.min(total, safeCount(o.correct));
 
   const el = id => document.getElementById(id);
 
   el('statTotal').textContent   = total.toLocaleString();
-  el('statCorrect').textContent = (o.correct || 0).toLocaleString();
+  el('statCorrect').textContent = correct.toLocaleString();
 
   const acc = safeAccuracy(o.accuracy);
   el('statAcc').innerHTML = `<span class="${accClass(acc)}">${acc}%</span>`;
-  el('statAccSub').textContent = `${o.correct || 0} of ${total} correct`;
+  el('statAccSub').textContent = `${correct} of ${total} correct`;
 
   // Best timeframe
-  const tfs = d.by_timeframe || {};
+  const tfs = safeStats(d.by_timeframe);
   let bestTf = '—', bestAcc = 0;
   for (const [tf, s] of Object.entries(tfs)) {
-    if (s.total >= 5 && s.accuracy > bestAcc) { bestAcc = s.accuracy; bestTf = tf; }
+    const stats = safeStats(s);
+    const accuracy = safeAccuracy(stats.accuracy);
+    if (safeCount(stats.total) >= 5 && accuracy > bestAcc) { bestAcc = accuracy; bestTf = String(tf); }
   }
   el('statBest').innerHTML = `<span class="${accClass(bestAcc)}">${bestTf}</span>`;
   el('statBestSub').textContent = bestAcc ? `${bestAcc}% accuracy` : '';
 }
 
 function renderCoverage(c) {
-  const coverage = c.coverage || {};
-  const evaluated = Number(coverage.evaluated || 0);
-  const versioned = Number(coverage.versioned || 0);
-  const legacy = Number(coverage.legacy || 0);
+  const coverage = safeStats(c.coverage);
+  const evaluated = safeCount(coverage.evaluated);
+  const versioned = Math.min(evaluated, safeCount(coverage.versioned));
+  const legacy = Math.max(0, evaluated - versioned);
   const versionedPct = safeAccuracy(coverage.versioned_pct);
   const versionedAccuracy = coverage.versioned_accuracy == null ? null : safeAccuracy(coverage.versioned_accuracy);
-  const outcomes = c.outcomes || {};
-  const decisive = c.decisive || {};
+  const outcomes = safeStats(c.outcomes);
+  const decisive = safeStats(c.decisive);
   const decisiveAccuracy = decisive.accuracy == null ? null : safeAccuracy(decisive.accuracy);
   document.getElementById('coverageBadge').textContent = evaluated
     ? `${versionedPct}% versioned coverage`
@@ -332,30 +353,37 @@ function renderCoverage(c) {
   document.getElementById('coverageVersioned').textContent = `${versioned.toLocaleString()} (${versionedPct}%)`;
   document.getElementById('coverageLegacy').textContent = legacy.toLocaleString();
   document.getElementById('coverageAccuracy').textContent = versionedAccuracy == null ? 'No sample' : `${versionedAccuracy}%`;
-  document.getElementById('coverageNeutral').textContent = Number(outcomes.neutral || 0).toLocaleString();
+  document.getElementById('coverageNeutral').textContent = safeCount(outcomes.neutral).toLocaleString();
   document.getElementById('coverageDecisiveAccuracy').textContent = decisiveAccuracy == null
     ? 'No sample'
-    : `${decisiveAccuracy}% (${Number(decisive.correct || 0)}/${Number(decisive.total || 0)})`;
+    : `${decisiveAccuracy}% (${Math.min(safeCount(decisive.total), safeCount(decisive.correct))}/${safeCount(decisive.total)})`;
 }
 
 function renderTrend(trend) {
-  const labels = trend.map(t => t.date.slice(5));     // MM-DD
-  const data   = trend.map(t => safeAccuracy(t.accuracy));
-  const counts = trend.map(t => t.total);
+  const safeTrend = trend.filter(t => t && typeof t === 'object' && typeof t.date === 'string');
+  const labels = safeTrend.map(t => t.date.slice(5));     // MM-DD
+  const data   = safeTrend.map(t => safeAccuracy(t.accuracy));
+  const counts = safeTrend.map(t => safeCount(t.total));
 
   const ctx = document.getElementById('trendChart');
   const empty = document.getElementById('trendEmpty');
   if (!ctx || !empty) return;
 
-  const totalSamples = trend.reduce((s, t) => s + t.total, 0);
+  const totalSamples = counts.reduce((sum, count) => sum + count, 0);
   document.getElementById('trendSampleCount').textContent =
     totalSamples ? `${totalSamples} samples` : '';
 
   if (_trendChart) { _trendChart.destroy(); _trendChart = null; }
 
-  if (!trend.length) {
+  if (!safeTrend.length) {
     ctx.hidden = true;
     empty.hidden = false;
+    return;
+  }
+  if (typeof Chart !== 'function') {
+    ctx.hidden = true;
+    empty.hidden = false;
+    empty.textContent = 'Chart library unavailable; tabular performance data remains available.';
     return;
   }
   ctx.hidden = false;
@@ -404,24 +432,25 @@ function renderTrend(trend) {
 
 function renderTfTable(by_tf) {
   const body = document.getElementById('tfBody');
-  const tfs = TF_ORDER.filter(tf => by_tf[tf]);
+  const tfs = TF_ORDER.filter(tf => safeStats(by_tf[tf]).total != null);
   if (!tfs.length) {
     body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-bar-chart"></i>No evaluated predictions yet</td></tr>';
     return;
   }
   body.innerHTML = tfs.map(tf => {
-    const s = by_tf[tf];
+    const s = safeStats(by_tf[tf]);
     return `<tr>
       <td><span class="tf-pill">${escapeHtml(tf)}</span></td>
       <td>${accBar(s.accuracy)}</td>
-      <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+      <td style="text-align:right;color:var(--text-muted)">${safeCount(s.total)}</td>
     </tr>`;
   }).join('');
 }
 
 function renderModelTable(by_model) {
   const body = document.getElementById('modelBody');
-  const models = Object.entries(by_model).sort((a,b) => b[1].accuracy - a[1].accuracy);
+  const models = Object.entries(by_model).map(([name, stats]) => [String(name), safeStats(stats)])
+    .sort((a,b) => safeAccuracy(b[1].accuracy) - safeAccuracy(a[1].accuracy));
   if (!models.length) {
     body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-cpu"></i>No data yet</td></tr>';
     return;
@@ -429,13 +458,14 @@ function renderModelTable(by_model) {
   body.innerHTML = models.map(([m, s]) => `<tr>
     <td><span class="badge-model">${escapeHtml(m)}</span></td>
     <td>${accBar(s.accuracy)}</td>
-    <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+    <td style="text-align:right;color:var(--text-muted)">${safeCount(s.total)}</td>
   </tr>`).join('');
 }
 
 function renderVersionTable(by_version) {
   const body = document.getElementById('versionBody');
-  const versions = Object.entries(by_version).sort((a, b) => b[1].accuracy - a[1].accuracy);
+  const versions = Object.entries(by_version).map(([version, stats]) => [String(version), safeStats(stats)])
+    .sort((a, b) => safeAccuracy(b[1].accuracy) - safeAccuracy(a[1].accuracy));
   if (!versions.length) {
     body.innerHTML = '<tr><td colspan="3" class="empty-state"><i class="bi bi-cpu"></i>No versioned data yet</td></tr>';
     return;
@@ -443,13 +473,13 @@ function renderVersionTable(by_version) {
   body.innerHTML = versions.map(([version, s]) => `<tr>
     <td><span class="badge-model">${escapeHtml(version)}</span></td>
     <td>${accBar(s.accuracy)}</td>
-    <td style="text-align:right;color:var(--text-muted)">${s.total}</td>
+    <td style="text-align:right;color:var(--text-muted)">${safeCount(s.total)}</td>
   </tr>`).join('');
 }
 
 function renderAssetTable(assets) {
   const body = document.getElementById('assetBody');
-  if (!assets.length) {
+  if (!Array.isArray(assets) || !assets.length) {
     body.innerHTML = '<tr><td colspan="4" class="empty-state"><i class="bi bi-currency-bitcoin"></i>No asset data yet</td></tr>';
     return;
   }
@@ -457,18 +487,23 @@ function renderAssetTable(assets) {
     <td><strong style="font-size:13px">${escapeHtml(a.symbol)}</strong><br><span style="font-size:11px;color:var(--text-muted)">${escapeHtml(a.name)}</span></td>
     <td><span style="font-size:11px;color:var(--text-muted);text-transform:capitalize">${escapeHtml(String(a.market || '').replace('_',' '))}</span></td>
     <td>${accBar(a.accuracy)}</td>
-    <td style="text-align:right;color:var(--text-muted)">${a.total}</td>
+    <td style="text-align:right;color:var(--text-muted)">${safeCount(a.total)}</td>
   </tr>`).join('');
 }
 
 function filterAssets(q) {
-  const filtered = q.trim()
-    ? _allAssets.filter(a => String(a.symbol || '').toLowerCase().includes(q.toLowerCase()) || String(a.name || '').toLowerCase().includes(q.toLowerCase()))
+  q = String(q ?? '').trim().toLowerCase();
+  const filtered = q
+    ? _allAssets.filter(a => String(a.symbol || '').toLowerCase().includes(q) || String(a.name || '').toLowerCase().includes(q))
     : _allAssets;
   renderAssetTable(filtered);
 }
 
-loadPerf();
-document.addEventListener('app:ready', () => wireSearchClear('assetSearch'));
+document.addEventListener('app:ready', () => {
+  document.querySelector('[data-action="refresh-performance"]')?.addEventListener('click', loadPerf);
+  document.getElementById('assetSearch')?.addEventListener('input', event => filterAssets(event.target.value));
+  wireSearchClear('assetSearch');
+  loadPerf();
+});
 </script>
 {% endblock %}
