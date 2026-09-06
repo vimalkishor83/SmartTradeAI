@@ -78,3 +78,32 @@ def test_ema_summary_cold_requests_share_one_build(app, monkeypatch):
 
     assert build_count == 1
     assert all(status == 200 for status, _ in results)
+
+
+def test_ai_summary_singleflight_decorator_serializes_model_work():
+    from app.api.v1 import market_data
+
+    build_count = 0
+    active_builds = 0
+    max_active_builds = 0
+    count_lock = threading.Lock()
+
+    @market_data._singleflight(market_data._AI_SUMMARY_BUILD_LOCK)
+    def build():
+        nonlocal build_count
+        nonlocal active_builds, max_active_builds
+        with count_lock:
+            build_count += 1
+            active_builds += 1
+            max_active_builds = max(max_active_builds, active_builds)
+        time.sleep(0.05)
+        with count_lock:
+            active_builds -= 1
+        return {"status": "ok"}
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: build(), range(2)))
+
+    assert build_count == 2
+    assert max_active_builds == 1
+    assert results == [{"status": "ok"}, {"status": "ok"}]

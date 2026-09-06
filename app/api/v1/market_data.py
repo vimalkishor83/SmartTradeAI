@@ -1,6 +1,7 @@
 ﻿import logging
 import threading
 from flask import Blueprint, request, jsonify
+from functools import wraps
 from app.models.asset import Asset
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, subscription_feature_required
@@ -17,6 +18,18 @@ market_data_bp = Blueprint("market_data", __name__)
 _HEATMAP_BUILD_LOCK = threading.Lock()
 _TA_SUMMARY_BUILD_LOCK = threading.Lock()
 _EMA_SUMMARY_BUILD_LOCK = threading.Lock()
+_AI_SUMMARY_BUILD_LOCK = threading.Lock()
+
+
+def _singleflight(lock):
+    """Serialize a cache-backed builder while keeping its Flask wrapper shape."""
+    def decorator(func):
+        @wraps(func)
+        def wrapped(*args, **kwargs):
+            with lock:
+                return func(*args, **kwargs)
+        return wrapped
+    return decorator
 
 
 def _filter_summary_assets(payload, user_id, market):
@@ -445,6 +458,7 @@ def ema_summary_history():
 @login_required
 @subscription_feature_required("ai_enabled")
 @limiter.limit("10 per minute;60 per hour")
+@_singleflight(_AI_SUMMARY_BUILD_LOCK)
 def ai_summary():
     """Batch AI predictions for all assets × key timeframes — powers the AI Ratings grid."""
     from app.auth.decorators import get_current_user
