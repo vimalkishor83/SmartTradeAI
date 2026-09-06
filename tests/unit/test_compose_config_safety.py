@@ -17,6 +17,6 @@ def test_worker_healthcheck_uses_redis_heartbeat_instead_of_http_probe():
     )
 
     assert "flask_cache_smarttradeai:worker:heartbeat" in source
-    assert "pickle.loads(v)" in source
+    assert "pickle.loads(v[1:])" in source
     assert "socket_connect_timeout=2" in source
     assert "healthcheck:\n      disable: true" not in source
