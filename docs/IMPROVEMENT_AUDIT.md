@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.133 IMPLEMENTED - Add trading execution audit trail
+
+Successful and rejected order placement and cancellation events now write a non-blocking audit record with the action, broker-safe order identifier, symbol/side/order type and bounded execution metadata. Credentials and full broker payloads are never logged, and an audit persistence failure cannot interrupt the real-money trading response.
+
+**Risk level:** High operational/accountability value, low trading behavior compatibility risk because broker calls and response contracts are unchanged. **Affected modules:** `app/api/v1/trading.py`, `tests/unit/test_trading_order_validation.py`. **Migration:** none.
+
+**Regression evidence:** Trading validation, Delta signing and audit-log checks passed (**46 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 113 (Trading execution audit trail):**
+- `app/api/v1/trading.py` - add non-blocking order placement/cancellation audit events.
+- `tests/unit/test_trading_order_validation.py` - verify metadata boundaries and audit failure isolation.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.132 IMPLEMENTED - Harden MTF Analysis refresh lifecycle
 
 MTF Analysis now exposes its refresh control and matrix status as semantic UI controls. Matrix failures no longer leave a first-load spinner indefinitely: the page shows a retryable error, or retains the last rendered table when a refresh fails. Manual refresh state is restored through `finally`, including busy and spinner cleanup, while stale-while-revalidate behavior and the existing API payload remain unchanged.

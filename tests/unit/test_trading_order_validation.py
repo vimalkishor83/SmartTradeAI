@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 import requests
 
-from app.api.v1.trading import _positive_int, _positive_price
+from app.api.v1.trading import _audit_trade, _positive_int, _positive_price
 from app.services.trading.delta_trading import DeltaTradingClient, DeltaTradingError
 
 
@@ -60,3 +60,40 @@ def test_client_rejects_non_positive_order_size():
     client = DeltaTradingClient(api_key="key", api_secret="secret")
     with pytest.raises(DeltaTradingError, match="positive whole number"):
         client.place_order(product_id=1, side="buy", size=0, limit_price="1")
+
+
+def test_trade_audit_records_execution_metadata_without_payload(monkeypatch):
+    recorded = {}
+
+    def record(*args, **kwargs):
+        recorded["args"] = args
+        recorded["kwargs"] = kwargs
+
+    monkeypatch.setattr("app.models.audit.AuditLog.record", record)
+    from flask import Flask
+
+    app = Flask(__name__)
+    with app.test_request_context("/api/v1/trading/orders", headers={"User-Agent": "test"}):
+        _audit_trade(
+            7, "order_placed", 123,
+            details={"symbol": "BTCUSD", "side": "buy", "size": 2},
+        )
+
+    assert recorded["args"][:3] == (7, "order_placed",)
+    assert recorded["kwargs"]["resource"] == "trading_order"
+    assert recorded["kwargs"]["resource_id"] == "123"
+    assert recorded["kwargs"]["details"] == {"symbol": "BTCUSD", "side": "buy", "size": 2}
+    assert "api_key" not in recorded["kwargs"]["details"]
+    assert "api_secret" not in recorded["kwargs"]["details"]
+
+
+def test_trade_audit_failure_is_non_blocking(monkeypatch):
+    def fail(*args, **kwargs):
+        raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr("app.models.audit.AuditLog.record", fail)
+    from flask import Flask
+
+    app = Flask(__name__)
+    with app.test_request_context("/api/v1/trading/orders"):
+        _audit_trade(7, "order_cancelled", 123)

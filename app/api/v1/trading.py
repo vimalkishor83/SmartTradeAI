@@ -114,6 +114,21 @@ def _audit(user_id, action, provider):
         pass
 
 
+def _audit_trade(user_id, action, resource_id=None, status="success", details=None):
+    """Record an execution event without allowing audit I/O to affect trading."""
+    from app.models.audit import AuditLog
+    try:
+        AuditLog.record(
+            user_id, action, resource="trading_order",
+            resource_id=str(resource_id) if resource_id is not None else None,
+            status=status, details=details or {},
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent", ""),
+        )
+    except Exception:
+        pass
+
+
 # ── Broker catalog (which providers exist, what fields each needs) ─────────
 
 @trading_bp.route("/brokers", methods=["GET"])
@@ -420,10 +435,21 @@ def place_order():
             product_id=product_id, side=side, size=size_int, order_type=order_type,
             limit_price=limit_price, stop_price=stop_price, reduce_only=reduce_only,
         )
+        order_id = result.get("id") or result.get("order_id") if isinstance(result, dict) else None
+        _audit_trade(
+            user_id, "order_placed", order_id,
+            details={"symbol": our_symbol, "side": side, "order_type": order_type,
+                     "size": size_int, "reduce_only": reduce_only},
+        )
         return jsonify({"order": result}), 201
     except DeltaTradingError as e:
         from app.services.error_tracking import capture
         capture(e, route="place_order", symbol=our_symbol, side=side, size=size_int)
+        _audit_trade(
+            user_id, "order_rejected", status="rejected",
+            details={"symbol": our_symbol, "side": side, "order_type": order_type,
+                     "size": size_int, "reduce_only": reduce_only},
+        )
         return jsonify({"error": str(e)}), e.status_code or 400
 
 
@@ -442,6 +468,14 @@ def cancel_order(order_id):
         return err
     try:
         result = client.cancel_order(order_id, product_id)
+        _audit_trade(
+            get_jwt_identity(), "order_cancelled", order_id,
+            details={"product_id": product_id},
+        )
         return jsonify({"order": result}), 200
     except DeltaTradingError as e:
+        _audit_trade(
+            get_jwt_identity(), "order_cancel_rejected", order_id, status="rejected",
+            details={"product_id": product_id},
+        )
         return jsonify({"error": str(e)}), e.status_code or 400
