@@ -186,7 +186,7 @@ Startup compatibility checks no longer drop the legacy `market_data` and `techni
 
 **Risk level:** High data-protection value, low runtime compatibility risk because current code does not query or write these legacy tables. **Affected modules:** `app/__init__.py`, `tests/unit/test_startup_migration_safety.py`. **Migration:** none; existing legacy tables are intentionally retained.
 
-**Regression evidence:** Startup migration safety checks passed (**1 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this safety slice.
+**Regression evidence:** Startup migration safety checks passed (**1 passed**), Python compilation and whitespace validation passed. Production deployment completed on 2026-09-06 from commit `215ce53`: the app, worker, PostgreSQL and Redis services are healthy, `/api/v1/system/ready` returned HTTP 200, and the fresh app/worker error scan contained no traceback, error, critical, exception or migration-fallback matches. A valid pre-deployment PostgreSQL backup was created at 2.2 MB.
 
 **Session 130 (Non-destructive startup compatibility):**
 - `app/__init__.py` - remove destructive legacy-table drops from startup.
