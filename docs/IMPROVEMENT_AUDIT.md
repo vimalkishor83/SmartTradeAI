@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.146 IMPLEMENTED - Harden user timestamp serialization
+
+User payloads now tolerate legacy accounts with a null `created_at` instead of raising while loading profile or authenticated account context. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
+
+**Risk level:** High account-access reliability value, low compatibility risk. **Affected modules:** `app/models/user.py`, `tests/unit/test_user_serialization.py`. **Migration:** none.
+
+**Regression evidence:** User serialization checks passed (**2 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 126 (User serialization resilience):**
+- `app/models/user.py` - make legacy account timestamps null-safe.
+- `tests/unit/test_user_serialization.py` - verify null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.145 IMPLEMENTED - Harden provider log timestamp serialization
 
 Provider API-log payloads now tolerate legacy rows with a null `created_at` instead of raising while loading administrator connection diagnostics. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.

@@ -260,7 +260,7 @@ class User(db.Model):
             "min_confidence_filter": self.min_confidence_filter if self.min_confidence_filter is not None else 60,
             "totp_enabled": self.totp_enabled,
             "last_login": self.last_login.isoformat() if self.last_login else None,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
     def __repr__(self):
