@@ -41,7 +41,7 @@
     <p class="page-subtitle mb-0">Configure and run automatic signal generation on a schedule</p>
   </div>
   <div class="dash-header-actions">
-    <div id="globalStatus" class="ag-status-pill">
+    <div id="globalStatus" class="ag-status-pill" role="status" aria-live="polite">
       <span class="live-dot" id="statusDot" style="background:var(--text-muted);animation:none"></span>
       <span id="statusLabel" class="fw-600 fs-sm">Idle</span>
     </div>
@@ -163,20 +163,20 @@
          reconfigure it. Non-admins still see /auto-generate/status (below)
          so the page isn't blank, just without controls. -->
     <div class="d-flex gap-3 my-3 align-items-center flex-wrap d-none" id="agAdminControls">
-      <button class="btn btn-lg px-5 fw-700" id="startBtn"
+      <button type="button" class="btn btn-lg px-5 fw-700" id="startBtn"
         style="background:linear-gradient(135deg,#10b981,#059669);color:white;border:none;border-radius:10px;font-size:15px">
         <i class="bi bi-play-fill me-2"></i>Start Generating
       </button>
-      <button class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--yellow);color:#1a1a1a;border:none;border-radius:10px;font-size:15px">
+      <button type="button" class="btn btn-lg px-5 fw-700" id="stopBtn" style="display:none;background:var(--yellow);color:#1a1a1a;border:none;border-radius:10px;font-size:15px">
         <i class="bi bi-pause-fill me-2"></i>Pause
       </button>
-      <button class="btn btn-lg px-4 fw-700" id="hardStopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
+      <button type="button" class="btn btn-lg px-4 fw-700" id="hardStopBtn" style="display:none;background:var(--red);color:white;border:none;border-radius:10px;font-size:15px">
         <i class="bi bi-stop-fill me-2"></i>Stop
       </button>
-      <button class="btn btn-outline-light btn-sm" id="runOnceBtn">
+      <button type="button" class="btn btn-outline-light btn-sm" id="runOnceBtn">
         <i class="bi bi-skip-forward-fill me-1"></i>Run Once Now
       </button>
-      <button class="btn btn-outline-light btn-sm" id="saveConfigBtn">
+      <button type="button" class="btn btn-outline-light btn-sm" id="saveConfigBtn">
         <i class="bi bi-save-fill me-1"></i>Save Configuration
       </button>
       <span class="text-muted fs-xs" id="lastRunLabel"></span>
@@ -703,7 +703,10 @@ async function loadRecentSignals() {
 /* ── Start ───────────────────────────────────────────────── */
 async function startGeneration() {
   const btn = document.getElementById('startBtn');
+  const status = document.getElementById('globalStatus');
   btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
+  if (status) status.setAttribute('aria-label', 'Starting automatic signal generation');
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Starting...';
   saveConfig();
 
@@ -717,9 +720,17 @@ async function startGeneration() {
     interval_minutes: parseInt(document.getElementById('cfgInterval').value),
   };
 
-  const res = await API.post('/signals/auto-generate/start', payload);
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-play-fill me-2"></i>Start Generating';
+  let res;
+  try {
+    res = await API.post('/signals/auto-generate/start', payload);
+  } catch (_) {
+    Toast.show('Unable to start automatic generation right now', 'error');
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.innerHTML = '<i class="bi bi-play-fill me-2"></i>Start Generating';
+  }
 
   if (res?.status === 'started') {
     _lastLogLen  = 0;
@@ -771,20 +782,28 @@ async function runOnce() {
     min_confidence:  parseInt(document.getElementById('cfgConf').value),
     max_per_run:     parseInt(document.getElementById('cfgMax').value),
   };
-  await API.post('/signals/auto-generate/run-once', payload);
+  try {
+    await API.post('/signals/auto-generate/run-once', payload);
+  } catch (_) {
+    Toast.show('Unable to trigger a single run right now', 'error');
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+    btn.innerHTML = '<i class="bi bi-skip-forward-fill me-1"></i>Run Once Now';
+  }
   // /run-once doesn't reset the server-side log (unlike /start) — leave
   // _lastLogLen alone so the next poll only appends this run's new
   // lines instead of re-rendering the whole accumulated history again.
   Toast.show('Single run triggered', 'info');
   setTimeout(pollStatus, 1000);
-  btn.disabled = false;
-  btn.innerHTML = '<i class="bi bi-skip-forward-fill me-1"></i>Run Once Now';
 }
 
 /* ── Save Configuration (persist without starting) ───────── */
 async function saveConfiguration() {
   const btn = document.getElementById('saveConfigBtn');
   btn.disabled = true;
+  btn.setAttribute('aria-busy', 'true');
   saveConfig();
 
   const payload = {
@@ -797,8 +816,16 @@ async function saveConfiguration() {
     interval_minutes: parseInt(document.getElementById('cfgInterval').value),
   };
 
-  const res = await API.post('/signals/auto-generate/save', payload);
-  btn.disabled = false;
+  let res;
+  try {
+    res = await API.post('/signals/auto-generate/save', payload);
+  } catch (_) {
+    Toast.show('Unable to save automatic-generation configuration', 'error');
+    return;
+  } finally {
+    btn.disabled = false;
+    btn.removeAttribute('aria-busy');
+  }
   if (res?.status === 'saved') {
     Toast.show('Configuration saved', 'success');
     const confirm = document.getElementById('saveConfirmLabel');

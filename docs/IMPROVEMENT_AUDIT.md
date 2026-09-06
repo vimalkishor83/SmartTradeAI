@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.130 IMPLEMENTED - Harden Auto Generate control lifecycle
+
+Auto Generate now gives its platform-wide status control explicit live-region semantics and marks all primary controls as buttons. Start, run-once and save-configuration actions restore disabled/busy state through `finally` even when an API request throws, while preserving the existing scheduler payloads, admin gate and server-side execution behavior.
+
+**Risk level:** High operational clarity and automation-control reliability value, low compatibility risk because the change is client-side lifecycle handling only. **Affected modules:** `frontend/templates/dashboard/auto_generate.html`, `tests/unit/test_auto_generate_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Auto Generate template safety checks passed (**2 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 110 (Auto Generate lifecycle resilience):**
+- `frontend/templates/dashboard/auto_generate.html` - add live status semantics and exception-safe mutation cleanup.
+- `tests/unit/test_auto_generate_template_safety.py` - protect button and cleanup contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
