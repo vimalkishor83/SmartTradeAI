@@ -1482,13 +1482,13 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
 .page-content::before {
   content: '';
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   top: 0;
   right: 0;
   width: min(560px, 58vw);
   height: 260px;
   background: url('/static/img/hero-market-atmosphere.png') top right / cover no-repeat;
-  opacity: 0.055;
+  opacity: 0.13;
   pointer-events: none;
   mask-image: linear-gradient(135deg, transparent 10%, #000 70%);
 }
@@ -1503,7 +1503,7 @@ body[data-active="indices"] .page-content::before,
 body[data-active="index"] .page-content::before,
 body[data-active="terminal"] .page-content::before {
   background-image: url('/static/img/markets-atmosphere.png');
-  opacity: 0.07;
+  opacity: 0.16;
 }
 
 body[data-active="risk"] .page-content::before,
@@ -1512,7 +1512,7 @@ body[data-active="performance"] .page-content::before,
 body[data-active="journal"] .page-content::before,
 body[data-active="reports"] .page-content::before {
   background-image: url('/static/img/legal-center-atmosphere.png');
-  opacity: 0.055;
+  opacity: 0.13;
 }
 
 .financial-disclaimer-strip {
@@ -3952,17 +3952,19 @@ select option {
 
 /* Deeepr-style editorial label: it gives every module a visual entry point
    while keeping the actual page title and data-driven content untouched. */
-.dash-header-greet::before {
+#pageContentBody::before {
   content: '01 / MARKET OVERVIEW';
   display: block;
   width: fit-content;
-  margin-bottom: 7px;
+  margin-bottom: 12px;
   color: var(--accent-light);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: 1.25px;
+  letter-spacing: 1.4px;
   text-transform: uppercase;
+  position: relative;
+  z-index: 2;
 }
 
 .dash-header::after {
@@ -3978,45 +3980,45 @@ select option {
   pointer-events: none;
 }
 
-body[data-active="signals"] .dash-header-greet::before,
-body[data-active="scanner"] .dash-header-greet::before,
-body[data-active="heatmap"] .dash-header-greet::before,
-body[data-active="delta_scanner"] .dash-header-greet::before,
-body[data-active="delta_bubbles"] .dash-header-greet::before {
+body[data-active="signals"] #pageContentBody::before,
+body[data-active="scanner"] #pageContentBody::before,
+body[data-active="heatmap"] #pageContentBody::before,
+body[data-active="delta_scanner"] #pageContentBody::before,
+body[data-active="delta_bubbles"] #pageContentBody::before {
   content: '02 / SIGNAL DISCOVERY';
 }
 
-body[data-active="ai"] .dash-header-greet::before,
-body[data-active="ta_summary"] .dash-header-greet::before,
-body[data-active="mtf"] .dash-header-greet::before,
-body[data-active="advanced_analysis"] .dash-header-greet::before,
-body[data-active="news"] .dash-header-greet::before,
-body[data-active="economic_calendar"] .dash-header-greet::before {
+body[data-active="ai"] #pageContentBody::before,
+body[data-active="ta_summary"] #pageContentBody::before,
+body[data-active="mtf"] #pageContentBody::before,
+body[data-active="advanced_analysis"] #pageContentBody::before,
+body[data-active="news"] #pageContentBody::before,
+body[data-active="economic_calendar"] #pageContentBody::before {
   content: '03 / INTELLIGENCE';
 }
 
-body[data-active="backtesting"] .dash-header-greet::before,
-body[data-active="analytics"] .dash-header-greet::before,
-body[data-active="reports"] .dash-header-greet::before,
-body[data-active="model_perf"] .dash-header-greet::before {
+body[data-active="backtesting"] #pageContentBody::before,
+body[data-active="analytics"] #pageContentBody::before,
+body[data-active="reports"] #pageContentBody::before,
+body[data-active="model_perf"] #pageContentBody::before {
   content: '04 / RESEARCH LAB';
 }
 
-body[data-active="portfolio"] .dash-header-greet::before,
-body[data-active="watchlist"] .dash-header-greet::before,
-body[data-active="risk"] .dash-header-greet::before,
-body[data-active="performance"] .dash-header-greet::before,
-body[data-active="journal"] .dash-header-greet::before,
-body[data-active="trading"] .dash-header-greet::before {
+body[data-active="portfolio"] #pageContentBody::before,
+body[data-active="watchlist"] #pageContentBody::before,
+body[data-active="risk"] #pageContentBody::before,
+body[data-active="performance"] #pageContentBody::before,
+body[data-active="journal"] #pageContentBody::before,
+body[data-active="trading"] #pageContentBody::before {
   content: '05 / CAPITAL CONTROL';
 }
 
-body[data-active="settings"] .dash-header-greet::before,
-body[data-active="help"] .dash-header-greet::before {
+body[data-active="settings"] #pageContentBody::before,
+body[data-active="help"] #pageContentBody::before {
   content: '06 / ACCOUNT & SUPPORT';
 }
 
-body[data-requires-admin] .dash-header-greet::before {
+body[data-requires-admin] #pageContentBody::before {
   content: '07 / OPERATIONS CONSOLE';
 }
 

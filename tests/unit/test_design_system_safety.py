@@ -64,7 +64,7 @@ def test_shared_shell_exposes_route_aware_visual_atmosphere():
 def test_shared_shell_exposes_editorial_module_labels_and_wave_accent():
     css = CSS.read_text(encoding="utf-8")
 
-    assert ".dash-header-greet::before" in css
+    assert "#pageContentBody::before" in css
     assert "01 / MARKET OVERVIEW" in css
     assert "02 / SIGNAL DISCOVERY" in css
     assert "05 / CAPITAL CONTROL" in css
