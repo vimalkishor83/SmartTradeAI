@@ -1324,4 +1324,17 @@ Account Settings controls now use delegated event listeners, escape user/plan/as
 - `frontend/templates/dashboard/settings.html` - safely render account settings, plans and 2FA flows and serialize mutations.
 - `tests/integration/test_profile_routes_validation.py`, `tests/unit/test_settings_template_safety.py` - cover authenticated profile validation and settings control contracts.
 
+### 7.87 IMPLEMENTED - Harden admin Asset management
+
+Admin asset create, update and add-from-search endpoints now require JSON objects, normalize symbols, validate market/source values, bound text and numeric fields, reject non-finite values, prevent empty updates, and handle uniqueness races without leaking database errors. The Assets page now uses delegated controls, bounded bulk concurrency, stale-response guards, safe provider rendering, and duplicate-mutation suppression for filtering, catalog, search, enable/disable and removal workflows.
+
+**Risk level:** Critical platform configuration and data-integrity value, low compatibility risk for valid asset operations. **Affected modules:** `app/api/v1/assets.py`, `frontend/templates/admin/assets.html`, `tests/integration/test_asset_routes_validation.py`, `tests/unit/test_admin_assets_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Asset route/UI checks passed (**10 passed**), Python and browser JavaScript parsing passed, inline handler audit passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `571f7a1`.
+
+**Session 66 (admin data integrity/UI performance - Asset management, §7.87):**
+- `app/api/v1/assets.py` - normalize and bound admin asset payloads, validate add-from-search values, and handle duplicate-write races.
+- `frontend/templates/admin/assets.html` - replace inline controls, safely render provider values, sequence reads and bound bulk mutations.
+- `tests/integration/test_asset_routes_validation.py`, `tests/unit/test_admin_assets_template_safety.py` - cover route and UI safety boundaries.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
