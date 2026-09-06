@@ -1434,3 +1434,18 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 - `docs/UI0_DISCOVERY.md` - source inventory and route/API/component baseline used to select the IA changes.
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
+### 7.95 IMPLEMENTED - Establish the shared UI design-system foundation
+
+The primary dashboard stylesheet now exposes semantic surface, status, focus, control-size, motion and layering tokens while retaining the existing `--bg-*` compatibility aliases. Shared primitives cover elevated surfaces, responsive toolbars, loading/empty/error states, horizontally safe data tables, semantic chips, tabular metrics and visually hidden accessible text. The authenticated shell now opts into an explicit color scheme, applies a consistent keyboard focus ring and disables motion/hover transforms when the user requests reduced motion.
+
+**Risk level:** High consistency, accessibility and implementation-speed value, low compatibility risk because the token/primitives layer is additive and existing page classes remain supported. **Affected modules:** `frontend/static/css/main.css`, `frontend/templates/partials/base.html`, `tests/unit/test_design_system_safety.py`. **Migration:** none.
+
+**Regression evidence:** Design-system and shared-shell checks passed (**4 passed**), the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+
+**Session 75 (design system and accessibility foundation - UI-2, §7.95):**
+- `frontend/static/css/main.css` - add semantic tokens, reusable surfaces/toolbars/states/chips/metrics, focus treatment, responsive state layout, and reduced-motion behavior.
+- `frontend/templates/partials/base.html` - mark the authenticated shell with the shared `app-shell` hook.
+- `tests/unit/test_design_system_safety.py` - protect token, primitive, focus, color-scheme and reduced-motion contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**

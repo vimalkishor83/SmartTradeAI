@@ -17,12 +17,22 @@
   --bg-card: #10141c;
   --bg-card-hover: #171d29;
   --bg-sidebar: #090b10;
+  /* Semantic surface aliases used by new shared components. Keep the older
+     --bg-* names above so existing page-local styles remain compatible. */
+  --surface-page: var(--bg-primary);
+  --surface-raised: var(--bg-secondary);
+  --surface-card: var(--bg-card);
+  --surface-hover: var(--bg-card-hover);
+  --surface-overlay: rgba(9, 11, 16, 0.92);
   --border: rgba(255, 255, 255, 0.08);
   --border-hover: rgba(255, 255, 255, 0.16);
   --border-accent: rgba(245, 166, 35, 0.5);
   --text-primary: #f1f5fb;
   --text-secondary: #95a2b8;
   --text-muted: #7683a0;
+  --text-disabled: #536077;
+  --focus-ring: var(--accent-light);
+  --focus-ring-offset: var(--bg-primary);
   /* ~4.85:1 on --bg-card — WCAG AA for normal text */
   --accent: #f5a623;
   --accent-light: #ffc861;
@@ -42,6 +52,16 @@
   --cyan: #06b6d4;
   --cyan-bg: rgba(6, 182, 212, 0.12);
 
+  /* Semantic status names keep UI states and data visualizations aligned. */
+  --success: var(--green);
+  --success-bg: var(--green-bg);
+  --danger: var(--red);
+  --danger-bg: var(--red-bg);
+  --warning: var(--yellow);
+  --warning-bg: var(--yellow-bg);
+  --info: var(--blue);
+  --info-bg: var(--blue-bg);
+
   /* Semantic signal tokens — named by meaning, map to base palette so UI +
      charts stay consistent. Charts read these via getComputedStyle. */
   --up: var(--green);
@@ -57,6 +77,9 @@
   --sidebar-collapsed: 60px;
   --navbar-height: 56px;
   --ticker-height: 32px;
+  --control-height-sm: 32px;
+  --control-height: 38px;
+  --control-height-lg: 44px;
 
   --glass: rgba(255, 255, 255, 0.035);
   --glass-border: rgba(255, 255, 255, 0.08);
@@ -86,6 +109,12 @@
 
   --transition: 0.16s cubic-bezier(.4, 0, .2, 1);
   --transition-slow: 0.28s cubic-bezier(.4, 0, .2, 1);
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 280ms;
+  --z-sidebar: 1000;
+  --z-overlay: 2000;
+  --z-toast: 9999;
 
   /* Typefaces — Inter for UI/prose, JetBrains Mono for all numerics/data
      (prices, %s, KPI values, table numbers) for a trading-terminal feel */
@@ -108,12 +137,16 @@
   --bg-card: #ffffff;
   --bg-card-hover: #f9fafc;
   --bg-sidebar: #ffffff;
+  --surface-overlay: rgba(255, 255, 255, 0.94);
   --border: rgba(15, 23, 42, 0.09);
   --border-hover: rgba(15, 23, 42, 0.18);
   --border-accent: rgba(245, 166, 35, 0.4);
   --text-primary: #0b1220;
   --text-secondary: #4b5872;
   --text-muted: #64708c;
+  --text-disabled: #9aa5b8;
+  --focus-ring: #b56800;
+  --focus-ring-offset: #f3f5f9;
   /* ~4.95:1 on white --bg-card — WCAG AA for normal text */
   --glass: rgba(15, 23, 42, 0.025);
   --glass-border: rgba(15, 23, 42, 0.07);
@@ -5671,4 +5704,232 @@ select option {
   color: var(--text-muted);
   opacity: 0.7;
   margin-top: 8px;
+}
+
+/* ═══ UI-2 shared design primitives ═══════════════════════════════════════
+   New pages should use these semantic classes instead of inventing a
+   page-local card, toolbar, or loading state. Existing classes remain the
+   compatibility layer while the UI is migrated incrementally. */
+.app-shell {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] .app-shell {
+  color-scheme: light;
+}
+
+.app-shell :where(a, button, input, select, textarea, summary):focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.app-shell :where(button, input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.ui-surface {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-surface--raised {
+  background: linear-gradient(165deg, var(--surface-card), var(--surface-raised));
+  box-shadow: var(--shadow);
+}
+
+.ui-surface--interactive {
+  transition: border-color var(--motion-base) ease, box-shadow var(--motion-base) ease, transform var(--motion-base) ease;
+}
+
+.ui-surface--interactive:hover {
+  border-color: var(--border-hover);
+  box-shadow: var(--shadow);
+  transform: translateY(-1px);
+}
+
+.ui-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.ui-toolbar__label {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ui-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  min-height: 132px;
+  padding: var(--space-6);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.ui-state[hidden] {
+  display: none !important;
+}
+
+.ui-state__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  font-size: 17px;
+}
+
+.ui-state__content {
+  min-width: 0;
+}
+
+.ui-state__title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ui-state__description {
+  max-width: 48ch;
+  margin: 2px auto 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ui-state--loading .ui-state__icon {
+  color: var(--accent);
+}
+
+.ui-state--error .ui-state__icon {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.ui-state--empty .ui-state__icon {
+  background: var(--info-bg);
+  color: var(--info);
+}
+
+.ui-state__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.ui-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  scrollbar-color: rgba(245, 166, 35, 0.45) transparent;
+}
+
+.ui-table-wrap > .smart-table,
+.ui-table-wrap > .table {
+  margin-bottom: 0;
+}
+
+.ui-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.ui-chip--positive {
+  border-color: color-mix(in srgb, var(--success) 42%, transparent);
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.ui-chip--negative {
+  border-color: color-mix(in srgb, var(--danger) 42%, transparent);
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.ui-chip--warning {
+  border-color: color-mix(in srgb, var(--warning) 42%, transparent);
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.ui-metric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.ui-metric--positive { color: var(--success); }
+.ui-metric--negative { color: var(--danger); }
+.ui-metric--neutral { color: var(--text-secondary); }
+
+.ui-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+@media (max-width: 576px) {
+  .ui-state {
+    flex-direction: column;
+    min-height: 116px;
+    padding: var(--space-5) var(--space-3);
+  }
+
+  .ui-toolbar {
+    align-items: stretch;
+  }
+
+  .ui-toolbar > :where(.form-control, .form-select, .btn) {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell *,
+  .app-shell *::before,
+  .app-shell *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .ui-surface--interactive:hover {
+    transform: none;
+  }
 }

@@ -35,7 +35,7 @@
   <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
 </head>
-<body{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
+<body class="app-shell"{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
 <a class="skip-link" href="#pageContent">Skip to main content</a>
 
