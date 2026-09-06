@@ -1392,4 +1392,17 @@ The public News endpoint now accepts only the supported sentiment filters and no
 - `frontend/templates/dashboard/news.html` - replace inline pagination, bound news/calendar rendering, guard stale refreshes and serialize polling/timers.
 - `tests/integration/test_news_input_validation.py`, `tests/unit/test_news_template_safety.py` - cover News query boundaries and browser refresh/control contracts.
 
+### 7.92 IMPLEMENTED - Harden Dhan indices and options workflow
+
+Dhan endpoints now canonicalize supported underlyings, reject unknown or empty index selections, validate non-expired ISO expiry dates and prevent malformed requests from reaching the provider. The indices/options page now safely renders quote and chain values, bounds provider collections, validates dates, serializes refreshes, and ignores stale status/quote/expiry/chain responses.
+
+**Risk level:** High external-provider reliability and decision-support integrity value, low compatibility risk for valid Dhan inputs. **Affected modules:** `app/api/v1/dhan.py`, `frontend/templates/dashboard/dhan_indices.html`, `tests/integration/test_dhan_input_validation.py`, `tests/unit/test_dhan_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Dhan API/UI checks passed (**10 passed**), Python and browser JavaScript parsing passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `2a2149e`.
+
+**Session 72 (external data safety/UI reliability - Dhan indices and options, §7.92):**
+- `app/api/v1/dhan.py` - canonicalize underlying names, bound index selections and validate option expiry dates before provider access.
+- `frontend/templates/dashboard/dhan_indices.html` - validate and escape quote/chain payloads, bound rows and serialize status/refresh requests.
+- `tests/integration/test_dhan_input_validation.py`, `tests/unit/test_dhan_template_safety.py` - cover Dhan request boundaries and browser rendering contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
