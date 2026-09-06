@@ -1435,6 +1435,20 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.104 IMPLEMENTED - Clarify Portfolio state and risk context
+
+The Portfolio page now exposes loading, freshness, empty and unavailable states, adds accessible labels for all position-entry fields, identifies the holdings table for assistive technology, and prevents duplicate page initialization. Existing per-currency P&L grouping, stop-loss editing, validation limits and portfolio endpoints remain unchanged.
+
+**Risk level:** High portfolio/risk decision clarity and accessibility value, low compatibility risk because calculations, routes, API payloads and mutation controls remain unchanged. **Affected modules:** `frontend/templates/dashboard/portfolio.html`, `tests/unit/test_portfolio_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Portfolio UI, risk-route and watchlist validation checks passed (**25 passed**), Portfolio inline JavaScript compiled, the Jinja template parsed, and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `5ea6da1`.
+
+**Session 84 (Portfolio state, accessibility and risk context - UI-11, §7.104):**
+- `frontend/templates/dashboard/portfolio.html` - add status/freshness context, accessible modal and table relationships, null-safe numbers, reliable busy cleanup and duplicate boot protection.
+- `tests/unit/test_portfolio_template_safety.py` - protect the new status and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.103 IMPLEMENTED - Make Heatmap and Scanner states trustworthy
 
 Heatmap and Scanner now provide explicit loading, freshness, empty and unavailable states instead of silently presenting stale or false-empty decision data. Controls have stronger labels and button semantics, tile-size selection exposes `aria-pressed`, result tables have captions, duplicate page initialization is guarded, scanner KPI feeds fail independently, malformed scanner responses are rejected, and busy indicators are always cleared after completion.
