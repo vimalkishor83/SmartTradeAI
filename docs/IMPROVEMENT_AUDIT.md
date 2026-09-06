@@ -1435,6 +1435,20 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.107 IMPLEMENTED - Add direction-aware Risk Manager guidance
+
+The Risk Manager now enforces the selected trade direction before displaying a position-size result: BUY requires a stop below entry and target above entry, while SELL requires the inverse. Direction controls expose their state to assistive technology, calculator fields have explicit labels, blank numeric values are handled safely, and invalid setups receive an actionable message instead of a misleading size.
+
+**Risk level:** Critical decision-support clarity and risk-control value, low compatibility risk because the existing API request shape and valid calculations remain unchanged. **Affected modules:** `frontend/templates/dashboard/risk.html`, `tests/unit/test_risk_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Risk UI, calculator and route checks passed (**38 passed**), inline JavaScript compiled, the Jinja template parsed, and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `701ea31`.
+
+**Session 87 (Risk Manager direction safety - UI-13):**
+- `frontend/templates/dashboard/risk.html` - add explicit field relationships, direction state semantics, direction-aware validation and safe numeric fallback.
+- `tests/unit/test_risk_template_safety.py` - protect direction validation and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.106 IMPLEMENTED - Harden protective-order trading safety
 
 Protective-order APIs now require JSON objects, strict JSON booleans, finite bounded prices and trailing distances, and side-aware stop-loss/take-profit levels. The monitor refuses to submit an auto-close for fractional or invalid whole-number contract sizes instead of silently truncating the position and potentially leaving an unintended remainder. Safe defaults remain notify-only and dry-run.
