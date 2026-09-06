@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.149 IMPLEMENTED - Remove obsolete Compose metadata
+
+The Docker Compose deployment definition no longer declares the obsolete top-level `version` key, eliminating a warning emitted on every operational command under the current Compose specification. Services, health checks, environment wiring and persistent volumes are unchanged.
+
+**Risk level:** Low deployment hygiene value, minimal compatibility risk because current Docker Compose ignores the key. **Affected modules:** `docker-compose.yml`, `tests/unit/test_compose_config_safety.py`. **Migration:** none.
+
+**Regression evidence:** Compose configuration safety checks passed (**1 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this documentation/configuration slice.
+
+**Session 129 (Compose metadata hygiene):**
+- `docker-compose.yml` - remove the obsolete top-level Compose version declaration.
+- `tests/unit/test_compose_config_safety.py` - protect the supported Compose contract.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.148 IMPLEMENTED - Stabilize provider log retrieval
 
 The administrator provider-log feed now orders equal-timestamp rows by descending ID, preventing records from shifting unpredictably between requests. An additive composite index matches the filter and ordering pattern, improving the bounded 50-row diagnostic query as log volume grows; the endpoint shape and limit remain unchanged.

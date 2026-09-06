@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Docker's default json-file log driver has no size cap at all — container
 # stdout/stderr (gunicorn access logs, worker output, every print/log line)
 # accumulates on the host disk forever otherwise. 10MB x 3 files = 30MB max
