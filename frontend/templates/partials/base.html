@@ -76,7 +76,7 @@
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
-      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_overview else 'false' }}" aria-controls="navGroupBodyOverview">
+      <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_overview else 'false' }}" aria-controls="navGroupBodyOverview">
         <span class="nav-section-label">Overview</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
@@ -96,7 +96,7 @@
 
     <!-- Markets -->
     <div class="nav-group {% if grp_markets %}open{% endif %}" data-group="markets">
-      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_markets else 'false' }}" aria-controls="navGroupBodyMarkets">
+      <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_markets else 'false' }}" aria-controls="navGroupBodyMarkets">
         <span class="nav-section-label">Markets</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
@@ -136,7 +136,7 @@
 
     <!-- Signals & Tools -->
     <div class="nav-group {% if grp_signals %}open{% endif %}" data-group="signals">
-      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_signals else 'false' }}" aria-controls="navGroupBodySignals">
+      <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_signals else 'false' }}" aria-controls="navGroupBodySignals">
         <span class="nav-section-label">Signals &amp; Tools</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
@@ -202,7 +202,7 @@
 
     <!-- Analysis -->
     <div class="nav-group {% if grp_analysis %}open{% endif %}" data-group="analysis">
-      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_analysis else 'false' }}" aria-controls="navGroupBodyAnalysis">
+      <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_analysis else 'false' }}" aria-controls="navGroupBodyAnalysis">
         <span class="nav-section-label">Analysis</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
@@ -247,7 +247,7 @@
 
     <!-- Portfolio -->
     <div class="nav-group {% if grp_portfolio %}open{% endif %}" data-group="portfolio">
-      <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_portfolio else 'false' }}" aria-controls="navGroupBodyPortfolio">
+      <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_portfolio else 'false' }}" aria-controls="navGroupBodyPortfolio">
         <span class="nav-section-label">Portfolio</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
@@ -294,7 +294,7 @@
     <!-- Admin (hidden until role check) -->
     <div id="adminNav" style="display:none">
       <div class="nav-group {% if grp_admin %}open{% endif %}" data-group="admin">
-        <button type="button" class="nav-group-header" onclick="toggleNavGroup(this)" aria-expanded="{{ 'true' if grp_admin else 'false' }}" aria-controls="navGroupBodyAdmin">
+        <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_admin else 'false' }}" aria-controls="navGroupBodyAdmin">
           <span class="nav-section-label">Admin</span>
           <i class="bi bi-chevron-down nav-group-arrow"></i>
         </button>
@@ -420,7 +420,7 @@
         </span>
       </div>
     </div>
-    <button class="ticker-toggle-btn" id="tickerToggleBtn" onclick="toggleTickerStrip()" title="Hide price ticker">
+    <button type="button" class="ticker-toggle-btn" id="tickerToggleBtn" aria-label="Hide price ticker" aria-expanded="true" aria-controls="tickerStrip" title="Hide price ticker">
       <i class="bi bi-chevron-up"></i>
     </button>
   </div>
@@ -641,6 +641,10 @@ function toggleNavGroup(header) {
   header.setAttribute('aria-expanded', String(isOpen));
   try { localStorage.setItem('navgrp_' + group.dataset.group, isOpen ? '1' : '0'); } catch {}
 }
+
+document.querySelectorAll('[data-nav-group-toggle]').forEach(header => {
+  header.addEventListener('click', () => toggleNavGroup(header));
+});
 
 // On load: restore saved states; active group is already .open from server
 (function () {

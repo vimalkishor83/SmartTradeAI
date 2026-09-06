@@ -605,19 +605,32 @@ function applyTickerCollapsed(collapsed) {
     '--ticker-height', collapsed ? TICKER_COLLAPSED_HEIGHT : TICKER_EXPANDED_HEIGHT
   );
   if (btn) {
-    btn.querySelector('i').className = collapsed ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
-    btn.title = collapsed ? 'Show price ticker' : 'Hide price ticker';
+    const icon = btn.querySelector('i');
+    if (icon) icon.className = collapsed ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
+    const label = collapsed ? 'Show price ticker' : 'Hide price ticker';
+    btn.title = label;
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('aria-expanded', String(!collapsed));
   }
 }
 
 function toggleTickerStrip() {
-  const collapsed = !document.getElementById('tickerStrip')?.classList.contains('collapsed');
-  localStorage.setItem(TICKER_COLLAPSE_KEY, collapsed ? '1' : '0');
+  const strip = document.getElementById('tickerStrip');
+  if (!strip) return;
+  const collapsed = !strip.classList.contains('collapsed');
+  try { localStorage.setItem(TICKER_COLLAPSE_KEY, collapsed ? '1' : '0'); } catch {}
   applyTickerCollapsed(collapsed);
 }
 
 function initTickerToggle() {
-  applyTickerCollapsed(localStorage.getItem(TICKER_COLLAPSE_KEY) === '1');
+  const btn = document.getElementById('tickerToggleBtn');
+  if (btn && !btn.dataset.bound) {
+    btn.addEventListener('click', toggleTickerStrip);
+    btn.dataset.bound = '1';
+  }
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(TICKER_COLLAPSE_KEY) === '1'; } catch {}
+  applyTickerCollapsed(collapsed);
 }
 
 // ─── Formatters ───────────────────────────────
