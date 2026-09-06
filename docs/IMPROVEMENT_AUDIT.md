@@ -1379,4 +1379,17 @@ Broker connection management now validates provider identity and credential shap
 - `frontend/templates/dashboard/broker_connections.html` - replace inline broker actions, escape dynamic catalog/connection data, guard stale reads and duplicate mutations, and submit the modal through its form.
 - `tests/integration/test_broker_connection_validation.py`, `tests/unit/test_broker_connections_template_safety.py` - cover API credential boundaries and browser control contracts.
 
+### 7.91 IMPLEMENTED - Harden News filters and refresh lifecycle
+
+The public News endpoint now accepts only the supported sentiment filters and normalizes them before querying. The News page delegates pagination, bounds rendered collections, safely handles malformed provider payloads and time values, prevents stale filtered responses from replacing newer results, and avoids overlapping background polling or duplicate refresh timers.
+
+**Risk level:** High decision-support trust and public-endpoint reliability value, low compatibility risk for supported filters and valid news data. **Affected modules:** `app/api/v1/news.py`, `frontend/templates/dashboard/news.html`, `tests/integration/test_news_input_validation.py`, `tests/unit/test_news_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** News UI, filter and fetch-throttle checks passed (**9 passed**), Python and browser JavaScript parsing passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `8b91988`.
+
+**Session 71 (public API/UI reliability - News, §7.91):**
+- `app/api/v1/news.py` - validate and normalize sentiment query filters.
+- `frontend/templates/dashboard/news.html` - replace inline pagination, bound news/calendar rendering, guard stale refreshes and serialize polling/timers.
+- `tests/integration/test_news_input_validation.py`, `tests/unit/test_news_template_safety.py` - cover News query boundaries and browser refresh/control contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
