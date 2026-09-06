@@ -64,6 +64,20 @@ The Trade Journal now associates every filter and modal field with an explicit l
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.114 IMPLEMENTED - Clarify Analytics data states and semantics
+
+Signal Analytics now explicitly identifies its metrics as historical outcomes, announces loading and unavailable states, exposes refresh busy state, labels chart canvases for assistive technology, and adds captions to its data tables. Existing analytics endpoints, chart payloads, numeric bounds, export controls and refresh serialization remain unchanged.
+
+**Risk level:** High decision-support clarity and accessibility value, low compatibility risk because the change is additive and preserves existing analytics behavior. **Affected modules:** `frontend/templates/dashboard/analytics.html`, `tests/unit/test_analytics_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Analytics template safety checks passed (**4 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache permission and coverage warnings remain non-blocking. Commit: `6571ab0`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 96 (Signal Analytics UX and accessibility):**
+- `frontend/templates/dashboard/analytics.html` - add historical context, live status, refresh busy semantics, chart labels and table captions.
+- `tests/unit/test_analytics_template_safety.py` - protect the new semantic and lifecycle contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
