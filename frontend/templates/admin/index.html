@@ -11,7 +11,7 @@
     <h1 class="page-title">Admin Dashboard</h1>
     <p class="page-subtitle">System health, user management, and platform analytics</p>
   </div>
-  <button class="btn btn-outline-light btn-sm" onclick="loadAdminDashboard()">
+  <button class="btn btn-outline-light btn-sm" id="refreshAdminDashboardBtn" type="button">
     <i class="bi bi-arrow-clockwise me-1"></i> Refresh
   </button>
 </div>
@@ -110,7 +110,7 @@
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Audit Log</span>
     <div class="d-flex gap-2">
-      <button onclick="clearAuditLogs()" class="btn btn-sm" id="clearAuditBtn" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px">
+      <button class="btn btn-sm" id="clearAuditBtn" type="button" style="background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25);font-size:11px">
         <i class="bi bi-trash3 me-1"></i>Clear Log
       </button>
       <a href="/admin/audit-log" class="btn btn-sm btn-outline-light">View All</a>
@@ -127,76 +127,119 @@
 
 {% block extra_js %}
 <script>
+let _dashboardRefreshInFlight = false;
+let _auditClearInFlight = false;
+const _userToggleInFlight = new Set();
+
 async function loadAdminDashboard() {
-  const data = await API.get('/admin/dashboard');
-  if (!data) { Toast.show('Admin access required', 'error'); return; }
+  if (_dashboardRefreshInFlight) return;
+  _dashboardRefreshInFlight = true;
+  const refreshButton = document.getElementById('refreshAdminDashboardBtn');
+  if (refreshButton) refreshButton.disabled = true;
+  try {
+    const data = await API.get('/admin/dashboard');
+    if (!data || data.error) { Toast.show('Admin access required', 'error'); return; }
 
-  document.getElementById('adminTotalUsers').textContent = data.users.total;
-  document.getElementById('adminActiveUsers').textContent = `${data.users.active} active`;
-  document.getElementById('adminSignalsToday').textContent = data.signals.today;
-  document.getElementById('adminWinRate').textContent = `${data.signals.win_rate}% win rate`;
+    const users = data.users || {};
+    const signals = data.signals || {};
+    document.getElementById('adminTotalUsers').textContent = users.total ?? 0;
+    document.getElementById('adminActiveUsers').textContent = `${users.active ?? 0} active`;
+    document.getElementById('adminSignalsToday').textContent = signals.today ?? 0;
+    document.getElementById('adminWinRate').textContent = `${signals.win_rate ?? 0}% win rate`;
 
-  // >=90% is a real problem (starving the app), 70-89% is worth watching,
-  // below that is normal — these bars previously never changed color or
-  // showed any alarm no matter how high they read (e.g. 95.8% CPU with no
-  // visual cue).
-  const _sysSeverity = pct => pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'green';
+    // Clamp provider/system values before using them in CSS or status labels.
+    const _safePercent = value => {
+      const pct = Number(value);
+      return Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0;
+    };
+    // >=90% is a real problem (starving the app), 70-89% is worth watching,
+    // below that is normal — these bars previously never changed color or
+    // showed any alarm no matter how high they read (e.g. 95.8% CPU with no
+    // visual cue).
+    const _sysSeverity = pct => pct >= 90 ? 'red' : pct >= 70 ? 'yellow' : 'green';
 
-  // Bars
-  ['cpu', 'mem', 'disk'].forEach(type => {
-    const map = { cpu: data.system.cpu_pct, mem: data.system.memory_pct, disk: data.system.disk_pct };
-    const pct = map[type];
-    const sev = _sysSeverity(pct);
-    const bar = document.getElementById(`${type}Bar`);
-    const label = document.getElementById(`${type}Label`);
-    if (bar) {
-      bar.style.width = `${pct}%`;
-      bar.style.background = `var(--${sev})`;
-      bar.classList.toggle('alert', sev === 'red');
-    }
-    if (label) {
-      label.textContent = `${pct}%`;
-      label.className = 'small ' + (sev === 'green' ? 'text-muted' : 'text-' + sev);
-    }
-  });
+    // Bars
+    const system = data.system || {};
+    ['cpu', 'mem', 'disk'].forEach(type => {
+      const map = { cpu: system.cpu_pct, mem: system.memory_pct, disk: system.disk_pct };
+      const pct = _safePercent(map[type]);
+      const sev = _sysSeverity(pct);
+      const bar = document.getElementById(`${type}Bar`);
+      const label = document.getElementById(`${type}Label`);
+      if (bar) {
+        bar.style.width = `${pct}%`;
+        bar.style.background = `var(--${sev})`;
+        bar.classList.toggle('alert', sev === 'red');
+      }
+      if (label) {
+        label.textContent = `${pct}%`;
+        label.className = 'small ' + (sev === 'green' ? 'text-muted' : 'text-' + sev);
+      }
+    });
 
-  document.getElementById('dbStatus').textContent = `DB: ${data.db_status}`;
+    document.getElementById('dbStatus').textContent = `DB: ${String(data.db_status || 'unknown')}`;
 
-  loadUsers();
-  loadApiConfigs();
-  loadAuditLogs();
+    await Promise.all([loadUsers(), loadApiConfigs(), loadAuditLogs()]);
+  } finally {
+    _dashboardRefreshInFlight = false;
+    if (refreshButton) refreshButton.disabled = false;
+  }
 }
 
 async function loadUsers() {
   const data = await API.get('/admin/users', { per_page: 8 });
-  if (!data) return;
-  document.getElementById('adminUsersBody').innerHTML = data.users.map(u => `
+  if (!data || data.error) return;
+  const users = Array.isArray(data.users) ? data.users : [];
+  const body = document.getElementById('adminUsersBody');
+  if (!users.length) {
+    body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">No users yet</td></tr>';
+    return;
+  }
+  const roleBadge = { admin: 'bg-danger', premium: 'bg-warning text-dark', user: 'bg-secondary' };
+  body.innerHTML = users.map(u => {
+    const id = STSafe.assetId(u.id);
+    const role = String(u.role || 'user');
+    const roleClass = roleBadge[role] || 'bg-secondary';
+    return `
     <tr>
-      <td><strong>${u.username}</strong><br><small class="text-muted">${u.email}</small></td>
-      <td><span class="badge ${u.role === 'admin' ? 'bg-danger' : u.role === 'premium' ? 'bg-warning text-dark' : 'bg-secondary'}">${u.role}</span></td>
+      <td><strong>${STSafe.html(u.username || '—')}</strong><br><small class="text-muted">${STSafe.html(u.email || '—')}</small></td>
+      <td><span class="badge ${roleClass}">${STSafe.html(role)}</span></td>
       <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-danger'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
-      <td class="text-muted small">${u.created_at?.slice(0, 10)}</td>
+      <td class="text-muted small">${STSafe.html(u.created_at?.slice(0, 10) || '—')}</td>
       <td>
-        ${isSuperAdmin ? `
-        <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" onclick="toggleUser(${u.id}, ${!u.is_active})">
+        ${isSuperAdmin && id ? `
+        <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" type="button" data-user-action="toggle" data-user-id="${id}" data-active="${!u.is_active}">
           ${u.is_active ? 'Disable' : 'Enable'}
         </button>` : '<span class="text-muted small">—</span>'}
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
 }
 
 async function toggleUser(id, active) {
-  const res = await API.put(`/admin/users/${id}`, { is_active: active });
-  if (res?.id || res?.is_active !== undefined) { Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success'); loadUsers(); }
+  const userId = STSafe.assetId(id);
+  if (!userId || typeof active !== 'boolean' || _userToggleInFlight.has(userId)) return;
+  _userToggleInFlight.add(userId);
+  try {
+    const res = await API.put(`/admin/users/${userId}`, { is_active: active });
+    if (res && !res.error && (res.id !== undefined || typeof res.is_active === 'boolean')) {
+      Toast.show(`User ${active ? 'enabled' : 'disabled'}`, 'success');
+      await loadUsers();
+    } else {
+      Toast.show(res?.error || 'Failed to update user', 'error');
+    }
+  } finally {
+    _userToggleInFlight.delete(userId);
+  }
 }
 
 async function loadApiConfigs() {
   const data = await API.get('/admin/api-configs');
   const body = document.getElementById('apiSummaryBody');
-  if (!data || !data.configs) {
+  if (!data || data.error || !Array.isArray(data.configs)) {
     body.innerHTML = '<div class="text-muted small">Could not load.</div>'; return;
   }
-  const configs = data.configs;
+  const configs = data.configs.filter(c => c && typeof c === 'object');
   if (!configs.length) {
     body.innerHTML = `<div class="text-muted small">No configurations yet.
       <a href="/admin/api-configs" class="text-accent ms-1">Add one →</a></div>`; return;
@@ -204,6 +247,7 @@ async function loadApiConfigs() {
   const active  = configs.filter(c => c.status === 'active').length;
   const paused  = configs.filter(c => c.status === 'paused').length;
   const errored = configs.filter(c => c.status === 'error').length;
+  const statusColors = { active: 'var(--green)', error: 'var(--red)', paused: 'var(--text-muted)' };
   body.innerHTML = `
     <div class="row g-2 mb-3">
       <div class="col-4 text-center">
@@ -221,9 +265,9 @@ async function loadApiConfigs() {
     </div>
     ${configs.slice(0, 4).map(c => `
       <div class="d-flex align-items-center gap-2 py-2" style="border-top:1px solid var(--border)">
-        <span style="width:7px;height:7px;border-radius:50%;background:${c.status==='active'?'var(--green)':c.status==='error'?'var(--red)':'var(--text-muted)'};flex-shrink:0"></span>
-        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.name}</span>
-        <span class="text-muted" style="font-size:11px">${c.market||''}</span>
+        <span style="width:7px;height:7px;border-radius:50%;background:${statusColors[c.status] || 'var(--text-muted)'};flex-shrink:0"></span>
+        <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${STSafe.html(c.name || 'Unnamed configuration')}</span>
+        <span class="text-muted" style="font-size:11px">${STSafe.html(c.market || '')}</span>
       </div>`).join('')}
     ${configs.length > 4 ? `<div class="text-muted small mt-2">+${configs.length - 4} more — <a href="/admin/api-configs" class="text-accent">view all</a></div>` : ''}
   `;
@@ -231,37 +275,45 @@ async function loadApiConfigs() {
 
 async function loadAuditLogs() {
   const data = await API.get('/admin/audit-logs', { per_page: 10 });
-  if (!data) return;
+  if (!data || data.error) return;
   const body = document.getElementById('auditBody');
   if (!data.logs?.length) {
     body.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-3">No audit logs yet</td></tr>';
     return;
   }
-  body.innerHTML = data.logs.map(l => `
+  const statusBadge = { success: 'bg-success', failed: 'bg-danger', warning: 'bg-warning text-dark' };
+  body.innerHTML = data.logs.map(l => {
+    const status = String(l.status || 'unknown');
+    return `
     <tr>
-      <td style="font-weight:500">${l.user}</td>
-      <td><span style="color:var(--accent);font-size:12px;font-family:monospace">${l.action}</span></td>
-      <td style="font-size:12px">${l.resource || '—'}</td>
-      <td style="font-size:12px">${l.ip_address || '—'}</td>
-      <td><span class="badge ${l.status === 'success' ? 'bg-success' : l.status === 'failed' ? 'bg-danger' : 'bg-warning text-dark'}" style="font-size:10px">${l.status}</span></td>
-      <td style="font-size:12px;white-space:nowrap">${formatTime(l.created_at)}</td>
-    </tr>`).join('');
+      <td style="font-weight:500">${STSafe.html(l.user || 'system')}</td>
+      <td><span style="color:var(--accent);font-size:12px;font-family:monospace">${STSafe.html(l.action || '—')}</span></td>
+      <td style="font-size:12px">${STSafe.html(l.resource || '—')}</td>
+      <td style="font-size:12px">${STSafe.html(l.ip_address || '—')}</td>
+      <td><span class="badge ${statusBadge[status] || 'bg-secondary'}" style="font-size:10px">${STSafe.html(status)}</span></td>
+      <td style="font-size:12px;white-space:nowrap">${STSafe.html(formatTime(l.created_at))}</td>
+    </tr>`;
+  }).join('');
 }
 
 async function clearAuditLogs() {
+  if (_auditClearInFlight) return;
   if (!confirm('Clear all audit logs from the database?\n\nThis cannot be undone.')) return;
-  const token = localStorage.getItem('access_token');
+  _auditClearInFlight = true;
+  const button = document.getElementById('clearAuditBtn');
+  button.disabled = true;
   try {
-    const res  = await fetch('/api/v1/admin/audit-logs', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
-    const data = await res.json();
-    if (res.ok) {
+    const ok = await API.delete('/admin/audit-logs');
+    if (ok) {
       document.getElementById('auditBody').innerHTML =
         '<tr><td colspan="6" class="text-center py-3" style="color:var(--text-muted)">No audit logs yet</td></tr>';
+      Toast.show('Audit log cleared', 'success');
     } else {
-      alert(data.error || 'Failed to clear logs');
+      Toast.show('Failed to clear logs', 'error');
     }
-  } catch(e) {
-    alert('Error: ' + e.message);
+  } finally {
+    _auditClearInFlight = false;
+    button.disabled = false;
   }
 }
 
@@ -269,6 +321,13 @@ let isSuperAdmin = false;
 
 document.addEventListener('app:ready', () => {
   isSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('refreshAdminDashboardBtn').addEventListener('click', loadAdminDashboard);
+  document.getElementById('clearAuditBtn').addEventListener('click', clearAuditLogs);
+  document.getElementById('adminUsersBody').addEventListener('click', e => {
+    const button = e.target.closest('button[data-user-action="toggle"]');
+    if (!button) return;
+    toggleUser(button.dataset.userId, button.dataset.active === 'true');
+  });
   document.getElementById('viewOnlyNotice').style.display = isSuperAdmin ? 'none' : '';
   document.getElementById('clearAuditBtn').style.display = isSuperAdmin ? '' : 'none';
 
