@@ -1419,3 +1419,18 @@ Advanced Analysis now validates configured timeframes at the API boundary and re
 - `tests/integration/test_advanced_analysis_validation.py`, `tests/unit/test_advanced_analysis_template_safety.py` - cover timeframe boundaries and browser rendering/control contracts.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
+
+### 7.94 IMPLEMENTED - Reorganize the primary dashboard information architecture
+
+The shared Flask/Jinja shell now presents eight task-oriented navigation groups: Overview, Markets, Signals & Discovery, AI & Analysis, Research, Portfolio, Account, and Admin. Dhan indices/options is grouped with Markets, Backtesting and Signal Analytics are grouped under Research, AI Insights is grouped with analysis, and settings/help are grouped under Account. Admin-only Auto Generate remains hidden behind the existing role check, and existing route paths, active-state values, tier gates, and JavaScript element IDs were preserved.
+
+**Risk level:** High discoverability and workflow clarity value, low compatibility risk because route contracts and authorization behavior are unchanged. **Affected modules:** `frontend/templates/partials/base.html`, `tests/unit/test_shared_navigation_safety.py`. **Migration:** none.
+
+**Regression evidence:** Shared navigation checks passed (**2 passed**), the Jinja template parsed successfully, the eight-group and route-placement assertions passed, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+
+**Session 74 (information architecture - primary dashboard shell, §7.94):**
+- `frontend/templates/partials/base.html` - align sidebar groups to user tasks, remove cross-group duplication, preserve active states/tier gates, and keep admin-only controls hidden.
+- `tests/unit/test_shared_navigation_safety.py` - protect group count, group naming, route placement, active-group coverage, and unique account controls.
+- `docs/UI0_DISCOVERY.md` - source inventory and route/API/component baseline used to select the IA changes.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**

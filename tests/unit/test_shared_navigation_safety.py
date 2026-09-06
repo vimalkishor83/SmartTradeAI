@@ -12,7 +12,18 @@ def test_shared_shell_uses_bound_controls_instead_of_inline_click_handlers():
     source = BASE.read_text(encoding="utf-8")
 
     assert "onclick=" not in source
-    assert source.count('class="nav-group-header" data-nav-group-toggle') == 6
+    assert source.count('class="nav-group-header" data-nav-group-toggle') == 8
+    assert '<span class="nav-section-label">Signals &amp; Discovery</span>' in source
+    assert '<span class="nav-section-label">AI &amp; Analysis</span>' in source
+    assert '<span class="nav-section-label">Research</span>' in source
+    assert '<span class="nav-section-label">Account</span>' in source
+    assert 'id="navGroupBodyResearch"' in source
+    assert 'id="navGroupBodyAccount"' in source
+    assert 'id="navAutoGenerate"' in source
+    assert "'dhan_indices'" in source.split("{% set grp_markets", 1)[1].split("%}", 1)[0]
+    assert source.index('data-group="markets"') < source.index('href="/dhan-indices"') < source.index('data-group="signals"')
+    assert source.count('data-tooltip="Account Settings"') == 1
+    assert source.count('data-tooltip="Help &amp; FAQ"') == 1
     assert "header.addEventListener('click', () => toggleNavGroup(header))" in source
     assert 'id="tickerToggleBtn"' in source
     assert 'aria-controls="tickerStrip"' in source
