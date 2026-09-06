@@ -19,7 +19,8 @@ def get_notifications():
     if unread_only:
         query = query.filter_by(is_read=False)
 
-    notifs = query.order_by(Notification.created_at.desc()) \
+    # Keep pagination stable when multiple notifications share a timestamp.
+    notifs = query.order_by(Notification.created_at.desc(), Notification.id.desc()) \
         .paginate(page=page, per_page=20, error_out=False)
 
     return jsonify({

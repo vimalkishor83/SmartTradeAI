@@ -78,6 +78,20 @@ Notification serialization now tolerates legacy rows whose nullable `created_at`
 
 **Database changes:** none. **API contract changes:** valid-record response unchanged; legacy null timestamp now returns `null`. **No new credentials or secrets introduced.**
 
+### 7.123 IMPLEMENTED - Stabilize notification pagination ordering
+
+The authenticated notifications endpoint now uses notification ID as a deterministic tie-breaker after `created_at`, preventing records with equal timestamps from moving unpredictably between pages. New integration coverage confirms user ownership filtering, unread counts, unread-only filtering and stable ordering; pagination limits and response fields remain unchanged.
+
+**Risk level:** Medium consistency and user-isolation value, very low compatibility risk because the ordering only resolves timestamp ties. **Affected modules:** `app/api/v1/notifications.py`, `tests/integration/test_notification_routes.py`. **Migration:** none.
+
+**Regression evidence:** Notification route checks passed (**2 passed**) and whitespace validation passed. Existing SQLAlchemy, pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 103 (Notification pagination stability):**
+- `app/api/v1/notifications.py` - add deterministic ID tie-breaking to paginated notification ordering.
+- `tests/integration/test_notification_routes.py` - verify stable order, ownership scope and unread filtering.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
