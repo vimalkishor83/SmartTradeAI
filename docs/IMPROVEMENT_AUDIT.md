@@ -1435,6 +1435,20 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.108 IMPLEMENTED - Add Risk Manager direction safeguards
+
+The Risk Manager now checks trade direction before showing sizing results: BUY requires the stop below entry and target above entry, while SELL requires the inverse. Direction buttons expose their selected state, calculator inputs have explicit relationships, blank numeric inputs are handled safely, and invalid setups receive actionable guidance instead of a misleading position size.
+
+**Risk level:** Critical decision-support safety and accessibility value, low compatibility risk because the backend API contract and valid calculations remain unchanged. **Affected modules:** `frontend/templates/dashboard/risk.html`, `tests/unit/test_risk_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Risk UI, calculator and route checks passed (**38 passed**), inline JavaScript compiled, the Jinja template parsed, and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `701ea31`.
+
+**Session 87 (Risk Manager direction safeguards - UI-13):**
+- `frontend/templates/dashboard/risk.html` - enforce direction-aware stop/target relationships, expose button state and label calculator fields.
+- `tests/unit/test_risk_template_safety.py` - protect direction validation and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.107 IMPLEMENTED - Add direction-aware Risk Manager guidance
 
 The Risk Manager now enforces the selected trade direction before displaying a position-size result: BUY requires a stop below entry and target above entry, while SELL requires the inverse. Direction controls expose their state to assistive technology, calculator fields have explicit labels, blank numeric values are handled safely, and invalid setups receive an actionable message instead of a misleading size.
