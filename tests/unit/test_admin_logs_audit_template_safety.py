@@ -15,6 +15,11 @@ def test_system_logs_escape_database_values_and_render_pagination():
     assert "STSafe.html(l.message || '')" in source
     assert "data.pages || 1" in source
     assert "button.addEventListener('click', () => loadLogs(page))" in source
+    assert 'type="button"' in source
+    assert 'id="logsStatus"' in source
+    assert "let logsLoading = false;" in source
+    assert "Unable to load system logs. Try again." in source
+    assert "button.setAttribute('aria-busy', 'false')" in source
 
 
 def test_audit_log_escapes_values_and_uses_event_bindings():

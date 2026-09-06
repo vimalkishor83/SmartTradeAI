@@ -16,7 +16,7 @@
       <option value="ERROR">ERROR</option>
       <option value="CRITICAL">CRITICAL</option>
     </select>
-    <button class="btn btn-sm btn-outline-danger" id="clearLogsBtn">
+    <button type="button" class="btn btn-sm btn-outline-danger" id="clearLogsBtn">
       <i class="bi bi-trash3 me-1"></i>Clear Logs
     </button>
   </div>
@@ -33,6 +33,7 @@
       <tbody id="logsBody"><tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr></tbody>
     </table>
   </div>
+  <div id="logsStatus" class="px-3 text-muted small" role="status" aria-live="polite"></div>
   <div class="p-3"><nav><ul class="pagination pagination-sm mb-0" id="logsPagination"></ul></nav></div>
 </div>
 {% endblock %}
@@ -40,30 +41,48 @@
 {% block extra_js %}
 <script>
 async function loadLogs(page = 1) {
+  if (logsLoading) return;
   currentLogPage = page;
   const level = document.getElementById('levelFilter').value;
   const params = { page, per_page: 50 };
   if (level) params.level = level;
-  const data = await API.get('/admin/system-logs', params);
-  if (!data) return;
+  const status = document.getElementById('logsStatus');
+  const button = document.getElementById('clearLogsBtn');
+  logsLoading = true;
+  if (status) status.textContent = 'Loading system logs...';
+  try {
+    const data = await API.get('/admin/system-logs', params);
+    if (!data) {
+      if (status) status.textContent = 'Unable to load system logs. Try again.';
+      return;
+    }
 
-  const LEVEL_COLORS = { INFO: 'bg-info text-dark', WARNING: 'bg-warning text-dark', ERROR: 'bg-danger', CRITICAL: 'bg-danger' };
-  if (!data.logs?.length) {
-    document.getElementById('logsBody').innerHTML = '<tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr>';
-    renderLogPagination(0);
-    return;
-  }
-  document.getElementById('logsBody').innerHTML = data.logs.map(l => `
+    const LEVEL_COLORS = { INFO: 'bg-info text-dark', WARNING: 'bg-warning text-dark', ERROR: 'bg-danger', CRITICAL: 'bg-danger' };
+    if (!data.logs?.length) {
+      document.getElementById('logsBody').innerHTML = '<tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr>';
+      renderLogPagination(0);
+      if (status) status.textContent = 'No system logs found';
+      return;
+    }
+    document.getElementById('logsBody').innerHTML = data.logs.map(l => `
     <tr>
       <td><span class="badge ${LEVEL_COLORS[String(l.level || '').toUpperCase()] || 'bg-secondary'}">${STSafe.html(l.level || 'UNKNOWN')}</span></td>
       <td style="color:var(--text-muted);font-size:12px">${STSafe.html(l.module || '—')}</td>
       <td><code style="font-size:11px;color:var(--text-primary)">${STSafe.html(l.message || '')}</code></td>
       <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${formatTime(l.created_at)}</td>
     </tr>`).join('');
-  renderLogPagination(data.pages || 1);
+    renderLogPagination(data.pages || 1);
+    if (status) status.textContent = `${data.logs.length} system logs loaded`;
+  } catch (_) {
+    if (status) status.textContent = 'Unable to load system logs. Try again.';
+  } finally {
+    logsLoading = false;
+    if (button) button.setAttribute('aria-busy', 'false');
+  }
 }
 
 let currentLogPage = 1;
+let logsLoading = false;
 
 function renderLogPagination(pages) {
   const pagination = document.getElementById('logsPagination');
@@ -86,13 +105,17 @@ async function clearLogs() {
   const scope = level ? `all ${level} logs` : 'ALL logs';
   if (!confirm(`Delete ${scope}? This cannot be undone.`)) return;
   const path = level ? `/admin/system-logs?level=${encodeURIComponent(level)}` : '/admin/system-logs';
-  const ok = await API.delete(path);
+  const button = document.getElementById('clearLogsBtn');
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  let ok = false;
+  try { ok = await API.delete(path); } catch (_) { ok = false; }
   if (ok) {
     Toast.show(`${scope} cleared`, 'success');
     loadLogs(1);
   } else {
     Toast.show('Failed to clear logs', 'error');
   }
+  if (button) { button.disabled = false; button.setAttribute('aria-busy', 'false'); }
 }
 
 document.getElementById('levelFilter').addEventListener('change', () => loadLogs(1));

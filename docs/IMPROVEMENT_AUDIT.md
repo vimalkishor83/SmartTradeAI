@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.140 IMPLEMENTED - Harden admin System Logs loading
+
+System Logs now prevents overlapping loads, announces progress/results through a live status region, and restores loading state when requests fail. Clear Logs also catches provider/API errors and restores its busy state, while level filtering, pagination and the existing super-admin-only destructive action remain unchanged.
+
+**Risk level:** Medium operational usability value, low compatibility risk because the change is client-side state handling only. **Affected modules:** `frontend/templates/admin/logs.html`, `tests/unit/test_admin_logs_audit_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** System Logs and Audit Log template checks passed (**2 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 120 (Admin System Logs resilience):**
+- `frontend/templates/admin/logs.html` - add guarded loading and clear-action recovery.
+- `tests/unit/test_admin_logs_audit_template_safety.py` - protect operator status/error contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.139 IMPLEMENTED - Harden admin Audit Log loading
 
 The admin Audit Log now uses explicit button semantics, announces loading/result status, prevents overlapping page loads, and restores refresh state through `finally`. API exceptions or empty responses show a recoverable message instead of leaving the table indefinitely on its initial loading row; permissions, pagination payloads and destructive-action confirmations are unchanged.
