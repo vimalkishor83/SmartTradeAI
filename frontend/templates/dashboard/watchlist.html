@@ -8,21 +8,26 @@
   <div><span class="page-eyebrow">Portfolio</span>
 <h1 class="page-title">Watchlist</h1></div>
   <div class="d-flex gap-2 align-items-center">
-    <button class="btn btn-sm btn-outline-secondary" id="viewListBtn" data-view="list">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="viewListBtn" data-view="list" aria-pressed="false">
       <i class="bi bi-list-ul me-1"></i>List View
     </button>
-    <button class="btn btn-sm btn-primary" id="viewContextBtn" data-view="context">
+    <button type="button" class="btn btn-sm btn-primary" id="viewContextBtn" data-view="context" aria-pressed="true">
       <i class="bi bi-grid-3x3-gap me-1"></i>Context View
     </button>
     <div class="btn-group btn-group-sm" id="cardSizeGroup" role="group" style="display:none">
-      <button class="btn btn-outline-secondary" data-size="sm" title="Small">S</button>
-      <button class="btn btn-outline-secondary active" data-size="md" title="Medium">M</button>
-      <button class="btn btn-outline-secondary" data-size="lg" title="Large">L</button>
+      <button type="button" class="btn btn-outline-secondary" data-size="sm" title="Small" aria-label="Small cards" aria-pressed="false">S</button>
+      <button type="button" class="btn btn-outline-secondary active" data-size="md" title="Medium" aria-label="Medium cards" aria-pressed="true">M</button>
+      <button type="button" class="btn btn-outline-secondary" data-size="lg" title="Large" aria-label="Large cards" aria-pressed="false">L</button>
     </div>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newWlModal">
       <i class="bi bi-plus-circle me-1"></i> New List
     </button>
   </div>
+</div>
+
+<div class="d-flex align-items-center justify-content-between gap-2 mb-3" id="watchlistContext" role="status" aria-live="polite">
+  <span class="text-muted fs-xs" id="watchlistStatus">Loading watchlists...</span>
+  <span class="text-muted fs-xs" id="watchlistUpdatedAt"></span>
 </div>
 
 <!-- ── List View ─────────────────────────────────────────────────────────── -->
@@ -43,34 +48,37 @@
 </div>
 
 <!-- New Watchlist Modal -->
-<div class="modal fade" id="newWlModal" tabindex="-1">
+<div class="modal fade" id="newWlModal" tabindex="-1" aria-labelledby="newWlTitle">
   <div class="modal-dialog modal-sm">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h6 class="modal-title">New Watchlist</h6>
+        <h6 class="modal-title" id="newWlTitle">New Watchlist</h6>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
+        <label class="visually-hidden" for="wlName">Watchlist name</label>
         <input type="text" class="form-control mb-3" id="wlName" placeholder="My Crypto" />
-        <button class="btn btn-primary w-100" id="createWl">Create</button>
+        <button type="button" class="btn btn-primary w-100" id="createWl">Create</button>
       </div>
     </div>
   </div>
 </div>
 
 <!-- Add Asset Modal -->
-<div class="modal fade" id="addAssetModal" tabindex="-1">
+<div class="modal fade" id="addAssetModal" tabindex="-1" aria-labelledby="addAssetTitle">
   <div class="modal-dialog modal-sm">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h6 class="modal-title">Add Asset</h6>
+        <h6 class="modal-title" id="addAssetTitle">Add Asset</h6>
         <button class="btn-close" data-bs-dismiss="modal"></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="addAssetWlId" />
+        <label class="visually-hidden" for="addAssetSymbol">Asset symbol</label>
         <input type="text" class="form-control mb-3" id="addAssetSymbol" placeholder="BTCUSDT" />
+        <label class="visually-hidden" for="addAlertPrice">Alert price (optional)</label>
         <input type="number" class="form-control mb-3" id="addAlertPrice" placeholder="Alert Price (optional)" step="any" />
-        <button class="btn btn-primary w-100" id="addAssetBtn">Add</button>
+        <button type="button" class="btn btn-primary w-100" id="addAssetBtn">Add</button>
       </div>
     </div>
   </div>
@@ -85,6 +93,7 @@ let _cardSize = 'md';
 let _watchlistLoadPromise = null;
 let _contextLoadPromise = null;
 let _contextRequestSeq = 0;
+let _watchlistBooted = false;
 let _createWatchlistInFlight = false;
 let _addAssetInFlight = false;
 const _watchlistRemoveInFlight = new Set();
@@ -108,6 +117,7 @@ function _watchlistId(value) {
 }
 
 function _watchlistNumber(value, fallback = null) {
+  if (value === null || value === undefined || value === '') return fallback;
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
 }
@@ -134,6 +144,8 @@ function switchView(view) {
   document.getElementById('viewListBtn').classList.toggle('btn-outline-secondary', view !== 'list');
   document.getElementById('viewContextBtn').classList.toggle('btn-primary',       view === 'context');
   document.getElementById('viewContextBtn').classList.toggle('btn-outline-secondary', view !== 'context');
+  document.getElementById('viewListBtn').setAttribute('aria-pressed', view === 'list' ? 'true' : 'false');
+  document.getElementById('viewContextBtn').setAttribute('aria-pressed', view === 'context' ? 'true' : 'false');
   document.getElementById('cardSizeGroup').style.display = view === 'context' ? 'inline-flex' : 'none';
 
   if (view === 'context' && !_contextLoaded) {
@@ -487,6 +499,8 @@ document.getElementById('cardSizeGroup').addEventListener('click', event => {
 });
 
 document.addEventListener('app:ready', () => {
+  if (_watchlistBooted) return;
+  _watchlistBooted = true;
   loadWatchlists();
   switchView('context');
 });

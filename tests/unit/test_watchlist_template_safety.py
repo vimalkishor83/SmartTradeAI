@@ -36,3 +36,13 @@ def test_watchlist_coalesces_refreshes_and_reports_mutation_failures():
     assert "if (_addAssetInFlight) return;" in source
     assert "Unable to remove asset" in source
     assert "Unable to delete watchlist" in source
+
+
+def test_watchlist_exposes_view_state_and_modal_labels():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="watchlistContext"' in source
+    assert 'aria-pressed="true"' in source
+    assert 'aria-labelledby="newWlTitle"' in source
+    assert 'for="wlName"' in source
+    assert "if (_watchlistBooted) return;" in source
