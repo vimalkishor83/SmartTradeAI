@@ -152,6 +152,20 @@ The protective-order monitor now processes active watches in deterministic asset
 
 **Database changes:** new non-unique index only. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.128 IMPLEMENTED - Harden protective-order legacy serialization
+
+Protective-order serialization now tolerates rows with a missing nullable `created_at`, returning `null` rather than failing the risk/protective-order read. Normal timestamps retain their existing ISO-8601 output; trigger state, execution flags and safety defaults are unchanged.
+
+**Risk level:** Medium trading-monitor resilience value, very low compatibility risk because only incomplete legacy rows change from a server error to an explicit null field. **Affected modules:** `app/models/protective_order.py`, `tests/unit/test_protective_order_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Protective-order serialization checks passed (**2 passed**) and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 108 (Protective-order legacy-row resilience):**
+- `app/models/protective_order.py` - make nullable creation timestamp serialization safe.
+- `tests/unit/test_protective_order_serialization.py` - cover null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** incomplete rows now return `created_at: null`. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
