@@ -22,6 +22,13 @@ def profile_client(app, client):
 
 
 class TestProfileUpdate:
+    def test_account_delete_rejects_non_object_body(self, profile_client):
+        client, headers = profile_client
+        response = client.delete("/api/v1/auth/me", headers=headers, json=[])
+
+        assert response.status_code == 400
+        assert response.get_json()["error"] == "request body must be a JSON object"
+
     def test_non_object_body_returns_400(self, profile_client):
         client, headers = profile_client
         response = client.put("/api/v1/auth/me", headers=headers, json=[])

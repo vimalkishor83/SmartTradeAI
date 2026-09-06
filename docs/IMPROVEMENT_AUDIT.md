@@ -108,6 +108,20 @@ The background notification worker now selects pending rows in deterministic cre
 
 **Database changes:** new non-unique index only. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.125 IMPLEMENTED - Harden account deletion input boundary
+
+Self-service account deletion now rejects non-object JSON bodies with a controlled `400` response before password access, rather than raising an attribute error on arrays or scalar JSON. Password verification, cascading cleanup, audit preservation, cookie removal and successful deletion behavior remain unchanged.
+
+**Risk level:** High security-boundary reliability value, very low compatibility risk because malformed requests now receive an explicit validation response. **Affected modules:** `app/auth/routes.py`, `tests/integration/test_profile_routes_validation.py`. **Migration:** none.
+
+**Regression evidence:** Profile and account-boundary checks passed (**12 passed**) and whitespace validation passed. Existing SQLAlchemy, pandas and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 105 (Account deletion input validation):**
+- `app/auth/routes.py` - validate DELETE `/auth/me` JSON body before reading the password field.
+- `tests/integration/test_profile_routes_validation.py` - verify malformed deletion bodies return `400`.
+
+**Database changes:** none. **API contract changes:** malformed DELETE bodies now return a validation error instead of a server error. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

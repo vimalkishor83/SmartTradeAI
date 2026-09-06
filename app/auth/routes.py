@@ -569,7 +569,9 @@ def delete_my_account():
     from app.models.audit import AuditLog
 
     user = get_current_user()
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
     if not user.check_password(data.get("password", "")):
         return jsonify({"error": "Password incorrect"}), 403
 
