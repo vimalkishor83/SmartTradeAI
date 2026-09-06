@@ -78,6 +78,20 @@ Signal Analytics now explicitly identifies its metrics as historical outcomes, a
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.115 IMPLEMENTED - Harden My Performance rendering and refresh states
+
+My Performance now normalizes finite numeric values and dynamic rows before rendering KPIs, charts, tables and Terminal live-read results. The page identifies historical closed-signal data, exposes accessible chart labels and table captions, coordinates both refresh feeds through one in-flight promise, and announces complete or partial-unavailable states. Existing performance endpoints and payloads remain unchanged.
+
+**Risk level:** High decision-support resilience and accessibility value, low compatibility risk because existing metrics, charts and API contracts are preserved. **Affected modules:** `frontend/templates/dashboard/performance.html`, `tests/unit/test_performance_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Performance template, Analytics template and signal-performance API checks passed (**7 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate, coverage and local pytest-cache warnings remain non-blocking. Commit: `d70f4a0`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 97 (My Performance resilience and accessibility):**
+- `frontend/templates/dashboard/performance.html` - add finite-value normalization, safe row rendering, coordinated refresh lifecycle, historical context and semantic chart/table state.
+- `tests/unit/test_performance_template_safety.py` - protect numeric, escaping, accessibility and refresh contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
