@@ -186,7 +186,7 @@ The administrator provider-log feed now orders equal-timestamp rows by descendin
 
 **Risk level:** Medium operational visibility and query-performance value, low compatibility risk. **Affected modules:** `app/models/api_config.py`, `app/api/v1/admin.py`, `app/__init__.py`, `migrations/versions/f9c0d1e2f3a4_add_api_log_ordering_index.py`, `tests/unit/test_api_log_pagination.py`. **Migration:** additive, reversible index; runtime guard remains for legacy databases.
 
-**Regression evidence:** API-log index/order and provider-health checks passed (**10 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+**Regression evidence:** API-log index/order and provider-health checks passed (**10 passed**), Python compilation and whitespace validation passed. Production deployment completed on 2026-09-06 from commit `1b5fc3b`: the app, worker, PostgreSQL and Redis services are healthy, Alembic is at `f9c0d1e2f3a4 (head)`, `/api/v1/system/ready` and `/api/v1/system/health` returned HTTP 200, and the validated pre-deployment PostgreSQL backup is 2.2 MB. Recent app/worker logs contain no traceback or error entries; known Eventlet/pandas deprecation warnings remain non-blocking.
 
 **Session 128 (Provider log query stability):**
 - `app/models/api_config.py` - declare the composite provider-log retrieval index.
