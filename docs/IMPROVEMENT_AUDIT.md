@@ -186,7 +186,7 @@ Startup compatibility operations now roll back after an expected legacy-schema f
 
 **Risk level:** High migration-reliability and observability value, low runtime compatibility risk. **Affected modules:** `app/__init__.py`, `tests/unit/test_startup_migration_safety.py`. **Migration:** none; this changes only the existing compatibility fallback behavior.
 
-**Regression evidence:** Startup migration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this safety slice.
+**Regression evidence:** Startup migration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. Production deployment completed on 2026-09-06 from commit `01107da`: the app, worker, PostgreSQL and Redis services are healthy, `/api/v1/system/ready` returned HTTP 200 with a healthy worker heartbeat, and the fresh app/worker error scan contained no traceback, error, critical, exception or migration-fallback matches. A valid pre-deployment PostgreSQL backup was created at 2.2 MB.
 
 **Session 131 (Startup compatibility transaction recovery):**
 - `app/__init__.py` - roll back failed compatibility statements and retain debug diagnostics.
