@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.144 IMPLEMENTED - Harden backtest timestamp serialization
+
+Backtest payloads now tolerate legacy rows with a null `created_at` instead of raising while loading backtest history or detail results. Normal timestamps retain ISO-8601 output, all reproducibility fields remain unchanged, and no schema or data migration is required.
+
+**Risk level:** Medium decision-support data-availability value, low compatibility risk. **Affected modules:** `app/models/backtest.py`, `tests/unit/test_backtest_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Backtest serialization, reproducibility and metadata-route checks passed (**7 passed**), Python compilation and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 124 (Backtest serialization resilience):**
+- `app/models/backtest.py` - make legacy backtest timestamps null-safe.
+- `tests/unit/test_backtest_serialization.py` - verify null and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.143 IMPLEMENTED - Harden journal timestamp serialization
 
 JournalEntry payloads now tolerate legacy rows with a null `created_at` instead of raising during Journal, analytics or tax-related API serialization. Normal timestamps retain ISO-8601 output, and no schema or data migration is required.
