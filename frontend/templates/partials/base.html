@@ -37,8 +37,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
+  {% if hide_sidebar %}<link rel="stylesheet" href="/static/css/auth.css?v={{ asset_version('css/auth.css') }}" />{% endif %}
 </head>
-<body class="app-shell"{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
+<body class="app-shell{% if hide_sidebar %} auth-shell{% endif %}"{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
 <a class="skip-link" href="#pageContent">Skip to main content</a>
 

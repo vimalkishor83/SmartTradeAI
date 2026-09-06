@@ -1,0 +1,129 @@
+/* Shared public authentication polish. Page-specific auth styles remain
+   responsible for branding and layout details; this file owns the common
+   controls, focus treatment and small-screen behavior. */
+.auth-shell {
+  min-height: 100dvh;
+  background:
+    radial-gradient(circle at 78% 10%, rgba(245, 166, 35, 0.08), transparent 34rem),
+    #080b12;
+}
+
+.auth-shell .auth-container {
+  min-height: 100dvh;
+}
+
+.auth-shell .auth-form-panel {
+  min-height: 100dvh;
+  scrollbar-gutter: stable;
+}
+
+.auth-shell .auth-card {
+  color: var(--text-primary, #eef1f8);
+}
+
+.auth-shell .auth-card h1,
+.auth-shell .auth-card h2,
+.auth-shell .auth-card h3 {
+  text-wrap: balance;
+}
+
+.auth-shell .form-label {
+  color: var(--text-primary, #eef1f8);
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.45rem;
+}
+
+.auth-shell .form-control,
+.auth-shell .form-select {
+  min-height: 46px;
+  border-radius: 10px;
+  border-color: rgba(255, 255, 255, 0.13);
+  background-color: rgba(16, 20, 28, 0.82);
+  color: var(--text-primary, #eef1f8);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.auth-shell .form-control::placeholder {
+  color: var(--text-muted, #64748b);
+  opacity: 1;
+}
+
+.auth-shell .form-control:hover,
+.auth-shell .form-select:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.auth-shell .form-control:focus,
+.auth-shell .form-select:focus {
+  background-color: rgba(16, 20, 28, 0.98);
+  outline: none;
+}
+
+.auth-shell .input-group > .btn {
+  min-width: 48px;
+  border-radius: 0 10px 10px 0;
+}
+
+.auth-shell .btn-primary {
+  min-height: 46px;
+  border-radius: 10px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+}
+
+.auth-shell a {
+  text-underline-offset: 3px;
+}
+
+.auth-shell a:focus-visible,
+.auth-shell button:focus-visible,
+.auth-shell input:focus-visible,
+.auth-shell select:focus-visible {
+  outline: 3px solid rgba(245, 166, 35, 0.42);
+  outline-offset: 2px;
+}
+
+.auth-shell .alert {
+  border-radius: 10px;
+}
+
+@media (max-width: 900px) {
+  .auth-shell .auth-container.has-auth-side {
+    display: block;
+    min-height: 100dvh;
+  }
+
+  .auth-shell .auth-container.has-auth-side .auth-side {
+    display: none;
+  }
+
+  .auth-shell .auth-container.has-auth-side .auth-form-panel {
+    min-height: 100dvh;
+    padding: 32px 18px;
+  }
+}
+
+@media (max-width: 420px) {
+  .auth-shell .auth-form-panel {
+    padding-inline: 14px;
+  }
+
+  .auth-shell .auth-trust-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-shell *,
+  .auth-shell *::before,
+  .auth-shell *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
