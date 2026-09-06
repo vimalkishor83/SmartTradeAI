@@ -7,14 +7,20 @@ from app.auth.decorators import login_required
 from app.services.data.fetcher import market_fetcher
 from datetime import datetime
 import math
+import re
 import pandas as pd
 import csv
 import io
 
 portfolio_bp = Blueprint("portfolio", __name__)
 
+MAX_PORTFOLIO_QUANTITY = 1_000_000_000
+MAX_PORTFOLIO_PRICE = 1_000_000_000_000
+MAX_PORTFOLIO_NOTES = 255
+_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,29}$")
 
-def _positive_float(value, field_name):
+
+def _positive_float(value, field_name, maximum=None):
     """Return a finite positive number for portfolio financial fields."""
     try:
         number = float(value)
@@ -22,13 +28,35 @@ def _positive_float(value, field_name):
         raise ValueError(f"{field_name} must be a number")
     if not math.isfinite(number) or number <= 0:
         raise ValueError(f"{field_name} must be greater than zero")
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum:g}")
     return number
 
 
-def _optional_positive_float(value, field_name):
+def _optional_positive_float(value, field_name, maximum=None):
     if value in (None, ""):
         return None
-    return _positive_float(value, field_name)
+    return _positive_float(value, field_name, maximum)
+
+
+def _normalize_symbol(value):
+    """Normalize an asset symbol without calling string methods on JSON values."""
+    if not isinstance(value, str):
+        raise ValueError("symbol must be a string")
+    symbol = value.strip().upper()
+    if not _SYMBOL_RE.fullmatch(symbol):
+        raise ValueError("symbol must contain 1-30 letters, numbers, dots, underscores, or hyphens")
+    return symbol
+
+
+def _portfolio_notes(value):
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("notes must be a string")
+    if len(value) > MAX_PORTFOLIO_NOTES:
+        raise ValueError(f"notes must be at most {MAX_PORTFOLIO_NOTES} characters")
+    return value.strip()
 
 
 def _get_user_portfolio(user_id):
@@ -121,18 +149,19 @@ def add_position():
         return jsonify({"error": "request body must be a JSON object"}), 400
     portfolio = _get_user_portfolio(user_id)
 
-    symbol = (data.get("symbol") or "").strip().upper()
+    try:
+        symbol = _normalize_symbol(data.get("symbol"))
+        notes = _portfolio_notes(data.get("notes"))
+        quantity = _positive_float(data.get("quantity"), "quantity", MAX_PORTFOLIO_QUANTITY)
+        buy_price = _positive_float(data.get("buy_price"), "buy_price", MAX_PORTFOLIO_PRICE)
+        stop_loss = _optional_positive_float(data.get("stop_loss"), "stop_loss", MAX_PORTFOLIO_PRICE)
+        target = _optional_positive_float(data.get("target"), "target", MAX_PORTFOLIO_PRICE)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     asset = Asset.query.filter_by(symbol=symbol).first()
     if not asset:
         return jsonify({"error": "Asset not found"}), 404
-
-    try:
-        quantity = _positive_float(data.get("quantity"), "quantity")
-        buy_price = _positive_float(data.get("buy_price"), "buy_price")
-        stop_loss = _optional_positive_float(data.get("stop_loss"), "stop_loss")
-        target = _optional_positive_float(data.get("target"), "target")
-    except ValueError as e:
-        return jsonify({"error": str(e)}), 400
 
     item = PortfolioItem(
         portfolio_id=portfolio.id,
@@ -141,7 +170,7 @@ def add_position():
         buy_price=buy_price,
         stop_loss=stop_loss,
         target=target,
-        notes=data.get("notes"),
+        notes=notes,
     )
     db.session.add(item)
     db.session.commit()
@@ -165,12 +194,16 @@ def update_position(item_id):
         return jsonify({"error": "request body must be a JSON object"}), 400
     if "stop_loss" in data:
         try:
-            item.stop_loss = _optional_positive_float(data["stop_loss"], "stop_loss")
+            item.stop_loss = _optional_positive_float(
+                data["stop_loss"], "stop_loss", MAX_PORTFOLIO_PRICE
+            )
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
     if "target" in data:
         try:
-            item.target = _optional_positive_float(data["target"], "target")
+            item.target = _optional_positive_float(
+                data["target"], "target", MAX_PORTFOLIO_PRICE
+            )
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
     db.session.commit()
