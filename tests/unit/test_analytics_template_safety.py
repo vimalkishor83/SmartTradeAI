@@ -34,3 +34,14 @@ def test_analytics_serializes_refresh_and_chart_lifecycle():
     assert "if (_analyticsRequestInFlight) return;" in source
     assert "if (sequence !== _analyticsLoadSequence) return;" in source
     assert "typeof Chart !== 'function'" in source
+
+
+def test_analytics_exposes_historical_context_and_announced_state():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="analyticsStatus" role="status" aria-live="polite"' in source
+    assert 'aria-busy="false"' in source
+    assert 'role="img" aria-label="Historical win rate by market chart"' in source
+    assert '<caption class="visually-hidden">Historical win rate by timeframe</caption>' in source
+    assert "Loading historical signal analytics…" in source
+    assert "Historical analytics are unavailable. Try refreshing." in source

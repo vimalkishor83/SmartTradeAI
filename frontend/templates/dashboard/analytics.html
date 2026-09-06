@@ -17,10 +17,13 @@
     <button type="button" class="btn btn-sm btn-outline-secondary" data-export-url="/api/v1/signals/history/export/csv">
       <i class="bi bi-download me-1"></i>Export History CSV
     </button>
-    <button class="btn btn-sm btn-primary" id="refreshAnalytics">
+    <button type="button" class="btn btn-sm btn-primary" id="refreshAnalytics" aria-controls="analyticsKpi" aria-busy="false">
       <i class="bi bi-arrow-clockwise me-1"></i>Refresh
     </button>
   </div>
+</div>
+<div class="data-context-bar mb-3" id="analyticsStatus" role="status" aria-live="polite">
+  Historical signal outcomes only. Loading analytics…
 </div>
 
 <!-- Row 1: KPI Cards -->
@@ -83,7 +86,7 @@
         <span class="section-card-title"><i class="bi bi-bar-chart text-accent"></i> Win Rate by Market</span>
       </div>
       <div class="section-card-body" style="padding:16px">
-        <canvas id="chartMarket" style="max-height:280px"></canvas>
+        <canvas id="chartMarket" role="img" aria-label="Historical win rate by market chart" style="max-height:280px"></canvas>
       </div>
     </div>
   </div>
@@ -93,7 +96,7 @@
         <span class="section-card-title"><i class="bi bi-pie-chart text-accent"></i> Signals by Type</span>
       </div>
       <div class="section-card-body" style="padding:16px">
-        <canvas id="chartType" style="max-height:280px"></canvas>
+        <canvas id="chartType" role="img" aria-label="Historical signals by type chart" style="max-height:280px"></canvas>
       </div>
     </div>
   </div>
@@ -108,6 +111,7 @@
       </div>
       <div class="table-responsive">
         <table class="smart-table">
+          <caption class="visually-hidden">Historical win rate by timeframe</caption>
           <thead><tr><th>Timeframe</th><th>Total</th><th>Wins</th><th>Win Rate</th></tr></thead>
           <tbody id="tfTableBody">
             <tr><td colspan="4" class="text-center text-muted py-3">Loading…</td></tr>
@@ -123,6 +127,7 @@
       </div>
       <div class="table-responsive">
         <table class="smart-table">
+          <caption class="visually-hidden">Historical win rate by confidence level</caption>
           <thead><tr><th>Confidence</th><th>Total</th><th>Win Rate</th></tr></thead>
           <tbody id="confTableBody">
             <tr><td colspan="3" class="text-center text-muted py-3">Loading…</td></tr>
@@ -141,6 +146,7 @@
   </div>
   <div class="table-responsive">
     <table class="smart-table">
+      <caption class="visually-hidden">Top historical assets by win rate</caption>
       <thead>
         <tr><th>#</th><th>Symbol</th><th>Market</th><th>Total Trades</th><th>Wins</th><th>Win Rate</th></tr>
       </thead>
@@ -300,6 +306,10 @@ async function loadAnalytics() {
   if (_analyticsRequestInFlight) return;
   _analyticsRequestInFlight = true;
   const sequence = ++_analyticsLoadSequence;
+  const refresh = document.getElementById('refreshAnalytics');
+  const status = document.getElementById('analyticsStatus');
+  if (refresh) { refresh.disabled = true; refresh.setAttribute('aria-busy', 'true'); }
+  if (status) status.textContent = 'Loading historical signal analytics…';
   try {
     const response = await API.get('/signals/analytics');
     if (sequence !== _analyticsLoadSequence) return;
@@ -328,10 +338,13 @@ async function loadAnalytics() {
     renderTfTable(data.by_timeframe);
     renderConfTable(data.confidence_buckets);
     renderTopAssets(data.top_assets);
+    if (status) status.textContent = `Historical analytics updated at ${new Date().toLocaleTimeString()}.`;
   } catch (_) {
+    if (status) status.textContent = 'Historical analytics are unavailable. Try refreshing.';
     Toast.show('Failed to load signal analytics', 'danger');
   } finally {
     _analyticsRequestInFlight = false;
+    if (refresh) { refresh.disabled = false; refresh.setAttribute('aria-busy', 'false'); }
   }
 }
 
