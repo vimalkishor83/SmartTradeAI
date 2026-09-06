@@ -24,23 +24,23 @@
 <!-- Tabs -->
 <ul class="nav nav-tabs mb-4" style="border-color:var(--border)">
   <li class="nav-item">
-    <a class="nav-link active" id="tabRatingsBtn" href="#" onclick="showTab('ratings');return false">
+    <a class="nav-link active" id="tabRatingsBtn" href="#" data-ta-tab="ratings" role="tab" aria-controls="tabRatings">
       <i class="bi bi-bar-chart-fill me-1"></i>Technical Ratings
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="tabAiBtn" href="#" onclick="showTab('ai');return false">
+    <a class="nav-link" id="tabAiBtn" href="#" data-ta-tab="ai" role="tab" aria-controls="tabAi">
       <i class="bi bi-cpu-fill me-1"></i>AI Ratings
       <span class="badge ms-1" style="background:rgba(245, 166, 35, 0.2);color:var(--accent);font-size:9px;padding:2px 5px;border-radius:4px;vertical-align:middle">ML</span>
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="tabQuotesBtn" href="#" onclick="showTab('quotes');return false">
+    <a class="nav-link" id="tabQuotesBtn" href="#" data-ta-tab="quotes" role="tab" aria-controls="tabQuotes">
       <i class="bi bi-currency-dollar me-1"></i>Live Quotes
     </a>
   </li>
   <li class="nav-item">
-    <a class="nav-link" id="tabEmaBtn" href="#" onclick="showTab('ema');return false">
+    <a class="nav-link" id="tabEmaBtn" href="#" data-ta-tab="ema" role="tab" aria-controls="tabEma">
       <i class="bi bi-layers-half me-1"></i>EMA 9/21 MTF
     </a>
   </li>
@@ -193,7 +193,32 @@ let _emaLoaded  = false;
 let _currentTab = 'ratings';
 let _emaBarsBack = 0;   // 0 = live; >0 = N bars back (per-column, its own timeframe)
 
+function taNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function taText(value) {
+  return STSafe.html(value == null ? '' : String(value));
+}
+
+function taAssetId(value) {
+  return STSafe.assetId(value);
+}
+
+function taTimeframe(value) {
+  const timeframe = String(value == null ? '' : value);
+  return /^[0-9]+[mhdw]$/.test(timeframe) ? timeframe : '';
+}
+
+function taAssets(value) {
+  return Array.isArray(value)
+    ? value.filter(asset => asset && typeof asset === 'object' && taAssetId(asset.id))
+    : [];
+}
+
 function showTab(tab) {
+  if (!['ratings', 'ai', 'quotes', 'ema'].includes(tab)) return;
   _currentTab = tab;
   document.getElementById('tabRatings').style.display = tab === 'ratings' ? 'block' : 'none';
   document.getElementById('tabAi').style.display      = tab === 'ai'      ? 'block' : 'none';
@@ -203,6 +228,9 @@ function showTab(tab) {
   document.getElementById('tabAiBtn').classList.toggle('active',      tab === 'ai');
   document.getElementById('tabQuotesBtn').classList.toggle('active',  tab === 'quotes');
   document.getElementById('tabEmaBtn').classList.toggle('active',     tab === 'ema');
+  document.querySelectorAll('[data-ta-tab]').forEach(button => {
+    button.setAttribute('aria-selected', String(button.dataset.taTab === tab));
+  });
   if (tab === 'ai' && !_aiLoaded) loadAiData(true);
   if (tab === 'ema' && !_emaLoaded) loadEmaData(true);
   if (tab !== 'ai' && tab !== 'ema' && _data.length) renderBoth();
@@ -220,8 +248,9 @@ const LABEL_MAP = {
 function ratingCell(tf_data) {
   if (!tf_data) return `<span class="ta-cell ta-loading">—</span>`;
   const cls = LABEL_MAP[tf_data.rating] || 'ta-neutral';
-  const tip = `Buy:${tf_data.buy} Sell:${tf_data.sell} Neutral:${tf_data.neutral}`;
-  return `<span class="ta-cell ${cls}" title="${tip}">${tf_data.rating}</span>`;
+  const rating = LABEL_MAP[tf_data.rating] ? tf_data.rating : 'Neutral';
+  const tip = `Buy:${taNumber(tf_data.buy)} Sell:${taNumber(tf_data.sell)} Neutral:${taNumber(tf_data.neutral)}`;
+  return `<span class="ta-cell ${cls}" title="${taText(tip)}">${taText(rating)}</span>`;
 }
 
 function overallRating(tf_obj) {
@@ -294,16 +323,16 @@ function renderRatings() {
     </tr></thead><tbody>`;
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
-    html += `<tr class="asset-row-header"><td colspan="${TA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    html += `<tr class="asset-row-header"><td colspan="${TA_TFS.length + 2}">${taText(MKT_LABEL[mkt] || mkt)}</td></tr>`;
     _sortAssetsByRating(assets, a => overallRating(a.tf)).forEach(a => {
       const overall = overallRating(a.tf);
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
-          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${taText(a.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${taText(a.name)}</div>
         </td>
-        ${TA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ra-cell="${a.id}:${tf}">${ratingCell(a.tf[tf])}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px" data-ra-overall="${a.id}">
+        ${TA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ra-cell="${taAssetId(a.id)}:${taText(tf)}">${ratingCell(a.tf?.[tf])}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ra-overall="${taAssetId(a.id)}">
           ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
         </td>
       </tr>`;
@@ -321,7 +350,7 @@ function _updateRatingCellContents() {
   document.querySelectorAll('#ratingsWrap [data-ra-cell]').forEach(td => {
     const [assetId, tf] = td.dataset.raCell.split(':');
     const a = byId[assetId];
-    td.innerHTML = a ? ratingCell(a.tf[tf]) : '<span class="ta-cell ta-loading">—</span>';
+    td.innerHTML = a ? ratingCell(a.tf?.[tf]) : '<span class="ta-cell ta-loading">—</span>';
   });
   document.querySelectorAll('#ratingsWrap [data-ra-overall]').forEach(td => {
     const a = byId[td.dataset.raOverall];
@@ -331,31 +360,34 @@ function _updateRatingCellContents() {
 }
 
 function quotesFv(v) {
-  if (!v) return '—';
-  if (v >= 1e9) return (v/1e9).toFixed(2)+'B';
-  if (v >= 1e6) return (v/1e6).toFixed(2)+'M';
-  if (v >= 1e3) return (v/1e3).toFixed(2)+'K';
-  return v.toFixed(2);
+  const number = taNumber(v);
+  if (!number) return '—';
+  if (number >= 1e9) return (number/1e9).toFixed(2)+'B';
+  if (number >= 1e6) return (number/1e6).toFixed(2)+'M';
+  if (number >= 1e3) return (number/1e3).toFixed(2)+'K';
+  return number.toFixed(2);
 }
 
 function quotesRowInner(a) {
-  const p = a.price;
-  const chgCls  = a.change >= 0 ? 'text-green' : 'text-red';
-  const chgSign = a.change >= 0 ? '+' : '';
+  const p = taNumber(a.price);
+  const change = taNumber(a.change);
+  const changePct = taNumber(a.change_pct);
+  const chgCls  = change >= 0 ? 'text-green' : 'text-red';
+  const chgSign = change >= 0 ? '+' : '';
   const fp = (v) => formatPrice(v, a.market);
   return `
     <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
-      <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.name}</div>
+      <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${taText(a.name)}</div>
     </td>
-    <td><span class="badge-tag" style="font-size:11px">${a.symbol}</span></td>
+    <td><span class="badge-tag" style="font-size:11px">${taText(a.symbol)}</span></td>
     <td style="text-align:right;font-weight:700;color:var(--text-primary)">${p ? fp(p) : '—'}</td>
     <td style="text-align:right;color:var(--text-secondary)">${a.open ? fp(a.open) : '—'}</td>
     <td style="text-align:right;color:var(--green)">${a.high ? fp(a.high) : '—'}</td>
     <td style="text-align:right;color:var(--red)">${a.low ? fp(a.low) : '—'}</td>
-    <td style="text-align:right" class="${chgCls}">${a.change != null ? chgSign+fp(a.change) : '—'}</td>
-    <td style="text-align:right;font-weight:700" class="${chgCls}">${a.change_pct != null ? chgSign+a.change_pct.toFixed(2)+'%' : '—'}</td>
+    <td style="text-align:right" class="${chgCls}">${a.change != null ? chgSign+fp(change) : '—'}</td>
+    <td style="text-align:right;font-weight:700" class="${chgCls}">${a.change_pct != null ? chgSign+changePct.toFixed(2)+'%' : '—'}</td>
     <td style="text-align:right;color:var(--text-muted);font-size:12px">${quotesFv(a.volume)}</td>
-    <td style="text-align:center;color:var(--text-muted);font-size:12px">${a.time || '—'} <span style="color:#10b981;font-size:10px">●</span></td>`;
+    <td style="text-align:center;color:var(--text-muted);font-size:12px">${taText(a.time || '—')} <span style="color:#10b981;font-size:10px">●</span></td>`;
 }
 
 let _quotesRenderedAssetIds = null;
@@ -398,9 +430,9 @@ function renderQuotes() {
     </tr></thead><tbody>`;
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
-    html += `<tr class="asset-row-header"><td colspan="10">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    html += `<tr class="asset-row-header"><td colspan="10">${taText(MKT_LABEL[mkt] || mkt)}</td></tr>`;
     assets.forEach(a => {
-      html += `<tr data-quote-row="${a.id}">${quotesRowInner(a)}</tr>`;
+      html += `<tr data-quote-row="${taAssetId(a.id)}">${quotesRowInner(a)}</tr>`;
     });
   }
 
@@ -457,7 +489,7 @@ async function loadData(showSpinner = true) {
     const data = await API.get('/market-data/ta-summary', { market });
     clearInterval(barTimer);
     if (!data?.assets) return;
-    _data = data.assets;
+    _data = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
     renderBoth();
     const elapsed = ((Date.now() - _loadStart) / 1000).toFixed(1);
@@ -466,7 +498,7 @@ async function loadData(showSpinner = true) {
     // Silent background refresh — don't disrupt the page
     const data = await API.get('/market-data/ta-summary', { market });
     if (!data?.assets) return;
-    _data = data.assets;
+    _data = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
     renderBoth();
   }
@@ -477,15 +509,17 @@ async function loadData(showSpinner = true) {
 function aiCell(d, assetId, tf) {
   if (!d) return `<span class="ta-cell ta-loading">—</span>`;
   const dir  = (d.direction || '').toUpperCase();
-  const conf = d.confidence ?? 0;
+  const conf = Math.max(0, Math.min(100, taNumber(d.confidence)));
   let cls, label;
   if (dir === 'BULLISH')      { cls = 'ai-bull'; label = 'BULL'; }
   else if (dir === 'BEARISH') { cls = 'ai-bear'; label = 'BEAR'; }
   else                        { cls = 'ai-neut'; label = 'NEUT'; }
-  const tip = `Bullish: ${d.bullish_prob}%  Bearish: ${d.bearish_prob}%  Conf: ${conf}%`;
-  return `<span class="ta-cell ai-cell ${cls}" title="${tip}"
-    onclick="window.location='/ai-insights?asset=${assetId}&tf=${tf}'" style="cursor:pointer">
-    ${label} <span class="ai-conf">${conf}%</span>
+  const tip = `Bullish: ${taNumber(d.bullish_prob)}%  Bearish: ${taNumber(d.bearish_prob)}%  Conf: ${conf}%`;
+  const safeTf = taTimeframe(tf);
+  const safeAssetId = taAssetId(assetId);
+  return `<span class="ta-cell ai-cell ${cls}" title="${taText(tip)}"
+    data-ai-nav data-asset-id="${safeAssetId}" data-timeframe="${taText(safeTf)}" role="link" tabindex="0" style="cursor:pointer">
+    ${label} <span class="ai-conf">${conf.toFixed(0)}%</span>
   </span>`;
 }
 
@@ -541,16 +575,16 @@ function renderAiRatings() {
     </tr></thead><tbody>`;
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
-    html += `<tr class="asset-row-header"><td colspan="${AI_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    html += `<tr class="asset-row-header"><td colspan="${AI_TFS.length + 2}">${taText(MKT_LABEL[mkt] || mkt)}</td></tr>`;
     _sortAssetsByRating(assets, a => aiOverall(a.tf)).forEach(a => {
       const overall = aiOverall(a.tf);
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
-          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${taText(a.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${taText(a.name)}</div>
         </td>
-        ${AI_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ai-cell="${a.id}:${tf}">${aiCell(a.tf[tf], a.id, tf)}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px" data-ai-overall="${a.id}">
+        ${AI_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ai-cell="${taAssetId(a.id)}:${taText(tf)}">${aiCell(a.tf?.[tf], a.id, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ai-overall="${taAssetId(a.id)}">
           ${overall
             ? `<span class="ta-cell ai-cell ${overall.cls}" style="font-size:13px">
                 ${overall.dir} <span class="ai-conf">${overall.conf}%</span>
@@ -572,7 +606,7 @@ function _updateAiCellContents() {
   document.querySelectorAll('#aiRatingsWrap [data-ai-cell]').forEach(td => {
     const [assetId, tf] = td.dataset.aiCell.split(':');
     const a = byId[assetId];
-    td.innerHTML = a ? aiCell(a.tf[tf], a.id, tf) : '<span class="ta-cell ta-loading">—</span>';
+    td.innerHTML = a ? aiCell(a.tf?.[tf], a.id, tf) : '<span class="ta-cell ta-loading">—</span>';
   });
   document.querySelectorAll('#aiRatingsWrap [data-ai-overall]').forEach(td => {
     const a = byId[td.dataset.aiOverall];
@@ -613,7 +647,7 @@ async function loadAiData(showSpinner = true) {
     const data = await API.get('/market-data/ai-summary', { market });
     clearInterval(timer);
     if (!data?.assets) return;
-    _aiData   = data.assets;
+    _aiData   = taAssets(data.assets);
     _aiLoaded = true;
     if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
     renderAiRatings();
@@ -622,7 +656,7 @@ async function loadAiData(showSpinner = true) {
   } else {
     const data = await API.get('/market-data/ai-summary', { market });
     if (!data?.assets) return;
-    _aiData = data.assets;
+    _aiData = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
     if (_currentTab === 'ai') renderAiRatings();
   }
@@ -639,8 +673,9 @@ function emaCell(cell, symbol, tf) {
   const cls = LABEL_MAP[cell.rating] || 'ta-neutral';
   const flag = cell.conflicting ? ' <i class="bi bi-exclamation-triangle-fill" style="font-size:9px;opacity:.8"></i>' : '';
   const idx = _emaCellRegistry.push({ cell, symbol }) - 1;
-  return `<span class="ta-cell ${cls}" style="cursor:pointer" onclick="showEmaDetail(event, ${idx})">
-    ${cell.rating}${flag}
+  const rating = LABEL_MAP[cell.rating] ? cell.rating : 'Neutral';
+  return `<span class="ta-cell ${cls}" data-ema-detail-index="${idx}" role="button" tabindex="0" aria-label="Inspect EMA details" style="cursor:pointer">
+    ${taText(rating)}${flag}
   </span>`;
 }
 
@@ -683,17 +718,17 @@ function renderEmaRatings() {
     </tr></thead><tbody>`;
 
   for (const [mkt, assets] of Object.entries(byMarket)) {
-    html += `<tr class="asset-row-header"><td colspan="${EMA_TFS.length + 2}">${MKT_LABEL[mkt] || mkt}</td></tr>`;
+    html += `<tr class="asset-row-header"><td colspan="${EMA_TFS.length + 2}">${taText(MKT_LABEL[mkt] || mkt)}</td></tr>`;
     _sortAssetsByRating(assets, a => overallRating(a.tf)).forEach(a => {
       const overall = overallRating(a.tf);   // same -1..1 score convention as Technical Ratings
       html += `<tr>
         <td style="position:sticky;left:0;background:var(--bg-card);z-index:1">
-          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${a.symbol}</div>
-          <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+          <div style="font-weight:700;font-size:13px;color:var(--text-primary)">${taText(a.symbol)}</div>
+          <div style="font-size:10px;color:var(--text-muted)">${taText(a.name)}</div>
         </td>
-        ${EMA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ema-cell="${a.id}:${tf}">${emaCell(a.tf[tf], a.symbol, tf)}</td>`).join('')}
-        <td style="text-align:center;padding:7px 4px" data-ema-overall="${a.id}">
-          ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${overall.rating}</span>` : '<span class="ta-cell ta-loading">—</span>'}
+        ${EMA_TFS.map(tf => `<td style="text-align:center;padding:7px 4px" data-ema-cell="${taAssetId(a.id)}:${taText(tf)}">${emaCell(a.tf?.[tf], a.symbol, tf)}</td>`).join('')}
+        <td style="text-align:center;padding:7px 4px" data-ema-overall="${taAssetId(a.id)}">
+          ${overall ? `<span class="ta-cell ${overall.cls}" style="font-size:13px">${taText(overall.rating)}</span>` : '<span class="ta-cell ta-loading">—</span>'}
         </td>
       </tr>`;
     });
@@ -711,7 +746,7 @@ function _updateEmaCellContents() {
   document.querySelectorAll('#emaRatingsWrap [data-ema-cell]').forEach(td => {
     const [assetId, tf] = td.dataset.emaCell.split(':');
     const a = byId[assetId];
-    td.innerHTML = a ? emaCell(a.tf[tf], a.symbol, tf) : '<span class="ta-cell ta-loading">—</span>';
+    td.innerHTML = a ? emaCell(a.tf?.[tf], a.symbol, tf) : '<span class="ta-cell ta-loading">—</span>';
   });
   document.querySelectorAll('#emaRatingsWrap [data-ema-overall]').forEach(td => {
     const a = byId[td.dataset.emaOverall];
@@ -761,7 +796,7 @@ async function loadEmaData(showSpinner = true) {
     }
     const data = await API.get(_emaEndpoint(), _emaParams());
     if (!data?.assets) return;
-    _emaData   = data.assets;
+    _emaData   = taAssets(data.assets);
     _emaLoaded = true;
     if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
     if (data.higher_tf_map) HIGHER_TF_LABEL = data.higher_tf_map;
@@ -772,7 +807,7 @@ async function loadEmaData(showSpinner = true) {
   } else {
     const data = await API.get(_emaEndpoint(), _emaParams());
     if (!data?.assets) return;
-    _emaData = data.assets;
+    _emaData = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
     if (data.higher_tf_map) HIGHER_TF_LABEL = data.higher_tf_map;
     if (_currentTab === 'ema') renderEmaRatings();
@@ -815,43 +850,46 @@ function emaJumpTo() {
 
 // Click-to-inspect popover: shows the exact EMA9/EMA21/close numbers (both
 // timeframes) that produced a cell's rating.
-function showEmaDetail(evt, idx) {
+function showEmaDetail(evt, idx, trigger = evt.currentTarget) {
   evt.stopPropagation();
-  const entry = _emaCellRegistry[idx];
+  const safeIndex = Number(idx);
+  const entry = Number.isSafeInteger(safeIndex) && safeIndex >= 0 ? _emaCellRegistry[safeIndex] : null;
   const pop = document.getElementById('emaDetailPopover');
   if (!pop || !entry) return;
   const { cell, symbol } = entry;
 
   const fmtTs = (iso) => {
     if (!iso) return '';
-    try { return new Date(iso + (/[Zz]|[+-]\d{2}:?\d{2}$/.test(iso) ? '' : 'Z'))
+    const value = String(iso);
+    try { return new Date(value + (/[Zz]|[+-]\d{2}:?\d{2}$/.test(value) ? '' : 'Z'))
       .toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false }); }
-    catch (_) { return iso; }
+    catch (_) { return value; }
   };
   const row = (r) => {
-    if (!r || r.bias === 'unavailable') return `<div class="ema-pop-row text-muted">${r ? r.timeframe : ''}: not enough data yet</div>`;
+    if (!r || r.bias === 'unavailable') return `<div class="ema-pop-row text-muted">${r ? taText(r.timeframe) : ''}: not enough data yet</div>`;
     const biasClr = r.bias === 'bullish' ? 'var(--green)' : r.bias === 'bearish' ? 'var(--red)' : 'var(--text-secondary)';
     return `<div class="ema-pop-row">
-      <strong>${r.timeframe}</strong>
-      <span>EMA9 <b>${r.ema9}</b></span>
-      <span>EMA21 <b>${r.ema21}</b></span>
-      <span>Price <b>${r.close}</b></span>
-      <span style="color:${biasClr};font-weight:700;text-transform:capitalize">${r.bias}</span>
+      <strong>${taText(r.timeframe)}</strong>
+      <span>EMA9 <b>${taText(r.ema9)}</b></span>
+      <span>EMA21 <b>${taText(r.ema21)}</b></span>
+      <span>Price <b>${taText(r.close)}</b></span>
+      <span style="color:${biasClr};font-weight:700;text-transform:capitalize">${taText(r.bias)}</span>
     </div>
-    <div class="ema-pop-ts">as of ${fmtTs(r.timestamp)} IST</div>`;
+    <div class="ema-pop-ts">as of ${taText(fmtTs(r.timestamp))} IST</div>`;
   };
 
   pop.innerHTML = `
     <div class="ema-pop-header">
-      <strong>${symbol}</strong> — ${cell.rating}
-      <span class="ema-pop-close" onclick="hideEmaDetail()"><i class="bi bi-x-lg"></i></span>
+      <strong>${taText(symbol)}</strong> — ${taText(LABEL_MAP[cell.rating] ? cell.rating : 'Neutral')}
+      <button type="button" class="ema-pop-close" data-action="close-ema-detail" aria-label="Close EMA details"><i class="bi bi-x-lg"></i></button>
     </div>
     ${row(cell.base)}
     ${cell.higher ? row(cell.higher) : '<div class="ema-pop-row text-muted">No higher timeframe for this column</div>'}
     ${cell.conflicting ? '<div class="ema-pop-note"><i class="bi bi-exclamation-triangle-fill me-1"></i>Timeframes disagree — reported Neutral rather than picking a side.</div>' : ''}
   `;
 
-  const rect = evt.currentTarget.getBoundingClientRect();
+  const rect = trigger?.getBoundingClientRect?.();
+  if (!rect) return;
   pop.style.display = 'block';
   const top  = window.scrollY + rect.bottom + 6;
   let left = window.scrollX + rect.left;
@@ -873,7 +911,44 @@ document.addEventListener('click', (e) => {
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') hideEmaDetail(); });
 
 document.addEventListener('app:ready', () => {
+  document.querySelectorAll('[data-ta-tab]').forEach(button => {
+    button.addEventListener('click', event => {
+      event.preventDefault();
+      showTab(button.dataset.taTab);
+    });
+  });
+  const aiWrap = document.getElementById('aiRatingsWrap');
+  const openAiInsight = event => {
+    const cell = event.target.closest('[data-ai-nav]');
+    if (!cell || !aiWrap.contains(cell)) return;
+    const assetId = taAssetId(cell.dataset.assetId);
+    const timeframe = taTimeframe(cell.dataset.timeframe);
+    if (!assetId || !timeframe) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.location.assign(`/ai-insights?asset=${encodeURIComponent(assetId)}&tf=${encodeURIComponent(timeframe)}`);
+  };
+  aiWrap?.addEventListener('click', openAiInsight);
+  aiWrap?.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    openAiInsight(event);
+  });
+  const emaWrap = document.getElementById('emaRatingsWrap');
+  const openEmaDetail = event => {
+    const cell = event.target.closest('[data-ema-detail-index]');
+    if (!cell || !emaWrap.contains(cell)) return;
+    if (event.type === 'keydown' && event.key !== 'Enter' && event.key !== ' ') return;
+    if (event.type === 'keydown') event.preventDefault();
+    showEmaDetail(event, cell.dataset.emaDetailIndex, cell);
+  };
+  emaWrap?.addEventListener('click', openEmaDetail);
+  emaWrap?.addEventListener('keydown', openEmaDetail);
+  document.getElementById('emaDetailPopover')?.addEventListener('click', event => {
+    if (event.target.closest('[data-action="close-ema-detail"]')) hideEmaDetail();
+  });
+
   populateMarketSelect(document.getElementById('mktFilter'), { includeAll: true, allValue: 'all' });
+  showTab(_currentTab);
   loadData(true);
   document.getElementById('refreshBtn').addEventListener('click', () => {
     if (_currentTab === 'ai')      { _aiLoaded = false; loadAiData(true); }
