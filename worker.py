@@ -26,6 +26,7 @@ import os
 import signal
 import sys
 import threading
+import time
 
 # Force the background role on regardless of ambient env, so this entrypoint
 # can never accidentally start as a no-op web process.
@@ -41,6 +42,18 @@ from app import create_app  # noqa: E402
 from app.extensions import scheduler  # noqa: E402
 
 logger = logging.getLogger("worker")
+WORKER_HEARTBEAT_KEY = "smarttradeai:worker:heartbeat"
+WORKER_HEARTBEAT_TTL = 90
+
+
+def _publish_heartbeat(app):
+    """Publish a short-lived worker liveness marker for web readiness checks."""
+    with app.app_context():
+        from app.extensions import cache
+        try:
+            cache.set(WORKER_HEARTBEAT_KEY, str(time.time()), timeout=WORKER_HEARTBEAT_TTL)
+        except Exception:
+            logger.warning("Unable to publish worker heartbeat", exc_info=True)
 
 
 def main():
@@ -64,6 +77,14 @@ def main():
     # threads started during create_app(), so this thread just needs to stay
     # alive and shut them down cleanly on SIGTERM (container stop / k8s drain).
     stop = threading.Event()
+
+    def _heartbeat_loop():
+        while not stop.is_set():
+            _publish_heartbeat(app)
+            stop.wait(30)
+
+    _publish_heartbeat(app)
+    threading.Thread(target=_heartbeat_loop, name="worker-heartbeat", daemon=True).start()
 
     def _shutdown(signum, _frame):
         logger.info("Signal %s received — shutting down scheduler...", signum)

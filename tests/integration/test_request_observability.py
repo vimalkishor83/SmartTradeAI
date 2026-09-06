@@ -3,6 +3,7 @@ import re
 from unittest.mock import patch
 
 from app import _safe_request_id
+from app.api.v1 import system as system_api
 
 
 def test_valid_request_id_is_returned_unchanged(client):
@@ -69,3 +70,30 @@ def test_static_assets_keep_correlation_header_without_log_noise(app, client):
         call.args and call.args[0] == "request_complete %s"
         for call in log_info.call_args_list
     )
+
+
+def test_worker_heartbeat_is_not_required_in_single_process_mode(app):
+    with app.app_context():
+        app.config["CACHE_TYPE"] = "SimpleCache"
+        result = system_api._check_worker_heartbeat()
+    assert result["healthy"] is True
+    assert "not tracked" in result["detail"]
+
+
+def test_worker_heartbeat_detects_missing_and_fresh_markers(app, monkeypatch):
+    class FakeCache:
+        value = None
+
+        def get(self, _key):
+            return self.value
+
+    fake = FakeCache()
+    with app.app_context():
+        app.config["CACHE_TYPE"] = "RedisCache"
+        monkeypatch.setattr("app.run_background_work", lambda: False)
+        monkeypatch.setattr(system_api, "cache", fake)
+        missing = system_api._check_worker_heartbeat()
+        fake.value = str(system_api.time.time())
+        fresh = system_api._check_worker_heartbeat()
+    assert missing["healthy"] is False
+    assert fresh["healthy"] is True

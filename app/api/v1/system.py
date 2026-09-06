@@ -109,14 +109,30 @@ def _check_market_stream() -> dict:
         return {"name": "market_stream", "healthy": True, "detail": "unknown"}
 
 
+def _check_worker_heartbeat() -> dict:
+    """Check the dedicated worker only in the split Redis-backed topology."""
+    from app import run_background_work
+    if run_background_work() or current_app.config.get("CACHE_TYPE") != "RedisCache":
+        return {"name": "worker", "healthy": True, "detail": "not tracked in this process"}
+    try:
+        heartbeat = cache.get("smarttradeai:worker:heartbeat")
+        age = time.time() - float(heartbeat) if heartbeat is not None else None
+        healthy = age is not None and 0 <= age < 90
+        detail = "heartbeat age %.1fs" % age if age is not None else "heartbeat missing"
+        return {"name": "worker", "healthy": healthy, "detail": detail}
+    except Exception as e:
+        logger.warning(f"readiness: worker heartbeat check failed: {e}")
+        return {"name": "worker", "healthy": False, "detail": "heartbeat unavailable"}
+
+
 @system_bp.route("/ready", methods=["GET"])
 def ready():
     """Readiness probe — 200 only if all HARD dependencies are healthy."""
-    checks = [_check_database(), _check_scheduler(), _check_redis(), _check_market_stream()]
+    checks = [_check_database(), _check_scheduler(), _check_redis(), _check_worker_heartbeat(), _check_market_stream()]
     # Database, scheduler and (when configured) Redis are hard requirements;
     # the market stream is soft. _check_redis self-reports healthy when the
     # deployment isn't using Redis at all.
-    hard = {"database", "scheduler", "redis"}
+    hard = {"database", "scheduler", "redis", "worker"}
     ready_ = all(c["healthy"] for c in checks if c["name"] in hard)
     payload = {
         "status": "ready" if ready_ else "not_ready",
