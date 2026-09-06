@@ -11,7 +11,7 @@
     <p class="page-subtitle">Track all your positions and P&amp;L in one place</p>
   </div>
   <div class="d-flex gap-2">
-    <button class="btn btn-outline-secondary btn-sm" onclick="window.open('/api/v1/portfolio/export/csv','_blank')">
+    <button class="btn btn-outline-secondary btn-sm" id="exportPortfolioBtn">
       <i class="bi bi-download me-1"></i>Download CSV
     </button>
     <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addPositionModal">
@@ -68,28 +68,28 @@
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">Quantity</label>
-              <input type="number" class="form-control" id="posQty" step="any" required />
+              <input type="number" class="form-control" id="posQty" step="any" min="0.00000001" max="1000000000" required />
             </div>
             <div class="col">
               <label class="form-label">Buy Price</label>
-              <input type="number" class="form-control" id="posBuyPrice" step="any" required />
+              <input type="number" class="form-control" id="posBuyPrice" step="any" min="0.00000001" max="1000000000000" required />
             </div>
           </div>
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">Stop Loss (optional)</label>
-              <input type="number" class="form-control" id="posSL" step="any" />
+            <input type="number" class="form-control" id="posSL" step="any" min="0.00000001" max="1000000000000" />
             </div>
             <div class="col">
               <label class="form-label">Target (optional)</label>
-              <input type="number" class="form-control" id="posTarget" step="any" />
+            <input type="number" class="form-control" id="posTarget" step="any" min="0.00000001" max="1000000000000" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Notes</label>
-            <textarea class="form-control" id="posNotes" rows="2"></textarea>
+            <textarea class="form-control" id="posNotes" rows="2" maxlength="255"></textarea>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Add Position</button>
+          <button type="submit" class="btn btn-primary w-100" id="addPositionBtn">Add Position</button>
         </form>
       </div>
     </div>
@@ -109,6 +109,37 @@ function _ccyLocale(market) {
   return (market === 'indian_stock' || market === 'index') ? 'en-IN' : 'en-US';
 }
 
+const MAX_PORTFOLIO_QUANTITY = 1000000000;
+const MAX_PORTFOLIO_PRICE = 1000000000000;
+
+function _portfolioNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function _portfolioHtml(value) {
+  return typeof STSafe?.html === 'function'
+    ? STSafe.html(value)
+    : String(value ?? '').replace(/[&<>"']/g, char => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[char]));
+}
+
+function _portfolioId(value) {
+  const id = String(value ?? '').trim();
+  return /^\d{1,18}$/.test(id) && Number(id) > 0 ? id : '';
+}
+
+function _portfolioPrice(value) {
+  const number = _portfolioNumber(value);
+  return number === null ? '—' : _portfolioHtml(formatPrice(number));
+}
+
+let _portfolioLoadPromise = null;
+let _addPositionInFlight = false;
+let _stopLossInFlight = false;
+const _removePositionInFlight = new Set();
+
 // Sums one numeric field per currency instead of across all holdings, so a
 // mixed ₹+$ portfolio never has to blend unlike currencies into one number
 // (previously: one combined figure captioned "not currency-converted" —
@@ -117,8 +148,8 @@ function _ccyLocale(market) {
 function _sumByCcy(holdings, field) {
   const sums = {};
   holdings.forEach(h => {
-    const v = h[field];
-    if (v == null) return;
+    const v = _portfolioNumber(h[field]);
+    if (v === null) return;
     const sym = _ccySym(h.market);
     sums[sym] = (sums[sym] || 0) + v;
   });
@@ -128,6 +159,7 @@ function _fmtCcyGroups(sums, { signed = false } = {}) {
   const entries = Object.entries(sums);
   if (!entries.length) return '—';
   return entries.map(([sym, v]) => {
+    v = _portfolioNumber(v, 0);
     const sign = signed ? (v >= 0 ? '+' : '-') : '';
     return sign + sym + Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 });
   }).join(' + ');
@@ -139,17 +171,26 @@ function _fmtCcyPnlHtml(sums) {
   const entries = Object.entries(sums);
   if (!entries.length) return '—';
   return entries.map(([sym, v]) => {
+    v = _portfolioNumber(v, 0);
     const cls = v >= 0 ? 'text-green' : 'text-red';
     return `<span class="${cls}">${v >= 0 ? '+' : '-'}${sym}${Math.abs(v).toLocaleString('en-US', { maximumFractionDigits: 0 })}</span>`;
   }).join(' <span class="text-muted">&middot;</span> ');
 }
 
 async function loadPortfolio() {
-  const data = await API.get('/portfolio/');
-  if (!data) return;
+  if (_portfolioLoadPromise) return _portfolioLoadPromise;
+  const request = (async () => {
+    try {
+      const data = await API.get('/portfolio/');
+      if (!data || data.error || !data.portfolio) {
+        document.getElementById('holdingsBody').innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+        return;
+      }
 
   const p = data.portfolio;
-  const holdings = data.holdings || [];
+  const holdings = Array.isArray(data.holdings)
+    ? data.holdings.filter(holding => holding && typeof holding === 'object')
+    : [];
   const markets = new Set(holdings.map(h => h.market).filter(Boolean));
   const mixed = markets.size > 1;
 
@@ -159,14 +200,14 @@ async function loadPortfolio() {
 
   document.getElementById('totalInvested').textContent = mixed
     ? _fmtCcyGroups(investedByCcy)
-    : _ccySym([...markets][0]) + (p.total_invested || 0).toLocaleString('en-US');
+    : _ccySym([...markets][0]) + _portfolioNumber(p.total_invested, 0).toLocaleString('en-US');
   document.getElementById('totalCurrent').textContent = mixed
     ? _fmtCcyGroups(currentByCcy)
-    : _ccySym([...markets][0]) + (p.total_current || 0).toLocaleString('en-US');
+    : _ccySym([...markets][0]) + _portfolioNumber(p.total_current, 0).toLocaleString('en-US');
   document.getElementById('totalInvestedSub').textContent = mixed ? 'Per-currency, not FX-converted' : '';
   document.getElementById('totalCurrentSub').textContent = mixed ? 'Per-currency, not FX-converted' : '';
 
-  const pnl = p.total_pnl || 0;
+  const pnl = _portfolioNumber(p.total_pnl, 0);
   const pnlEl = document.getElementById('totalPnl');
   if (mixed) {
     pnlEl.innerHTML = _fmtCcyPnlHtml(pnlByCcy);
@@ -175,17 +216,18 @@ async function loadPortfolio() {
     pnlEl.textContent = (pnl >= 0 ? '+' : '-') + _ccySym([...markets][0]) + Math.abs(pnl).toLocaleString('en-US');
     pnlEl.className = `kpi-value ${pnl >= 0 ? 'text-green' : 'text-red'}`;
   }
-  document.getElementById('totalPnlPct').textContent = (p.total_pnl_pct >= 0 ? '+' : '') + p.total_pnl_pct + '%';
+  const pnlPct = _portfolioNumber(p.total_pnl_pct, 0);
+  document.getElementById('totalPnlPct').textContent = (pnlPct >= 0 ? '+' : '') + pnlPct + '%';
   document.getElementById('holdingCount').textContent = `${holdings.length} positions`;
 
   // Open risk: capital that would actually be lost if every stop-set
   // position hit its stop right now — the number the aggregate KPIs above
   // (Invested/Current/P&L, all mark-to-market) can't show, since a position
   // can look fine today and still have no stop protecting it at all.
-  const protectedHoldings = holdings.filter(h => h.stop_loss != null && h.current_price != null);
+  const protectedHoldings = holdings.filter(h => _portfolioNumber(h.stop_loss) !== null && _portfolioNumber(h.current_price) !== null);
   const riskByCcy = {};
   protectedHoldings.forEach(h => {
-    const risk = Math.max(0, (h.current_price - h.stop_loss)) * h.quantity;
+    const risk = Math.max(0, (_portfolioNumber(h.current_price, 0) - _portfolioNumber(h.stop_loss, 0))) * _portfolioNumber(h.quantity, 0);
     const sym = _ccySym(h.market);
     riskByCcy[sym] = (riskByCcy[sym] || 0) + risk;
   });
@@ -204,47 +246,88 @@ async function loadPortfolio() {
     riskBadge.style.display = 'none';
   }
 
-  if (!holdings.length) return;
+  if (!holdings.length) {
+    document.getElementById('holdingsBody').innerHTML = '<tr><td colspan="11"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-pie-chart" style="font-size:2.5rem;opacity:.2;display:block;margin-bottom:12px"></i>No positions yet — click <strong style="color:var(--accent)">Add Position</strong> to start tracking</div></td></tr>';
+    return;
+  }
 
   document.getElementById('holdingsBody').innerHTML = holdings.map(h => {
     const sym = _ccySym(h.market), loc = _ccyLocale(h.market);
+    const id = _portfolioId(h.id);
+    const quantity = _portfolioNumber(h.quantity, 0);
+    const buyPrice = _portfolioNumber(h.buy_price);
+    const currentPrice = _portfolioNumber(h.current_price);
+    const invested = _portfolioNumber(h.invested_value);
+    const current = _portfolioNumber(h.current_value);
+    const stopLoss = _portfolioNumber(h.stop_loss);
+    const pnlValue = _portfolioNumber(h.pnl, 0);
+    const pnlPercent = _portfolioNumber(h.pnl_pct, 0);
     return `
     <tr>
-      <td><strong>${h.asset}</strong></td>
-      <td>${h.quantity}</td>
-      <td>${sym}${formatPrice(h.buy_price)}</td>
-      <td>${sym}${formatPrice(h.current_price)}</td>
-      <td>${h.invested_value != null ? sym + h.invested_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
-      <td>${h.current_value != null ? sym + h.current_value.toLocaleString(loc, {maximumFractionDigits:0}) : '—'}</td>
-      <td class="sl-cell" data-id="${h.id}" data-sym="${sym}" data-sl="${h.stop_loss ?? ''}" onclick="editStopLoss(this)" style="cursor:pointer" title="Click to set or edit the stop loss for this position">
-        ${h.stop_loss != null ? sym + formatPrice(h.stop_loss) : '<span class="text-muted"><i class="bi bi-plus-circle me-1"></i>Set</span>'}
+      <td><strong>${_portfolioHtml(h.asset || '—')}</strong></td>
+      <td>${quantity}</td>
+      <td>${buyPrice === null ? '—' : sym + _portfolioPrice(buyPrice)}</td>
+      <td>${currentPrice === null ? '—' : sym + _portfolioPrice(currentPrice)}</td>
+      <td>${invested === null ? '—' : sym + invested.toLocaleString(loc, {maximumFractionDigits:0})}</td>
+      <td>${current === null ? '—' : sym + current.toLocaleString(loc, {maximumFractionDigits:0})}</td>
+      <td class="sl-cell" data-id="${id}" data-sym="${_portfolioHtml(sym)}" data-sl="${stopLoss === null ? '' : stopLoss}" ${id ? '' : 'aria-disabled="true"'} style="cursor:pointer" title="Click to set or edit the stop loss for this position">
+        ${stopLoss === null ? '<span class="text-muted"><i class="bi bi-plus-circle me-1"></i>Set</span>' : sym + _portfolioPrice(stopLoss)}
       </td>
-      <td class="${h.pnl >= 0 ? 'text-green' : 'text-red'}">${h.pnl >= 0 ? '+' : ''}${sym}${Math.abs(h.pnl || 0).toLocaleString(loc, {maximumFractionDigits:0})}</td>
-      <td class="${h.pnl_pct >= 0 ? 'text-green' : 'text-red'}">${h.pnl_pct >= 0 ? '+' : ''}${h.pnl_pct?.toFixed(2)}%</td>
-      <td>${h.holding_days}d</td>
-      <td><button class="btn btn-sm btn-outline-danger" onclick="removePosition(${h.id})"><i class="bi bi-trash"></i></button></td>
+      <td class="${pnlValue >= 0 ? 'text-green' : 'text-red'}">${pnlValue >= 0 ? '+' : ''}${sym}${Math.abs(pnlValue).toLocaleString(loc, {maximumFractionDigits:0})}</td>
+      <td class="${pnlPercent >= 0 ? 'text-green' : 'text-red'}">${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%</td>
+      <td>${_portfolioNumber(h.holding_days, 0)}d</td>
+      <td><button class="btn btn-sm btn-outline-danger" data-remove-position="${id}" ${id ? '' : 'disabled'}><i class="bi bi-trash"></i></button></td>
     </tr>`;
   }).join('');
+    } catch (error) {
+      document.getElementById('holdingsBody').innerHTML = '<tr><td colspan="11"><div class="text-center py-5 text-muted">Unable to load portfolio data. Try refreshing.</div></td></tr>';
+    }
+  })();
+  _portfolioLoadPromise = request;
+  try { return await request; }
+  finally { if (_portfolioLoadPromise === request) _portfolioLoadPromise = null; }
 }
 
 // Click-to-edit stop loss: the "add position" form was the only place a
 // stop could ever be set — no way to add one later, or trail it as a
 // position moved in your favor, which is normal risk management practice.
 function editStopLoss(cell) {
-  if (cell.querySelector('input')) return; // already editing
-  const id = cell.dataset.id, sym = cell.dataset.sym, current = cell.dataset.sl;
-  cell.innerHTML = `<input type="number" step="any" class="form-control form-control-sm" style="width:110px;display:inline-block" value="${current}" placeholder="${sym}0.00">`;
-  const input = cell.querySelector('input');
+  const id = _portfolioId(cell?.dataset.id);
+  if (!cell || !id || cell.querySelector('input') || _stopLossInFlight) return;
+  const sym = String(cell.dataset.sym || '$');
+  const current = cell.dataset.sl || '';
+  cell.textContent = '';
+  const input = document.createElement('input');
+  input.type = 'number';
+  input.step = 'any';
+  input.min = '0.00000001';
+  input.max = String(MAX_PORTFOLIO_PRICE);
+  input.className = 'form-control form-control-sm';
+  input.style.cssText = 'width:110px;display:inline-block';
+  input.value = current;
+  input.placeholder = `${sym}0.00`;
+  cell.appendChild(input);
   input.focus();
   input.select();
   let cancelled = false;
   const commit = async () => {
     if (cancelled) return;
     const val = input.value.trim();
-    const res = await API.put(`/portfolio/${id}`, { stop_loss: val === '' ? null : parseFloat(val) });
-    if (res && !res.error) Toast.show('Stop loss updated', 'success');
-    else Toast.show(res?.error || 'Failed to update stop loss', 'error');
-    loadPortfolio();
+    const number = val === '' ? null : _portfolioNumber(val);
+    if (val !== '' && (number === null || number <= 0)) {
+      Toast.show('Stop loss must be a positive number.', 'warning');
+      loadPortfolio();
+      return;
+    }
+    _stopLossInFlight = true;
+    try {
+      const res = await API.put(`/portfolio/${id}`, { stop_loss: number });
+      if (res && !res.error) Toast.show('Stop loss updated', 'success');
+      else Toast.show(res?.error || 'Failed to update stop loss', 'error');
+      loadPortfolio();
+    } finally {
+      _stopLossInFlight = false;
+    }
   };
   input.addEventListener('keydown', e => {
     if (e.key === 'Enter') input.blur();
@@ -255,30 +338,79 @@ function editStopLoss(cell) {
 }
 
 async function removePosition(id) {
+  id = _portfolioId(id);
+  if (!id || _removePositionInFlight.has(id)) return;
   if (!confirm('Remove this position?')) return;
-  await API.delete(`/portfolio/${id}`);
-  Toast.show('Position removed', 'success');
-  loadPortfolio();
+  _removePositionInFlight.add(id);
+  try {
+    const ok = await API.delete(`/portfolio/${id}`);
+    if (ok) {
+      Toast.show('Position removed', 'success');
+      loadPortfolio();
+    } else {
+      Toast.show('Failed to remove position', 'error');
+    }
+  } finally {
+    _removePositionInFlight.delete(id);
+  }
 }
 
 document.getElementById('addPositionForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const res = await API.post('/portfolio/add', {
-    symbol: document.getElementById('posSymbol').value,
-    quantity: parseFloat(document.getElementById('posQty').value),
-    buy_price: parseFloat(document.getElementById('posBuyPrice').value),
-    stop_loss: document.getElementById('posSL').value || null,
-    target: document.getElementById('posTarget').value || null,
-    notes: document.getElementById('posNotes').value,
-  });
-  if (res?.id) {
-    bootstrap.Modal.getInstance(document.getElementById('addPositionModal')).hide();
-    e.target.reset();
-    Toast.show('Position added!', 'success');
-    loadPortfolio();
-  } else {
-    Toast.show(res?.error || 'Failed to add position', 'error');
+  if (_addPositionInFlight) return;
+  const symbol = document.getElementById('posSymbol').value.trim().toUpperCase();
+  const quantity = _portfolioNumber(document.getElementById('posQty').value);
+  const buyPrice = _portfolioNumber(document.getElementById('posBuyPrice').value);
+  const stopLossRaw = document.getElementById('posSL').value.trim();
+  const targetRaw = document.getElementById('posTarget').value.trim();
+  const stopLoss = stopLossRaw === '' ? null : _portfolioNumber(stopLossRaw);
+  const target = targetRaw === '' ? null : _portfolioNumber(targetRaw);
+  if (!/^[A-Z0-9][A-Z0-9._-]{0,29}$/.test(symbol)
+      || quantity === null || quantity <= 0 || quantity > MAX_PORTFOLIO_QUANTITY
+      || buyPrice === null || buyPrice <= 0 || buyPrice > MAX_PORTFOLIO_PRICE
+      || (stopLoss !== null && (stopLoss <= 0 || stopLoss > MAX_PORTFOLIO_PRICE))
+      || (target !== null && (target <= 0 || target > MAX_PORTFOLIO_PRICE))) {
+    Toast.show('Enter a valid symbol and positive position values.', 'warning');
+    return;
   }
+  const button = document.getElementById('addPositionBtn');
+  _addPositionInFlight = true;
+  button.disabled = true;
+  try {
+    const res = await API.post('/portfolio/add', {
+      symbol,
+      quantity,
+      buy_price: buyPrice,
+      stop_loss: stopLoss,
+      target,
+      notes: document.getElementById('posNotes').value.slice(0, 255),
+    });
+    if (res?.id && !res?.error) {
+      bootstrap.Modal.getInstance(document.getElementById('addPositionModal')).hide();
+      e.target.reset();
+      Toast.show('Position added!', 'success');
+      loadPortfolio();
+    } else {
+      Toast.show(res?.error || 'Failed to add position', 'error');
+    }
+  } finally {
+    _addPositionInFlight = false;
+    button.disabled = false;
+  }
+});
+
+document.getElementById('holdingsBody').addEventListener('click', event => {
+  const stopCell = event.target.closest('.sl-cell');
+  if (stopCell) {
+    editStopLoss(stopCell);
+    return;
+  }
+  const removeButton = event.target.closest('[data-remove-position]');
+  if (removeButton) removePosition(removeButton.dataset.removePosition);
+});
+
+document.getElementById('exportPortfolioBtn').addEventListener('click', () => {
+  window.open('/api/v1/portfolio/export/csv', '_blank', 'noopener');
 });
 
 document.addEventListener('app:ready', loadPortfolio);
