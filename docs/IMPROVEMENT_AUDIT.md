@@ -1435,6 +1435,21 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.106 IMPLEMENTED - Harden protective-order trading safety
+
+Protective-order APIs now require JSON objects, strict JSON booleans, finite bounded prices and trailing distances, and side-aware stop-loss/take-profit levels. The monitor refuses to submit an auto-close for fractional or invalid whole-number contract sizes instead of silently truncating the position and potentially leaving an unintended remainder. Safe defaults remain notify-only and dry-run.
+
+**Risk level:** Critical real-money safety value, low compatibility risk because existing safe defaults, routes and response shapes remain unchanged; invalid or ambiguous requests are now rejected explicitly. **Affected modules:** `app/api/v1/protective_orders.py`, `app/tasks/protective_order_tasks.py`, `tests/unit/test_protective_order_breach.py`. **Migration:** none.
+
+**Regression evidence:** Protective-order, Delta signing/order-validation and risk integration checks passed (**56 targeted tests passed**), Python compilation and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `a2c50ef`.
+
+**Session 86 (Protective-order safety boundaries - backend safety):**
+- `app/api/v1/protective_orders.py` - add strict request/body/boolean/level validation and side-aware risk-level checks.
+- `app/tasks/protective_order_tasks.py` - refuse fractional auto-close sizes before any broker call.
+- `tests/unit/test_protective_order_breach.py` - protect ambiguous flags, invalid levels and fractional-size safety behavior.
+
+**Database changes:** none. **API contract changes:** validation is stricter for malformed or unsafe payloads; valid payloads and safe defaults are unchanged. **No new credentials or secrets introduced.**
+
 ### 7.105 IMPLEMENTED - Improve Watchlist control semantics
 
 Watchlist view and card-size controls now expose their selected state to assistive technology, modal inputs have explicit labels and relationships, action buttons have safe button types, numeric parsing rejects blank provider values, and duplicate page initialization is guarded. Existing list/context rendering, alert mutations and watchlist APIs remain unchanged.
