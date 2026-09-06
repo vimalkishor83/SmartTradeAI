@@ -1435,6 +1435,22 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.103 IMPLEMENTED - Make Heatmap and Scanner states trustworthy
+
+Heatmap and Scanner now provide explicit loading, freshness, empty and unavailable states instead of silently presenting stale or false-empty decision data. Controls have stronger labels and button semantics, tile-size selection exposes `aria-pressed`, result tables have captions, duplicate page initialization is guarded, scanner KPI feeds fail independently, malformed scanner responses are rejected, and busy indicators are always cleared after completion.
+
+**Risk level:** High decision-support trust, accessibility and resilience value, low compatibility risk because existing routes, endpoints, DOM IDs and response contracts remain unchanged. **Affected modules:** `frontend/templates/dashboard/heatmap.html`, `frontend/templates/dashboard/scanner.html`, `frontend/static/js/pages/scanner.js`, `tests/unit/test_heatmap_template_safety.py`, `tests/unit/test_scanner_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Heatmap, Scanner and scanner backend hardening checks passed (**12 passed**), both JavaScript syntax checks passed, Heatmap inline JavaScript compiled, both Jinja templates parsed, and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `6faff8b`.
+
+**Session 83 (Heatmap and Scanner state resilience - UI-10, §7.103):**
+- `frontend/templates/dashboard/heatmap.html` - add filter labels, tile-size state semantics, freshness context, busy-state handling, safe numeric fallback and duplicate boot protection.
+- `frontend/templates/dashboard/scanner.html` - add form relationships, button types, result caption and scanner status context.
+- `frontend/static/js/pages/scanner.js` - isolate KPI failures, reject malformed scan payloads, expose scan status/timestamps, and guard duplicate initialization.
+- `tests/unit/test_heatmap_template_safety.py`, `tests/unit/test_scanner_template_safety.py` - protect new accessibility and resilience contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.102 IMPLEMENTED - Improve Signals and AI Inspector decision workflows
 
 The Signals page now clearly separates live active signals/open P&L from historical closed-trade results, exposes semantic live/history tabs and filter labels, reports refresh and feed health, and uses bounded numeric rendering for provider values. Live refreshes are coordinated so overlapping requests do not overwrite newer results; history, active signals and P&L replace indefinite loading with explicit unavailable states. The AI Inspector now labels its asset/timeframe controls, exposes a live result region and busy state, bounds model member outputs, reports asset-loading failures, and clearly distinguishes complete, incomplete, gated and legacy/fallback prediction context while preserving existing prediction APIs and model metadata.
