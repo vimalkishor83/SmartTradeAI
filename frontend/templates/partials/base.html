@@ -548,6 +548,9 @@
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/socket.io.min.js"></script>
 <script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
+{% if hide_sidebar %}
+<script src="/static/js/auth_public.js?v={{ asset_version('js/auth_public.js') }}"></script>
+{% endif %}
 {% if not hide_sidebar %}
 <script src="/static/js/global_ask_ai.js?v={{ asset_version('js/global_ask_ai.js') }}"></script>
 {% endif %}

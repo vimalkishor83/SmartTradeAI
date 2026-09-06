@@ -330,7 +330,7 @@
 <div class="auth-container">
 
   <!-- ═══ LEFT: brand / value panel ═══ -->
-  <aside class="auth-side">
+  <aside class="auth-side" aria-labelledby="authValueTitle">
     <a href="/home" class="auth-home-link">
       <span class="brand-icon">📈</span>
       SmartTrade <span class="ai-part">AI</span>
@@ -341,7 +341,7 @@
       Live across Global Markets
     </div>
 
-    <h1 class="auth-side-title">
+    <h1 class="auth-side-title" id="authValueTitle">
       Join traders reading the market <span class="hl">like a terminal</span>
     </h1>
 
@@ -357,7 +357,7 @@
       <div class="auth-side-feature"><i class="bi bi-gift-fill"></i><span>Have a <strong>broker referral code</strong>? Unlock Premium free at signup</span></div>
     </div>
 
-    <div class="auth-ticker" id="authTicker">
+    <div class="auth-ticker" id="authTicker" role="status" aria-live="polite" aria-label="Live market prices">
       <div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Loading live prices…</span></div>
     </div>
 
@@ -376,34 +376,34 @@
   </aside>
 
   <!-- ═══ RIGHT: form panel ═══ -->
-  <div class="auth-form-panel">
+  <main class="auth-form-panel" aria-labelledby="authFormTitle">
     <div class="auth-card">
       <div class="mb-4">
-        <h2 class="fw-bold">Create Account</h2>
+        <h2 class="fw-bold" id="authFormTitle">Create Account</h2>
         <p class="text-muted small">Start your AI-powered trading journey</p>
       </div>
 
       <form id="registerForm">
         <div class="row g-3 mb-3">
           <div class="col">
-            <label class="form-label">First Name</label>
+            <label class="form-label" for="firstName">First Name</label>
             <input type="text" class="form-control" id="firstName" placeholder="John" />
           </div>
           <div class="col">
-            <label class="form-label">Last Name</label>
+            <label class="form-label" for="lastName">Last Name</label>
             <input type="text" class="form-control" id="lastName" placeholder="Doe" />
           </div>
         </div>
         <div class="mb-3">
-          <label class="form-label">Username</label>
+          <label class="form-label" for="username">Username</label>
           <input type="text" class="form-control" id="username" placeholder="trader123" required />
         </div>
         <div class="mb-3">
-          <label class="form-label">Email Address</label>
+          <label class="form-label" for="email">Email Address</label>
           <input type="email" class="form-control" id="email" placeholder="you@example.com" required />
         </div>
         <div class="mb-3">
-          <label class="form-label">Password</label>
+          <label class="form-label" for="password">Password</label>
           <div class="input-group">
             <input type="password" class="form-control" id="password" placeholder="••••••••" required minlength="8" autocomplete="new-password" />
             <button class="btn btn-outline-light" type="button" id="toggleRegPwd" aria-label="Show password" aria-pressed="false"><i class="bi bi-eye"></i></button>
@@ -419,7 +419,7 @@
           <div class="referral-box-label"><i class="bi bi-gift-fill"></i> Have a broker or referral code?</div>
           <div class="row g-2">
             <div class="col-6">
-              <label class="form-label small mb-1">Broker <span class="text-muted">(optional)</span></label>
+              <label class="form-label small mb-1" for="brokerSelect">Broker <span class="text-muted">(optional)</span></label>
               <select class="form-select form-select-sm" id="brokerSelect">
                 <option value="">Select broker…</option>
               </select>
@@ -428,9 +428,9 @@
               </div>
             </div>
             <div class="col-6">
-              <label class="form-label small mb-1" id="brokerAccountIdLabel">Broker Account ID <span class="text-muted">(optional)</span></label>
+              <label class="form-label small mb-1" id="brokerAccountIdLabel" for="brokerAccountId">Broker Account ID <span class="text-muted">(optional)</span></label>
               <input type="text" class="form-control form-control-sm" id="brokerAccountId" placeholder="e.g. ZH1234" />
-              <label class="form-label small mb-1 mt-2">Referral Code <span class="text-muted">(optional)</span></label>
+              <label class="form-label small mb-1 mt-2" for="referralCode">Referral Code <span class="text-muted">(optional)</span></label>
               <input type="text" class="form-control form-control-sm text-uppercase" id="referralCode" placeholder="e.g. ZERODHA2026" autocomplete="off" />
               <div class="referral-hint" id="referralCodeStatus"></div>
             </div>
@@ -453,8 +453,8 @@
           </label>
         </div>
 
-        <div id="registerError" class="alert alert-danger py-2 d-none"></div>
-        <div id="registerSuccess" class="alert alert-success py-2 d-none"></div>
+        <div id="registerError" class="alert alert-danger py-2 d-none" role="alert" aria-live="assertive"></div>
+        <div id="registerSuccess" class="alert alert-success py-2 d-none" role="status" aria-live="polite"></div>
 
         <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="registerBtn">
           <span class="btn-text">Create Account</span>
@@ -476,69 +476,21 @@
         <div class="auth-trust-item"><i class="bi bi-broadcast"></i>24/7 crypto coverage</div>
       </div>
     </div>
-  </div>
+  </main>
 
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Live-wire the 3-row price card in the brand panel — was frozen sample
-// data, now pulled from the same unauthenticated endpoint the landing
-// page ticker uses.
-(async function () {
-  const el = document.getElementById('authTicker');
-  if (!el) return;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
-    clearTimeout(t);
-    const data = await res.json();
-    const items = (data.items || []).slice(0, 3);
-    if (items.length) {
-      const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
-      const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
-      const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
-      el.innerHTML = items.map(it => `
-        <div class="auth-ticker-row">
-          <span class="auth-ticker-sym">${it.symbol}</span>
-          <span class="auth-ticker-price">${fmt(it.price)}</span>
-          <span class="auth-ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
-        </div>`).join('');
-    } else {
-      el.innerHTML = '<div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Live prices unavailable</span></div>';
-    }
-  } catch (e) {
-    el.innerHTML = '<div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Live prices unavailable</span></div>';
-  }
-})();
-
-// The Assets/Timeframes stat cards were hardcoded ("24"/"7") and had
-// quietly drifted from the platform's real, current coverage — now
-// pulled from the same public endpoint the landing page stats use.
-(async function () {
-  const elAssets = document.getElementById('authStatAssets');
-  const elTf = document.getElementById('authStatTimeframes');
-  if (!elAssets && !elTf) return;
-  try {
-    const res = await fetch('/api/v1/signals/public-stats');
-    const s = await res.json();
-    if (elAssets) elAssets.textContent = s.assets_covered ?? '—';
-    if (elTf) elTf.textContent = s.timeframes_covered ?? '—';
-  } catch (e) {
-    if (elAssets) elAssets.textContent = '—';
-    if (elTf) elTf.textContent = '—';
-  }
-})();
-
 // If already logged in, go straight to dashboard (verify token is valid
 // first) — matches login.html's identical guard. Without this, an
 // already-authenticated visitor landing on /register (e.g. from a stale
 // bookmark, or before the footer/nav links were fixed to hide themselves
 // when logged in) saw and could submit the full signup form again.
 (async function() {
-  const token = localStorage.getItem('access_token');
+  let token = null;
+  try { token = localStorage.getItem('access_token'); } catch (_) {}
   if (token) {
     try {
       const res = await fetch('/api/v1/auth/me', {
@@ -549,8 +501,7 @@
         return;
       }
     } catch(e) {}
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    try { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); } catch (_) {}
   }
 })();
 
@@ -711,37 +662,49 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     return;
   }
 
-  const res = await fetch('/api/v1/auth/register', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      username: document.getElementById('username').value,
-      email: document.getElementById('email').value,
-      password: document.getElementById('password').value,
-      first_name: document.getElementById('firstName').value,
-      last_name: document.getElementById('lastName').value,
-      broker_id: brokerSelectEl.value || null,
-      broker_account_id: brokerAccountIdEl.value.trim(),
-      referral_code: document.getElementById('referralCode').value.trim().toUpperCase(),
-      accept_terms: true,
-      website: document.getElementById('website').value,
-    }),
-  });
+  try {
+    const res = await fetch('/api/v1/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username: document.getElementById('username').value,
+        email: document.getElementById('email').value,
+        password: document.getElementById('password').value,
+        first_name: document.getElementById('firstName').value,
+        last_name: document.getElementById('lastName').value,
+        broker_id: brokerSelectEl.value || null,
+        broker_account_id: brokerAccountIdEl.value.trim(),
+        referral_code: document.getElementById('referralCode').value.trim().toUpperCase(),
+        accept_terms: true,
+        website: document.getElementById('website').value,
+      }),
+    });
 
-  const data = await res.json();
-  if (res.ok) {
-    localStorage.setItem('access_token', data.access_token);
-    localStorage.setItem('refresh_token', data.refresh_token);
-    if (data.referral_applied) {
-      okEl.textContent = '🎉 Referral code applied — Premium unlocked! Redirecting…';
-      okEl.classList.remove('d-none');
-      setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.access_token) {
+      try {
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token || '');
+      } catch (_) {
+        errEl.textContent = 'Your account was created, but this browser blocked session storage. Enable storage and sign in manually.';
+        errEl.classList.remove('d-none');
+        return;
+      }
+      if (data.referral_applied) {
+        okEl.textContent = '🎉 Referral code applied — Premium unlocked! Redirecting…';
+        okEl.classList.remove('d-none');
+        setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
+      } else {
+        window.location.href = '/dashboard';
+      }
     } else {
-      window.location.href = '/dashboard';
+      errEl.textContent = data.error || (res.ok ? 'Registration completed, but no session was returned.' : 'Registration failed');
+      errEl.classList.remove('d-none');
     }
-  } else {
-    errEl.textContent = data.error || 'Registration failed';
+  } catch (_) {
+    errEl.textContent = 'Connection issue — please check your internet connection and retry.';
     errEl.classList.remove('d-none');
+  } finally {
     btn.disabled = false;
     spinner.classList.add('d-none');
   }

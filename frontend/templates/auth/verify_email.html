@@ -4,16 +4,16 @@
 
 {% block auth_content %}
 <div class="auth-container">
-  <div class="auth-card text-center">
+  <main class="auth-card text-center" aria-labelledby="veTitle">
     <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
       <span class="fs-4 fw-bold">SmartTrade <span class="text-accent">AI</span></span>
     </div>
     <div id="veIcon" class="mb-3" style="font-size:42px"><i class="bi bi-hourglass-split text-accent"></i></div>
     <h2 class="fw-bold" id="veTitle">Verifying your email…</h2>
-    <p class="text-muted small" id="veMessage">Please wait a moment.</p>
+    <p class="text-muted small" id="veMessage" role="status" aria-live="polite">Please wait a moment.</p>
     <a href="/login" class="btn btn-primary mt-2 d-none" id="veLoginBtn">Go to Sign In</a>
-  </div>
+  </main>
 </div>
 {% endblock %}
 

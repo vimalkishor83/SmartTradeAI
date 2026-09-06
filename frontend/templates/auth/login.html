@@ -294,7 +294,7 @@
 <div class="auth-container">
 
   <!-- ═══ LEFT: brand / value panel ═══ -->
-  <aside class="auth-side">
+  <aside class="auth-side" aria-labelledby="authValueTitle">
     <a href="/home" class="auth-home-link">
       <span class="brand-icon">📈</span>
       SmartTrade <span class="ai-part">AI</span>
@@ -305,7 +305,7 @@
       Live across Global Markets
     </div>
 
-    <h1 class="auth-side-title">
+    <h1 class="auth-side-title" id="authValueTitle">
       Welcome back to your <span class="hl">trading terminal</span>
     </h1>
 
@@ -320,7 +320,7 @@
       <div class="auth-side-feature"><i class="bi bi-shield-check"></i><span><strong>Built-in risk management</strong> — entry, target &amp; stop-loss on every call</span></div>
     </div>
 
-    <div class="auth-ticker" id="authTicker">
+    <div class="auth-ticker" id="authTicker" role="status" aria-live="polite" aria-label="Live market prices">
       <div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Loading live prices…</span></div>
     </div>
 
@@ -339,20 +339,20 @@
   </aside>
 
   <!-- ═══ RIGHT: form panel ═══ -->
-  <div class="auth-form-panel">
+  <main class="auth-form-panel" aria-labelledby="authFormTitle">
     <div class="auth-card">
       <div class="mb-4">
-        <h2 class="fw-bold">Welcome Back</h2>
+        <h2 class="fw-bold" id="authFormTitle">Welcome Back</h2>
         <p class="text-muted small">Sign in to access your trading dashboard</p>
       </div>
 
       <form id="loginForm">
         <div class="mb-3">
-          <label class="form-label">Email or Username</label>
+           <label class="form-label" for="loginEmail">Email or Username</label>
           <input type="text" class="form-control" id="loginEmail" placeholder="you@example.com or username" autocomplete="username" required />
         </div>
         <div class="mb-3">
-          <label class="form-label">Password</label>
+           <label class="form-label" for="loginPassword">Password</label>
           <div class="input-group">
             <input type="password" class="form-control" id="loginPassword" placeholder="Enter your password" autocomplete="current-password" required />
             <button class="btn btn-outline-light" type="button" id="togglePwd" aria-label="Show password" aria-pressed="false"><i class="bi bi-eye"></i></button>
@@ -361,16 +361,16 @@
         </div>
 
         <!-- 2FA step — hidden until password is verified -->
-        <div id="totpStep" style="display:none">
+        <div id="totpStep" aria-hidden="true" style="display:none">
           <hr style="border-color:var(--border)">
-          <label class="form-label"><i class="bi bi-shield-lock me-1 text-accent"></i> 2FA Code</label>
+           <label class="form-label" for="totpCode"><i class="bi bi-shield-lock me-1 text-accent"></i> 2FA Code</label>
           <input type="text" class="form-control font-monospace text-center mb-1" id="totpCode"
                  maxlength="6" placeholder="000000" style="font-size:20px;letter-spacing:6px;max-width:180px"
                  autocomplete="one-time-code" inputmode="numeric">
           <div class="text-muted" style="font-size:11px;margin-bottom:10px">Enter the 6-digit code from your authenticator app, or an 8-character backup code.</div>
         </div>
 
-        <div id="loginError" class="alert alert-danger py-2 d-none small"></div>
+        <div id="loginError" class="alert alert-danger py-2 d-none small" role="alert" aria-live="assertive"></div>
 
         <button type="submit" class="btn btn-primary w-100 py-2 mb-3" id="loginBtn">
           <span id="loginBtnText">Sign In</span>
@@ -429,65 +429,17 @@
         <div class="auth-trust-item"><i class="bi bi-broadcast"></i>24/7 crypto coverage</div>
       </div>
     </div>
-  </div>
+  </main>
 
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
-// Live-wire the 3-row price card in the brand panel — was frozen sample
-// data, now pulled from the same unauthenticated endpoint the landing
-// page ticker uses.
-(async function () {
-  const el = document.getElementById('authTicker');
-  if (!el) return;
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 8000);
-    const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
-    clearTimeout(t);
-    const data = await res.json();
-    const items = (data.items || []).slice(0, 3);
-    if (items.length) {
-      const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
-      const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
-      const fmt = (p) => p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2);
-      el.innerHTML = items.map(it => `
-        <div class="auth-ticker-row">
-          <span class="auth-ticker-sym">${it.symbol}</span>
-          <span class="auth-ticker-price">${fmt(it.price)}</span>
-          <span class="auth-ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
-        </div>`).join('');
-    } else {
-      el.innerHTML = '<div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Live prices unavailable</span></div>';
-    }
-  } catch (e) {
-    el.innerHTML = '<div class="auth-ticker-row"><span class="auth-ticker-sym text-muted">Live prices unavailable</span></div>';
-  }
-})();
-
-// The Assets/Timeframes stat cards were hardcoded ("24"/"7") and had
-// quietly drifted from the platform's real, current coverage — now
-// pulled from the same public endpoint the landing page stats use.
-(async function () {
-  const elAssets = document.getElementById('authStatAssets');
-  const elTf = document.getElementById('authStatTimeframes');
-  if (!elAssets && !elTf) return;
-  try {
-    const res = await fetch('/api/v1/signals/public-stats');
-    const s = await res.json();
-    if (elAssets) elAssets.textContent = s.assets_covered ?? '—';
-    if (elTf) elTf.textContent = s.timeframes_covered ?? '—';
-  } catch (e) {
-    if (elAssets) elAssets.textContent = '—';
-    if (elTf) elTf.textContent = '—';
-  }
-})();
-
 // If already logged in, go straight to dashboard (verify token is valid first)
 (async function() {
-  const token = localStorage.getItem('access_token');
+  let token = null;
+  try { token = localStorage.getItem('access_token'); } catch (_) {}
   if (token) {
     try {
       const res = await fetch('/api/v1/auth/me', {
@@ -499,8 +451,7 @@
       }
     } catch(e) {}
     // Token invalid — clear it and show login
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    try { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); } catch (_) {}
   }
 })();
 
@@ -563,16 +514,25 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
 
     const data = await res.json();
 
-    if (res.status === 202 && data.totp_required) {
-      // Password OK — show 2FA step
-      document.getElementById('totpStep').style.display = '';
-      document.getElementById('loginBtnText').textContent = 'Verify & Sign In';
+      if (res.status === 202 && data.totp_required) {
+        // Password OK — show 2FA step
+        document.getElementById('totpStep').style.display = '';
+        document.getElementById('totpStep').setAttribute('aria-hidden', 'false');
+        document.getElementById('loginBtnText').textContent = 'Verify & Sign In';
       document.getElementById('totpCode').focus();
       btn.disabled = false;
       spinner.classList.add('d-none');
     } else if ((res.ok || res.status === 200) && data.access_token) {
-      localStorage.setItem('access_token',  data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
+      try {
+        localStorage.setItem('access_token', data.access_token);
+        localStorage.setItem('refresh_token', data.refresh_token || '');
+      } catch (_) {
+        errEl.textContent = 'This browser blocked session storage. Enable storage and try again.';
+        errEl.classList.remove('d-none');
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+        return;
+      }
       window.location.replace('/dashboard');
     } else {
       errEl.textContent = data.error || 'Invalid email or password';

@@ -1426,7 +1426,7 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Risk level:** High discoverability and workflow clarity value, low compatibility risk because route contracts and authorization behavior are unchanged. **Affected modules:** `frontend/templates/partials/base.html`, `tests/unit/test_shared_navigation_safety.py`. **Migration:** none.
 
-**Regression evidence:** Shared navigation checks passed (**2 passed**), the Jinja template parsed successfully, the eight-group and route-placement assertions passed, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+**Regression evidence:** Shared navigation checks passed (**2 passed**), the Jinja template parsed successfully, the eight-group and route-placement assertions passed, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: `bd92c42`.
 
 **Session 74 (information architecture - primary dashboard shell, §7.94):**
 - `frontend/templates/partials/base.html` - align sidebar groups to user tasks, remove cross-group duplication, preserve active states/tier gates, and keep admin-only controls hidden.
@@ -1441,7 +1441,7 @@ The public landing page now has skip navigation, semantic public navigation and 
 
 **Risk level:** High conversion, accessibility and public-data trust value, low compatibility risk because existing public routes, content sections and API response shapes are preserved. **Affected modules:** `frontend/templates/landing.html`, `tests/unit/test_public_landing_safety.py`. **Migration:** none.
 
-**Regression evidence:** Public landing checks passed (**3 passed**), four inline scripts passed Node parsing, the main landmark is balanced, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+**Regression evidence:** Public landing checks passed (**3 passed**), four inline scripts passed Node parsing, the main landmark is balanced, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: `02ff250`.
 
 **Session 77 (public UX and safe rendering - UI-4, §7.97):**
 - `frontend/templates/landing.html` - add responsive public navigation, skip link, main landmark, focus/reduced-motion behavior, storage safety, serialized ticker polling and bounded/escaped public data rendering.
@@ -1455,7 +1455,7 @@ The authenticated shell now exposes explicit labels and relationships for the si
 
 **Risk level:** Critical accessibility and cross-device usability value, low compatibility risk because route destinations, data contracts and existing element IDs are unchanged. **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/global_ask_ai.js`, `tests/unit/test_application_shell_safety.py`. **Migration:** none.
 
-**Regression evidence:** Application-shell, design-system and navigation checks passed (**6 passed**), both global JavaScript files passed Node syntax checks, the base inline scripts parsed successfully, the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+**Regression evidence:** Application-shell, design-system and navigation checks passed (**6 passed**), both global JavaScript files passed Node syntax checks, the base inline scripts parsed successfully, the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commits: `baf4799`, `caa142a`.
 
 **Session 76 (shared shell accessibility and resilience - UI-3, §7.96):**
 - `frontend/templates/partials/base.html` - add shell landmarks, explicit control names, modal relationships, and storage-safe first-paint preference handling.
@@ -1471,11 +1471,27 @@ The primary dashboard stylesheet now exposes semantic surface, status, focus, co
 
 **Risk level:** High consistency, accessibility and implementation-speed value, low compatibility risk because the token/primitives layer is additive and existing page classes remain supported. **Affected modules:** `frontend/static/css/main.css`, `frontend/templates/partials/base.html`, `tests/unit/test_design_system_safety.py`. **Migration:** none.
 
-**Regression evidence:** Design-system and shared-shell checks passed (**4 passed**), the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+**Regression evidence:** Design-system and shared-shell checks passed (**4 passed**), the base Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: `f3cadb8`.
 
 **Session 75 (design system and accessibility foundation - UI-2, §7.95):**
 - `frontend/static/css/main.css` - add semantic tokens, reusable surfaces/toolbars/states/chips/metrics, focus treatment, responsive state layout, and reduced-motion behavior.
 - `frontend/templates/partials/base.html` - mark the authenticated shell with the shared `app-shell` hook.
 - `tests/unit/test_design_system_safety.py` - protect token, primitive, focus, color-scheme and reduced-motion contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
+### 7.98 IMPLEMENTED - Unify the authentication and onboarding experience
+
+Login, registration and password recovery now share one read-only public market-context controller instead of maintaining three drifting ticker and statistics implementations. Auth forms use explicit labels, semantic landmarks, live feedback regions and stateful hidden/visible relationships; login 2FA, registration, recovery, reset and email verification transitions expose their state to assistive technology. Network failures, malformed responses, blocked browser storage and request timeouts now recover with bounded user-facing feedback without changing auth endpoints or token contracts.
+
+**Risk level:** High trust, accessibility and conversion value, low compatibility risk because existing routes, API payloads, form IDs, token keys and security-neutral recovery messaging are preserved. **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/auth_public.js`, `frontend/templates/auth/login.html`, `frontend/templates/auth/register.html`, `frontend/templates/auth/forgot_password.html`, `frontend/templates/auth/reset_password.html`, `frontend/templates/auth/verify_email.html`, `tests/unit/test_auth_experience_safety.py`. **Migration:** none.
+
+**Regression evidence:** Auth UI contract checks passed (**3 passed**); existing profile mutation and new-IP-login security integration checks passed (**10 passed**); browser JavaScript syntax checks, auth template parsing and whitespace validation passed. Existing pandas/SQLAlchemy/Flask-Migrate deprecation warnings and the local pytest cache permission warning remain non-blocking. Commit: pending.
+
+**Session 78 (authentication UX, onboarding resilience and shared public context - UI-5, §7.98):**
+- `frontend/templates/partials/base.html` - load the shared auth-only public context controller without exposing authenticated-only widgets on pre-login screens.
+- `frontend/static/js/auth_public.js` - consolidate bounded, DOM-safe ticker/stat rendering with timeout cleanup and unavailable states.
+- `frontend/templates/auth/login.html`, `register.html`, `forgot_password.html`, `reset_password.html`, `verify_email.html` - add form relationships, landmarks, live feedback and resilient submit/state transitions while preserving endpoint contracts.
+- `tests/unit/test_auth_experience_safety.py` - protect auth labels, state transitions, shared rendering, storage and response-handling contracts.
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
