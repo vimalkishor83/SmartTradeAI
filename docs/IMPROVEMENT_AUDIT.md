@@ -8,6 +8,20 @@ Phase 0 architecture and sequencing artifacts are maintained in [`docs/ARCHITECT
 
 ---
 
+### 7.118 IMPLEMENTED - Make Model Performance refresh state explicit
+
+The Model Performance dashboard now announces loading, successful, empty and unavailable states in an accessible live region. Refresh is disabled while the request is active and is restored in all completion paths, preventing duplicate requests and making stale values visible instead of leaving a failed refresh indistinguishable from a healthy page. Existing prediction endpoints, caching and rendering contracts remain unchanged.
+
+**Risk level:** High decision-support clarity and accessibility value, low compatibility risk because the change is additive and preserves the existing API and evaluated-metric semantics. **Affected modules:** `frontend/templates/dashboard/model_performance.html`, `tests/unit/test_model_performance_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Model Performance template and route contract checks passed (**5 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 98 (Model Performance refresh lifecycle):**
+- `frontend/templates/dashboard/model_performance.html` - add accessible status announcements and request-busy state around the existing model-performance refresh.
+- `tests/unit/test_model_performance_template_safety.py` - protect status, busy-state and stale-data messaging contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.

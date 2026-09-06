@@ -71,6 +71,7 @@
     <i class="bi bi-arrow-clockwise me-1"></i>Refresh
   </button>
 </div>
+<div id="modelPerformanceStatus" class="visually-hidden" role="status" aria-live="polite"></div>
 
 <!-- Summary stat cards -->
 <div class="row g-3 mb-4" id="statCards">
@@ -291,6 +292,13 @@ async function loadPerf() {
   if (_perfRequestInFlight) return;
   _perfRequestInFlight = true;
   const sequence = ++_perfLoadSequence;
+  const refreshButton = document.querySelector('[data-action="refresh-performance"]');
+  const status = document.getElementById('modelPerformanceStatus');
+  if (refreshButton) {
+    refreshButton.disabled = true;
+    refreshButton.setAttribute('aria-busy', 'true');
+  }
+  if (status) status.textContent = 'Loading evaluated model performance…';
   try {
     const response = await API.get('/predictions/model-performance');
     if (sequence !== _perfLoadSequence) return;
@@ -303,10 +311,16 @@ async function loadPerf() {
     renderCoverage(data);
     _allAssets = Array.isArray(data.by_asset) ? data.by_asset.filter(asset => asset && typeof asset === 'object') : [];
     renderAssetTable(_allAssets);
+    if (status) status.textContent = data.overall?.total ? 'Model performance updated.' : 'No evaluated predictions are available yet.';
   } catch (e) {
+    if (status) status.textContent = 'Model performance is unavailable. Existing values, if any, may be stale.';
     Toast.show('Failed to load model performance', 'danger');
   } finally {
     _perfRequestInFlight = false;
+    if (refreshButton) {
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute('aria-busy');
+    }
   }
 }
 

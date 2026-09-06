@@ -13,6 +13,7 @@ def test_model_performance_controls_are_event_bound():
     assert "oninput=" not in source
     assert 'data-action="refresh-performance"' in source
     assert "addEventListener('click', loadPerf)" in source
+    assert 'id="modelPerformanceStatus" class="visually-hidden" role="status" aria-live="polite"' in source
 
 
 def test_model_performance_uses_bounded_dynamic_values():
@@ -33,3 +34,5 @@ def test_model_performance_guards_refresh_and_chart_state():
     assert "let _perfRequestInFlight = false;" in source
     assert "if (_perfRequestInFlight) return;" in source
     assert "if (sequence !== _perfLoadSequence) return;" in source
+    assert "refreshButton.disabled = true;" in source
+    assert "Existing values, if any, may be stale." in source
