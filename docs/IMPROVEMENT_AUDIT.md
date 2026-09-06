@@ -1435,13 +1435,31 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.100 IMPLEMENTED - Add a date-aware Reporting Center
+
+The research navigation now includes a Basic-tier Reporting Center that consolidates historical closed-trade review into one explicit date-scoped workflow. Users can select 7, 30, 90 or 365-day UTC presets or a custom range up to 367 days, see outcome mix, win rate, P&L, profit factor, duration, market/timeframe breakdowns and daily P&L, and export the same selected history range as CSV. The backend performs bounded SQL aggregates, keeps neutral outcomes visible while excluding them from win rate, and rejects malformed, reversed or oversized ranges before querying.
+
+**Risk level:** High reporting clarity and operational review value, low compatibility risk because the new route is additive and existing analytics, performance, journal and all-time export contracts remain available. **Affected modules:** `app/api/v1/signals.py`, `app/views.py`, `frontend/templates/partials/base.html`, `frontend/templates/dashboard/reports.html`, `frontend/static/js/pages/reports.js`, `frontend/static/css/main.css`, `tests/integration/test_signal_report.py`, `tests/unit/test_reports_template_safety.py`, `tests/unit/test_shared_navigation_safety.py`. **Migration:** none.
+
+**Regression evidence:** Reporting API integration checks passed (**5 passed**), Reporting Center/navigation/analytics checks passed (**8 passed**), JavaScript syntax validation, Python compilation, Jinja parsing and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: pending.
+
+**Session 80 (date-aware historical reporting and export - UI-7, §7.100):**
+- `app/api/v1/signals.py` - add bounded UTC date parsing, SQL-backed report aggregates and matching date filters for history CSV export.
+- `app/views.py` - expose the additive `/reports` page route.
+- `frontend/templates/partials/base.html` - place Reporting Center in Research and the command palette while preserving tier gates and route contracts.
+- `frontend/templates/dashboard/reports.html`, `frontend/static/js/pages/reports.js` - add the responsive date-range report workflow, safe rendering, loading/error states, accessible tables/charts and authenticated CSV download.
+- `frontend/static/css/main.css` - add responsive report controls, summary cards, outcome bars and chart layout using shared tokens.
+- `tests/integration/test_signal_report.py`, `tests/unit/test_reports_template_safety.py`, `tests/unit/test_shared_navigation_safety.py` - protect aggregation, date validation, export filtering, rendering safety and navigation placement.
+
+**Database changes:** none. **API contract changes:** additive `GET /api/v1/signals/report` date-range response and optional date filters for history CSV; no existing field was removed or renamed. **No new credentials or secrets introduced.**
+
 ### 7.99 IMPLEMENTED - Improve the primary dashboard decision surface
 
 The dashboard now distinguishes current market conditions, live active signals, today's UTC activity and historical closed-trade performance in the interface itself. A compact data-context bar reports refresh state and last update time, the equity range accurately says it is limited to the latest 100 closed trades, chart/table regions have accessible descriptions, and heatmap metrics expose a complete tab/tabpanel relationship. Refreshes are serialized, stale signal and heatmap responses are ignored, provider numbers are normalized and bounded before rendering, charts retain recoverable empty states, and partial API failures are reported instead of leaving indefinite loading placeholders.
 
 **Risk level:** High decision-support clarity, accessibility and perceived-performance value, low compatibility risk because existing API paths, response shapes, navigation targets and table/chart IDs are preserved. **Affected modules:** `frontend/templates/dashboard/index.html`, `frontend/static/js/pages/dashboard.js`, `frontend/static/css/main.css`, `tests/unit/test_dashboard_template_safety.py`. **Migration:** none.
 
-**Regression evidence:** Dashboard safety/accessibility checks passed (**6 passed**), dashboard JavaScript syntax validation passed, the Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+**Regression evidence:** Dashboard safety/accessibility checks passed (**6 passed**), dashboard JavaScript syntax validation passed, the Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: `d0f3aa3`.
 
 **Session 79 (dashboard UX, data freshness and resilient rendering - UI-6, §7.99):**
 - `frontend/templates/dashboard/index.html` - label live/current versus historical/UTC dashboard data, improve action and chart/table semantics, and add a complete heatmap tab relationship.
@@ -1502,7 +1520,7 @@ Login, registration and password recovery now share one read-only public market-
 
 **Risk level:** High trust, accessibility and conversion value, low compatibility risk because existing routes, API payloads, form IDs, token keys and security-neutral recovery messaging are preserved. **Affected modules:** `frontend/templates/partials/base.html`, `frontend/static/js/auth_public.js`, `frontend/templates/auth/login.html`, `frontend/templates/auth/register.html`, `frontend/templates/auth/forgot_password.html`, `frontend/templates/auth/reset_password.html`, `frontend/templates/auth/verify_email.html`, `tests/unit/test_auth_experience_safety.py`. **Migration:** none.
 
-**Regression evidence:** Auth UI contract checks passed (**3 passed**); existing profile mutation and new-IP-login security integration checks passed (**10 passed**); browser JavaScript syntax checks, auth template parsing and whitespace validation passed. Existing pandas/SQLAlchemy/Flask-Migrate deprecation warnings and the local pytest cache permission warning remain non-blocking. Commit: pending.
+**Regression evidence:** Auth UI contract checks passed (**3 passed**); existing profile mutation and new-IP-login security integration checks passed (**10 passed**); browser JavaScript syntax checks, auth template parsing and whitespace validation passed. Existing pandas/SQLAlchemy/Flask-Migrate deprecation warnings and the local pytest cache permission warning remain non-blocking. Commit: `3453f25`.
 
 **Session 78 (authentication UX, onboarding resilience and shared public context - UI-5, §7.98):**
 - `frontend/templates/partials/base.html` - load the shared auth-only public context controller without exposing authenticated-only widgets on pre-login screens.

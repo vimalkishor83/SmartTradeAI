@@ -1912,6 +1912,151 @@ def get_summary():
     }), 200
 
 
+def _report_date_range():
+    """Parse a bounded UTC date range for read-only reporting endpoints."""
+    today = datetime.utcnow().date()
+    default_start = today - timedelta(days=29)
+
+    def parse_date(raw, label, fallback):
+        if not raw:
+            return fallback
+        try:
+            return datetime.strptime(raw, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            raise ValueError(f"{label} must use YYYY-MM-DD format")
+
+    start = parse_date(
+        request.args.get("from") or request.args.get("start_date"),
+        "from",
+        default_start,
+    )
+    end = parse_date(
+        request.args.get("to") or request.args.get("end_date"),
+        "to",
+        today,
+    )
+    if start > end:
+        raise ValueError("from must be on or before to")
+    if (end - start).days > 366:
+        raise ValueError("date range cannot exceed 367 days")
+    start_at = datetime.combine(start, datetime.min.time())
+    end_at = datetime.combine(end + timedelta(days=1), datetime.min.time())
+    return start, end, start_at, end_at
+
+
+@signals_bp.route("/report", methods=["GET"])
+@login_required
+@cache.cached(timeout=60, query_string=True, key_prefix="signals_report")
+def signal_report():
+    """Return bounded, UTC-date performance aggregates for Reporting Center."""
+    try:
+        start, end, start_at, end_at = _report_date_range()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    filters = [
+        SignalHistory.closed_at >= start_at,
+        SignalHistory.closed_at < end_at,
+    ]
+    wins_expr = func.sum(case((SignalHistory.outcome == "win", 1), else_=0))
+    losses_expr = func.sum(case((SignalHistory.outcome == "loss", 1), else_=0))
+    summary = db.session.query(
+        func.count(SignalHistory.id),
+        wins_expr,
+        losses_expr,
+        func.sum(SignalHistory.pnl_pct),
+        func.avg(SignalHistory.pnl_pct),
+        func.avg(SignalHistory.duration_minutes),
+    ).filter(*filters).one()
+
+    def count(value):
+        return int(value or 0)
+
+    def amount(value, digits=2):
+        return round(float(value), digits) if value is not None else 0.0
+
+    total = count(summary[0])
+    wins = min(total, count(summary[1]))
+    losses = min(total - wins, count(summary[2]))
+    neutral = max(0, total - wins - losses)
+    net_pnl = amount(summary[3])
+    gross_win = amount(db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
+        *filters, SignalHistory.outcome == "win"
+    ).scalar())
+    gross_loss = abs(amount(db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
+        *filters, SignalHistory.outcome == "loss"
+    ).scalar()))
+
+    def bucket_rows(column):
+        return db.session.query(
+            column.label("bucket"),
+            func.count(SignalHistory.id).label("total"),
+            wins_expr.label("wins"),
+            losses_expr.label("losses"),
+            func.sum(SignalHistory.pnl_pct).label("pnl"),
+        ).filter(*filters).group_by(column).order_by(column).all()
+
+    def serialize_bucket(row):
+        bucket, row_total, row_wins, row_losses, pnl = row
+        row_total = count(row_total)
+        row_wins = min(row_total, count(row_wins))
+        row_losses = min(row_total - row_wins, count(row_losses))
+        return {
+            "name": str(bucket) if bucket is not None else "Unknown",
+            "total": row_total,
+            "wins": row_wins,
+            "losses": row_losses,
+            "win_rate": round(row_wins / row_total * 100, 1) if row_total else None,
+            "pnl_pct": amount(pnl),
+        }
+
+    market_rows = db.session.query(
+        Asset.market.label("bucket"),
+        func.count(SignalHistory.id).label("total"),
+        wins_expr.label("wins"),
+        losses_expr.label("losses"),
+        func.sum(SignalHistory.pnl_pct).label("pnl"),
+    ).join(SignalHistory, SignalHistory.asset_id == Asset.id).filter(
+        *filters
+    ).group_by(Asset.market).order_by(func.count(SignalHistory.id).desc()).all()
+
+    daily_rows = db.session.query(
+        func.date(SignalHistory.closed_at).label("bucket"),
+        func.count(SignalHistory.id).label("total"),
+        wins_expr.label("wins"),
+        losses_expr.label("losses"),
+        func.sum(SignalHistory.pnl_pct).label("pnl"),
+    ).filter(*filters).group_by(func.date(SignalHistory.closed_at)).order_by(
+        func.date(SignalHistory.closed_at)
+    ).all()
+
+    return jsonify({
+        "range": {
+            "from": start.isoformat(),
+            "to": end.isoformat(),
+            "timezone": "UTC",
+            "days": (end - start).days + 1,
+        },
+        "overall": {
+            "total": total,
+            "wins": wins,
+            "losses": losses,
+            "neutral": neutral,
+            "win_rate": round(wins / (wins + losses) * 100, 1) if wins + losses else None,
+            "net_pnl_pct": net_pnl,
+            "avg_pnl_pct": amount(summary[4], 3) if summary[4] is not None else None,
+            "profit_factor": round(gross_win / gross_loss, 2) if gross_loss else None,
+            "avg_duration_minutes": amount(summary[5], 1) if summary[5] is not None else None,
+        },
+        "by_market": [serialize_bucket(row) for row in market_rows],
+        "by_timeframe": [serialize_bucket(row) for row in bucket_rows(SignalHistory.timeframe)],
+        "daily": [
+            dict(serialize_bucket(row), date=str(row[0]))
+            for row in daily_rows
+        ],
+    }), 200
+
+
 @signals_bp.route("/history", methods=["GET"])
 @login_required
 def signal_history():
@@ -2653,10 +2798,25 @@ def export_signals_csv():
 def export_history_csv():
     """Export signal history as a joined, streamed CSV response."""
     today = datetime.utcnow().strftime("%Y-%m-%d")
-    records = (SignalHistory.query
-               .options(joinedload(SignalHistory.asset))
-               .order_by(SignalHistory.closed_at.desc())
-               .yield_per(500))
+    date_args = request.args.get("from") or request.args.get("to") or request.args.get("start_date") or request.args.get("end_date")
+    start_at = end_at = None
+    filename_date = today
+    if date_args:
+        try:
+            start, end, start_at, end_at = _report_date_range()
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        filename_date = f"{start.isoformat()}_{end.isoformat()}"
+
+    records_query = (SignalHistory.query
+                     .options(joinedload(SignalHistory.asset))
+                     .order_by(SignalHistory.closed_at.desc()))
+    if start_at is not None:
+        records_query = records_query.filter(
+            SignalHistory.closed_at >= start_at,
+            SignalHistory.closed_at < end_at,
+        )
+    records = records_query.yield_per(500)
 
     def rows():
         for h in records:
@@ -2682,5 +2842,5 @@ def export_history_csv():
         ["Date", "Asset", "Market", "Timeframe", "Signal", "Entry", "Outcome",
          "PnL%", "Duration(min)", "R:R Predicted"],
         rows(),
-        f"signal_history_{today}.csv",
+        f"signal_history_{filename_date}.csv",
     )

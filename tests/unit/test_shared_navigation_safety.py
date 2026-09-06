@@ -18,6 +18,8 @@ def test_shared_shell_uses_bound_controls_instead_of_inline_click_handlers():
     assert '<span class="nav-section-label">Research</span>' in source
     assert '<span class="nav-section-label">Account</span>' in source
     assert 'id="navGroupBodyResearch"' in source
+    assert "active in ['backtesting','analytics','reports']" in source
+    assert 'href="/reports"' in source
     assert 'id="navGroupBodyAccount"' in source
     assert 'id="navAutoGenerate"' in source
     assert "'dhan_indices'" in source.split("{% set grp_markets", 1)[1].split("%}", 1)[0]

@@ -74,7 +74,7 @@
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index','terminal','dhan_indices'] %}
     {% set grp_signals   = active in ['signals','scanner','heatmap','dhan_indices','delta_scanner','delta_bubbles','signal_history','signal_journal'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','ai','news','advanced_analysis','economic_calendar'] %}
-    {% set grp_research  = active in ['backtesting','analytics'] %}
+    {% set grp_research  = active in ['backtesting','analytics','reports'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
     {% set grp_account   = active in ['settings','help'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
@@ -241,6 +241,11 @@
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyResearch">
+        {% if '/reports' not in disabled_nav_items %}
+        <a href="/reports" data-tooltip="Reporting Center — requires Basic or higher" class="nav-item {% if active == 'reports' %}active{% endif %}">
+          <i class="bi bi-file-earmark-bar-graph nav-icon-amber"></i><span class="nav-text">Reporting Center</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
+        </a>
+        {% endif %}
         {% if '/backtesting' not in disabled_nav_items %}
         <a href="/backtesting" data-tooltip="Backtesting Lab — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
           <i class="bi bi-clock-history nav-icon-amber"></i><span class="nav-text">Backtesting Lab</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
@@ -504,6 +509,7 @@
       {% if '/portfolio' not in disabled_nav_items %}<a href="/portfolio"        class="cmd-item"><i class="bi bi-pie-chart-fill"></i><span class="cmd-item-label">Portfolio</span></a>{% endif %}
       {% if '/watchlist' not in disabled_nav_items %}<a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>{% endif %}
       {% if '/analytics' not in disabled_nav_items %}<a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
+      {% if '/reports' not in disabled_nav_items %}<a href="/reports"          class="cmd-item"><i class="bi bi-file-earmark-bar-graph"></i><span class="cmd-item-label">Reporting Center</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
       {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
       {% if '/journal' not in disabled_nav_items %}<a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
       {% if '/settings' not in disabled_nav_items %}<a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>{% endif %}

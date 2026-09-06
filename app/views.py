@@ -210,6 +210,11 @@ def analytics():
     return render_template("dashboard/analytics.html", requires_tier=2)
 
 
+@views_bp.route("/reports")
+def reports():
+    return render_template("dashboard/reports.html", requires_tier=1)
+
+
 @views_bp.route("/news")
 def news():
     return render_template("dashboard/news.html")

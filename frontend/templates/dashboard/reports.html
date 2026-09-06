@@ -1,0 +1,104 @@
+{% extends "partials/base.html" %}
+{% block title %}Reporting Center - SmartTrade AI{% endblock %}
+{% set active = 'reports' %}
+{% block breadcrumb %}<i class="bi bi-file-earmark-bar-graph me-2"></i> Reporting Center{% endblock %}
+
+{% block content %}
+<div class="page-header report-page-header">
+  <div>
+    <span class="page-eyebrow">Research</span>
+    <h1 class="page-title">Reporting Center</h1>
+    <p class="page-subtitle">Review closed-trade outcomes over a defined UTC date range. This report is historical and does not predict future returns.</p>
+  </div>
+  <div class="report-header-actions">
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="reportExport" aria-label="Download the selected report range as CSV">
+      <i class="bi bi-download me-1"></i>Export Range CSV
+    </button>
+  </div>
+</div>
+
+<section class="report-toolbar ui-surface ui-surface--raised" aria-labelledby="reportFiltersTitle">
+  <div class="report-toolbar-heading">
+    <div>
+      <h2 class="report-section-title" id="reportFiltersTitle">Report range</h2>
+      <p class="report-help">All dates use UTC, matching the signal history service.</p>
+    </div>
+    <span class="ui-chip ui-chip--info" id="reportRangeLabel">Last 30 days</span>
+  </div>
+  <div class="report-controls">
+    <div class="report-control">
+      <label for="reportPreset">Preset</label>
+      <select class="form-select form-select-sm" id="reportPreset">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">Last 365 days</option>
+        <option value="custom">Custom range</option>
+      </select>
+    </div>
+    <div class="report-control">
+      <label for="reportFrom">From (UTC)</label>
+      <input class="form-control form-control-sm" type="date" id="reportFrom" autocomplete="off">
+    </div>
+    <div class="report-control">
+      <label for="reportTo">To (UTC)</label>
+      <input class="form-control form-control-sm" type="date" id="reportTo" autocomplete="off">
+    </div>
+    <button type="button" class="btn btn-sm btn-primary report-run" id="runReport">
+      <i class="bi bi-bar-chart-line me-1"></i>Run Report
+    </button>
+  </div>
+  <div class="report-validation ui-state ui-state--error" id="reportValidation" role="alert" aria-live="assertive" hidden></div>
+</section>
+
+<div class="dashboard-context report-context" id="reportStatus" role="status" aria-live="polite">
+  <div class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><strong id="reportState">Choose a range to load the report</strong></div>
+  <span id="reportLastUpdated">Last updated -</span>
+  <span>Historical closed trades only</span>
+</div>
+
+<div id="reportContent" aria-busy="true">
+  <section class="report-kpi-grid" aria-label="Report summary">
+    <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Closed Trades</div><div class="kpi-value" id="reportTotal">-</div></div><div class="kpi-icon"><i class="bi bi-check2-circle text-blue"></i></div></div><div class="kpi-change" id="reportOutcomeMix">-</div></div>
+    <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="reportWinRate">-</div></div><div class="kpi-icon"><i class="bi bi-trophy-fill text-green"></i></div></div><div class="kpi-change">decisive outcomes only</div></div>
+    <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Net P&amp;L</div><div class="kpi-value" id="reportNetPnl">-</div></div><div class="kpi-icon"><i class="bi bi-wallet2 text-purple"></i></div></div><div class="kpi-change">closed-trade P&amp;L %</div></div>
+    <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Profit Factor</div><div class="kpi-value text-yellow" id="reportProfitFactor">-</div></div><div class="kpi-icon"><i class="bi bi-bar-chart-fill text-yellow"></i></div></div><div class="kpi-change">gross wins / gross losses</div></div>
+    <div class="kpi-card"><div class="kpi-top"><div><div class="kpi-label">Average Trade</div><div class="kpi-value" id="reportAvgPnl">-</div></div><div class="kpi-icon"><i class="bi bi-activity"></i></div></div><div class="kpi-change">average P&amp;L %</div></div>
+    <div class="kpi-card"><div class="kpi-top"><div><div class="kpi-label">Average Duration</div><div class="kpi-value" id="reportAvgDuration">-</div></div><div class="kpi-icon"><i class="bi bi-hourglass-split"></i></div></div><div class="kpi-change">minutes to close</div></div>
+  </section>
+
+  <section class="report-outcomes ui-surface" aria-labelledby="reportOutcomesTitle">
+    <div class="report-card-heading"><div><h2 class="report-section-title" id="reportOutcomesTitle">Outcome mix</h2><p class="report-help">Neutral or expired records stay visible and are excluded from win rate.</p></div></div>
+    <div class="report-outcome-grid">
+      <div><span class="report-outcome-label">Wins</span><strong id="reportWins">-</strong><div class="report-progress"><span class="report-progress-win" id="reportWinsBar"></span></div></div>
+      <div><span class="report-outcome-label">Losses</span><strong id="reportLosses">-</strong><div class="report-progress"><span class="report-progress-loss" id="reportLossesBar"></span></div></div>
+      <div><span class="report-outcome-label">Neutral</span><strong id="reportNeutral">-</strong><div class="report-progress"><span class="report-progress-neutral" id="reportNeutralBar"></span></div></div>
+    </div>
+  </section>
+
+  <div class="row g-3 mb-3">
+    <div class="col-xl-7">
+      <section class="section-card h-100" aria-labelledby="reportMarketTitle">
+        <div class="section-card-header"><h2 class="section-card-title" id="reportMarketTitle"><i class="bi bi-globe2 text-accent me-1"></i>Performance by market</h2><span class="ui-chip ui-chip--neutral">Selected range</span></div>
+        <div class="table-responsive"><table class="smart-table"><caption class="ui-visually-hidden">Closed trade performance grouped by market</caption><thead><tr><th>Market</th><th>Trades</th><th>Wins</th><th>Losses</th><th>Win Rate</th><th>P&amp;L %</th></tr></thead><tbody id="reportMarketBody"><tr><td colspan="6" class="text-center text-muted py-4">Choose a range to load the report</td></tr></tbody></table></div>
+      </section>
+    </div>
+    <div class="col-xl-5">
+      <section class="section-card h-100" aria-labelledby="reportTfTitle">
+        <div class="section-card-header"><h2 class="section-card-title" id="reportTfTitle"><i class="bi bi-clock text-accent me-1"></i>Performance by timeframe</h2></div>
+        <div class="table-responsive"><table class="smart-table"><caption class="ui-visually-hidden">Closed trade performance grouped by timeframe</caption><thead><tr><th>Timeframe</th><th>Trades</th><th>Win Rate</th><th>P&amp;L %</th></tr></thead><tbody id="reportTfBody"><tr><td colspan="4" class="text-center text-muted py-4">Choose a range to load the report</td></tr></tbody></table></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="section-card mb-3" aria-labelledby="reportDailyTitle">
+    <div class="section-card-header"><h2 class="section-card-title" id="reportDailyTitle"><i class="bi bi-calendar3 text-accent me-1"></i>Daily P&amp;L</h2><span class="text-muted fs-xs">Closed trades, UTC</span></div>
+    <div class="section-card-body"><div class="report-chart-wrap"><canvas id="reportDailyChart" role="img" aria-label="Daily closed-trade P and L chart"></canvas></div><div class="report-chart-empty" id="reportDailyEmpty" hidden>No closed trades in this range.</div></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="/static/vendor/chart.umd.min.js"></script>
+<script src="/static/js/pages/reports.js"></script>
+{% endblock %}
