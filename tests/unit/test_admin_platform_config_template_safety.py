@@ -12,6 +12,8 @@ def test_platform_controls_do_not_use_inline_handlers():
     assert "onclick=" not in source
     assert "onchange=" not in source
     assert "id=\"refreshPlatformConfigBtn\"" in source
+    assert 'id="platformConfigStatus"' in source
+    assert "let configLoading = false;" in source
     assert "id=\"addTimeframeBtn\"" in source
     assert "data-timeframe-action=\"move\"" in source
     assert "data-timeframe-action=\"remove\"" in source
@@ -38,3 +40,5 @@ def test_platform_save_paths_treat_api_errors_as_failures():
     assert source.count("if (res && !res.error)") >= 7
     assert "Number.isInteger(i)" in source
     assert "if (!tf) { Toast.show('Add at least one timeframe first'" in source
+    assert "Unable to load configuration. Try Refresh." in source
+    assert "refresh.setAttribute('aria-busy', 'false')" in source

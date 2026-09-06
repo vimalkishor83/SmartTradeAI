@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.141 IMPLEMENTED - Harden Platform Config bootstrap
+
+Platform Config now exposes a live bootstrap status, prevents overlapping refresh requests, and restores the refresh control's busy state through `finally`. Configuration and asset-summary request failures now produce explicit retryable status text instead of leaving a partially initialized admin control surface; all configuration payloads, permissions and feature toggles remain unchanged.
+
+**Risk level:** High operational clarity value for scheduler/market-data administration, low compatibility risk because the change is client-side bootstrap handling only. **Affected modules:** `frontend/templates/admin/platform_config.html`, `tests/unit/test_admin_platform_config_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Platform Config template safety checks passed (**3 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 121 (Platform Config bootstrap resilience):**
+- `frontend/templates/admin/platform_config.html` - add shared bootstrap error/status recovery.
+- `tests/unit/test_admin_platform_config_template_safety.py` - protect admin recovery contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.140 IMPLEMENTED - Harden admin System Logs loading
 
 System Logs now prevents overlapping loads, announces progress/results through a live status region, and restores loading state when requests fail. Clear Logs also catches provider/API errors and restores its busy state, while level filtering, pagination and the existing super-admin-only destructive action remain unchanged.

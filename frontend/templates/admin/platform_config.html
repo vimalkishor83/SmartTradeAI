@@ -24,6 +24,7 @@
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
   <i class="bi bi-eye me-1"></i> You have view-only access to Platform Configuration. Only a super admin can change page visibility or timeframes.
 </div>
+<div id="platformConfigStatus" class="text-muted small mb-3" role="status" aria-live="polite"></div>
 
 <!-- KPIs -->
 <div class="row g-3 mb-4">
@@ -270,6 +271,7 @@ const DEFAULT_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d", "1
 
 let _cfg = { disabled_nav_items: [], timeframes: [] };
 let isSuperAdmin = false;
+let configLoading = false;
 
 async function resetToDefaults() {
   if (!confirm('Reset Pages and Timeframes to their defaults?\n\nAll pages will become visible again and the timeframe list will be restored to 1m,5m,15m,30m,1h,2h,4h,1d,1w.')) return;
@@ -289,24 +291,41 @@ async function resetToDefaults() {
 }
 
 async function loadPlatformConfig() {
-  const data = await API.get('/admin/platform-config');
-  if (!data) return;
-  _cfg = data;
-  renderPages();
-  renderTimeframes();
-  updateKpis();
-  loadAssetsSummary();
-  document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
-  document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
-  document.getElementById('smcSrToggle').checked = !!_cfg.smc_support_resistance_gate_enabled;
+  if (configLoading) return;
+  const status = document.getElementById('platformConfigStatus');
+  const refresh = document.getElementById('refreshPlatformConfigBtn');
+  configLoading = true;
+  if (refresh) { refresh.disabled = true; refresh.setAttribute('aria-busy', 'true'); }
+  if (status) status.textContent = 'Loading platform configuration...';
+  try {
+    const data = await API.get('/admin/platform-config');
+    if (!data) {
+      if (status) status.textContent = 'Unable to load configuration. Try Refresh.';
+      return;
+    }
+    _cfg = data;
+    renderPages();
+    renderTimeframes();
+    updateKpis();
+    loadAssetsSummary();
+    document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
+    document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
+    document.getElementById('smcSrToggle').checked = !!_cfg.smc_support_resistance_gate_enabled;
 
-  document.getElementById('socialFacebook').value = _cfg.social_facebook || '';
-  document.getElementById('socialInstagram').value = _cfg.social_instagram || '';
-  document.getElementById('socialX').value = _cfg.social_x || '';
-  document.getElementById('socialLinkedin').value = _cfg.social_linkedin || '';
-  document.getElementById('socialYoutube').value = _cfg.social_youtube || '';
-  document.getElementById('socialTelegram').value = _cfg.social_telegram || '';
-  document.getElementById('socialDiscord').value = _cfg.social_discord || '';
+    document.getElementById('socialFacebook').value = _cfg.social_facebook || '';
+    document.getElementById('socialInstagram').value = _cfg.social_instagram || '';
+    document.getElementById('socialX').value = _cfg.social_x || '';
+    document.getElementById('socialLinkedin').value = _cfg.social_linkedin || '';
+    document.getElementById('socialYoutube').value = _cfg.social_youtube || '';
+    document.getElementById('socialTelegram').value = _cfg.social_telegram || '';
+    document.getElementById('socialDiscord').value = _cfg.social_discord || '';
+    if (status) status.textContent = 'Configuration loaded';
+  } catch (_) {
+    if (status) status.textContent = 'Unable to load configuration. Try Refresh.';
+  } finally {
+    configLoading = false;
+    if (refresh) { refresh.disabled = false; refresh.setAttribute('aria-busy', 'false'); }
+  }
 }
 
 async function saveSocialLinks() {
@@ -477,8 +496,9 @@ async function saveTimeframes() {
 }
 
 async function loadAssetsSummary() {
-  const data = await API.get('/assets/');
   const el = document.getElementById('assetsSummary');
+  let data;
+  try { data = await API.get('/assets/'); } catch (_) { data = null; }
   if (!data) { el.textContent = 'Unable to load asset summary.'; return; }
   const count = Array.isArray(data.assets) ? data.assets.length : 0;
   document.getElementById('kpiAssetsActive').textContent = count;
