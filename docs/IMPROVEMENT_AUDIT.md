@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.131 IMPLEMENTED - Harden Signal Journal refresh lifecycle
+
+Signal Journal now marks its refresh control as an explicit button and exposes the result count as a live status region. Journal loading restores the refresh button's disabled and busy state in `finally`, including when the journal request throws, and preserves the existing filters, pagination and API contract.
+
+**Risk level:** Medium UX reliability value, low compatibility risk because the change is client-side lifecycle handling only. **Affected modules:** `frontend/templates/dashboard/signal_journal.html`, `tests/unit/test_signal_journal_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Signal Journal template safety checks passed (**2 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 111 (Signal Journal refresh resilience):**
+- `frontend/templates/dashboard/signal_journal.html` - add live status semantics and exception-safe refresh cleanup.
+- `tests/unit/test_signal_journal_template_safety.py` - protect button and error-state contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.130 IMPLEMENTED - Harden Auto Generate control lifecycle
 
 Auto Generate now gives its platform-wide status control explicit live-region semantics and marks all primary controls as buttons. Start, run-once and save-configuration actions restore disabled/busy state through `finally` even when an API request throws, while preserving the existing scheduler payloads, admin gate and server-side execution behavior.
