@@ -106,6 +106,21 @@ The Trading workspace now requires a final browser confirmation before sending a
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.117 IMPLEMENTED - Harden Morning Briefing refresh and data states
+
+Morning Briefing now serializes manual and scheduled refreshes through one in-flight promise, preventing slower duplicate requests from competing with newer dashboard state. Heatmap values are normalized before calculations, the page announces loading/partial-unavailable/completed states, and charts/tables have accessible descriptions and captions. Existing market, news, calendar, signal-summary and OHLCV endpoints remain unchanged.
+
+**Risk level:** High decision-support freshness and accessibility value, low compatibility risk because existing sections, routes and payload contracts are preserved. **Affected modules:** `frontend/static/js/pages/briefing.js`, `frontend/templates/dashboard/briefing.html`, `tests/unit/test_market_briefing_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Briefing, News and Economic Calendar safety checks passed (**9 passed**), `briefing.js` passed `node --check`, and whitespace validation passed. Existing local pytest-cache and coverage warnings remain non-blocking. Commit: `749b9a0`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 99 (Morning Briefing lifecycle and data resilience):**
+- `frontend/static/js/pages/briefing.js` - coalesce refreshes, normalize heatmap values and expose degraded status.
+- `frontend/templates/dashboard/briefing.html` - add status semantics, chart labels and table captions.
+- `tests/unit/test_market_briefing_template_safety.py` - protect refresh, normalization and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
