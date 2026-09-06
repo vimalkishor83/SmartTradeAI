@@ -152,7 +152,10 @@ def run_screener(universe: list[dict], conditions: list[dict], combinator: str =
     filter change. `conditions` with no valid field/op/value entries matches
     everything (mirrors "no conditions yet — every coin matches").
     """
-    valid = [c for c in conditions if c.get("field") in FIELDS and c.get("op") in OPERATORS]
+    valid = [
+        c for c in conditions
+        if isinstance(c, dict) and c.get("field") in FIELDS and c.get("op") in OPERATORS
+    ]
     if not valid:
         return list(universe)
 

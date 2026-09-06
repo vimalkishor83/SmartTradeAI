@@ -16,8 +16,10 @@ from app.services.scanner import delta_market_screener as market_screener
 from app.services.scanner import delta_indicator_scanner as indicator_scanner
 from app.extensions import cache, db
 import csv
+import hashlib
 import io
 import json as _json
+import threading
 import time
 from datetime import datetime
 
@@ -31,6 +33,14 @@ DELTA_SCREENER_UNIVERSE_TTL = 120
 # on one timeframe), not just the bulk ticker endpoint, so it's worth
 # holding onto longer between recomputes.
 DELTA_INDICATOR_UNIVERSE_TTL = 180
+
+_DELTA_SCANNER_BUILD_LOCK = threading.Lock()
+_DELTA_BUBBLES_BUILD_LOCKS = {
+    group: threading.Lock() for group in DELTA_BUBBLE_GROUPS
+}
+_DELTA_STATUS_BUILD_LOCK = threading.Lock()
+_DELTA_SCREENER_UNIVERSE_BUILD_LOCK = threading.Lock()
+_DELTA_INDICATOR_UNIVERSE_BUILD_LOCK = threading.Lock()
 
 SCAN_FILTERS = [
     "strong_buy", "strong_sell", "breakout", "breakdown",
@@ -48,10 +58,22 @@ def get_filters():
 @scanner_bp.route("/run", methods=["POST"])
 @login_required
 def run_scan():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 422
     filters = data.get("filters", ["strong_buy"])
     market = data.get("market")
     timeframe = data.get("timeframe", "1d")
+    if not isinstance(filters, list) or not all(isinstance(f, str) for f in filters):
+        return jsonify({"error": "filters must be a list of strings"}), 422
+    filters = list(dict.fromkeys(f for f in filters if f in SCAN_FILTERS))
+    if not filters:
+        return jsonify({"error": "filters must include at least one supported filter"}), 422
+    if market is not None and market not in Asset.MARKETS:
+        return jsonify({"error": f"market must be one of {Asset.MARKETS}"}), 422
+    from app.services.platform_config import FETCHABLE_TIMEFRAMES
+    if timeframe not in FETCHABLE_TIMEFRAMES:
+        return jsonify({"error": f"timeframe must be one of {FETCHABLE_TIMEFRAMES}"}), 422
 
     query = Asset.query.filter_by(is_active=True)
     if market:
@@ -117,8 +139,13 @@ def delta_mtf_scan():
         if cached is not None:
             return jsonify(cached), 200
 
-    result = run_delta_mtf_scan()
-    cache.set(DELTA_SCANNER_CACHE_KEY, result, timeout=330)
+    with _DELTA_SCANNER_BUILD_LOCK:
+        if not force_refresh:
+            cached = cache.get(DELTA_SCANNER_CACHE_KEY)
+            if cached is not None:
+                return jsonify(cached), 200
+        result = run_delta_mtf_scan()
+        cache.set(DELTA_SCANNER_CACHE_KEY, result, timeout=330)
     return jsonify(result), 200
 
 
@@ -182,7 +209,18 @@ def delta_mtf_status():
     user_id = get_jwt_identity()
     cfg = MtfWatchConfig.query.filter_by(user_id=user_id).first()
     symbols = cfg.symbols if cfg and cfg.symbols else DEFAULT_MTF_WATCH_SYMBOLS
-    result = get_status_for_symbols(symbols)
+    symbols = list(dict.fromkeys(symbols))[:30]
+    digest = hashlib.sha256(",".join(symbols).encode("utf-8")).hexdigest()[:20]
+    cache_key = f"delta_mtf_status_{digest}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return jsonify(cached), 200
+    with _DELTA_STATUS_BUILD_LOCK:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return jsonify(cached), 200
+        result = get_status_for_symbols(symbols)
+        cache.set(cache_key, result, timeout=25)
     return jsonify(result), 200
 
 
@@ -202,8 +240,12 @@ def delta_bubbles():
     if cached is not None:
         return jsonify(cached), 200
 
-    result = get_delta_bubbles(group)
-    cache.set(cache_key, result, timeout=DELTA_BUBBLES_CACHE_TTL)
+    with _DELTA_BUBBLES_BUILD_LOCKS[group]:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return jsonify(cached), 200
+        result = get_delta_bubbles(group)
+        cache.set(cache_key, result, timeout=DELTA_BUBBLES_CACHE_TTL)
     return jsonify(result), 200
 
 
@@ -220,8 +262,12 @@ def get_delta_screener_universe(asset_type: str) -> list:
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    universe = market_screener._compute_universe(asset_type)
-    cache.set(cache_key, universe, timeout=DELTA_SCREENER_UNIVERSE_TTL)
+    with _DELTA_SCREENER_UNIVERSE_BUILD_LOCK:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        universe = market_screener._compute_universe(asset_type)
+        cache.set(cache_key, universe, timeout=DELTA_SCREENER_UNIVERSE_TTL)
     return universe
 
 
@@ -253,7 +299,11 @@ def _parse_screener_request(args) -> tuple[str, list, str]:
         except (ValueError, TypeError):
             raise _ScreenerRequestError("conditions must be a JSON list")
 
-    combinator = args.get("combinator", "AND")
+    if not isinstance(conditions, list) or len(conditions) > 20 or not all(isinstance(c, dict) for c in conditions):
+        raise _ScreenerRequestError("conditions must be a list of at most 20 objects")
+    combinator = args.get("combinator", "AND").upper()
+    if combinator not in ("AND", "OR"):
+        raise _ScreenerRequestError("combinator must be AND or OR")
     return asset_type, conditions, combinator
 
 
@@ -340,14 +390,17 @@ def save_screen():
     name = (data.get("name") or "").strip()
     if not name:
         return jsonify({"error": "name is required"}), 400
+    if len(name) > 120:
+        return jsonify({"error": "name must be 120 characters or fewer"}), 422
 
     asset_type = data.get("asset_type", "perpetual_futures")
     if asset_type not in market_screener.ASSET_TYPES:
         return jsonify({"error": f"asset_type must be one of {market_screener.ASSET_TYPES}"}), 422
 
     conditions = data.get("conditions", [])
-    if not isinstance(conditions, list):
-        return jsonify({"error": "conditions must be a list"}), 422
+    if (not isinstance(conditions, list) or len(conditions) > 20
+            or not all(isinstance(c, dict) for c in conditions)):
+        return jsonify({"error": "conditions must be a list of at most 20 objects"}), 422
 
     combinator = data.get("combinator", "AND")
     if combinator not in ("AND", "OR"):
@@ -388,8 +441,12 @@ def get_delta_indicator_universe(asset_type: str, timeframe: str) -> list:
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    universe = indicator_scanner.compute_universe(asset_type, timeframe)
-    cache.set(cache_key, universe, timeout=DELTA_INDICATOR_UNIVERSE_TTL)
+    with _DELTA_INDICATOR_UNIVERSE_BUILD_LOCK:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+        universe = indicator_scanner.compute_universe(asset_type, timeframe)
+        cache.set(cache_key, universe, timeout=DELTA_INDICATOR_UNIVERSE_TTL)
     return universe
 
 
@@ -426,7 +483,11 @@ def delta_indicator_screener():
     except (ValueError, TypeError):
         return jsonify({"error": "conditions must be a JSON list"}), 422
 
-    combinator = request.args.get("combinator", "AND")
+    if len(conditions) > 20 or not all(isinstance(c, dict) for c in conditions):
+        return jsonify({"error": "conditions must be a list of at most 20 objects"}), 422
+    combinator = request.args.get("combinator", "AND").upper()
+    if combinator not in ("AND", "OR"):
+        return jsonify({"error": "combinator must be AND or OR"}), 422
 
     universe = get_delta_indicator_universe(asset_type, timeframe)
     result = indicator_scanner.filter_universe(universe, conditions, combinator)

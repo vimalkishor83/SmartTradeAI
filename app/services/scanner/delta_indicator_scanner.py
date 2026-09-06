@@ -138,6 +138,8 @@ def _operand_value(row: dict, operand: dict) -> tuple[float | None, float | None
     """Resolve one side of a condition to (prev, curr). A numeric operand has
     the same value on both sides — a "crosses above 30" condition treats 30
     as a flat line, which is exactly what a static threshold means."""
+    if not isinstance(operand, dict):
+        return None, None
     if operand.get("type") == "number":
         try:
             v = float(operand["value"])
@@ -151,6 +153,8 @@ def _operand_value(row: dict, operand: dict) -> tuple[float | None, float | None
 
 
 def _match_condition(row: dict, cond: dict) -> bool:
+    if not isinstance(cond, dict):
+        return False
     comparison = cond.get("comparison")
     left_prev, left_curr = _operand_value(row, cond.get("left") or {})
     if left_curr is None:
@@ -229,7 +233,12 @@ def compute_universe(asset_type: str, timeframe: str, max_workers: int = 16) -> 
 def filter_universe(universe: list[dict], conditions: list[dict], combinator: str = "AND") -> dict:
     """Cheap, in-memory filtering against an already-computed universe —
     no network calls, so re-running with different conditions is instant."""
-    valid_conditions = [c for c in conditions if c.get("left") and c.get("comparison")]
+    valid_conditions = [
+        c for c in conditions
+        if isinstance(c, dict)
+        and isinstance(c.get("left"), dict)
+        and c.get("comparison") in COMPARISONS
+    ]
     combine_any = combinator.upper() == "OR"
 
     matched = []
