@@ -107,12 +107,23 @@ class DeltaTradingClient:
     def get_product_id(self, delta_symbol: str) -> int:
         """Resolve a Delta symbol (e.g. BTCUSD) to its numeric product_id.
         Uses the public products endpoint — no auth needed for this lookup."""
-        resp = requests.get(f"{BASE_URL}/v2/products/{delta_symbol}", timeout=10)
-        resp.raise_for_status()
-        payload = resp.json()
+        try:
+            resp = requests.get(f"{BASE_URL}/v2/products/{delta_symbol}", timeout=10)
+            resp.raise_for_status()
+            payload = resp.json()
+        except requests.RequestException as e:
+            raise DeltaTradingError(f"Network error resolving Delta product: {e}")
+        except (ValueError, TypeError):
+            raise DeltaTradingError("Delta returned an invalid product response")
         if not payload.get("success"):
             raise DeltaTradingError(f"Unknown Delta product: {delta_symbol}")
-        return payload["result"]["id"]
+        try:
+            product_id = int(payload["result"]["id"])
+        except (KeyError, TypeError, ValueError):
+            raise DeltaTradingError("Delta returned a product without a valid ID")
+        if product_id <= 0:
+            raise DeltaTradingError("Delta returned an invalid product ID")
+        return product_id
 
     def place_order(self, product_id: int, side: str, size: int, order_type: str = "limit_order",
                      limit_price: str | None = None, stop_price: str | None = None,

@@ -16,6 +16,8 @@ connected a broker key.
 """
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
+from decimal import Decimal, InvalidOperation
+import re
 from app.extensions import db
 from app.auth.decorators import login_required, approved_required, subscription_feature_required
 from app.services.data.fetcher import to_delta_symbol
@@ -23,6 +25,41 @@ from app.services.trading.delta_trading import get_configured_client, DeltaTradi
 from app.services.trading.broker_registry import get_broker, list_brokers, required_fields
 
 trading_bp = Blueprint("trading", __name__)
+
+MAX_ORDER_SIZE = 10_000_000
+MAX_LEVERAGE = 200
+MAX_PRICE = Decimal("1000000000000")
+_SYMBOL_RE = re.compile(r"^[A-Z0-9]{2,40}$")
+
+
+def _positive_int(value, field_name, maximum=None):
+    """Parse a whole positive integer without accepting floats or booleans."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError(f"{field_name} must be a whole number")
+    text = str(value).strip()
+    if not re.fullmatch(r"[1-9]\d*", text):
+        raise ValueError(f"{field_name} must be a whole number greater than zero")
+    number = int(text)
+    if maximum is not None and number > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum}")
+    return number
+
+
+def _positive_price(value, field_name, required=False):
+    """Return a finite positive decimal string suitable for the broker API."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        if required:
+            raise ValueError(f"{field_name} is required")
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float, str, Decimal)):
+        raise ValueError(f"{field_name} must be a positive number")
+    try:
+        number = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        raise ValueError(f"{field_name} must be a positive number")
+    if not number.is_finite() or number <= 0 or number > MAX_PRICE:
+        raise ValueError(f"{field_name} must be between zero and {MAX_PRICE}")
+    return format(number, "f")
 
 
 def _parse_bool(value, field_name):
@@ -114,7 +151,10 @@ def broker_connect():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
-    provider = (data.get("provider") or "delta_exchange").strip()
+    provider_raw = data.get("provider") or "delta_exchange"
+    if not isinstance(provider_raw, str):
+        return jsonify({"error": "provider must be a string"}), 400
+    provider = provider_raw.strip()
 
     meta = get_broker(provider)
     if not meta:
@@ -125,7 +165,12 @@ def broker_connect():
         }), 400
 
     needed = required_fields(provider)
-    values = {f: (data.get(f) or "").strip() for f in needed}
+    values = {}
+    for field in needed:
+        value = data.get(field) or ""
+        if not isinstance(value, str):
+            return jsonify({"error": f"{field} must be a string"}), 400
+        values[field] = value.strip()
     missing = [f for f in needed if not values[f]]
     if missing:
         return jsonify({"error": f"{', '.join(missing)} {'is' if len(missing)==1 else 'are'} required for {meta['label']}"}), 400
@@ -157,8 +202,13 @@ def broker_disconnect():
     existing Trading page's disconnect button)."""
     from app.models.api_config import UserBrokerCredential
     user_id = get_jwt_identity()
-    data = request.get_json() or {}
-    provider = (data.get("provider") or "delta_exchange").strip()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    provider_raw = data.get("provider") or "delta_exchange"
+    if not isinstance(provider_raw, str):
+        return jsonify({"error": "provider must be a string"}), 400
+    provider = provider_raw.strip()
 
     cred = UserBrokerCredential.query.filter_by(user_id=user_id, provider=provider).first()
     if cred:
@@ -177,8 +227,13 @@ def broker_test():
     silently pretending to test something with no implementation."""
     from app.models.api_config import UserBrokerCredential
     user_id = get_jwt_identity()
-    data = request.get_json() or {}
-    provider = (data.get("provider") or "delta_exchange").strip()
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    provider_raw = data.get("provider") or "delta_exchange"
+    if not isinstance(provider_raw, str):
+        return jsonify({"error": "provider must be a string"}), 400
+    provider = provider_raw.strip()
 
     meta = get_broker(provider)
     if not meta:
@@ -283,24 +338,27 @@ def order_history():
 @trading_bp.route("/orders", methods=["POST"])
 @approved_required
 def place_order():
-    client, err = _client_or_error()
-    if err:
-        return err
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
 
-    data = request.get_json() or {}
-    our_symbol = (data.get("symbol") or "").strip().upper()
-    side = (data.get("side") or "").strip().lower()
-    size = data.get("size")
-    order_type = (data.get("order_type") or "limit_order").strip()
-    limit_price = data.get("limit_price")
-    stop_price = data.get("stop_price")
+    symbol_raw = data.get("symbol")
+    side_raw = data.get("side")
+    order_type_raw = data.get("order_type", "limit_order")
+    if not isinstance(symbol_raw, str) or not isinstance(side_raw, str) or not isinstance(order_type_raw, str):
+        return jsonify({"error": "symbol, side and order_type must be strings"}), 400
+    our_symbol = symbol_raw.strip().upper()
+    side = side_raw.strip().lower()
+    order_type = order_type_raw.strip()
+
+    if not our_symbol or not _SYMBOL_RE.fullmatch(our_symbol):
+        return jsonify({"error": "symbol must contain only letters and numbers"}), 400
     try:
         reduce_only = _parse_bool(data.get("reduce_only", False), "reduce_only")
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-    leverage = data.get("leverage")
 
-    if not our_symbol or not side or not size:
+    if not side:
         return jsonify({"error": "symbol, side and size are required"}), 400
 
     if side not in ("buy", "sell"):
@@ -310,20 +368,29 @@ def place_order():
         return jsonify({"error": "order_type must be 'limit_order' or 'market_order'"}), 400
 
     try:
-        size_int = int(size)
-    except (TypeError, ValueError):
-        return jsonify({"error": "size must be a whole number of contracts"}), 400
-    if size_int <= 0:
-        return jsonify({"error": "size must be greater than zero"}), 400
+        size_int = _positive_int(data.get("size"), "size", MAX_ORDER_SIZE)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+    try:
+        limit_price = _positive_price(
+            data.get("limit_price"), "limit_price", required=order_type == "limit_order"
+        )
+        stop_price = _positive_price(data.get("stop_price"), "stop_price")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     leverage_int = None
-    if leverage:
+    leverage = data.get("leverage")
+    if leverage is not None and leverage != "":
         try:
-            leverage_int = int(leverage)
-        except (TypeError, ValueError):
-            return jsonify({"error": "leverage must be a whole number"}), 400
-        if leverage_int <= 0:
-            return jsonify({"error": "leverage must be greater than zero"}), 400
+            leverage_int = _positive_int(leverage, "leverage", MAX_LEVERAGE)
+        except ValueError as e:
+            return jsonify({"error": str(e)}), 400
+
+    client, err = _client_or_error()
+    if err:
+        return err
 
     delta_symbol = to_delta_symbol(our_symbol)
     if not delta_symbol:
@@ -347,14 +414,18 @@ def place_order():
 @trading_bp.route("/orders/<int:order_id>", methods=["DELETE"])
 @approved_required
 def cancel_order(order_id):
+    if order_id <= 0:
+        return jsonify({"error": "order_id must be greater than zero"}), 400
+    try:
+        product_id = _positive_int(request.args.get("product_id"), "product_id")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
     client, err = _client_or_error()
     if err:
         return err
-    product_id = request.args.get("product_id")
-    if not product_id:
-        return jsonify({"error": "product_id is required to cancel an order"}), 400
     try:
-        result = client.cancel_order(order_id, int(product_id))
+        result = client.cancel_order(order_id, product_id)
         return jsonify({"order": result}), 200
     except DeltaTradingError as e:
         return jsonify({"error": str(e)}), e.status_code or 400
