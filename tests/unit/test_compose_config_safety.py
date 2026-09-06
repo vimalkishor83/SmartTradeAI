@@ -16,6 +16,6 @@ def test_worker_healthcheck_uses_redis_heartbeat_instead_of_http_probe():
         encoding="utf-8",
     )
 
-    assert "smarttradeai:worker:heartbeat" in source
+    assert "flask_cache_smarttradeai:worker:heartbeat" in source
     assert "socket_connect_timeout=2" in source
     assert "healthcheck:\n      disable: true" not in source
