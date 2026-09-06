@@ -945,7 +945,7 @@ def audit_logs():
     page = bounded_page(request.args.get("page", 1))
     per_page = bounded_per_page(request.args.get("per_page", 50), maximum=200)
     logs = (AuditLog.query.options(joinedload(AuditLog.user))
-            .order_by(AuditLog.created_at.desc())
+            .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
             .paginate(page=page, per_page=per_page, error_out=False))
     return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total, "pages": logs.pages}), 200
 

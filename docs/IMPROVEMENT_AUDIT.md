@@ -180,6 +180,21 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.137 IMPLEMENTED - Stabilize audit-log pagination
+
+The admin audit feed now orders by `created_at` and `id` so records sharing a timestamp cannot move between pages unpredictably. A matching composite index supports the newest-first query, with both the model runtime guard and a reversible Alembic migration included; response shape, permissions and deletion behavior are unchanged.
+
+**Risk level:** Medium operational performance and incident-investigation value, low compatibility risk. **Affected modules:** `app/models/audit.py`, `app/api/v1/admin.py`, `app/__init__.py`, `migrations/versions/f8b9c0d1e2f3_add_audit_log_pagination_index.py`, `tests/unit/test_audit_log_pagination.py`. **Migration:** `f8b9c0d1e2f3` creates `idx_audit_logs_created_id`.
+
+**Regression evidence:** Audit pagination/index checks and existing audit-log tests passed (**7 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 117 (Audit pagination performance):**
+- `app/models/audit.py` and `app/api/v1/admin.py` - align the audit feed query and index with deterministic pagination.
+- `app/__init__.py` and `migrations/versions/f8b9c0d1e2f3_add_audit_log_pagination_index.py` - support fresh and existing deployments.
+- `tests/unit/test_audit_log_pagination.py` - protect index and ordering contracts.
+
+**Database changes:** one additive composite index; reversible. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.136 IMPLEMENTED - Harden news calendar recovery states
 
 News and the standalone Economic Calendar now expose calendar content as a live status region and use explicit refresh-button semantics. Provider exceptions show a retryable unavailable state instead of leaving a loading placeholder indefinitely, while refresh disabled/busy state is restored in `finally`; event filtering, time-zone handling and API contracts are unchanged.

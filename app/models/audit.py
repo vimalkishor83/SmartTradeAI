@@ -5,6 +5,12 @@ from app.extensions import db
 class AuditLog(db.Model):
     __tablename__ = "audit_logs"
 
+    __table_args__ = (
+        # Supports the admin audit feed's newest-first pagination with a
+        # deterministic tie-breaker when rows share a timestamp.
+        db.Index("idx_audit_logs_created_id", "created_at", "id"),
+    )
+
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"))
     action = db.Column(db.String(100), nullable=False)

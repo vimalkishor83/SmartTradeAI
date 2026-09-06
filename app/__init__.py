@@ -522,6 +522,7 @@ def _migrate_columns(app):
         ("notifications",  "idx_notif_delivery_queue",  "is_sent, created_at, id"),
         ("protective_orders", "idx_protective_order_active_queue", "status, asset_id, id"),
         ("audit_logs",     "idx_audit_logs_created",    "created_at"),
+        ("audit_logs",     "idx_audit_logs_created_id", "created_at, id"),
         ("system_logs",    "idx_sys_logs_level_time",   "level, created_at"),
         ("journal_entries","idx_journal_user_date",     "user_id, trade_date"),
         ("api_logs",       "idx_api_logs_config_time",  "api_config_id, created_at"),
