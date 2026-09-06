@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.134 IMPLEMENTED - Harden TA Summary loader failures
+
+TA Summary now exposes its last-updated value as a live status and uses explicit button semantics for refresh. Technical, AI and EMA loader failures render a safe retry state instead of leaving a spinner or stale first-load placeholder indefinitely; silent background refresh failures remain non-disruptive, and all existing endpoint parameters and tab behavior are preserved.
+
+**Risk level:** Medium decision-support clarity value, low compatibility risk because the change is client-side error handling only. **Affected modules:** `frontend/templates/dashboard/ta_summary.html`, `tests/unit/test_ta_summary_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** TA Summary, signal-state and analysis safety checks passed (**7 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 114 (TA Summary loader resilience):**
+- `frontend/templates/dashboard/ta_summary.html` - add safe failure states for technical, AI and EMA loaders.
+- `tests/unit/test_ta_summary_template_safety.py` - protect status and error-state contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.133 IMPLEMENTED - Add trading execution audit trail
 
 Successful and rejected order placement and cancellation events now write a non-blocking audit record with the action, broker-safe order identifier, symbol/side/order type and bounded execution metadata. Credentials and full broker payloads are never logged, and an audit persistence failure cannot interrupt the real-money trading response.

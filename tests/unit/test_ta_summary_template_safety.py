@@ -11,6 +11,8 @@ def test_ta_summary_uses_delegated_tabs_and_detail_controls():
 
     assert "onclick=" not in source
     assert "data-ta-tab=\"ratings\"" in source
+    assert 'id="lastUpdated" role="status" aria-live="polite"' in source
+    assert '<button type="button" class="btn btn-sm btn-outline-light" id="refreshBtn">' in source
     assert "data-ai-nav" in source
     assert "data-ema-detail-index" in source
     assert "data-action=\"close-ema-detail\"" in source
@@ -28,3 +30,5 @@ def test_ta_summary_escapes_market_payloads_and_validates_navigation_ids():
     assert "taText(a.name)" in source
     assert "taAssetId(assetId)" in source
     assert "taTimeframe(cell.dataset.timeframe)" in source
+    assert "function taLoadError(wrapId, message)" in source
+    assert "Refresh failed" in source

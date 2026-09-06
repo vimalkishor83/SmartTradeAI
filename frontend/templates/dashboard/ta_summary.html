@@ -14,10 +14,10 @@
     <select class="form-select form-select-sm" id="mktFilter" style="width:auto">
       <option value="all">All Markets</option>
     </select>
-    <button class="btn btn-sm btn-outline-light" id="refreshBtn">
+    <button type="button" class="btn btn-sm btn-outline-light" id="refreshBtn">
       <i class="bi bi-arrow-repeat me-1"></i>Refresh
     </button>
-    <span class="badge-tag" id="lastUpdated" style="font-size:11px">—</span>
+    <span class="badge-tag" id="lastUpdated" role="status" aria-live="polite" style="font-size:11px">—</span>
   </div>
 </div>
 
@@ -457,6 +457,13 @@ function tfLabel(tf) {
 
 let _loadStart = 0;
 
+function taLoadError(wrapId, message) {
+  const wrap = document.getElementById(wrapId);
+  if (wrap && !wrap.querySelector('table')) {
+    wrap.innerHTML = `<div class="text-center py-5 text-muted"><i class="bi bi-exclamation-triangle d-block mb-2" style="font-size:28px"></i>${taText(message)}<div class="mt-2">Try Refresh.</div></div>`;
+  }
+}
+
 async function loadData(showSpinner = true) {
   const market = document.getElementById('mktFilter').value;
 
@@ -486,9 +493,22 @@ async function loadData(showSpinner = true) {
       if (pct >= 95) clearInterval(barTimer);
     }, 800);
 
-    const data = await API.get('/market-data/ta-summary', { market });
+    let data;
+    try {
+      data = await API.get('/market-data/ta-summary', { market });
+    } catch (_) {
+      clearInterval(barTimer);
+      taLoadError('ratingsWrap', 'Unable to load technical ratings.');
+      taLoadError('quotesWrap', 'Unable to load live quotes.');
+      document.getElementById('lastUpdated').textContent = 'Refresh failed';
+      return;
+    }
     clearInterval(barTimer);
-    if (!data?.assets) return;
+    if (!data?.assets) {
+      taLoadError('ratingsWrap', 'No technical ratings are available.');
+      taLoadError('quotesWrap', 'No live quotes are available.');
+      return;
+    }
     _data = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
     renderBoth();
@@ -496,7 +516,9 @@ async function loadData(showSpinner = true) {
     document.getElementById('lastUpdated').textContent = `Updated (${elapsed}s)`;
   } else {
     // Silent background refresh — don't disrupt the page
-    const data = await API.get('/market-data/ta-summary', { market });
+    let data;
+    try { data = await API.get('/market-data/ta-summary', { market }); }
+    catch (_) { return; }
     if (!data?.assets) return;
     _data = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) { TA_TFS = data.timeframes; EMA_TFS = TA_TFS; }
@@ -644,9 +666,20 @@ async function loadAiData(showSpinner = true) {
       if (pct >= 95) clearInterval(timer);
     }, 900);
 
-    const data = await API.get('/market-data/ai-summary', { market });
+    let data;
+    try {
+      data = await API.get('/market-data/ai-summary', { market });
+    } catch (_) {
+      clearInterval(timer);
+      taLoadError('aiRatingsWrap', 'Unable to load AI ratings.');
+      document.getElementById('aiLastUpdated').textContent = 'Refresh failed';
+      return;
+    }
     clearInterval(timer);
-    if (!data?.assets) return;
+    if (!data?.assets) {
+      taLoadError('aiRatingsWrap', 'No AI ratings are available.');
+      return;
+    }
     _aiData   = taAssets(data.assets);
     _aiLoaded = true;
     if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
@@ -654,7 +687,9 @@ async function loadAiData(showSpinner = true) {
     const elapsed = ((Date.now() - _aiLoadStart) / 1000).toFixed(1);
     document.getElementById('aiLastUpdated').textContent = `Updated (${elapsed}s)`;
   } else {
-    const data = await API.get('/market-data/ai-summary', { market });
+    let data;
+    try { data = await API.get('/market-data/ai-summary', { market }); }
+    catch (_) { return; }
     if (!data?.assets) return;
     _aiData = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) AI_TFS = data.timeframes;
@@ -794,8 +829,18 @@ async function loadEmaData(showSpinner = true) {
     } else {
       document.getElementById('emaLastUpdated').textContent = 'Loading…';
     }
-    const data = await API.get(_emaEndpoint(), _emaParams());
-    if (!data?.assets) return;
+    let data;
+    try {
+      data = await API.get(_emaEndpoint(), _emaParams());
+    } catch (_) {
+      taLoadError('emaRatingsWrap', 'Unable to load EMA ratings.');
+      document.getElementById('emaLastUpdated').textContent = 'Refresh failed';
+      return;
+    }
+    if (!data?.assets) {
+      taLoadError('emaRatingsWrap', 'No EMA ratings are available.');
+      return;
+    }
     _emaData   = taAssets(data.assets);
     _emaLoaded = true;
     if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
@@ -805,7 +850,9 @@ async function loadEmaData(showSpinner = true) {
     document.getElementById('emaLastUpdated').textContent =
       _emaBarsBack > 0 ? `Historical (${elapsed}s)` : `Updated (${elapsed}s)`;
   } else {
-    const data = await API.get(_emaEndpoint(), _emaParams());
+    let data;
+    try { data = await API.get(_emaEndpoint(), _emaParams()); }
+    catch (_) { return; }
     if (!data?.assets) return;
     _emaData = taAssets(data.assets);
     if (Array.isArray(data.timeframes) && data.timeframes.length) EMA_TFS = data.timeframes;
