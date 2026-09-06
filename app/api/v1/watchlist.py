@@ -8,10 +8,68 @@ from app.models.signal import Signal
 from app.models.user import User
 from app.auth.decorators import login_required
 from datetime import datetime, timedelta
+import math
+import re
 
 logger = logging.getLogger(__name__)
 
 watchlist_bp = Blueprint("watchlist", __name__)
+
+MAX_WATCHLIST_NAME = 100
+MAX_WATCHLIST_DESCRIPTION = 255
+MAX_WATCHLIST_SYMBOL = 30
+MAX_WATCHLIST_ALERT_PRICE = 1_000_000_000_000
+_WATCHLIST_SYMBOL_RE = re.compile(r"^[A-Z0-9][A-Z0-9._-]{0,29}$")
+
+
+def _bounded_text(value, field_name, maximum, *, required=False):
+    if value is None:
+        if required:
+            raise ValueError(f"{field_name} is required")
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field_name} must be a string")
+    value = value.strip()
+    if required and not value:
+        raise ValueError(f"{field_name} is required")
+    if len(value) > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum} characters")
+    return value
+
+
+def _normalize_watchlist_symbol(value):
+    symbol = _bounded_text(value, "symbol", MAX_WATCHLIST_SYMBOL, required=True).upper()
+    if not _WATCHLIST_SYMBOL_RE.fullmatch(symbol):
+        raise ValueError("symbol contains unsupported characters")
+    return symbol
+
+
+def _optional_positive_float(value, field_name, maximum):
+    if value in (None, ""):
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{field_name} must be a number")
+    if not math.isfinite(number) or number <= 0:
+        raise ValueError(f"{field_name} must be greater than zero")
+    if number > maximum:
+        raise ValueError(f"{field_name} must be at most {maximum:g}")
+    return number
+
+
+def _strict_bool(value, field_name):
+    if isinstance(value, bool):
+        return value
+    if value in (None, ""):
+        return False
+    raise ValueError(f"{field_name} must be a boolean")
+
+
+def _invalidate_context_cache(user_id):
+    cache.delete(f"watchlist_context_{user_id}")
 
 
 @watchlist_bp.route("/", methods=["GET"])
@@ -57,9 +115,15 @@ def get_watchlists():
 @login_required
 def create_watchlist():
     user_id = get_jwt_identity()
-    data = request.get_json()
-    wl = Watchlist(user_id=user_id, name=data.get("name", "My Watchlist"),
-                   description=data.get("description"))
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    try:
+        name = _bounded_text(data.get("name", "My Watchlist"), "name", MAX_WATCHLIST_NAME, required=True)
+        description = _bounded_text(data.get("description"), "description", MAX_WATCHLIST_DESCRIPTION)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    wl = Watchlist(user_id=user_id, name=name, description=description)
     db.session.add(wl)
     db.session.commit()
     return jsonify({"id": wl.id, "name": wl.name}), 201
@@ -70,7 +134,18 @@ def create_watchlist():
 def add_to_watchlist(wl_id):
     user_id = get_jwt_identity()
     wl = Watchlist.query.filter_by(id=wl_id, user_id=user_id).first_or_404()
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    try:
+        requested_symbol = _normalize_watchlist_symbol(data.get("symbol"))
+        alert_price = _optional_positive_float(
+            data.get("alert_price"), "alert_price", MAX_WATCHLIST_ALERT_PRICE
+        )
+        alert_repeat = _strict_bool(data.get("alert_repeat", False), "alert_repeat")
+        asset_name = _bounded_text(data.get("name"), "name", 100)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
     user = User.query.get(int(user_id))
     sub = user.subscription if user else None
@@ -82,7 +157,7 @@ def add_to_watchlist(wl_id):
                 "error": f"Watchlist limit reached ({sub.max_watchlist} items on the "
                          f"{sub.name} plan). Remove an item or upgrade your plan.",
             }), 403
-        if data.get("alert_price"):
+        if alert_price is not None:
             total_alerts = (WatchlistItem.query.join(Watchlist)
                             .filter(Watchlist.user_id == user_id,
                                     WatchlistItem.alert_price.isnot(None)).count())
@@ -92,7 +167,6 @@ def add_to_watchlist(wl_id):
                              f"{sub.name} plan). Remove an alert or upgrade your plan.",
                 }), 403
 
-    requested_symbol = (data.get("symbol") or "").strip().upper()
     asset = Asset.query.filter_by(symbol=requested_symbol).first()
 
     if not asset:
@@ -113,7 +187,7 @@ def add_to_watchlist(wl_id):
             if not asset:
                 asset = Asset(
                     symbol=canonical_symbol,
-                    name=(data.get("name") or requested_symbol).strip()[:100],
+                    name=asset_name or requested_symbol,
                     market="crypto",
                     exchange="delta_exchange",
                     data_source="delta_exchange",
@@ -139,12 +213,11 @@ def add_to_watchlist(wl_id):
     # alert configured are treated as the same item — this only short-circuits
     # a bare re-add, never an intentional edit (changing alert_price/alert_repeat
     # goes through the dedicated update endpoint below, not this one).
-    if not data.get("alert_price"):
+    if alert_price is None:
         existing_item = WatchlistItem.query.filter_by(watchlist_id=wl.id, asset_id=asset.id).first()
         if existing_item:
             return jsonify({"id": existing_item.id, "symbol": asset.symbol, "already_existed": True}), 200
 
-    alert_price = data.get("alert_price")
     alert_set_at_price = None
     if alert_price:
         # Record the price at the moment the alert is set so the checker can
@@ -160,9 +233,10 @@ def add_to_watchlist(wl_id):
 
     item = WatchlistItem(watchlist_id=wl.id, asset_id=asset.id,
                          alert_price=alert_price, alert_set_at_price=alert_set_at_price,
-                         alert_repeat=bool(data.get("alert_repeat", False)))
+                         alert_repeat=alert_repeat)
     db.session.add(item)
     db.session.commit()
+    _invalidate_context_cache(user_id)
     return jsonify({"id": item.id, "symbol": asset.symbol}), 201
 
 
@@ -363,6 +437,7 @@ def remove_from_watchlist(item_id):
     ).first_or_404()
     db.session.delete(item)
     db.session.commit()
+    _invalidate_context_cache(user_id)
     return jsonify({"message": "Removed"}), 200
 
 
@@ -373,4 +448,5 @@ def delete_watchlist(wl_id):
     wl = Watchlist.query.filter_by(id=wl_id, user_id=user_id).first_or_404()
     db.session.delete(wl)
     db.session.commit()
+    _invalidate_context_cache(user_id)
     return jsonify({"message": "Watchlist deleted"}), 200
