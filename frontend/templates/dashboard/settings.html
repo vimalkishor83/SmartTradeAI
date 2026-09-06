@@ -62,7 +62,7 @@
           </div>
           <div class="d-flex justify-content-between align-items-center mb-3">
             <span>Show Price Ticker <span class="text-muted fs-xs d-block">The scrolling price strip below the top bar</span></span>
-            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="tickerVisible" onchange="onTickerVisibleChange(this.checked)" /></div>
+            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="tickerVisible" /></div>
           </div>
           <button type="submit" class="btn btn-primary">Save Profile</button>
         </form>
@@ -188,7 +188,7 @@
             <span class="badge bg-danger">DISABLED</span>
             <span style="font-size:13px;color:var(--text-muted)">Your account is protected by password only. Enable 2FA for stronger security.</span>
           </div>
-          <button class="btn btn-primary" onclick="setup2FA()">
+          <button type="button" class="btn btn-primary" data-action="setup-2fa">
             <i class="bi bi-shield-plus me-1"></i> Enable 2FA
           </button>
         </div>
@@ -199,7 +199,7 @@
             <span class="badge bg-success">ENABLED</span>
             <span style="font-size:13px;color:var(--text-secondary)">Your account is protected with TOTP two-factor authentication.</span>
           </div>
-          <button class="btn btn-outline-danger btn-sm" onclick="show2FADisableModal()">
+          <button type="button" class="btn btn-outline-danger btn-sm" data-action="disable-2fa">
             <i class="bi bi-shield-x me-1"></i> Disable 2FA
           </button>
         </div>
@@ -219,14 +219,14 @@
                 <label class="form-label">Secret Key (manual entry)</label>
                 <div class="input-group">
                   <input type="text" class="form-control font-monospace" id="twofaSecret" readonly style="font-size:13px;letter-spacing:2px">
-                  <button class="btn btn-outline-secondary" onclick="copySecret()"><i class="bi bi-copy"></i></button>
+                  <button type="button" class="btn btn-outline-secondary" data-action="copy-2fa-secret" aria-label="Copy secret key"><i class="bi bi-copy"></i></button>
                 </div>
               </div>
               <div class="mb-3">
                 <label class="form-label">Enter the 6-digit code from your app to confirm</label>
                 <div class="d-flex gap-2" style="max-width:260px">
                   <input type="text" class="form-control font-monospace text-center" id="twofaCode" maxlength="6" placeholder="000000" style="font-size:20px;letter-spacing:6px">
-                  <button class="btn btn-primary" onclick="confirm2FA()">Verify</button>
+                  <button type="button" class="btn btn-primary" data-action="confirm-2fa">Verify</button>
                 </div>
               </div>
             </div>
@@ -278,32 +278,49 @@
 <script>
 let _assetPrefs = {};  // { asset_id: true/false }
 let _assetsByMarket = {}; // { market: [asset, ...] } — for per-market select/deselect all
+let _settingsMutations = new Set();
+
+function settingsText(value) {
+  return STSafe.html(value == null ? '' : String(value));
+}
+
+function settingsAssetId(value) {
+  return STSafe.assetId(value);
+}
+
+function settingsNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 
 function renderAssetGrid(assets) {
   const grid = document.getElementById('assetGrid');
   const MKT  = {crypto:'Crypto',forex:'Forex',commodity:'Commodities',indian_stock:'Indian Stocks',index:'Indices'};
   const byMkt = {};
-  assets.forEach(a => { (byMkt[a.market] = byMkt[a.market]||[]).push(a); });
+  const safeAssets = Array.isArray(assets)
+    ? assets.filter(a => a && typeof a === 'object' && settingsAssetId(a.id))
+    : [];
+  safeAssets.forEach(a => { (byMkt[String(a.market || 'other')] = byMkt[String(a.market || 'other')]||[]).push(a); });
   _assetsByMarket = byMkt;
 
   let html = '';
   for (const [mkt, list] of Object.entries(byMkt)) {
     html += `<div class="col-12"><div class="mkt-header d-flex align-items-center justify-content-between">
-      <span>${MKT[mkt]||mkt}</span>
+      <span>${settingsText(MKT[mkt]||mkt)}</span>
       <span class="fs-xs">
-        <a href="#" onclick="selectMarket('${mkt}',true);return false" class="text-accent" style="text-decoration:none">Select all</a>
+        <a href="#" data-market-action="select" data-market="${settingsText(mkt)}" class="text-accent" style="text-decoration:none">Select all</a>
         <span class="text-muted mx-1">·</span>
-        <a href="#" onclick="selectMarket('${mkt}',false);return false" class="text-accent" style="text-decoration:none">Deselect all</a>
+        <a href="#" data-market-action="deselect" data-market="${settingsText(mkt)}" class="text-accent" style="text-decoration:none">Deselect all</a>
       </span>
     </div></div>`;
     list.forEach(a => {
       const on = _assetPrefs[a.id] !== false;
       html += `<div class="col-6 col-md-4 col-lg-3 col-xl-2">
-        <div class="asset-toggle ${on?'active':''}" data-id="${a.id}" onclick="toggleAsset(this,${a.id})">
+        <div class="asset-toggle ${on?'active':''}" data-id="${settingsAssetId(a.id)}" role="checkbox" tabindex="0" aria-checked="${on ? 'true' : 'false'}">
           <div class="check"></div>
           <div>
-            <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${a.symbol}</div>
-            <div style="font-size:10px;color:var(--text-muted)">${a.name}</div>
+            <div style="font-size:12px;font-weight:700;color:var(--text-primary)">${settingsText(a.symbol)}</div>
+            <div style="font-size:10px;color:var(--text-muted)">${settingsText(a.name)}</div>
           </div>
         </div>
       </div>`;
@@ -316,6 +333,7 @@ function renderAssetGrid(assets) {
 function toggleAsset(el, id) {
   const on = el.classList.toggle('active');
   _assetPrefs[id] = on;
+  el.setAttribute('aria-checked', String(on));
   updateCounter();
 }
 
@@ -329,10 +347,32 @@ function updateCounter() {
 function selectMarket(mkt, on) {
   (_assetsByMarket[mkt] || []).forEach(a => {
     _assetPrefs[a.id] = on;
-    document.querySelector(`.asset-toggle[data-id="${a.id}"]`)?.classList.toggle('active', on);
+    const el = Array.from(document.querySelectorAll('.asset-toggle'))
+      .find(item => item.dataset.id === settingsAssetId(a.id));
+    el?.classList.toggle('active', on);
+    el?.setAttribute('aria-checked', String(on));
   });
   updateCounter();
 }
+
+document.getElementById('assetGrid')?.addEventListener('click', event => {
+  const marketAction = event.target.closest('[data-market-action]');
+  if (marketAction) {
+    event.preventDefault();
+    selectMarket(marketAction.dataset.market, marketAction.dataset.marketAction === 'select');
+    return;
+  }
+  const asset = event.target.closest('.asset-toggle[data-id]');
+  if (asset) toggleAsset(asset, asset.dataset.id);
+});
+
+document.getElementById('assetGrid')?.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== ' ') return;
+  const asset = event.target.closest('.asset-toggle[data-id]');
+  if (!asset) return;
+  event.preventDefault();
+  toggleAsset(asset, asset.dataset.id);
+});
 
 document.getElementById('selAll').addEventListener('click', () => {
   document.querySelectorAll('.asset-toggle').forEach(el => {
@@ -357,6 +397,18 @@ document.getElementById('saveAssets').addEventListener('click', async () => {
 });
 
 document.addEventListener('app:ready', async () => {
+  document.getElementById('tickerVisible')?.addEventListener('change', event => {
+    onTickerVisibleChange(event.currentTarget.checked);
+  });
+  document.getElementById('planTableBody')?.addEventListener('click', event => {
+    const button = event.target.closest('[data-request-plan]');
+    if (button) requestUpgrade(button.dataset.requestPlan, button);
+  });
+  document.querySelector('[data-action="setup-2fa"]')?.addEventListener('click', setup2FA);
+  document.querySelector('[data-action="disable-2fa"]')?.addEventListener('click', show2FADisableModal);
+  document.querySelector('[data-action="copy-2fa-secret"]')?.addEventListener('click', copySecret);
+  document.querySelector('[data-action="confirm-2fa"]')?.addEventListener('click', confirm2FA);
+
   const user = await API.get('/auth/me');
   if (!user) return;
   // API returns full_name; split into first/last if individual fields absent
@@ -400,13 +452,15 @@ async function loadPlan(user) {
   const bodyEl    = document.getElementById('planTableBody');
 
   const data = await API.get('/auth/subscriptions');
-  const allPlans = data?.subscriptions || [];
+  const allPlans = Array.isArray(data?.subscriptions)
+    ? data.subscriptions.filter(plan => plan && typeof plan === 'object' && typeof plan.name === 'string')
+    : [];
   if (!allPlans.length) {
     currentEl.innerHTML = '<span class="text-muted">Unable to load plan details.</span>';
     return;
   }
 
-  const currentName = (user.subscription || 'free').toLowerCase();
+  const currentName = String(user.subscription || 'free').toLowerCase();
   const current = allPlans.find(p => p.name.toLowerCase() === currentName);
   // "admin" is an internal role, not a plan a user can request/purchase —
   // excluded from the comparison table below, but `current` above still
@@ -417,18 +471,19 @@ async function loadPlan(user) {
   // Which plans already have an outstanding request — so refreshing the
   // page doesn't forget you clicked Request and let you click it again.
   const pendingData = await API.get('/auth/upgrade-request/pending');
-  const pendingPlans = new Set((pendingData?.pending_plans || []).map(p => p.toLowerCase()));
+  const pendingPlans = new Set((Array.isArray(pendingData?.pending_plans) ? pendingData.pending_plans : [])
+    .filter(p => typeof p === 'string').map(p => p.toLowerCase()));
 
   currentEl.innerHTML = `
-    <span class="badge bg-primary text-uppercase" style="font-size:12px;padding:6px 12px">${currentName}</span>
+    <span class="badge bg-primary text-uppercase" style="font-size:12px;padding:6px 12px">${settingsText(currentName)}</span>
     <div class="flex-grow-1">
       <div style="font-size:20px;font-weight:700">
-        ${current ? '₹' + current.price.toLocaleString('en-IN') + '<span class="fs-sm text-muted">/month</span>' : '—'}
+        ${current ? '₹' + settingsNumber(current.price).toLocaleString('en-IN') + '<span class="fs-sm text-muted">/month</span>' : '—'}
       </div>
       <div class="text-muted fs-xs">
-        ${current ? (current.signal_delay_minutes > 0
-              ? `Signals delayed ${current.signal_delay_minutes} min · ${current.max_watchlist} watchlist slots · ${current.max_alerts} alerts`
-              : `Live signals · ${current.max_watchlist} watchlist slots · ${current.max_alerts} alerts`)
+        ${current ? (settingsNumber(current.signal_delay_minutes) > 0
+              ? `Signals delayed ${settingsNumber(current.signal_delay_minutes)} min · ${settingsNumber(current.max_watchlist)} watchlist slots · ${settingsNumber(current.max_alerts)} alerts`
+              : `Live signals · ${settingsNumber(current.max_watchlist)} watchlist slots · ${settingsNumber(current.max_alerts)} alerts`)
             : ''}
       </div>
     </div>`;
@@ -440,14 +495,14 @@ async function loadPlan(user) {
     const isCurrent = p.name.toLowerCase() === currentName;
     const check  = '<i class="bi bi-check-circle-fill text-success"></i>';
     const cross  = '<i class="bi bi-lock-fill text-muted"></i>';
-    const delay  = p.signal_delay_minutes > 0 ? `${p.signal_delay_minutes} min` : 'Live';
+    const delay  = settingsNumber(p.signal_delay_minutes) > 0 ? `${settingsNumber(p.signal_delay_minutes)} min` : 'Live';
     return `
       <tr style="${isCurrent ? 'background:var(--glass)' : ''}">
-        <td class="text-uppercase fw-semibold">${p.name}${isCurrent ? ' <span class="badge bg-primary ms-1" style="font-size:9px">CURRENT</span>' : ''}</td>
-        <td>₹${p.price.toLocaleString('en-IN')}/mo</td>
+        <td class="text-uppercase fw-semibold">${settingsText(p.name)}${isCurrent ? ' <span class="badge bg-primary ms-1" style="font-size:9px">CURRENT</span>' : ''}</td>
+        <td>₹${settingsNumber(p.price).toLocaleString('en-IN')}/mo</td>
         <td>${marketsByTier[p.tier_level] ?? 'All 5 markets'}</td>
         <td>${delay}</td>
-        <td>${p.max_watchlist} / ${p.max_alerts}</td>
+        <td>${settingsNumber(p.max_watchlist)} / ${settingsNumber(p.max_alerts)}</td>
         <td>${toolsByTier[p.tier_level] ?? 'Full suite'}</td>
         <td>${p.backtesting_enabled ? check : cross}</td>
         <td>${p.ai_enabled ? check : cross}</td>
@@ -457,24 +512,30 @@ async function loadPlan(user) {
             ? '<span class="text-muted fs-xs">Current plan</span>'
             : pendingPlans.has(p.name.toLowerCase())
               ? '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-hourglass-split me-1"></i>Pending approval</button>'
-              : `<button class="btn btn-sm btn-outline-primary" onclick="requestUpgrade('${p.name}')">Request</button>`}
+              : `<button type="button" class="btn btn-sm btn-outline-primary" data-request-plan="${settingsText(p.name)}">Request</button>`}
         </td>
       </tr>`;
   }).join('');
 }
 
-async function requestUpgrade(planName) {
-  const btn = event.target;
+async function requestUpgrade(planName, btn) {
+  const plan = String(planName || '').trim();
+  if (!btn || !plan || _settingsMutations.has('plan:' + plan.toLowerCase())) return;
+  _settingsMutations.add('plan:' + plan.toLowerCase());
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-  const res = await API.post('/auth/upgrade-request', { plan: planName });
-  if (res?.message) {
-    Toast?.show ? Toast.show(res.message, 'success') : alert(res.message);
-    btn.outerHTML = '<button class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-hourglass-split me-1"></i>Pending approval</button>';
-  } else {
-    Toast?.show ? Toast.show(res?.error || 'Request failed', 'error') : alert(res?.error || 'Request failed');
-    btn.disabled = false;
-    btn.textContent = 'Request';
+  try {
+    const res = await API.post('/auth/upgrade-request', { plan });
+    if (res?.message) {
+      Toast?.show ? Toast.show(res.message, 'success') : alert(res.message);
+      btn.outerHTML = '<button type="button" class="btn btn-sm btn-outline-secondary" disabled><i class="bi bi-hourglass-split me-1"></i>Pending approval</button>';
+    } else {
+      Toast?.show ? Toast.show(res?.error || 'Request failed', 'error') : alert(res?.error || 'Request failed');
+      btn.disabled = false;
+      btn.textContent = 'Request';
+    }
+  } finally {
+    _settingsMutations.delete('plan:' + plan.toLowerCase());
   }
 }
 
@@ -482,7 +543,7 @@ async function requestUpgrade(planName) {
 // localStorage key + apply function the chevron button on the strip itself
 // uses, so both controls always agree).
 function onTickerVisibleChange(visible) {
-  localStorage.setItem('ticker_strip_collapsed', visible ? '0' : '1');
+  try { localStorage.setItem('ticker_strip_collapsed', visible ? '0' : '1'); } catch {}
   if (typeof applyTickerCollapsed === 'function') applyTickerCollapsed(!visible);
 }
 
@@ -579,6 +640,8 @@ document.getElementById('pwdForm').addEventListener('submit', async (e) => {
 });
 
 // ── 2FA ────────────────────────────────────────────────────────────────────
+let _twofaInFlight = new Set();
+
 async function load2FAStatus() {
   const s = await API.get('/auth/2fa/status');
   if (!s) return;
@@ -587,33 +650,52 @@ async function load2FAStatus() {
 }
 
 async function setup2FA() {
-  const res = await API.post('/auth/2fa/setup', {});
-  if (!res?.secret) { Toast.show(res?.error || 'Setup failed — please try again or contact support', 'error'); return; }
-  document.getElementById('twofaSecret').value = res.secret;
-  if (res.qr_code) document.getElementById('twofaQR').src = res.qr_code;
-  document.getElementById('twofa_setup').style.display = '';
+  if (_twofaInFlight.has('setup')) return;
+  _twofaInFlight.add('setup');
+  try {
+    const res = await API.post('/auth/2fa/setup', {});
+    if (!res?.secret) { Toast.show(res?.error || 'Setup failed — please try again or contact support', 'error'); return; }
+    document.getElementById('twofaSecret').value = String(res.secret).slice(0, 64);
+    if (typeof res.qr_code === 'string' && res.qr_code.startsWith('data:image/')) {
+      document.getElementById('twofaQR').src = res.qr_code;
+    }
+    document.getElementById('twofa_setup').style.display = '';
+  } finally {
+    _twofaInFlight.delete('setup');
+  }
 }
 
 async function confirm2FA() {
   const code = document.getElementById('twofaCode').value.trim();
-  if (code.length !== 6) { Toast.show('Enter a 6-digit code', 'warning'); return; }
-  const res = await API.post('/auth/2fa/verify', { code });
-  if (res?.backup_codes) {
-    Toast.show('2FA enabled successfully!', 'success');
-    document.getElementById('twofa_setup').style.display = 'none';
-    document.getElementById('twofa_backup').style.display = '';
-    document.getElementById('backupCodesList').innerHTML = res.backup_codes.map(c =>
-      `<div style="background:var(--bg-secondary);padding:6px 10px;border-radius:6px;text-align:center">${c}</div>`
-    ).join('');
-    load2FAStatus();
-  } else {
-    Toast.show(res?.error || 'Invalid code', 'error');
+  if (!/^\d{6}$/.test(code)) { Toast.show('Enter a 6-digit code', 'warning'); return; }
+  if (_twofaInFlight.has('verify')) return;
+  _twofaInFlight.add('verify');
+  try {
+    const res = await API.post('/auth/2fa/verify', { code });
+    if (Array.isArray(res?.backup_codes)) {
+      Toast.show('2FA enabled successfully!', 'success');
+      document.getElementById('twofa_setup').style.display = 'none';
+      document.getElementById('twofa_backup').style.display = '';
+      document.getElementById('backupCodesList').innerHTML = res.backup_codes
+        .filter(value => typeof value === 'string').map(value =>
+          `<div style="background:var(--bg-secondary);padding:6px 10px;border-radius:6px;text-align:center">${settingsText(value)}</div>`
+        ).join('');
+      load2FAStatus();
+    } else {
+      Toast.show(res?.error || 'Invalid code', 'error');
+    }
+  } finally {
+    _twofaInFlight.delete('verify');
   }
 }
 
 function copySecret() {
-  navigator.clipboard.writeText(document.getElementById('twofaSecret').value);
-  Toast.show('Secret copied!', 'success');
+  const secret = document.getElementById('twofaSecret').value;
+  if (!navigator.clipboard?.writeText) { Toast.show('Clipboard access is unavailable', 'warning'); return; }
+  navigator.clipboard.writeText(secret).then(
+    () => Toast.show('Secret copied!', 'success'),
+    () => Toast.show('Could not copy the secret', 'error'),
+  );
 }
 
 function show2FADisableModal() {

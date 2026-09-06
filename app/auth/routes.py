@@ -1,3 +1,5 @@
+import math
+
 from datetime import datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
@@ -11,6 +13,68 @@ from app.models.audit import AuditLog
 from app.auth.decorators import login_required, get_current_user
 
 auth_bp = Blueprint("auth", __name__)
+
+_PROFILE_TEXT_LIMITS = {
+    "first_name": 80,
+    "last_name": 80,
+    "phone": 20,
+    "telegram_chat_id": 100,
+    "telegram_bot_token": 256,
+}
+
+
+def _profile_text(data: dict, field: str) -> str | None:
+    if field not in data:
+        return None
+    value = data[field]
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be text")
+    value = value.strip()
+    limit = _PROFILE_TEXT_LIMITS[field]
+    if len(value) > limit:
+        raise ValueError(f"{field} must be {limit} characters or fewer")
+    return value
+
+
+def _profile_bool(data: dict, field: str) -> bool | None:
+    if field not in data:
+        return None
+    value = data[field]
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} must be a boolean")
+    return value
+
+
+def _profile_number(data: dict, field: str, *, minimum: float, maximum: float) -> float | None:
+    if field not in data:
+        return None
+    value = data[field]
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be a number")
+    try:
+        value = float(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{field} must be a number")
+    if not math.isfinite(value) or value < minimum or value > maximum:
+        raise ValueError(f"{field} must be between {minimum:g} and {maximum:g}")
+    return value
+
+
+def _profile_int(data: dict, field: str, *, minimum: int, maximum: int) -> int | None:
+    if field not in data:
+        return None
+    value = data[field]
+    if isinstance(value, bool):
+        raise ValueError(f"{field} must be an integer")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError, OverflowError):
+        raise ValueError(f"{field} must be an integer")
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"{field} must be an integer")
+    if parsed < minimum or parsed > maximum:
+        raise ValueError(f"{field} must be between {minimum} and {maximum}")
+    return parsed
 
 
 @auth_bp.route("/brokers", methods=["GET"])
@@ -530,25 +594,56 @@ def delete_my_account():
 @login_required
 def update_profile():
     user = get_current_user()
-    data = request.get_json()
-    allowed = ["first_name", "last_name", "phone", "theme", "email_notifications",
-               "telegram_chat_id", "telegram_enabled", "push_enabled",
-               "account_size", "risk_per_trade_pct", "min_confidence_filter"]
-    for field in allowed:
-        if field in data:
-            setattr(user, field, data[field])
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
 
-    # Never round-tripped back to the client (to_dict only exposes
-    # has_telegram_bot_token), so the field arrives blank on every page
-    # load by design — only touch the stored token when the user actually
-    # typed a new one, never wipe it just because the field was empty.
-    if data.get("telegram_bot_token"):
-        user.set_telegram_bot_token(data["telegram_bot_token"])
+    try:
+        text_values = {field: _profile_text(data, field) for field in _PROFILE_TEXT_LIMITS}
+        bool_values = {
+            field: _profile_bool(data, field)
+            for field in ("email_notifications", "telegram_enabled", "push_enabled")
+        }
+        account_size = _profile_number(data, "account_size", minimum=1_000.0, maximum=1_000_000_000_000.0)
+        risk_pct = _profile_number(data, "risk_per_trade_pct", minimum=0.1, maximum=20.0)
+        min_confidence = _profile_int(data, "min_confidence_filter", minimum=0, maximum=100)
 
-    if "password" in data and "current_password" in data:
-        if not user.check_password(data["current_password"]):
-            return jsonify({"error": "Current password is incorrect"}), 400
-        user.set_password(data["password"])
+        if "theme" in data and (not isinstance(data["theme"], str) or data["theme"] not in {"dark", "light"}):
+            raise ValueError("theme must be dark or light")
+
+        for field in ("first_name", "last_name", "phone", "telegram_chat_id"):
+            if text_values[field] is not None:
+                setattr(user, field, text_values[field])
+        for field, value in bool_values.items():
+            if value is not None:
+                setattr(user, field, value)
+        if "theme" in data:
+            user.theme = data["theme"]
+        if account_size is not None:
+            user.account_size = account_size
+        if risk_pct is not None:
+            user.risk_per_trade_pct = risk_pct
+        if min_confidence is not None:
+            user.min_confidence_filter = min_confidence
+
+        # Never round-trip the encrypted token. A blank token keeps the saved
+        # secret; only a non-empty replacement changes it.
+        token = text_values["telegram_bot_token"]
+        if token:
+            user.set_telegram_bot_token(token)
+
+        if "password" in data or "current_password" in data:
+            password = data.get("password")
+            current_password = data.get("current_password")
+            if not isinstance(password, str) or not isinstance(current_password, str):
+                raise ValueError("password and current_password must be text")
+            if len(password) < 8 or len(password) > 256:
+                raise ValueError("Password must be between 8 and 256 characters")
+            if not user.check_password(current_password):
+                return jsonify({"error": "Current password is incorrect"}), 400
+            user.set_password(password)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
 
     db.session.commit()
     return jsonify({"message": "Profile updated", "user": user.to_dict()}), 200
