@@ -391,6 +391,7 @@ def _register_blueprints(app):
     from app.api.v1.sentiment import sentiment_bp
     from app.api.v1.put_call import put_call_bp
     from app.api.v1.dhan import dhan_bp
+    from app.api.v1.algo_trading import algo_trading_bp
     from app.api.v1.public_config import public_config_bp
     from app.frontends import frontends_bp
     from app.views import views_bp
@@ -418,6 +419,7 @@ def _register_blueprints(app):
     app.register_blueprint(sentiment_bp, url_prefix="/api/v1/sentiment")
     app.register_blueprint(put_call_bp, url_prefix="/api/v1/put-call-ratio")
     app.register_blueprint(dhan_bp, url_prefix="/api/v1/dhan")
+    app.register_blueprint(algo_trading_bp, url_prefix="/api/v1/algo-trading")
     app.register_blueprint(public_config_bp, url_prefix="/api/v1/public")
     app.register_blueprint(frontends_bp)
     app.register_blueprint(views_bp)

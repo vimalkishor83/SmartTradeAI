@@ -4009,7 +4009,8 @@ body[data-active="watchlist"] #pageContentBody::before,
 body[data-active="risk"] #pageContentBody::before,
 body[data-active="performance"] #pageContentBody::before,
 body[data-active="journal"] #pageContentBody::before,
-body[data-active="trading"] #pageContentBody::before {
+body[data-active="trading"] #pageContentBody::before,
+body[data-active="algo_trading"] #pageContentBody::before {
   content: '05 / CAPITAL CONTROL';
 }
 

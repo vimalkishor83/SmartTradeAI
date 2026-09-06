@@ -76,7 +76,7 @@
     {% set grp_signals   = active in ['signals','scanner','heatmap','dhan_indices','delta_scanner','delta_bubbles','signal_history','signal_journal'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','ai','news','advanced_analysis','economic_calendar'] %}
     {% set grp_research  = active in ['backtesting','analytics','reports'] %}
-    {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading'] %}
+    {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading','algo_trading'] %}
     {% set grp_account   = active in ['settings','help'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
 
@@ -316,6 +316,11 @@
         {% if '/settings' not in disabled_nav_items %}
         <a href="/settings" data-tooltip="Account Settings" class="nav-item {% if active == 'settings' %}active{% endif %}">
           <i class="bi bi-gear-fill nav-icon-red"></i><span class="nav-text">Account Settings</span>
+        </a>
+        {% endif %}
+        {% if '/algo-trading' not in disabled_nav_items %}
+        <a href="/algo-trading" data-tooltip="Delta Algo Trading" class="nav-item {% if active == 'algo_trading' %}active{% endif %}">
+          <i class="bi bi-robot nav-icon-purple"></i><span class="nav-text">Algo Trading</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/help' not in disabled_nav_items %}

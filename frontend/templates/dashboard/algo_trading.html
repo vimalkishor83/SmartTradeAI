@@ -1,0 +1,67 @@
+{% extends "partials/base.html" %}
+{% set active = 'algo_trading' %}
+{% block title %}Algo Trading Controls — SmartTrade AI{% endblock %}
+{% block breadcrumb %}<i class="bi bi-robot me-2"></i> Algo Trading{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+  <div class="dash-header-greet">
+    <h1 class="page-title mb-1"><i class="bi bi-robot text-accent me-2"></i>Delta Algo Trading</h1>
+    <p class="page-subtitle mb-0">Configure execution rules and capital limits before any automated order is allowed.</p>
+  </div>
+  <span class="badge-tag"><i class="bi bi-shield-lock me-1"></i>Paper mode by default</span>
+</div>
+
+<div class="dashboard-context" role="status">
+  <span class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span>Execution provider locked to Delta Exchange India</span>
+  <span>Settings are guardrails only. Live execution is not enabled by this page.</span>
+</div>
+
+<form id="algoPolicyForm" class="row g-3" novalidate>
+  <div class="col-xl-7">
+    <section class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-sliders text-accent"></i>Execution policy</span><span id="algoPolicyStatus" class="text-muted fs-xs" role="status"></span></div>
+      <div class="section-card-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label" for="algoMode">Mode</label><select class="form-select" id="algoMode"><option value="paper">Paper trading</option><option value="live">Live trading (locked until rollout)</option></select></div>
+          <div class="col-md-6"><label class="form-label" for="maxLeverage">Maximum leverage</label><input class="form-control" id="maxLeverage" type="number" min="1" max="100" step="1" required><div class="form-text">Hard maximum for every product.</div></div>
+          <div class="col-md-6"><label class="form-label" for="maxMargin">Maximum margin per order</label><input class="form-control" id="maxMargin" type="number" min="0.01" step="0.01" required><div class="form-text">Capital locked by one order.</div></div>
+          <div class="col-md-6"><label class="form-label" for="maxNotional">Maximum notional per order</label><input class="form-control" id="maxNotional" type="number" min="0.01" step="0.01" required><div class="form-text">Leveraged position value cap.</div></div>
+          <div class="col-md-4"><label class="form-label" for="maxPositions">Maximum open positions</label><input class="form-control" id="maxPositions" type="number" min="1" max="100" step="1" required></div>
+          <div class="col-md-4"><label class="form-label" for="maxDailyLoss">Maximum daily loss</label><input class="form-control" id="maxDailyLoss" type="number" min="0" step="0.01" required></div>
+          <div class="col-md-4"><label class="form-label" for="maxSlippage">Maximum slippage (bps)</label><input class="form-control" id="maxSlippage" type="number" min="0" max="10000" step="0.01" required></div>
+        </div>
+        <div class="d-flex align-items-center justify-content-between gap-3 mt-4 pt-3 border-top">
+          <div><div class="fw-semibold">Algo execution</div><div class="text-muted fs-xs">The live switch will require a separate approved activation flow.</div></div>
+          <span class="badge bg-secondary"><i class="bi bi-pause-circle me-1"></i>Disabled</span>
+        </div>
+        <button class="btn btn-primary mt-4" type="submit"><i class="bi bi-check2-circle me-1"></i>Save guardrails</button>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-5">
+    <section class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-diagram-3 text-accent"></i>Order type mapping</span></div>
+      <div class="section-card-body">
+        <p class="text-muted fs-sm">Choose how each signal leg should be sent to Delta. Protective legs will be reduce-only when execution is implemented.</p>
+        <div id="algoOrderRules" class="d-grid gap-3"></div>
+      </div>
+    </section>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const fields = { mode: 'algoMode', max_leverage: 'maxLeverage', max_margin_amount: 'maxMargin', max_notional_amount: 'maxNotional', max_open_positions: 'maxPositions', max_daily_loss: 'maxDailyLoss', max_slippage_bps: 'maxSlippage' };
+  const ruleLabels = { buy_entry: 'Buy entry', sell_entry: 'Sell entry', long_stop_loss: 'Long stop-loss', short_stop_loss: 'Short stop-loss', long_take_profit: 'Long take-profit', short_take_profit: 'Short take-profit' };
+  let rules = {};
+  const status = (message, kind = 'muted') => { const el = document.getElementById('algoPolicyStatus'); el.textContent = message; el.className = `fs-xs text-${kind}`; };
+  const renderRules = () => { document.getElementById('algoOrderRules').innerHTML = Object.entries(ruleLabels).map(([key, label]) => `<div><label class="form-label" for="rule-${key}">${label}</label><select class="form-select form-select-sm" id="rule-${key}" data-rule="${key}"><option value="limit_order">Limit order</option><option value="market_order">Market order</option></select></div>`).join(''); Object.entries(rules).forEach(([key, rule]) => { const el = document.querySelector(`[data-rule="${key}"]`); if (el) el.value = rule.order_type; }); };
+  const load = async () => { try { const data = await API.get('/algo-trading/policy'); const policy = data.policy || {}; Object.entries(fields).forEach(([key, id]) => { const el = document.getElementById(id); if (el) el.value = policy[key] ?? ''; }); rules = policy.order_rules || {}; renderRules(); status('Loaded', 'muted'); } catch (_) { status('Unable to load policy', 'danger'); } };
+  document.getElementById('algoPolicyForm').addEventListener('submit', async (event) => { event.preventDefault(); const payload = { mode: document.getElementById('algoMode').value, max_leverage: Number(document.getElementById('maxLeverage').value), max_margin_amount: Number(document.getElementById('maxMargin').value), max_notional_amount: Number(document.getElementById('maxNotional').value), max_open_positions: Number(document.getElementById('maxPositions').value), max_daily_loss: Number(document.getElementById('maxDailyLoss').value), max_slippage_bps: Number(document.getElementById('maxSlippage').value), order_rules: {} }; document.querySelectorAll('[data-rule]').forEach(el => { payload.order_rules[el.dataset.rule] = { order_type: el.value, time_in_force: el.value === 'market_order' ? null : 'gtc' }; }); try { const data = await API.put('/algo-trading/policy', payload); status(data.message || 'Saved', 'success'); } catch (_) { status('Unable to save policy', 'danger'); } });
+  renderRules(); load();
+})();
+</script>
+{% endblock %}

@@ -260,6 +260,11 @@ def trading():
     return render_template("dashboard/trading.html")
 
 
+@views_bp.route("/algo-trading")
+def algo_trading():
+    return render_template("dashboard/algo_trading.html", requires_tier=2)
+
+
 @views_bp.route("/broker-connections")
 def broker_connections():
     return render_template("dashboard/broker_connections.html", requires_tier=2)
