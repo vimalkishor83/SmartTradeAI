@@ -265,27 +265,27 @@
       <!-- Tab navigation -->
       <ul class="nav tab-nav mb-0" id="assetTabs" style="border-bottom:1px solid var(--border)">
         <li class="nav-item">
-          <a class="nav-link" id="tabChartBtn" href="#" onclick="showAssetTab('chart');return false">
+          <a class="nav-link" id="tabChartBtn" href="#" data-asset-tab="chart">
             <i class="bi bi-bar-chart-fill me-1"></i>Chart
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link active" id="tabTvBtn" href="#" onclick="showAssetTab('tv');return false">
+          <a class="nav-link active" id="tabTvBtn" href="#" data-asset-tab="tv">
             <i class="bi bi-graph-up-arrow me-1"></i>TradingView
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" id="tabIndBtn" href="#" onclick="showAssetTab('indicators');return false">
+          <a class="nav-link" id="tabIndBtn" href="#" data-asset-tab="indicators">
             <i class="bi bi-speedometer2 me-1"></i>Indicators
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" id="tabSigBtn" href="#" onclick="showAssetTab('signals');return false">
+          <a class="nav-link" id="tabSigBtn" href="#" data-asset-tab="signals">
             <i class="bi bi-lightning-charge-fill me-1"></i>Signals History
           </a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" id="tabDcaBtn" href="#" onclick="showAssetTab('dca');return false">
+          <a class="nav-link" id="tabDcaBtn" href="#" data-asset-tab="dca">
             <i class="bi bi-layers-fill me-1"></i>DCA Setup
           </a>
         </li>
@@ -301,20 +301,20 @@
               <span class="text-muted fs-xs me-1">Timeframe:</span>
               {% for tf in display_timeframes %}
               <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
-                      onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
+                      data-tf="{{ tf }}">{{ tf }}</button>
               {% endfor %}
             </div>
             <div class="d-flex align-items-center gap-2 flex-wrap">
               <span class="text-muted fs-xs me-1">Indicators:</span>
-              <button class="chart-ind-btn" data-ind="ema9"  onclick="toggleChartIndicator('ema9')">EMA 9</button>
-              <button class="chart-ind-btn" data-ind="ema21" onclick="toggleChartIndicator('ema21')">EMA 21</button>
-              <button class="chart-ind-btn" data-ind="ema50" onclick="toggleChartIndicator('ema50')">EMA 50</button>
-              <button class="chart-ind-btn" data-ind="ema200" onclick="toggleChartIndicator('ema200')">EMA 200</button>
-              <button class="chart-ind-btn" data-ind="bb" onclick="toggleChartIndicator('bb')">Bollinger</button>
-              <button class="chart-ind-btn" data-ind="vwap" onclick="toggleChartIndicator('vwap')">VWAP</button>
+              <button class="chart-ind-btn" data-ind="ema9">EMA 9</button>
+              <button class="chart-ind-btn" data-ind="ema21">EMA 21</button>
+              <button class="chart-ind-btn" data-ind="ema50">EMA 50</button>
+              <button class="chart-ind-btn" data-ind="ema200">EMA 200</button>
+              <button class="chart-ind-btn" data-ind="bb">Bollinger</button>
+              <button class="chart-ind-btn" data-ind="vwap">VWAP</button>
               <span class="mx-1" style="color:var(--border)">|</span>
-              <button class="chart-ind-btn" data-ind="rsi" onclick="toggleChartIndicator('rsi')">RSI</button>
-              <button class="chart-ind-btn" data-ind="macd" onclick="toggleChartIndicator('macd')">MACD</button>
+              <button class="chart-ind-btn" data-ind="rsi">RSI</button>
+              <button class="chart-ind-btn" data-ind="macd">MACD</button>
               <span class="text-muted fs-xs ms-2" id="chartStatus"></span>
             </div>
           </div>
@@ -343,7 +343,7 @@
             <span class="text-muted fs-xs me-1">Timeframe:</span>
             {% for tf in display_timeframes %}
             <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
-                    onclick="setTF('{{ tf }}')" data-tf="{{ tf }}">{{ tf }}</button>
+                    data-tf="{{ tf }}">{{ tf }}</button>
             {% endfor %}
             <span class="text-muted fs-xs ms-2">
               <i class="bi bi-info-circle me-1"></i>Drives both this chart and AI Position Analysis on the right
@@ -360,7 +360,7 @@
             <span class="text-muted fs-xs">Timeframe:</span>
             {% for tf in display_timeframes %}
             <button class="tf-btn {% if tf == '1h' %}active{% endif %}"
-                    onclick="setIndTF('{{ tf }}')" data-ind-tf="{{ tf }}">{{ tf }}</button>
+                    data-ind-tf="{{ tf }}">{{ tf }}</button>
             {% endfor %}
           </div>
           <div id="indicatorsGrid" class="row g-3">
@@ -432,10 +432,10 @@
            reducing the mismatch against the (usually shorter) chart column. -->
       <ul class="nav sidebar-tab-nav mb-3">
         <li class="nav-item">
-          <a class="nav-link active" href="#" id="sbTabAiBtn" onclick="showSidebarTab('ai');return false">AI Analysis</a>
+          <a class="nav-link active" href="#" id="sbTabAiBtn" data-sidebar-tab="ai">AI Analysis</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#" id="sbTabOverviewBtn" onclick="showSidebarTab('overview');return false">Overview</a>
+          <a class="nav-link" href="#" id="sbTabOverviewBtn" data-sidebar-tab="overview">Overview</a>
         </li>
       </ul>
 
@@ -461,7 +461,7 @@
           <div id="askAiContent">
             <div class="d-flex gap-2">
               <input type="text" id="askAiInput" class="form-control form-control-sm" placeholder="e.g. What's driving the price today?" maxlength="300">
-              <button class="btn btn-primary btn-sm" id="askAiBtn" onclick="submitAskAi()" style="white-space:nowrap">
+              <button class="btn btn-primary btn-sm" id="askAiBtn" style="white-space:nowrap">
                 <i class="bi bi-send"></i>
               </button>
             </div>
@@ -493,7 +493,7 @@
         </div>
         <div id="aiPredictionContent">
           <div class="text-center py-2">
-            <button class="btn btn-outline-light btn-sm w-100" onclick="loadAiPrediction()" id="runAiPredBtn">
+            <button class="btn btn-outline-light btn-sm w-100" id="runAiPredBtn">
               <i class="bi bi-cpu me-1"></i>Run AI Prediction
             </button>
             <div class="text-muted fs-xs mt-2">Runs 5m–1D ensemble models — ~30s total</div>
@@ -550,7 +550,7 @@
 </div><!-- /assetDetailRoot -->
 
 <!-- ── Pre-Trade Checklist floating button ──────────── -->
-<button id="checklistFab" onclick="openChecklist()"
+<button id="checklistFab"
   style="position:fixed;z-index:1050;
          background:var(--accent);color:#fff;border:none;border-radius:50px;
          font-weight:700;cursor:pointer;
@@ -571,7 +571,7 @@
         <div style="font-weight:800;font-size:16px">Pre-Trade Checklist</div>
         <div class="text-muted fs-xs mt-1">{{ asset.symbol }} — verify before entering</div>
       </div>
-      <button onclick="closeChecklist()"
+      <button id="closeChecklistBtn"
         style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;padding:0 4px">
         <i class="bi bi-x-lg"></i>
       </button>
@@ -595,7 +595,7 @@
              class="checklist-item-label">
         <input type="checkbox" class="checklist-cb" data-index="{{ loop.index0 }}"
                style="margin-top:2px;accent-color:var(--accent);width:16px;height:16px"
-               onchange="updateScore()" />
+               />
         <span style="font-size:13px;line-height:1.5">{{ item }}</span>
       </label>
       {% endfor %}
@@ -615,10 +615,10 @@
       <div id="clWarning" class="mt-3 p-3" style="border-radius:8px;font-size:13px;font-weight:600;display:none"></div>
 
       <div style="display:flex;gap:10px;margin-top:16px">
-        <button class="btn btn-sm btn-outline-secondary" onclick="resetChecklist()" style="flex:1">
+        <button class="btn btn-sm btn-outline-secondary" id="resetChecklistBtn" style="flex:1">
           <i class="bi bi-arrow-counterclockwise me-1"></i>Reset
         </button>
-        <button class="btn btn-sm btn-primary" onclick="logChecklist()" style="flex:1" id="clLogBtn">
+        <button class="btn btn-sm btn-primary" style="flex:1" id="clLogBtn">
           <i class="bi bi-save me-1"></i>Log This Check
         </button>
       </div>
@@ -672,16 +672,16 @@
   async function adHeat() {
     const grid = document.getElementById('adHeatGrid'); if (!grid || typeof API === 'undefined') return;
     const sig = await API.get('/signals/', { per_page: 40 });
-    const bySym = {};
-    (sig?.signals || []).forEach(s => { const k = s.asset; if (!bySym[k] || (s.confidence_score || 0) > bySym[k].confidence_score) bySym[k] = s; });
-    let items = Object.values(bySym).map(s => { const c = s.confidence_score || 0; const score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50; return { symbol: s.asset, id: s.asset_id, score: Math.round(score) }; });
+    const bySym = Object.create(null);
+    (Array.isArray(sig?.signals) ? sig.signals : []).forEach(s => { const k = String(s.asset || ''); if (!k) return; if (!bySym[k] || (Number(s.confidence_score) || 0) > (Number(bySym[k].confidence_score) || 0)) bySym[k] = s; });
+    let items = Object.values(bySym).map(s => { const c = Number(s.confidence_score) || 0; const score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50; return { symbol: s.asset, id: STSafe.assetId(s.asset_id), score: Math.round(score) }; }).filter(it => it.id);
     items = items.sort((a, b) => b.score - a.score).slice(0, 10);
     if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI data</div>'; return; }
     grid.innerHTML = items.map(it => {
       const s = it.score; const label = s >= 80 ? 'STRONG BUY' : s >= 60 ? 'BUY' : s >= 40 ? 'HOLD' : s >= 20 ? 'SELL' : 'STRONG SELL';
       const bg = s >= 80 ? 'rgba(16,185,129,.22)' : s >= 60 ? 'rgba(74,222,128,.16)' : s >= 40 ? 'rgba(245,158,11,.16)' : s >= 20 ? 'rgba(248,113,113,.16)' : 'rgba(239,68,68,.22)';
       const bd = s >= 60 ? 'var(--green)' : s >= 40 ? 'var(--yellow)' : 'var(--red)';
-      return `<div class="ai-heat-cell" style="background:${bg};border-color:${bd}33" onclick="location='/asset/${it.id}'"><div class="ahc-sym">${it.symbol}</div><div class="ahc-score" style="color:${bd}">${s}</div><div class="ahc-lbl">${label}</div></div>`;
+      return `<a class="ai-heat-cell" href="${STSafe.assetHref(it.id)}" style="background:${bg};border-color:${bd}33;text-decoration:none;color:inherit"><div class="ahc-sym">${STSafe.html(it.symbol)}</div><div class="ahc-score" style="color:${bd}">${s}</div><div class="ahc-lbl">${label}</div></a>`;
     }).join('');
   }
 
@@ -689,20 +689,22 @@
     const el = document.getElementById('adTopOpps'); if (!el) return;
     const data = await API.get('/signals/', { per_page: 20 });
     const seen = new Set();
-    const top = (data?.signals || []).filter(s => { if (!s.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
-      .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0)).slice(0, 5);
+    const top = (Array.isArray(data?.signals) ? data.signals : []).filter(s => { const id = STSafe.assetId(s.asset_id); if (!id || seen.has(id)) return false; seen.add(id); return true; })
+      .sort((a, b) => (Number(b.confidence_score) || 0) - (Number(a.confidence_score) || 0)).slice(0, 5);
     if (!top.length) { el.innerHTML = '<div class="text-muted fs-sm">No opportunities</div>'; return; }
-    el.innerHTML = top.map((s, i) => { const conf = s.confidence_score || 0; const rr = parseFloat(s.risk_reward);
-      return `<div class="opp-list-row" onclick="location='/asset/${s.asset_id}'"><span class="opp-rank">${i + 1}</span><span class="opp-list-name">${s.asset}</span>${typeof signalBadge === 'function' ? signalBadge(s.signal_type) : ''}<span class="opp-list-conf" style="color:${conf >= 70 ? 'var(--green)' : 'var(--yellow)'}">${conf.toFixed(0)}%</span><span class="opp-list-rr">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span id="adopk_${s.id}" class="opp-list-spark"></span></div>`;
+    el.innerHTML = top.map((s, i) => { const id = STSafe.assetId(s.asset_id); const conf = Number(s.confidence_score) || 0; const rr = parseFloat(s.risk_reward);
+      return `<a class="opp-list-row" href="${STSafe.assetHref(id)}" style="text-decoration:none;color:inherit"><span class="opp-rank">${i + 1}</span><span class="opp-list-name">${STSafe.html(s.asset)}</span>${typeof signalBadge === 'function' ? signalBadge(s.signal_type) : ''}<span class="opp-list-conf" style="color:${conf >= 70 ? 'var(--green)' : 'var(--yellow)'}">${conf.toFixed(0)}%</span><span class="opp-list-rr">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span id="${STSafe.domId('adopk_', s.id)}" class="opp-list-spark"></span></a>`;
     }).join('');
-    top.forEach(s => { const e = document.getElementById(`adopk_${s.id}`); if (e && typeof Sparkline !== 'undefined') Sparkline.load(e, s.asset_id, s.timeframe || '1h'); });
+    top.forEach(s => { const e = document.getElementById(STSafe.domId('adopk_', s.id)); if (e && typeof Sparkline !== 'undefined') Sparkline.load(e, s.asset_id, s.timeframe || '1h'); });
   }
 
   async function adPerf() {
     const [perf, hist] = await Promise.all([API.get('/signals/performance'), API.get('/signals/history', { per_page: 100 })]);
     const ov = perf?.overall || {};
-    S('adApWin', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-    S('adApPF', ov.profit_factor != null ? (+ov.profit_factor).toFixed(2) : '—');
+    const winRate = Number(ov.win_rate);
+    const profitFactor = Number(ov.profit_factor);
+    S('adApWin', Number.isFinite(winRate) ? winRate.toFixed(1) + '%' : '—');
+    S('adApPF', Number.isFinite(profitFactor) ? profitFactor.toFixed(2) : '—');
     S('adApTrades', ov.total_closed ?? '—');
     const rows = (hist?.history || []).slice().reverse();
     if (!rows.length) return;
@@ -730,9 +732,9 @@
 <script src="https://unpkg.com/lightweight-charts@3.8.0/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 /* ── Constants ────────────────────────────────────────── */
-const ASSET_ID     = {{ asset_id }};
-const ASSET_NAME   = "{{ asset.symbol }}";
-const ASSET_MARKET = "{{ asset.market }}";
+const ASSET_ID     = {{ asset_id | tojson }};
+const ASSET_NAME   = {{ asset.symbol | tojson }};
+const ASSET_MARKET = {{ asset.market | tojson }};
 
 // Chart timeframe is remembered across page loads / assets via localStorage,
 // so the chart reopens on the timeframe you last used instead of always 1h.
@@ -865,13 +867,13 @@ async function loadDcaSetup() {
     return;
   }
   if (status === 503) {
-    box.innerHTML = `<div class="alert alert-warning mb-0">${d?.error ||
-      'Not enough 5m market data for this asset yet.'}</div>`;
+    box.innerHTML = `<div class="alert alert-warning mb-0">${_escHtml(d?.error ||
+      'Not enough 5m market data for this asset yet.')}</div>`;
     return;
   }
   if (!d || d.error) {
-    box.innerHTML = `<div class="alert alert-warning mb-0">${d?.error ||
-      `Could not load setup (HTTP ${status || 'network error'}).`}</div>`;
+    box.innerHTML = `<div class="alert alert-warning mb-0">${_escHtml(d?.error ||
+      `Could not load setup (HTTP ${status || 'network error'}).`)}</div>`;
     return;
   }
 
@@ -879,23 +881,23 @@ async function loadDcaSetup() {
   const plan = d.plan || {};
   const ready = d.ready;
 
-  const checks = (d.checks || []).map(c => `
+  const checks = (Array.isArray(d.checks) ? d.checks : []).map(c => `
     <div class="d-flex align-items-center justify-content-between py-2"
          style="border-bottom:1px solid var(--border)">
       <div>
         <i class="bi ${c.passed ? 'bi-check-circle-fill' : 'bi-x-circle-fill'} me-2"
            style="color:${c.passed ? 'var(--green)' : 'var(--red)'}"></i>
-        <span style="color:#fff">${c.label}</span>
+        <span style="color:#fff">${_escHtml(c.label)}</span>
       </div>
-      <span class="fs-xs font-monospace" style="color:#fff">${c.detail}</span>
+      <span class="fs-xs font-monospace" style="color:#fff">${_escHtml(c.detail)}</span>
     </div>`).join('');
 
-  const ladder = (plan.ladder || []).map(t => `
+  const ladder = (Array.isArray(plan.ladder) ? plan.ladder : []).map(t => `
     <tr>
-      <td style="color:#fff">${t.tranche}</td>
-      <td class="font-monospace" style="color:#fff">${t.price}</td>
-      <td class="font-monospace" style="color:#fff">${t.drop_from_first_pct}%</td>
-      <td class="font-monospace" style="color:#fff">$${t.amount}</td>
+      <td style="color:#fff">${_escHtml(t.tranche)}</td>
+      <td class="font-monospace" style="color:#fff">${_escHtml(t.price)}</td>
+      <td class="font-monospace" style="color:#fff">${_escHtml(t.drop_from_first_pct)}%</td>
+      <td class="font-monospace" style="color:#fff">$${_escHtml(t.amount)}</td>
     </tr>`).join('');
 
   box.innerHTML = `
@@ -904,9 +906,9 @@ async function loadDcaSetup() {
         <span class="badge ${ready ? 'bg-success' : 'bg-secondary'} me-2">
           ${ready ? 'SETUP READY — all rules met' : `WAITING — ${d.passed}/${d.total} rules met`}
         </span>
-        <span class="text-muted fs-xs">last closed 5m candle · ${d.as_of || ''}</span>
+        <span class="text-muted fs-xs">last closed 5m candle · ${_escHtml(d.as_of || '')}</span>
       </div>
-      <button class="btn btn-sm btn-outline-secondary" onclick="loadDcaSetup()">
+      <button class="btn btn-sm btn-outline-secondary" id="dcaRefreshBtn">
         <i class="bi bi-arrow-clockwise me-1"></i>Refresh
       </button>
     </div>
@@ -917,17 +919,17 @@ async function loadDcaSetup() {
     <div class="row g-3 mb-4">
       <div class="col-md-4"><div class="kpi-card p-3">
         <div class="text-muted fs-xs">Current price</div>
-        <div class="fs-5 font-monospace" style="color:#fff">${d.price}</div></div></div>
+        <div class="fs-5 font-monospace" style="color:#fff">${_escHtml(d.price)}</div></div></div>
       <div class="col-md-4"><div class="kpi-card p-3">
-        <div class="text-muted fs-xs">Take profit (+${cfg.tp_pct}% from avg)</div>
-        <div class="fs-5 font-monospace" style="color:var(--green)">${plan.take_profit}</div></div></div>
+        <div class="text-muted fs-xs">Take profit (+${_escHtml(cfg.tp_pct)}% from avg)</div>
+        <div class="fs-5 font-monospace" style="color:var(--green)">${_escHtml(plan.take_profit)}</div></div></div>
       <div class="col-md-4"><div class="kpi-card p-3">
-        <div class="text-muted fs-xs">Stop loss (−${cfg.sl_pct}% from first)</div>
-        <div class="fs-5 font-monospace" style="color:var(--red)">${plan.stop_loss}</div></div></div>
+        <div class="text-muted fs-xs">Stop loss (−${_escHtml(cfg.sl_pct)}% from first)</div>
+        <div class="fs-5 font-monospace" style="color:var(--red)">${_escHtml(plan.stop_loss)}</div></div></div>
     </div>
 
     <h6 class="mb-2" style="color:#fff">
-      Tranche ladder — ${cfg.tranches} × $${plan.per_tranche}, ${cfg.spacing_pct}% apart
+      Tranche ladder — ${_escHtml(cfg.tranches)} × $${_escHtml(plan.per_tranche)}, ${_escHtml(cfg.spacing_pct)}% apart
     </h6>
     <div class="table-responsive mb-3">
       <table class="smart-table">
@@ -936,9 +938,9 @@ async function loadDcaSetup() {
       </table>
     </div>
     <div class="alert alert-secondary fs-xs mb-0">
-      <strong>How to trade it:</strong> ${plan.note}
-      Max hold ${cfg.max_hold_days} days. Average entry if all ${cfg.tranches}
-      tranches fill: <span class="font-monospace">${plan.avg_if_all_fill}</span>.
+      <strong>How to trade it:</strong> ${_escHtml(plan.note)}
+      Max hold ${_escHtml(cfg.max_hold_days)} days. Average entry if all ${_escHtml(cfg.tranches)}
+      tranches fill: <span class="font-monospace">${_escHtml(plan.avg_if_all_fill)}</span>.
       <br><br>
       <strong>Measured performance</strong> (SOLUSDT, 3.5 years, 373k 5m bars,
       fees 0.02%/side): bull quarters <span style="color:var(--green)">+0.18% to
@@ -947,10 +949,12 @@ async function loadDcaSetup() {
       about one campaign every 5 days. This setup earns in uptrends and bleeds in
       downtrends — it is not a daily-income machine.
     </div>`;
+  box.querySelector('#dcaRefreshBtn')?.addEventListener('click', loadDcaSetup);
 }
 
 /* ── Timeframe helpers ────────────────────────────────── */
 function setTF(tf) {
+  if (!CHART_TFS.includes(tf)) return;
   _tf = tf;
   try { localStorage.setItem('st_chart_tf', tf); } catch (e) {}
   // data-tf is shared by both the Chart tab's row and the TradingView tab's
@@ -963,6 +967,7 @@ function setTF(tf) {
 }
 
 function setIndTF(tf) {
+  if (!CHART_TFS.includes(tf)) return;
   _indTf = tf;
   document.querySelectorAll('[data-ind-tf]').forEach(b => b.classList.toggle('active', b.dataset.indTf === tf));
   loadIndicators();
@@ -1541,14 +1546,14 @@ async function loadAssetSignals() {
     return;
   }
 
-  const signals = data.signals || [];
+  const signals = Array.isArray(data.signals) ? data.signals : [];
   document.getElementById('assetSigCount').textContent =
     `${data.total || signals.length} signals for ${ASSET_NAME}`;
 
   if (!signals.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="text-center py-5 text-muted">
       <i class="bi bi-lightning-charge d-block mb-2" style="font-size:28px"></i>
-      No signals yet for ${ASSET_NAME}.</td></tr>`;
+      No signals yet for ${_escHtml(ASSET_NAME)}.</td></tr>`;
     return;
   }
 
@@ -1564,13 +1569,13 @@ async function loadAssetSignals() {
   }
 
   tbody.innerHTML = signals.map(s => {
-    const conf    = s.confidence_score || 0;
+    const conf    = Math.min(100, Math.max(0, Number(s.confidence_score) || 0));
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
     const rr      = parseFloat(s.risk_reward) || 0;
     const rrColor = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-secondary)';
     return `<tr>
       <td class="fs-xs" style="white-space:nowrap;color:var(--text-primary)">${shortTime(s.generated_at)}</td>
-      <td><span class="badge-tag">${s.timeframe || '—'}</span></td>
+      <td><span class="badge-tag">${_escHtml(s.timeframe || '—')}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
       <td class="fw-700">${formatPrice(s.entry_price, s.market)}</td>
       <td class="text-red">${formatPrice(s.stop_loss, s.market)}</td>
@@ -1600,19 +1605,21 @@ async function loadAssetSwitcher() {
   const el = document.getElementById('assetSwitchRow');
   if (!el) return;
   const data = await API.get('/market-data/heatmap');
-  const items = (data?.heatmap || []).filter(a => a.market === ASSET_MARKET);
+  const items = (Array.isArray(data?.heatmap) ? data.heatmap : [])
+    .filter(a => a && a.market === ASSET_MARKET && STSafe.assetId(a.asset_id));
   if (!items.length) { el.innerHTML = ''; return; }
 
-  items.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  items.sort((a, b) => String(a.symbol || '').localeCompare(String(b.symbol || '')));
 
   el.innerHTML = items.map(a => {
-    const active = a.asset_id === ASSET_ID;
-    const chg    = a.change_pct;
+    const assetId = STSafe.assetId(a.asset_id);
+    const active = Number(assetId) === Number(ASSET_ID);
+    const chg    = Number(a.change_pct);
     const clr    = chg >= 0 ? 'var(--green)' : 'var(--red)';
     const arrow  = chg >= 0 ? '▲' : '▼';
-    return `<a class="asset-switch-btn${active ? ' active' : ''}" href="/asset/${a.asset_id}">
+    return `<a class="asset-switch-btn${active ? ' active' : ''}" href="${STSafe.assetHref(assetId)}">
       ${_escHtml(a.symbol)}
-      <span class="chg" style="color:${clr}">${arrow}${Math.abs(chg).toFixed(2)}%</span>
+      <span class="chg" style="color:${clr}">${arrow}${Number.isFinite(chg) ? Math.abs(chg).toFixed(2) : '—'}%</span>
     </a>`;
   }).join('');
 }
@@ -1644,7 +1651,7 @@ async function loadPositionAnalysis() {
   const dirColor = isHold ? 'var(--text-muted)' : isBuy ? 'var(--green)' : 'var(--red)';
   const dirIcon  = isHold ? 'bi-dash-circle' : isBuy ? 'bi-graph-up-arrow' : 'bi-graph-down-arrow';
   const dirBg    = isHold ? 'rgba(148,163,184,.12)' : isBuy ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)';
-  const lv       = data.lane_verdicts || {};
+  const lv       = data.lane_verdicts && typeof data.lane_verdicts === 'object' ? data.lane_verdicts : {};
 
   // Lane grid (Technical/Flow/Narrative/Macro) is always computed and always
   // shown — this is what keeps the panel from going blank whenever there's
@@ -1661,13 +1668,15 @@ async function loadPositionAnalysis() {
     const l = lv[k];
     if (!l) return '';
     const vc = verdictColor(l.verdict);
+    const reasons = Array.isArray(l.reasons) ? l.reasons : [];
+    const laneScore = Math.min(100, Math.max(0, Number(l.score) || 0));
     return `<div class="pa-lane-cell">
       <div class="d-flex justify-content-between align-items-center mb-1">
         <span class="fs-xs fw-600"><i class="bi ${icon} me-1"></i>${label}</span>
         <span class="fs-xs fw-700" style="color:${vc}">${_escHtml(l.verdict)}</span>
       </div>
-      <div class="pa-meter mb-1"><i style="width:${Math.max(0, Math.min(100, l.score || 0))}%;background:${vc}"></i></div>
-      <div class="text-muted fs-xs" style="line-height:1.4">${_escHtml((l.reasons || []).slice(0, 2).join(' · '))}</div>
+      <div class="pa-meter mb-1"><i style="width:${laneScore}%;background:${vc}"></i></div>
+      <div class="text-muted fs-xs" style="line-height:1.4">${_escHtml(reasons.slice(0, 2).join(' · '))}</div>
     </div>`;
   }).join('');
 
@@ -1681,10 +1690,11 @@ async function loadPositionAnalysis() {
   // existed.
   let reasoningLine = '';
   let reasoningDetailHtml = '';
-  if (Array.isArray(data.reasoning_detail) && data.reasoning_detail.length) {
-    const aligned    = data.reasoning_detail.filter(r => r.aligned);
-    const outweighed = data.reasoning_detail.filter(r => !r.aligned);
-    const top = (aligned.length ? aligned : data.reasoning_detail).slice(0, 3).map(r => _escHtml(r.text));
+  const reasoningDetail = Array.isArray(data.reasoning_detail) ? data.reasoning_detail : [];
+  if (reasoningDetail.length) {
+    const aligned    = reasoningDetail.filter(r => r.aligned);
+    const outweighed = reasoningDetail.filter(r => !r.aligned);
+    const top = (aligned.length ? aligned : reasoningDetail).slice(0, 3).map(r => _escHtml(r.text));
     reasoningLine = top.join(' · ');
     if (outweighed.length) {
       reasoningLine += ` <span style="opacity:.6">(+${outweighed.length} outweighed — see below)</span>`;
@@ -1692,7 +1702,7 @@ async function loadPositionAnalysis() {
         <summary class="fs-xs fw-600" style="cursor:pointer;color:var(--accent-light)">
           <i class="bi bi-chevron-right me-1"></i>Full factor breakdown
         </summary>
-        <div class="mt-1">${data.reasoning_detail.map(r => {
+        <div class="mt-1">${reasoningDetail.map(r => {
           const icon = r.aligned ? '<i class="bi bi-check-circle-fill" style="color:var(--green);font-size:10px"></i>'
                                   : '<i class="bi bi-x-circle" style="color:var(--text-muted);font-size:10px"></i>';
           const style = r.aligned ? '' : 'opacity:.55;text-decoration:line-through';
@@ -1715,17 +1725,21 @@ async function loadPositionAnalysis() {
         ${_escHtml(data.no_signal_message || 'No confirmed direction on this timeframe right now — factor breakdown below still reflects live conditions.')}
       </div>`;
   } else {
-    const invalidationHtml = (data.invalidation_conditions || []).map(c =>
+    const invalidationConditions = Array.isArray(data.invalidation_conditions) ? data.invalidation_conditions : [];
+    const targetAllocations = Array.isArray(data.target_allocations) ? data.target_allocations : [];
+    const invalidationHtml = invalidationConditions.map(c =>
       `<div class="pa-invalidation-item"><i class="bi bi-x-circle me-1" style="color:var(--red)"></i>${_escHtml(c)}</div>`
     ).join('') || `<div class="text-muted fs-xs">—</div>`;
 
     const allocColors = ['var(--green)', '#4ade80', '#86efac'];
-    const allocHtml = (data.target_allocations || []).map((t, i) =>
-      `<div class="pa-target-row"><span class="fs-xs text-muted"><i class="pa-dot" style="background:${allocColors[i] || 'var(--green)'}"></i>${_escHtml(t.level)} (${t.pct}%)</span><span class="fs-xs fw-700 text-green">${formatPrice(t.price, data.market)}</span></div>`
+    const allocHtml = targetAllocations.map((t, i) => {
+      const pct = Math.min(100, Math.max(0, Number(t.pct) || 0));
+      return `<div class="pa-target-row"><span class="fs-xs text-muted"><i class="pa-dot" style="background:${allocColors[i] || 'var(--green)'}"></i>${_escHtml(t.level)} (${pct}%)</span><span class="fs-xs fw-700 text-green">${formatPrice(t.price, data.market)}</span></div>`;
+    }
     ).join('');
-    const allocBarHtml = (data.target_allocations || []).length
-      ? `<div class="pa-alloc-bar">${(data.target_allocations || []).map((t, i) =>
-          `<i style="width:${t.pct}%;background:${allocColors[i] || 'var(--green)'}"></i>`).join('')}</div>`
+    const allocBarHtml = targetAllocations.length
+      ? `<div class="pa-alloc-bar">${targetAllocations.map((t, i) =>
+          `<i style="width:${Math.min(100, Math.max(0, Number(t.pct) || 0))}%;background:${allocColors[i] || 'var(--green)'}"></i>`).join('')}</div>`
       : '';
 
     const rr = parseFloat(data.risk_reward) || 0;
@@ -1773,13 +1787,14 @@ async function loadPositionAnalysis() {
 /* ── Sentiment ────────────────────────────────────────── */
 async function loadSentiment() {
   const el = document.getElementById('sentimentContent');
+  if (!el) return;
   const data = await API.get(`/market-data/${ASSET_ID}/sentiment`, { timeframe: _tf });
   if (!data) {
     el.innerHTML = `<div class="text-center py-2 text-muted fs-xs">Sentiment data unavailable.</div>`;
     return;
   }
 
-  const score   = parseFloat(data.score || data.sentiment_score || 50);
+  const score   = Math.min(100, Math.max(0, parseFloat(data.score || data.sentiment_score || 50) || 50));
   const label   = data.label || data.sentiment_label || (score >= 60 ? 'Bullish' : score >= 40 ? 'Neutral' : 'Bearish');
   const clr     = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--red)';
 
@@ -1789,7 +1804,7 @@ async function loadSentiment() {
   el.innerHTML = `
     <div class="d-flex justify-content-between mb-1">
       <span class="fs-xs text-muted">Sentiment</span>
-      <span class="fs-xs fw-700" style="color:${clr}">${label}</span>
+      <span class="fs-xs fw-700" style="color:${clr}">${_escHtml(label)}</span>
     </div>
     <div class="sentiment-bar-wrap">
       <div class="sentiment-bar-fill" style="width:${score}%"></div>
@@ -1798,7 +1813,7 @@ async function loadSentiment() {
       <span class="fs-xs text-green">Bull ${bullPct}%</span>
       <span class="fs-xs text-red">Bear ${bearPct}%</span>
     </div>
-    ${data.sources ? `<div class="text-muted fs-xs mt-2">Based on ${data.sources} sources</div>` : ''}
+    ${data.sources ? `<div class="text-muted fs-xs mt-2">Based on ${_escHtml(data.sources)} sources</div>` : ''}
   `;
 }
 
@@ -1819,38 +1834,44 @@ function _aiPredRowHtml(tf, state) {
   }
   const dir    = (state.predicted_direction || '').toUpperCase();
   const dirCls = dir === 'UP' || dir === 'BULLISH' ? 'text-green' : dir === 'DOWN' || dir === 'BEARISH' ? 'text-red' : 'text-yellow';
-  const conf   = parseFloat(state.confidence || 0).toFixed(0);
+  const conf   = Math.min(100, Math.max(0, parseFloat(state.confidence || 0) || 0)).toFixed(0);
   return `<tr id="aiPredRow_${tf}">
     <td class="fs-xs fw-600">${tfLabel}</td>
-    <td class="fs-xs fw-700 ${dirCls}">${dir || '—'}</td>
+    <td class="fs-xs fw-700 ${dirCls}">${_escHtml(dir || '—')}</td>
     <td class="fs-xs text-muted text-end">${conf}%</td>
     <td class="fs-xs text-muted text-end">${state.predicted_target != null ? formatPrice(state.predicted_target) : '—'}</td>
   </tr>`;
 }
 
 /* ── Ask AI ────────────────────────────────────────────── */
+let _askAiInFlight = false;
 async function submitAskAi() {
   const input = document.getElementById('askAiInput');
   const btn = document.getElementById('askAiBtn');
   const out = document.getElementById('askAiAnswer');
-  const question = input.value.trim();
-  if (!question) return;
+  const question = input?.value.trim();
+  if (!input || !btn || !out || !question || _askAiInFlight) return;
 
+  _askAiInFlight = true;
   btn.disabled = true;
   input.disabled = true;
   out.innerHTML = `<i class="bi bi-hourglass-split me-1"></i>Thinking…`;
 
-  const res = await API.post(`/assets/${ASSET_ID}/ask`, { question });
-
-  btn.disabled = false;
-  input.disabled = false;
+  let res = null;
+  try {
+    res = await API.post(`/assets/${ASSET_ID}/ask`, { question });
+  } finally {
+    _askAiInFlight = false;
+    btn.disabled = false;
+    input.disabled = false;
+  }
 
   if (res && res.answer) {
-    out.innerHTML = `<div class="mt-1" style="color:var(--text-primary);line-height:1.5">${res.answer.replace(/</g, '&lt;')}</div>`;
+    out.innerHTML = `<div class="mt-1" style="color:var(--text-primary);line-height:1.5">${_escHtml(res.answer)}</div>`;
   } else if (res && res.message) {
-    out.innerHTML = `<span class="text-warning">${res.message}</span>`;
+    out.innerHTML = `<span class="text-warning">${_escHtml(res.message)}</span>`;
   } else {
-    out.innerHTML = `<span class="text-danger">${res?.error || 'Could not get an answer — try again.'}</span>`;
+    out.innerHTML = `<span class="text-danger">${_escHtml(res?.error || 'Could not get an answer — try again.')}</span>`;
   }
 }
 
@@ -1860,7 +1881,8 @@ document.getElementById('askAiInput')?.addEventListener('keydown', (e) => {
 
 async function loadAiPrediction() {
   const el = document.getElementById('aiPredictionContent');
-  if (!el) return;
+  if (!el || el.dataset.loading === 'true') return;
+  el.dataset.loading = 'true';
 
   el.innerHTML = `
     <table class="w-100" style="border-collapse:collapse">
@@ -1898,6 +1920,7 @@ async function loadAiPrediction() {
 
   const statusEl = document.getElementById('aiPredStatus');
   if (statusEl) statusEl.textContent = 'Ensemble model · updated just now';
+  el.dataset.loading = 'false';
 }
 
 /* ── Init ─────────────────────────────────────────────── */
@@ -2033,5 +2056,29 @@ function logChecklist() {
     document.getElementById('clLogBtn').innerHTML = '<i class="bi bi-save me-1"></i>Log This Check';
   }, 2000);
 }
+
+// Keep page controls out of inline JavaScript attributes. Besides improving
+// CSP compatibility, data-backed listeners make the actions testable and
+// ensure values never cross an HTML attribute execution boundary.
+function wireAssetControls() {
+  document.querySelectorAll('[data-asset-tab]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); showAssetTab(el.dataset.assetTab); });
+  });
+  document.querySelectorAll('[data-tf]').forEach(el => el.addEventListener('click', () => setTF(el.dataset.tf)));
+  document.querySelectorAll('[data-ind-tf]').forEach(el => el.addEventListener('click', () => setIndTF(el.dataset.indTf)));
+  document.querySelectorAll('.chart-ind-btn[data-ind]').forEach(el => el.addEventListener('click', () => toggleChartIndicator(el.dataset.ind)));
+  document.querySelectorAll('[data-sidebar-tab]').forEach(el => {
+    el.addEventListener('click', e => { e.preventDefault(); showSidebarTab(el.dataset.sidebarTab); });
+  });
+  document.getElementById('askAiBtn')?.addEventListener('click', submitAskAi);
+  document.getElementById('runAiPredBtn')?.addEventListener('click', loadAiPrediction);
+  document.getElementById('checklistFab')?.addEventListener('click', openChecklist);
+  document.getElementById('closeChecklistBtn')?.addEventListener('click', closeChecklist);
+  document.querySelectorAll('.checklist-cb').forEach(el => el.addEventListener('change', updateScore));
+  document.getElementById('resetChecklistBtn')?.addEventListener('click', resetChecklist);
+  document.getElementById('clLogBtn')?.addEventListener('click', logChecklist);
+}
+
+wireAssetControls();
 </script>
 {% endblock %}
