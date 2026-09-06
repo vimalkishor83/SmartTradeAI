@@ -1366,4 +1366,17 @@ AI Insights now safely normalizes asset and prediction payloads, bounds probabil
 - `frontend/templates/dashboard/analytics.html` - safely render aggregate values, protect chart lifecycle, serialize refreshes and bind exports without inline handlers.
 - `tests/unit/test_analytics_template_safety.py` - protect the Analytics rendering and export contract.
 
+### 7.90 IMPLEMENTED - Harden Broker Connections and credential handling
+
+Broker connection management now validates provider identity and credential shape at the API boundary, normalizes provider names, supports API-key-only providers correctly, encrypts accepted credentials and handles concurrent uniqueness races without exposing database errors. The Broker Connections page now safely escapes catalog and connection data, validates documentation URLs, delegates controls, guards stale reads, prevents duplicate connect/test/disconnect mutations, handles failed responses accurately and supports keyboard/form submission without inline handlers.
+
+**Risk level:** Critical credential-security, financial-safety and account-integrity value, low compatibility risk for valid broker connections. **Affected modules:** `app/api/v1/trading.py`, `app/services/trading/broker_registry.py`, `frontend/templates/dashboard/broker_connections.html`, `tests/integration/test_broker_connection_validation.py`, `tests/unit/test_broker_connections_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Broker connection checks passed (**8 passed**), Python compilation and extracted browser JavaScript parsing passed, and whitespace validation passed. Existing deprecation warnings remain for pandas/SQLAlchemy/Flask-Migrate and do not fail the suite. Commit: `c5988f7`.
+
+**Session 70 (credential security/UI reliability - Broker Connections, §7.90):**
+- `app/api/v1/trading.py`, `app/services/trading/broker_registry.py` - normalize providers, bound credential input, support API-key-only providers and handle duplicate writes safely.
+- `frontend/templates/dashboard/broker_connections.html` - replace inline broker actions, escape dynamic catalog/connection data, guard stale reads and duplicate mutations, and submit the modal through its form.
+- `tests/integration/test_broker_connection_validation.py`, `tests/unit/test_broker_connections_template_safety.py` - cover API credential boundaries and browser control contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
