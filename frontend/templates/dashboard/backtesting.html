@@ -36,7 +36,7 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Strategy</label>
-          <select class="form-select" id="btStrategy" onchange="onStrategyChange()">
+          <select class="form-select" id="btStrategy">
             <option value="__live__" selected>Live Signal Engine ★ (Recommended)</option>
             <option value="Default Multi-Indicator">Multi-Indicator</option>
             <option value="EMA Crossover">EMA Crossover</option>
@@ -134,6 +134,22 @@
 <script src="/static/vendor/chart.umd.min.js"></script>
 <script>
 let equityChart;
+let _historyRequestSeq = 0;
+let _detailRequestSeq = 0;
+
+function btNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function btText(value) {
+  return STSafe.html(value == null ? '' : String(value));
+}
+
+function btId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
 
 function onStrategyChange() {
   const isLive = document.getElementById('btStrategy').value === '__live__';
@@ -142,21 +158,52 @@ function onStrategyChange() {
 }
 
 async function loadHistory() {
+  const request = ++_historyRequestSeq;
+  const history = document.getElementById('btHistory');
   const data = await API.get('/backtesting/');
-  if (!data?.backtests?.length) return;
-  document.getElementById('btHistory').innerHTML = data.backtests.map(bt => `
-    <div class="p-3 border-bottom" style="border-color:var(--border)!important;cursor:pointer" onclick="loadBacktestDetails(${bt.id})">
+  if (request !== _historyRequestSeq || !history) return;
+  const backtests = Array.isArray(data?.backtests) ? data.backtests : [];
+  if (!backtests.length) {
+    history.innerHTML = '<div class="p-3 text-muted small">No backtests yet</div>';
+    return;
+  }
+  history.innerHTML = backtests.map(bt => {
+    const id = btId(bt?.id);
+    if (!id) return '';
+    const netProfitPct = btNumber(bt.net_profit_pct);
+    const netProfit = btNumber(bt.net_profit);
+    return `
+    <div class="p-3 border-bottom bt-history-item" role="button" tabindex="0" data-backtest-id="${id}" style="border-color:var(--border)!important;cursor:pointer">
       <div class="d-flex justify-content-between">
-        <strong>${bt.asset} (${bt.timeframe})</strong>
-        <span class="${bt.net_profit >= 0 ? 'text-green' : 'text-red'}">${bt.net_profit_pct >= 0 ? '+' : ''}${bt.net_profit_pct}%</span>
+        <strong>${btText(bt.asset || 'Unknown asset')} (${btText(bt.timeframe || '—')})</strong>
+        <span class="${netProfit >= 0 ? 'text-green' : 'text-red'}">${netProfitPct >= 0 ? '+' : ''}${netProfitPct.toFixed(2)}%</span>
       </div>
-      <small class="text-muted">${bt.strategy} • ${bt.total_trades} trades • ${bt.win_rate}% WR</small>
-    </div>`).join('');
+      <small class="text-muted">${btText(bt.strategy || 'Unknown strategy')} • ${Math.max(0, Math.trunc(btNumber(bt.total_trades)))} trades • ${btNumber(bt.win_rate).toFixed(1)}% WR</small>
+    </div>`;
+  }).join('') || '<div class="p-3 text-muted small">No readable backtests yet</div>';
+
+  if (!history.dataset.bound) {
+    history.addEventListener('click', event => {
+      const item = event.target.closest('[data-backtest-id]');
+      if (item && history.contains(item)) loadBacktestDetails(item.dataset.backtestId);
+    });
+    history.addEventListener('keydown', event => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const item = event.target.closest('[data-backtest-id]');
+      if (!item || !history.contains(item)) return;
+      event.preventDefault();
+      loadBacktestDetails(item.dataset.backtestId);
+    });
+    history.dataset.bound = '1';
+  }
 }
 
 async function loadBacktestDetails(id) {
-  const data = await API.get(`/backtesting/${id}`);
-  if (!data) return;
+  const safeId = btId(id);
+  if (!safeId) return;
+  const request = ++_detailRequestSeq;
+  const data = await API.get(`/backtesting/${safeId}`);
+  if (request !== _detailRequestSeq || !data) return;
   showResults(data, false);
 }
 
@@ -165,9 +212,23 @@ document.getElementById('runBt').addEventListener('click', async () => {
   const isLive  = document.getElementById('btStrategy').value === '__live__';
   const symbol  = document.getElementById('btSymbol').value.trim().toUpperCase();
   const tf      = document.getElementById('btTf').value;
-  const days    = parseInt(document.getElementById('btDays').value);
+  const days    = parseInt(document.getElementById('btDays').value, 10);
+  const initialCapital = parseFloat(document.getElementById('btCapital').value);
+  const commission = parseFloat(document.getElementById('btCommission').value) / 100;
+  const slippage = parseFloat(document.getElementById('btSlippage').value) / 100;
+  const spread = parseFloat(document.getElementById('btSpread').value) / 100;
 
-  if (!symbol) { Toast.show('Please enter an asset symbol', 'warning'); return; }
+  if (!symbol) { Toast.show('Please select an asset symbol', 'warning'); return; }
+  if (!Number.isFinite(days) || days < 1 || days > 3650) { Toast.show('Choose a valid lookback period', 'warning'); return; }
+  if (!isLive && (!Number.isFinite(initialCapital) || initialCapital < 0.01 || initialCapital > 1_000_000_000)) {
+    Toast.show('Initial capital must be between 0.01 and 1,000,000,000', 'warning'); return;
+  }
+  if (!isLive && [commission, slippage].some(value => !Number.isFinite(value) || value < 0 || value > 0.01)) {
+    Toast.show('Commission and slippage must be between 0% and 1%', 'warning'); return;
+  }
+  if (!isLive && (!Number.isFinite(spread) || spread < 0 || spread > 0.02)) {
+    Toast.show('Full spread must be between 0% and 2%', 'warning'); return;
+  }
 
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Running…';
@@ -186,10 +247,10 @@ document.getElementById('runBt').addEventListener('click', async () => {
       symbol,
       timeframe: tf,
       strategy: document.getElementById('btStrategy').value,
-      initial_capital: parseFloat(document.getElementById('btCapital').value),
-      commission: parseFloat(document.getElementById('btCommission').value) / 100,
-      slippage: parseFloat(document.getElementById('btSlippage').value) / 100,
-      spread: parseFloat(document.getElementById('btSpread').value) / 100,
+      initial_capital: initialCapital,
+      commission,
+      slippage,
+      spread,
     });
     if (res && !res.error) { loadHistory(); }
   }
@@ -233,7 +294,7 @@ function showUpgradePrompt(message) {
     <div class="section-card-body p-4 text-center">
       <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
       <h5 class="mt-3 mb-2">Backtesting is a Premium feature</h5>
-      <p class="text-muted small mb-3">${message}</p>
+      <p class="text-muted small mb-3">${btText(message)}</p>
       <a href="/settings#yourPlanSection" class="btn btn-primary btn-sm"><i class="bi bi-arrow-up-circle me-1"></i>View Plans &amp; Upgrade</a>
     </div>`;
 }
@@ -246,9 +307,17 @@ const MIN_SAMPLE_TRADES = 20;
 function showResults(data, isLive) {
   document.getElementById('btPlaceholder').style.display = 'none';
   document.getElementById('btResults').style.display = 'block';
+  const upgradePrompt = document.getElementById('btUpgradePrompt');
+  if (upgradePrompt) upgradePrompt.style.display = 'none';
 
   // Normalize fields — live engine uses different keys
-  const totalTrades  = data.total_trades || data.trades || 0;
+  const totalTrades  = Math.max(0, Math.trunc(btNumber(data.total_trades ?? data.trades)));
+  const sampleTrades = Array.isArray(data.sample_trades)
+    ? data.sample_trades.filter(trade => trade && typeof trade === 'object')
+    : [];
+  const equityCurve  = Array.isArray(data.equity_curve)
+    ? data.equity_curve.map(value => btNumber(value)).filter(Number.isFinite)
+    : [];
 
   // Ran successfully (no data.error — that's handled by the caller before
   // showResults is ever invoked) but generated zero signals in the window.
@@ -277,22 +346,25 @@ function showResults(data, isLive) {
   // 100 again here. That double-multiplication (47.4% -> 4740%) was the
   // reported "impossible win rate" bug; win_rate is bounded 0-100 by
   // construction (wins / decided trades) once this isn't applied twice.
-  const winRate      = (data.win_rate || 0).toFixed(1);
-  const rawWinRate   = isLive ? (data.raw_win_rate || 0).toFixed(1) : null;
-  const decidedTrades = isLive ? (data.wins || 0) + (data.losses || 0) : totalTrades;
+  const winRate      = btNumber(data.win_rate).toFixed(1);
+  const rawWinRate   = isLive ? btNumber(data.raw_win_rate).toFixed(1) : null;
+  const decidedTrades = isLive
+    ? Math.max(0, Math.trunc(btNumber(data.wins) + btNumber(data.losses)))
+    : totalTrades;
   const lowSample    = decidedTrades > 0 && decidedTrades < MIN_SAMPLE_TRADES;
-  const profitFactor = parseFloat(data.profit_factor || 0);
-  const avgR         = isLive ? parseFloat(data.avg_r || 0) : null;
-  const maxDD        = data.max_drawdown || 0;
-  const sharpe       = data.sharpe_ratio || '—';
-  const netPct       = data.net_profit_pct || 0;
+  const profitFactor = btNumber(data.profit_factor);
+  const avgR         = isLive ? btNumber(data.avg_r) : null;
+  const maxDD        = btNumber(data.max_drawdown);
+  const sharpeValue  = Number(data.sharpe_ratio);
+  const sharpe       = Number.isFinite(sharpeValue) ? sharpeValue : '—';
+  const netPct       = btNumber(data.net_profit_pct);
 
   const kpis = [
     { label: 'Total Trades',  value: totalTrades, cls: '',
       sub: lowSample ? `Small sample (<${MIN_SAMPLE_TRADES}) — low confidence` : null },
     { label: isLive ? 'Win Rate (decided)' : 'Win Rate',
       value: `${winRate}%`,
-      cls: parseFloat(winRate) >= 50 ? 'text-green' : 'text-red',
+      cls: Number(winRate) >= 50 ? 'text-green' : 'text-red',
       sub: isLive ? `Raw (incl. expired): ${rawWinRate}%` : null },
     { label: 'Profit Factor', value: profitFactor.toFixed(2), cls: profitFactor >= 1.5 ? 'text-green' : profitFactor >= 1 ? 'text-yellow' : 'text-red' },
     { label: isLive ? 'Avg R' : 'Net Profit',
@@ -349,16 +421,16 @@ function showResults(data, isLive) {
   // strategy-config backtest engine's key — app/services/backtesting/
   // engine.py). Reading the wrong key here silently left this chart and
   // the trade table below always empty for every live-engine backtest.
-  if (isLive && data.sample_trades?.length) {
+  if (isLive && sampleTrades.length) {
     // Build cumulative R curve from walk-forward trades
     let cumR = 0;
-    const rCurve = data.sample_trades.map(t => { cumR += (t.r || 0); return parseFloat(cumR.toFixed(3)); });
+    const rCurve = sampleTrades.map(t => { cumR += btNumber(t?.r); return parseFloat(cumR.toFixed(3)); });
     datasets.push({ label: 'Cumulative R', data: rCurve, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
     // Zero benchmark
     const _breakevenClr = getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || 'rgba(148,163,184,0.4)';
     datasets.push({ label: 'Breakeven', data: rCurve.map(() => 0), borderColor: _breakevenClr, borderWidth: 1, borderDash: [4,4], fill: false, pointRadius: 0 });
-  } else if (data.equity_curve?.length) {
-    const equity = data.equity_curve;
+  } else if (equityCurve.length) {
+    const equity = equityCurve;
     // Buy-and-hold benchmark: scale from first to last equity value linearly
     const bah = equity.map((_, i) => equity[0] + (equity[equity.length - 1] - equity[0]) * (i / (equity.length - 1)));
     datasets.push({ label: 'Strategy', data: equity, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.07)', borderWidth: 2, fill: true, tension: 0.3, pointRadius: 0 });
@@ -381,40 +453,45 @@ function showResults(data, isLive) {
   });
 
   // Trades table — same sample_trades/trades_data key split as the chart above.
-  const trades = isLive ? (data.sample_trades || []) : (data.trades_data || []);
+  const trades = isLive
+    ? sampleTrades
+    : (Array.isArray(data.trades_data) ? data.trades_data.filter(trade => trade && typeof trade === 'object') : []);
   document.getElementById('btTrades').innerHTML = trades.slice(0, 100).map((t, i) => `
     <tr>
       <td>${i + 1}</td>
-      <td>${signalBadge(t.type || t.direction || 'BUY')}</td>
-      <td>${formatPrice(t.entry)}</td>
-      <td>${formatPrice(t.exit || t.exit_price)}</td>
-      <td class="${(t.pnl_pct ?? t.r ?? 0) >= 0 ? 'text-green' : 'text-red'}">
-        ${isLive && t.r != null ? (t.r >= 0 ? '+' : '') + t.r.toFixed(2) + 'R' : ((t.pnl_pct >= 0 ? '+' : '') + (t.pnl_pct?.toFixed(2) || '—') + '%')}
+      <td>${signalBadge(t?.type || t?.direction || 'BUY')}</td>
+      <td>${formatPrice(t?.entry)}</td>
+      <td>${formatPrice(t?.exit || t?.exit_price)}</td>
+      <td class="${btNumber(t?.pnl_pct ?? t?.r) >= 0 ? 'text-green' : 'text-red'}">
+        ${isLive && t?.r != null ? (btNumber(t.r) >= 0 ? '+' : '') + btNumber(t.r).toFixed(2) + 'R' : ((btNumber(t?.pnl_pct) >= 0 ? '+' : '') + (Number.isFinite(Number(t?.pnl_pct)) ? btNumber(t.pnl_pct).toFixed(2) : '—') + '%')}
       </td>
-      <td><span class="badge ${t.outcome === 'win' ? 'bg-success' : t.outcome === 'expired' ? 'bg-secondary' : 'bg-danger'}">${t.outcome || '—'}</span></td>
-      <td class="text-muted small">${(t.date || t.entry_time || '')?.slice(0, 10) || '—'}</td>
+      <td><span class="badge ${t?.outcome === 'win' ? 'bg-success' : t?.outcome === 'expired' ? 'bg-secondary' : 'bg-danger'}">${btText(t?.outcome || '—')}</span></td>
+      <td class="text-muted small">${btText(String(t?.date || t?.entry_time || '').slice(0, 10) || '—')}</td>
     </tr>`).join('');
 }
 
 async function loadAssetOptions() {
   const sel = document.getElementById('btSymbol');
   const data = await API.get('/assets/');
-  if (!data?.assets?.length) {
+  const assets = Array.isArray(data?.assets) ? data.assets.filter(a => a && typeof a === 'object') : [];
+  if (!assets.length) {
     sel.innerHTML = '<option value="">No assets found</option>';
     return;
   }
   const marketLabels = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silver',
     indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
   const byMarket = {};
-  data.assets.forEach(a => { (byMarket[a.market] ||= []).push(a); });
+  assets.forEach(a => { (byMarket[String(a.market || 'other')] ||= []).push(a); });
 
   sel.innerHTML = Object.keys(byMarket).sort().map(m => `
-    <optgroup label="${marketLabels[m] || m}">
-      ${byMarket[m].map(a => `<option value="${a.symbol}">${a.symbol} — ${a.name}</option>`).join('')}
+    <optgroup label="${btText(marketLabels[m] || m)}">
+      ${byMarket[m].map(a => `<option value="${btText(a.symbol)}">${btText(a.symbol)} — ${btText(a.name || '')}</option>`).join('')}
     </optgroup>`).join('');
 }
 
 document.addEventListener('app:ready', () => {
+  document.getElementById('btStrategy')?.addEventListener('change', onStrategyChange);
+  onStrategyChange();
   loadHistory();
   loadAssetOptions();
 });
