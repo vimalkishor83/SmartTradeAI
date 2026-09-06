@@ -40,3 +40,23 @@ def test_get_product_id_converts_provider_errors_to_trading_error(monkeypatch):
     monkeypatch.setattr("app.services.trading.delta_trading.requests.get", fail)
     with pytest.raises(DeltaTradingError, match="Network error resolving Delta product"):
         client.get_product_id("BTCUSD")
+
+
+def test_get_product_id_rejects_malformed_provider_payload(monkeypatch):
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return []
+
+    monkeypatch.setattr("app.services.trading.delta_trading.requests.get", lambda *a, **k: Response())
+    client = DeltaTradingClient(api_key="key", api_secret="secret")
+    with pytest.raises(DeltaTradingError, match="invalid product response"):
+        client.get_product_id("BTCUSD")
+
+
+def test_client_rejects_non_positive_order_size():
+    client = DeltaTradingClient(api_key="key", api_secret="secret")
+    with pytest.raises(DeltaTradingError, match="positive whole number"):
+        client.place_order(product_id=1, side="buy", size=0, limit_price="1")

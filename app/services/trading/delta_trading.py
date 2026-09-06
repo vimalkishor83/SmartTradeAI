@@ -115,6 +115,8 @@ class DeltaTradingClient:
             raise DeltaTradingError(f"Network error resolving Delta product: {e}")
         except (ValueError, TypeError):
             raise DeltaTradingError("Delta returned an invalid product response")
+        if not isinstance(payload, dict):
+            raise DeltaTradingError("Delta returned an invalid product response")
         if not payload.get("success"):
             raise DeltaTradingError(f"Unknown Delta product: {delta_symbol}")
         try:
@@ -133,6 +135,8 @@ class DeltaTradingClient:
             raise DeltaTradingError("side must be 'buy' or 'sell'")
         if order_type not in ("limit_order", "market_order"):
             raise DeltaTradingError("order_type must be 'limit_order' or 'market_order'")
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise DeltaTradingError("size must be a positive whole number")
 
         order = {
             "product_id": product_id,
