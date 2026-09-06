@@ -1435,6 +1435,20 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.105 IMPLEMENTED - Improve Watchlist control semantics
+
+Watchlist view and card-size controls now expose their selected state to assistive technology, modal inputs have explicit labels and relationships, action buttons have safe button types, numeric parsing rejects blank provider values, and duplicate page initialization is guarded. Existing list/context rendering, alert mutations and watchlist APIs remain unchanged.
+
+**Risk level:** High daily signal-tracking usability and accessibility value, low compatibility risk because existing view IDs, mutation routes and response contracts remain unchanged. **Affected modules:** `frontend/templates/dashboard/watchlist.html`, `tests/unit/test_watchlist_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Watchlist UI and route validation checks passed (**8 passed**), inline JavaScript compiled, the Jinja template parsed, and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `a415376`.
+
+**Session 85 (Watchlist controls and accessibility - UI-12, §7.105):**
+- `frontend/templates/dashboard/watchlist.html` - add view/card-size state semantics, modal labels, button types, null-safe numeric parsing and duplicate boot protection.
+- `tests/unit/test_watchlist_template_safety.py` - protect the new control and modal contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.104 IMPLEMENTED - Clarify Portfolio state and risk context
 
 The Portfolio page now exposes loading, freshness, empty and unavailable states, adds accessible labels for all position-entry fields, identifies the holdings table for assistive technology, and prevents duplicate page initialization. Existing per-currency P&L grouping, stop-loss editing, validation limits and portfolio endpoints remain unchanged.
