@@ -87,6 +87,21 @@
        doesn't reliably stop page-level horizontal scroll on its own. */
     html { scroll-behavior: smooth; overflow-x: hidden; }
 
+    .skip-link {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #14100a;
+      font-weight: 700;
+      transform: translateY(-160%);
+      transition: transform 0.18s ease;
+    }
+    .skip-link:focus { transform: translateY(0); }
+
     :root {
       --bg:       #080b12;
       --bg2:      #10141c;
@@ -153,6 +168,7 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      flex-wrap: wrap;
       padding: 0 5%;
       height: 64px;
     }
@@ -196,6 +212,27 @@
       display: flex;
       align-items: center;
       gap: 12px;
+      margin-left: auto;
+    }
+
+    .nav-menu-toggle {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: transparent;
+      color: var(--text2);
+      cursor: pointer;
+    }
+    .nav-menu-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+    :where(.navbar a, .navbar button, .hero a, .footer a, details summary, #backToTop):focus-visible {
+      outline: 2px solid var(--accent2);
+      outline-offset: 3px;
     }
 
     .btn {
@@ -1006,7 +1043,22 @@
     @media (max-width: 768px) {
       .hero { grid-template-columns: 1fr; gap: 40px; padding: 60px 5% 50px; }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
-      .nav-links { display: none; }
+      .nav-menu-toggle { display: inline-flex; order: 2; }
+      .nav-cta { order: 3; }
+      .nav-links {
+        display: none;
+        order: 4;
+        flex-basis: 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0;
+        padding: 8px 0 12px;
+        border-top: 1px solid var(--border);
+      }
+      .navbar.menu-open { height: auto; }
+      .navbar.menu-open .nav-links { display: flex; }
+      .nav-links li { width: 100%; }
+      .nav-links a { display: block; padding: 9px 4px; }
       .features-grid { grid-template-columns: 1fr; }
       .snapshot-table th:nth-child(3), .snapshot-table td:nth-child(3) { display: none; }
 
@@ -1026,29 +1078,41 @@
       .hero-actions { flex-direction: column; align-items: flex-start; }
       .btn-lg { width: 100%; justify-content: center; }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+      }
+      .ticker-track { animation: none; }
+    }
   </style>
 </head>
 <body>
+
+<a class="skip-link" href="#mainContent">Skip to main content</a>
 
 <!-- ═══ TRIAL BANNER — only shown to a logged-in visitor on an active
      plan trial (populated by the auth-check script below) ══════════ -->
 <div id="landingTrialBanner" class="trial-banner"></div>
 
 <!-- ═══ LIVE TICKER STRIP ══════════════════════════════════════ -->
-<div class="ticker-wrap">
+<div class="ticker-wrap" role="region" aria-label="Live market prices">
   <div class="ticker-track" id="landingTickerTrack">
     <div class="ticker-item"><span class="ticker-sym">Loading live prices…</span></div>
   </div>
 </div>
 
 <!-- ═══ NAVBAR ══════════════════════════════════════════════ -->
-<nav class="navbar">
+<nav class="navbar" aria-label="Public site navigation">
   <a href="/home" class="nav-brand">
     <div class="brand-icon">📈</div>
     SmartTrade <span class="ai-part">AI</span>
   </a>
 
-  <ul class="nav-links">
+  <ul class="nav-links" id="publicNavLinks">
     <li><a href="/home">Home</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#how-it-works">How It Works</a></li>
@@ -1059,6 +1123,10 @@
     <li><a href="#contact">Contact</a></li>
   </ul>
 
+  <button type="button" class="nav-menu-toggle" id="publicNavToggle" aria-label="Open menu" aria-controls="publicNavLinks" aria-expanded="false">
+    <i class="bi bi-list"></i>
+  </button>
+
   <div class="nav-cta" id="navCta">
     <a href="/login" class="btn btn-ghost" id="navLoginBtn">Login</a>
     <a href="/register" class="btn btn-accent" id="navSignupBtn">Sign Up Free</a>
@@ -1066,6 +1134,7 @@
 </nav>
 
 <!-- ═══ HERO ═════════════════════════════════════════════════ -->
+<main id="mainContent">
 <div style="max-width:1280px;margin:0 auto">
   <div class="hero">
     <!-- Left: Copy -->
@@ -1460,6 +1529,8 @@
   </div>
 </section>
 
+</main>
+
 <!-- ═══ FOOTER ════════════════════════════════════════════════ -->
 <footer class="footer">
   <div class="footer-brand">SmartTrade <span class="ai">AI</span></div>
@@ -1525,7 +1596,33 @@
 </footer>
 
 <!-- Back to top -->
-<button id="backToTop" aria-label="Back to top" title="Back to top">↑</button>
+<button type="button" id="backToTop" aria-label="Back to top" title="Back to top">↑</button>
+
+<script>
+// Public navigation keeps all destinations reachable on small screens.
+(function () {
+  const nav = document.querySelector('.navbar');
+  const toggle = document.getElementById('publicNavToggle');
+  const links = document.getElementById('publicNavLinks');
+  if (!nav || !toggle || !links) return;
+
+  function close() {
+    nav.classList.remove('menu-open');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-label', 'Open menu');
+    toggle.querySelector('i').className = 'bi bi-list';
+  }
+
+  toggle.addEventListener('click', () => {
+    const open = nav.classList.toggle('menu-open');
+    toggle.setAttribute('aria-expanded', String(open));
+    toggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    toggle.querySelector('i').className = open ? 'bi bi-x-lg' : 'bi bi-list';
+  });
+  links.querySelectorAll('a').forEach(link => link.addEventListener('click', close));
+  window.addEventListener('resize', () => { if (window.innerWidth > 768) close(); });
+})();
+</script>
 
 <script>
 (function () {
@@ -1546,11 +1643,15 @@
 // Login/Sign-Up CTAs for a direct link into the dashboard instead of
 // asking them to log in again on their own landing page.
 (async function () {
-  const token = localStorage.getItem('access_token');
+  let token = null;
+  try { token = localStorage.getItem('access_token'); } catch (_) {}
   if (!token) return;
   try {
     const res = await fetch('/api/v1/auth/me', { headers: { 'Authorization': 'Bearer ' + token } });
-    if (!res.ok) { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); return; }
+    if (!res.ok) {
+      try { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); } catch (_) {}
+      return;
+    }
     const me = await res.json();
     // /api/v1/auth/me returns a flat object ({full_name, username, ...}),
     // not the {user: {...}} shape this used to assume — that mismatch made
@@ -1631,18 +1732,46 @@
 // pushes (see app/websocket/events.py — on_connect requires a JWT). A
 // short poll is the practical equivalent here: still feels "live" to a
 // visitor without needing an unauthenticated WebSocket room.
+function publicSafe(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+}
+
+function publicNumber(value, fallback = null) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
+
+function publicUrl(value) {
+  try {
+    const url = new URL(String(value ?? '').trim(), window.location.origin);
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
+  } catch (_) { return null; }
+}
+
+let landingTickerInFlight = false;
 async function loadLandingTicker() {
   const track = document.getElementById('landingTickerTrack');
-  if (!track) return;
+  if (!track || landingTickerInFlight) return;
+  landingTickerInFlight = true;
+  let timeout = null;
   try {
     // Guard against a hung/slow request leaving "Loading live prices…"
     // stuck forever — fall back to the unavailable message after 8s.
     const ctrl = new AbortController();
-    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    timeout = setTimeout(() => ctrl.abort(), 8000);
     const res = await fetch('/api/v1/signals/public-ticker', { signal: ctrl.signal });
-    clearTimeout(timeout);
+    if (!res.ok) throw new Error('ticker request failed');
     const data = await res.json();
-    const items = data.items || [];
+    const items = (Array.isArray(data?.items) ? data.items : [])
+      .map(it => {
+        const price = publicNumber(it?.price);
+        if (price == null || price < 0) return null;
+        return { symbol: publicSafe(it?.symbol || 'Market'), price, change: publicNumber(it?.change_pct, 0) };
+      })
+      .filter(Boolean)
+      .slice(0, 12);
     if (items.length) {
       const chip = (pct) => pct > 0.05 ? 'buy' : pct < -0.05 ? 'sell' : 'hold';
       const arrow = (pct) => pct > 0.05 ? 'BUY' : pct < -0.05 ? 'SELL' : 'HOLD';
@@ -1651,7 +1780,7 @@ async function loadLandingTicker() {
         <div class="ticker-item">
           <span class="ticker-sym">${it.symbol}</span>
           <span class="ticker-price mono">${fmt(it.price)}</span>
-          <span class="ticker-chip ${chip(it.change_pct)}">${arrow(it.change_pct)}</span>
+          <span class="ticker-chip ${chip(it.change)}">${arrow(it.change)}</span>
         </div>`).join('');
       // duplicate the set once for the seamless marquee loop (CSS animates track width/2)
       track.innerHTML = rowHtml + rowHtml;
@@ -1660,6 +1789,9 @@ async function loadLandingTicker() {
     }
   } catch (e) {
     track.innerHTML = '<div class="ticker-item"><span class="ticker-sym">Live prices unavailable right now</span></div>';
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    landingTickerInFlight = false;
   }
 }
 loadLandingTicker();
@@ -1679,8 +1811,11 @@ setInterval(loadLandingTicker, 5000);
   try {
     const res = await fetch('/api/v1/public/site-config');
     const data = await res.json();
-    const links = data.social_links || {};
-    const entries = Object.entries(links).filter(([k]) => ICONS[k]);
+    const links = data.social_links && typeof data.social_links === 'object' ? data.social_links : {};
+    const entries = Object.entries(links)
+      .filter(([k]) => ICONS[k])
+      .map(([k, url]) => [k, publicUrl(url)])
+      .filter(([, url]) => url);
 
     // Organization schema's sameAs — only the accounts an admin has
     // actually configured, never a fabricated or placeholder profile.
@@ -1695,7 +1830,7 @@ setInterval(loadLandingTicker, 5000);
 
     if (!entries.length) return;
     wrap.innerHTML = entries.map(([k, url]) =>
-      `<a href="${url}" target="_blank" rel="noopener noreferrer" aria-label="${k}"><i class="bi ${ICONS[k]}"></i></a>`
+      `<a href="${publicSafe(url)}" target="_blank" rel="noopener noreferrer" aria-label="${publicSafe(k)}"><i class="bi ${ICONS[k]}"></i></a>`
     ).join('');
     wrap.style.display = 'flex';
   } catch (e) { /* leave hidden */ }
@@ -1711,11 +1846,18 @@ async function loadSentimentStrip() {
     const res = await fetch('/api/v1/sentiment/fear-greed');
     const payload = await res.json();
     const current = payload && payload.data && payload.data.current;
-    if (!current || current.value == null) return;
-    const pct = Math.max(0, Math.min(100, current.value));
+    const value = publicNumber(current?.value);
+    if (value == null) return;
+    const pct = Math.max(0, Math.min(100, value));
     const valueEl = document.getElementById('sentimentStripValue');
     const marker = document.getElementById('sentimentMarker');
-    if (valueEl) valueEl.innerHTML = `<span class="num">${current.value}</span> · ${current.classification || '—'}`;
+    if (valueEl) {
+      valueEl.textContent = '';
+      const numberEl = document.createElement('span');
+      numberEl.className = 'num';
+      numberEl.textContent = String(value);
+      valueEl.append(numberEl, document.createTextNode(` · ${current.classification || '—'}`));
+    }
     if (marker) marker.style.left = pct + '%';
     strip.style.display = '';
   } catch (e) { /* leave hidden — no fake fallback */ }
@@ -1730,7 +1872,7 @@ loadSentimentStrip();
     try {
       const res = await fetch('/api/v1/signals/public-stats');
       const s = await res.json();
-      const fmtInt = (n) => (n || 0).toLocaleString('en-IN');
+       const fmtInt = (n) => Math.max(0, publicNumber(n, 0)).toLocaleString('en-IN');
       if (statsBand) {
         const nums = statsBand.querySelectorAll('.stats-band-item .num');
         if (nums.length === 4) {
@@ -1753,23 +1895,28 @@ loadSentimentStrip();
     try {
       const res = await fetch('/api/v1/signals/public-board');
       const data = await res.json();
-      const rows = data.rows || [];
-      const marketLabel = { crypto: 'Crypto', forex: 'Forex', commodity: 'Metals', index: 'Index', indian_stock: 'Stock' };
-      const fmt = (p) => p == null ? '—' : (p >= 1000 ? p.toLocaleString('en-IN', {maximumFractionDigits: 2}) : p.toFixed(p < 10 ? 4 : 2));
-      if (rows.length) {
-        body.innerHTML = rows.map(r => {
-          const badgeClass = r.signal_type === 'BUY' ? 'buy' : r.signal_type === 'SELL' ? 'sell' : 'wait';
-          const badgeArrow = r.signal_type === 'BUY' ? '▲' : r.signal_type === 'SELL' ? '▼' : '●';
-          const conf = Math.round(r.confidence_score || 0);
-          const t1Color = r.signal_type === 'BUY' ? 'var(--green)' : r.signal_type === 'SELL' ? 'var(--red)' : 'var(--text3)';
-          return `
-            <tr>
-              <td><div class="sig-asset">${r.asset}</div><div class="sig-sub">${marketLabel[r.market] || r.market} · ${r.timeframe.toUpperCase()}</div></td>
-              <td><span class="sig-badge ${badgeClass}">${badgeArrow} ${r.signal_type}</span></td>
-              <td><div class="conf-bar-wrap"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${conf}%"></div></div><span class="mono" style="font-size:12px">${conf}%</span></div></td>
-              <td class="mono">${fmt(r.entry_price)}</td>
-              <td class="mono" style="color:${t1Color}">${fmt(r.target1)}</td>
-            </tr>`;
+       const rows = (Array.isArray(data?.rows) ? data.rows : []).slice(0, 5);
+       const marketLabel = { crypto: 'Crypto', forex: 'Forex', commodity: 'Metals', index: 'Index', indian_stock: 'Stock' };
+       const fmt = (p) => {
+         const value = publicNumber(p);
+         return value == null || value < 0 ? '—' : (value >= 1000 ? value.toLocaleString('en-IN', {maximumFractionDigits: 2}) : value.toFixed(value < 10 ? 4 : 2));
+       };
+       if (rows.length) {
+         body.innerHTML = rows.map(r => {
+           const type = ['BUY', 'SELL', 'HOLD'].includes(String(r?.signal_type || '').toUpperCase()) ? String(r.signal_type).toUpperCase() : 'HOLD';
+           const badgeClass = type === 'BUY' ? 'buy' : type === 'SELL' ? 'sell' : 'wait';
+           const badgeArrow = type === 'BUY' ? '▲' : type === 'SELL' ? '▼' : '●';
+           const conf = Math.max(0, Math.min(100, Math.round(publicNumber(r?.confidence_score, 0))));
+           const t1Color = type === 'BUY' ? 'var(--green)' : type === 'SELL' ? 'var(--red)' : 'var(--text3)';
+           const timeframe = publicSafe(String(r?.timeframe || '—').slice(0, 10).toUpperCase());
+           return `
+             <tr>
+               <td><div class="sig-asset">${publicSafe(r?.asset || 'Unknown asset')}</div><div class="sig-sub">${publicSafe(marketLabel[r?.market] || 'Market')} · ${timeframe}</div></td>
+               <td><span class="sig-badge ${badgeClass}">${badgeArrow} ${type}</span></td>
+               <td><div class="conf-bar-wrap"><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${conf}%"></div></div><span class="mono" style="font-size:12px">${conf}%</span></div></td>
+               <td class="mono">${fmt(r?.entry_price)}</td>
+               <td class="mono" style="color:${t1Color}">${fmt(r?.target1)}</td>
+             </tr>`;
         }).join('');
       } else {
         body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';

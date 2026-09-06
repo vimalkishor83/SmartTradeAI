@@ -1435,6 +1435,20 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.97 IMPLEMENTED - Improve the public/pre-login experience
+
+The public landing page now has skip navigation, semantic public navigation and a real mobile menu instead of hiding all navigation links on small screens. The page exposes a main landmark, explicit live-price region, keyboard focus treatment and reduced-motion behavior. Public ticker, sentiment, social-link, stats and signal-preview payloads are now bounded, validated, escaped or DOM-rendered safely; ticker polling is serialized and its timeout is always released. Blocked browser storage falls back without breaking the page.
+
+**Risk level:** High conversion, accessibility and public-data trust value, low compatibility risk because existing public routes, content sections and API response shapes are preserved. **Affected modules:** `frontend/templates/landing.html`, `tests/unit/test_public_landing_safety.py`. **Migration:** none.
+
+**Regression evidence:** Public landing checks passed (**3 passed**), four inline scripts passed Node parsing, the main landmark is balanced, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+
+**Session 77 (public UX and safe rendering - UI-4, §7.97):**
+- `frontend/templates/landing.html` - add responsive public navigation, skip link, main landmark, focus/reduced-motion behavior, storage safety, serialized ticker polling and bounded/escaped public data rendering.
+- `tests/unit/test_public_landing_safety.py` - protect public navigation, live-data safety, error handling and polling contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.96 IMPLEMENTED - Harden the shared application shell
 
 The authenticated shell now exposes explicit labels and relationships for the sidebar, application toolbar, mobile navigation, command palette, notifications, theme control, ticker, and Ask AI widget. The command palette now behaves as a keyboard-accessible dialog with `aria-hidden` state, focus cycling, Escape handling and focus restoration. Mobile navigation and Ask AI keep their expanded/hidden state synchronized with the DOM. First-paint and runtime preference storage are guarded so blocked browser storage falls back safely.
