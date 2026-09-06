@@ -19,3 +19,4 @@ from app.models.rating_snapshot import RatingSnapshot
 from app.models.telegram_alert_channel import TelegramAlertChannel
 from app.models.user_session import UserSession
 from app.models.algo_trading import AlgoExecutionPolicy
+from app.models.daily_compound_calculator import DailyCompoundCalculation

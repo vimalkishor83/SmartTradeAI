@@ -393,6 +393,7 @@ def _register_blueprints(app):
     from app.api.v1.dhan import dhan_bp
     from app.api.v1.algo_trading import algo_trading_bp
     from app.api.v1.public_config import public_config_bp
+    from app.modules.daily_compound_calculator import daily_compound_bp
     from app.frontends import frontends_bp
     from app.views import views_bp
 
@@ -421,6 +422,7 @@ def _register_blueprints(app):
     app.register_blueprint(dhan_bp, url_prefix="/api/v1/dhan")
     app.register_blueprint(algo_trading_bp, url_prefix="/api/v1/algo-trading")
     app.register_blueprint(public_config_bp, url_prefix="/api/v1/public")
+    app.register_blueprint(daily_compound_bp)
     app.register_blueprint(frontends_bp)
     app.register_blueprint(views_bp)
 
