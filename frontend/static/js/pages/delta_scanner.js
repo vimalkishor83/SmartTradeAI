@@ -11,7 +11,7 @@ const dsSet = (id, v) => { const el = document.getElementById(id); if (el) el.te
    onto a table's <thead>, with a 3-state cycle per column (asc → desc →
    back to the server's original order) plus an explicit Reset control,
    without touching how any table's data is fetched or normally rendered. */
-const dsSortRegistry = {}; // tableId -> { original, current, state: {col, dir}|null, render }
+const dsSortRegistry = Object.create(null); // tableId -> { original, current, state: {col, dir}|null, render }
 
 function dsInitSortable(tableId, theadSelector, tbodyId, columns, render) {
   const thead = document.querySelector(theadSelector);
@@ -119,7 +119,7 @@ function dsPrice(n) {
 
 function dsSupertrendBadge(dir) {
   const up = dir === 'bullish';
-  return `<span style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'} ${dir}</span>`;
+  return `<span style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '▲' : '▼'} ${STSafe.html(dir)}</span>`;
 }
 
 // Shared across the Common Coins status panel AND the All Coins BUY/SELL
@@ -157,7 +157,7 @@ function dsEmaCellClass(price, emaVal) {
 
 function dsVolTrendBadge(trend) {
   const clr = trend === 'increasing' ? 'var(--green)' : trend === 'declining' ? 'var(--red)' : 'var(--text-muted)';
-  return `<span style="color:${clr}">${trend}</span>`;
+  return `<span style="color:${clr}">${STSafe.html(trend)}</span>`;
 }
 
 function dsTierBadge(tier) {
@@ -166,7 +166,7 @@ function dsTierBadge(tier) {
     moderate: { clr: 'var(--yellow)', bg: 'rgba(245,158,11,.14)' },
     weak: { clr: 'var(--text-muted)', bg: 'rgba(148,163,184,.12)' },
   }[tier] || { clr: 'var(--text-muted)', bg: 'transparent' };
-  return `<span class="badge-tag" style="color:${meta.clr};background:${meta.bg};border-color:${meta.clr}55;text-transform:capitalize">${tier}</span>`;
+  return `<span class="badge-tag" style="color:${meta.clr};background:${meta.bg};border-color:${meta.clr}55;text-transform:capitalize">${STSafe.html(tier)}</span>`;
 }
 
 function dsRenderTable(bodyId, results) {
@@ -177,24 +177,27 @@ function dsRenderTable(bodyId, results) {
     return;
   }
   tb.innerHTML = results.map((r, i) => {
+    const ema = r.ema || {};
+    const reasons = Array.isArray(r.reasons) ? r.reasons.map(String) : [];
     const priceCls = dsPriceTickClass(r.symbol, r.current_price);
+    const zoneDistance = Number(r.ema_zone_distance_pct);
     return `
     <tr>
       <td>${i + 1}</td>
-      <td><span class="asset-cell-name">${r.symbol}</span></td>
-      <td class="text-muted small">${r.short_name || ''}</td>
+      <td><span class="asset-cell-name">${STSafe.html(r.symbol)}</span></td>
+      <td class="text-muted small">${STSafe.html(r.short_name || '')}</td>
       <td class="num ${priceCls}">${dsPrice(r.current_price)}</td>
       <td class="num">${dsAbbr(r.volume_24h)}</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema9)}">${dsPrice(r.ema.ema9)}</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema21)}">${dsPrice(r.ema.ema21)}</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema50)}">${dsPrice(r.ema.ema50)}</td>
-      <td class="num">${(+r.ema_zone_distance_pct).toFixed(2)}%</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema9)}">${dsPrice(ema.ema9)}</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema21)}">${dsPrice(ema.ema21)}</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema50)}">${dsPrice(ema.ema50)}</td>
+      <td class="num">${Number.isFinite(zoneDistance) ? zoneDistance.toFixed(2) : '—'}%</td>
       ${dsSupertrendCell(r.supertrend_15m, r.supertrend_15m_value)}
       ${dsSupertrendCell(r.supertrend_1h, r.supertrend_1h_value)}
       <td>${dsVolTrendBadge(r.volume_trend)}</td>
       <td class="num">${r.score}/${r.max_score}</td>
       <td>${dsTierBadge(r.tier)}</td>
-      <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${(r.reasons || []).join(' · ')}">${(r.reasons || [])[0] || ''}</td>
+      <td class="text-muted small" style="max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${STSafe.html(reasons.join(' · '))}">${STSafe.html(reasons[0] || '')}</td>
     </tr>
   `;
   }).join('');
@@ -217,31 +220,40 @@ function mtfRenderCommonRows(results) {
     return;
   }
   tb.innerHTML = results.map((r) => {
-    const up = r.change_pct >= 0;
+    const ema = r.ema || {};
+    const changePct = Number(r.change_pct);
+    const up = Number.isFinite(changePct) && changePct >= 0;
     return `
     <tr>
-      <td><span class="asset-cell-name">${r.symbol}</span></td>
-      <td class="text-muted small">${r.short_name || ''}</td>
+      <td><span class="asset-cell-name">${STSafe.html(r.symbol)}</span></td>
+      <td class="text-muted small">${STSafe.html(r.short_name || '')}</td>
       <td class="num ${dsPriceTickClass(r.symbol, r.current_price)}">${dsPrice(r.current_price)}</td>
-      <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '+' : ''}${r.change_pct.toFixed(2)}%</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema9)}">${dsPrice(r.ema.ema9)}</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema21)}">${dsPrice(r.ema.ema21)}</td>
-      <td class="num ${dsEmaCellClass(r.current_price, r.ema.ema50)}">${dsPrice(r.ema.ema50)}</td>
+      <td class="num" style="color:${up ? 'var(--green)' : 'var(--red)'};font-weight:700">${up ? '+' : ''}${Number.isFinite(changePct) ? changePct.toFixed(2) : '—'}%</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema9)}">${dsPrice(ema.ema9)}</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema21)}">${dsPrice(ema.ema21)}</td>
+      <td class="num ${dsEmaCellClass(r.current_price, ema.ema50)}">${dsPrice(ema.ema50)}</td>
       ${dsSupertrendCell(r.supertrend_15m, r.supertrend_15m_value)}
       ${dsSupertrendCell(r.supertrend_1h, r.supertrend_1h_value)}
       <td>${dsVolTrendBadge(r.volume_trend)}</td>
-      <td class="${mtfStatusCellClass(r.status)}" style="text-transform:capitalize">${r.status}</td>
+      <td class="${mtfStatusCellClass(r.status)}" style="text-transform:capitalize">${STSafe.html(r.status)}</td>
     </tr>`;
   }).join('');
 }
 
 async function mtfLoadCommon() {
-  const data = await API.get('/scanner/delta-mtf/status').catch(() => null);
+  if (mtfCommonInFlight) return;
+  mtfCommonInFlight = true;
+  let data = null;
+  try {
+    data = await API.get('/scanner/delta-mtf/status').catch(() => null);
+  } finally {
+    mtfCommonInFlight = false;
+  }
   if (!data) { dsSet('commonMeta', 'Failed to load'); return; }
-  const results = data.results || [];
+  const results = Array.isArray(data.results) ? data.results : [];
   dsSet('commonMeta', data.generated_at ? 'refreshed ' + new Date(data.generated_at * 1000).toLocaleTimeString() : '');
   if (!results.length) {
-    document.getElementById('commonBody').innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>${data.message || 'No data'}</td></tr>`;
+    document.getElementById('commonBody').innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>${STSafe.html(data.message || 'No data')}</td></tr>`;
     return;
   }
   dsSetSortData('common', results);
@@ -263,6 +275,7 @@ const DS_COMMON_COLUMNS = [
 ];
 
 let mtfCommonTimer = null;
+let mtfCommonInFlight = false;
 function mtfStartCommonAutoRefresh() {
   if (mtfCommonTimer) clearInterval(mtfCommonTimer);
   // Cheap call (a handful of symbols, ~8 by default), so this refreshes
@@ -279,7 +292,11 @@ const CC_MAX_SYMBOLS = 30; // mirrors the server-side cap in the watchlist POST 
 async function ccEnsureSymbols() {
   if (ccAllSymbols) return ccAllSymbols;
   const data = await API.get('/scanner/delta-mtf/symbols').catch(() => null);
-  ccAllSymbols = (data && data.symbols) || [];
+  ccAllSymbols = Array.isArray(data?.symbols)
+    ? data.symbols
+      .filter(r => r && typeof r.symbol === 'string')
+      .map(r => ({ symbol: r.symbol, short_name: typeof r.short_name === 'string' ? r.short_name : r.symbol }))
+    : [];
   return ccAllSymbols;
 }
 
@@ -291,8 +308,8 @@ function ccRenderChips() {
     return;
   }
   wrap.innerHTML = Array.from(ccSelected).map((s) => `
-    <span class="badge-tag d-inline-flex align-items-center gap-1" style="cursor:pointer" data-remove="${s}" title="Remove">
-      ${s}<i class="bi bi-x"></i>
+    <span class="badge-tag d-inline-flex align-items-center gap-1" style="cursor:pointer" data-remove="${STSafe.html(s)}" title="Remove">
+      ${STSafe.html(s)}<i class="bi bi-x"></i>
     </span>`).join('');
   wrap.querySelectorAll('[data-remove]').forEach((el) => {
     el.addEventListener('click', () => {
@@ -321,8 +338,8 @@ function ccRenderResults(query) {
   wrap.innerHTML = filtered.slice(0, 150).map((r) => {
     const checked = ccSelected.has(r.symbol);
     return `
-    <div class="d-flex justify-content-between align-items-center py-2 px-1 cc-row" data-symbol="${r.symbol}" style="cursor:pointer;border-bottom:1px solid var(--border)">
-      <div><span class="asset-cell-name">${r.symbol}</span><span class="text-muted small ms-2">${r.short_name}</span></div>
+    <div class="d-flex justify-content-between align-items-center py-2 px-1 cc-row" data-symbol="${STSafe.html(r.symbol)}" style="cursor:pointer;border-bottom:1px solid var(--border)">
+      <div><span class="asset-cell-name">${STSafe.html(r.symbol)}</span><span class="text-muted small ms-2">${STSafe.html(r.short_name)}</span></div>
       <i class="bi ${checked ? 'bi-check-circle-fill text-green' : 'bi-circle text-muted'}"></i>
     </div>`;
   }).join('');
@@ -344,17 +361,26 @@ function ccRenderResults(query) {
 async function mtfConfigure() {
   await ccEnsureSymbols();
   const cfg = await API.get('/scanner/delta-mtf/watchlist').catch(() => null);
-  ccSelected = new Set(cfg?.symbols || []);
+  const allowed = new Set(ccAllSymbols.map(r => r.symbol));
+  ccSelected = new Set(Array.isArray(cfg?.symbols) ? cfg.symbols.filter(s => allowed.has(s)) : []);
   document.getElementById('ccSearchInput').value = '';
   ccRenderChips();
   ccRenderResults('');
   new bootstrap.Modal(document.getElementById('commonCoinsModal')).show();
 }
 
+let ccSaveInFlight = false;
 async function ccSave() {
-  const res = await API.post('/scanner/delta-mtf/watchlist', { symbols: Array.from(ccSelected) }).catch(() => null);
-  if (!res) { Toast.show('Failed to save', 'error'); return; }
-  bootstrap.Modal.getInstance(document.getElementById('commonCoinsModal')).hide();
+  if (ccSaveInFlight) return;
+  ccSaveInFlight = true;
+  let res = null;
+  try {
+    res = await API.post('/scanner/delta-mtf/watchlist', { symbols: Array.from(ccSelected) }).catch(() => null);
+  } finally {
+    ccSaveInFlight = false;
+  }
+  if (!res || res.error) { Toast.show(res?.error || 'Failed to save', 'error'); return; }
+  bootstrap.Modal.getInstance(document.getElementById('commonCoinsModal'))?.hide();
   Toast.show('Common Coins updated', 'success');
   mtfLoadCommon();
 }
@@ -371,13 +397,20 @@ function dsSetDirTab(dir) {
   document.querySelectorAll('#dsDirTabs .scan-chip').forEach((b) => b.classList.toggle('active', b.dataset.dir === dir));
 }
 
+let dsScanInFlight = false;
 async function dsLoadScan(forceRefresh) {
+  if (dsScanInFlight) return;
+  dsScanInFlight = true;
   const btn = document.getElementById('rescanBtn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Scanning…'; }
 
   const path = '/scanner/delta-mtf' + (forceRefresh ? '?force_refresh=1' : '');
-  const data = await API.get(path).catch(() => null);
-
+  let data = null;
+  try {
+    data = await API.get(path).catch(() => null);
+  } finally {
+    dsScanInFlight = false;
+  }
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Rescan'; }
 
   if (!data) {
@@ -385,8 +418,8 @@ async function dsLoadScan(forceRefresh) {
     return;
   }
 
-  const buy = data.buy || [];
-  const sell = data.sell || [];
+  const buy = Array.isArray(data.buy) ? data.buy : [];
+  const sell = Array.isArray(data.sell) ? data.sell : [];
 
   dsSet('kpiScanned', data.contracts_scanned ?? '—');
   dsSet('kpiBuy', buy.length);
@@ -399,10 +432,10 @@ async function dsLoadScan(forceRefresh) {
   dsSet('sellCount', sell.length);
 
   const msgCard = document.getElementById('scanMessageCard');
-  if (data.message) {
+  if (data.message && msgCard) {
     document.getElementById('scanMessageText').textContent = data.message;
     msgCard.style.display = '';
-  } else {
+  } else if (msgCard) {
     msgCard.style.display = 'none';
   }
 
@@ -466,6 +499,7 @@ let scCombinator = 'AND';
 let scConditions = [];
 let scFields = null;   // {field_key: label} — loaded from the API's first response
 let scOperators = null;
+const SC_ASSET_TYPES = new Set(['perpetual_futures', 'spot', 'move_options']);
 const SC_OPERATOR_LABEL = { '>': '>', '<': '<', '>=': '≥', '<=': '≤', '==': '=', between: 'between' };
 
 function scNewCondition() {
@@ -480,8 +514,8 @@ function scRenderConditions() {
     wrap.innerHTML = '<div class="text-muted small py-2">No conditions yet — every coin matches. Add one or pick a preset above.</div>';
     return;
   }
-  const fieldOpts = Object.entries(scFields || {}).map(([k, label]) => `<option value="${k}">${label}</option>`).join('');
-  const opOpts = (scOperators || []).map((op) => `<option value="${op}">${SC_OPERATOR_LABEL[op] || op}</option>`).join('');
+  const fieldOpts = Object.entries(scFields || {}).map(([k, label]) => `<option value="${STSafe.html(k)}">${STSafe.html(label)}</option>`).join('');
+  const opOpts = (scOperators || []).map((op) => `<option value="${STSafe.html(op)}">${STSafe.html(SC_OPERATOR_LABEL[op] || op)}</option>`).join('');
 
   wrap.innerHTML = scConditions.map((c, i) => `
     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap" data-cond-row="${i}">
@@ -534,32 +568,39 @@ async function scResolveDefaultWatchlist() {
   if (scDefaultWatchlistId != null) return scDefaultWatchlistId;
   const lists = await API.get('/watchlist/').catch(() => null);
   const existing = lists?.watchlists?.[0];
-  if (existing) { scDefaultWatchlistId = existing.id; return scDefaultWatchlistId; }
+  const existingId = STSafe.assetId(existing?.id);
+  if (existingId) { scDefaultWatchlistId = existingId; return scDefaultWatchlistId; }
   const created = await API.post('/watchlist/', { name: 'My Watchlist' }).catch(() => null);
-  scDefaultWatchlistId = created?.id ?? null;
+  scDefaultWatchlistId = STSafe.assetId(created?.id) || null;
   return scDefaultWatchlistId;
 }
 
+const scNotify = (message, type = 'info') => {
+  if (typeof Toast !== 'undefined') Toast.show(message, type);
+  else if (typeof toast === 'function') toast(message, type);
+};
+
 async function scAddToWatchlist(symbol, description, iconEl) {
+  if (!iconEl || iconEl.classList.contains('bi-hourglass-split')) return;
   iconEl.classList.remove('bi-star', 'bi-star-fill');
   iconEl.classList.add('bi-hourglass-split');
   const wlId = await scResolveDefaultWatchlist();
   if (!wlId) {
     iconEl.classList.remove('bi-hourglass-split');
     iconEl.classList.add('bi-star');
-    if (typeof toast === 'function') toast('Could not create a watchlist', 'error');
+    scNotify('Could not create a watchlist', 'error');
     return;
   }
-  const res = await API.post(`/watchlist/${wlId}/items`, { symbol, name: description }).catch(() => null);
+  const res = await API.post(`/watchlist/${Number(wlId)}/items`, { symbol, name: description }).catch(() => null);
   iconEl.classList.remove('bi-hourglass-split');
   if (res && res.id) {
     iconEl.classList.add('bi-star-fill');
     iconEl.style.color = 'var(--yellow)';
     iconEl.title = 'In watchlist';
-    if (typeof toast === 'function') toast(symbol + ' added to watchlist', 'success');
+    scNotify(symbol + ' added to watchlist', 'success');
   } else {
     iconEl.classList.add('bi-star');
-    if (typeof toast === 'function') toast('Failed to add ' + symbol, 'error');
+    scNotify('Failed to add ' + symbol, 'error');
   }
 }
 
@@ -567,7 +608,7 @@ async function scAddToWatchlist(symbol, description, iconEl) {
 // native {BASE}USD symbols the screener works with — mirrors
 // from_delta_symbol() server-side (delta_symbol.upper() + "T") so the
 // prefilled symbol actually resolves to something /trading recognizes.
-const scTradingSymbol = (deltaSymbol) => deltaSymbol.toUpperCase() + 'T';
+const scTradingSymbol = (deltaSymbol) => String(deltaSymbol || '').toUpperCase() + 'T';
 
 function scRsiBadgeColor(rsi) {
   if (rsi == null) return 'var(--text-muted)';
@@ -580,9 +621,9 @@ let scCardsView = false;
 let scLastResults = [];
 
 function scRenderResults(data) {
-  dsSet('screenerMatchCount', `${data.matched} of ${data.universe_size} match`);
+  dsSet('screenerMatchCount', `${data.matched ?? 0} of ${data.universe_size ?? 0} match`);
   dsSet('screenerMeta', data.generated_at ? 'refreshed ' + new Date(data.generated_at * 1000).toLocaleTimeString() : '');
-  scLastResults = data.results || [];
+  scLastResults = Array.isArray(data.results) ? data.results : [];
   dsSetSortData('screener', scLastResults); // drives the table view; cards view is unaffected by column sort
   scRenderResultsCards(scLastResults);
 }
@@ -604,18 +645,24 @@ function scRenderResultsTable(results) {
     tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No matches</td></tr>';
     return;
   }
-  tb.innerHTML = results.map((r) => `
+  tb.innerHTML = results.map((r) => {
+    const change = Number(r.change_24h_pct);
+    const rsi = Number(r.rsi_14);
+    const funding = Number(r.funding_pct);
+    const description = STSafe.html(r.description || r.symbol);
+    return `
     <tr>
-      <td><i class="bi bi-star sc-watch-star" data-sym="${r.symbol}" data-desc="${(r.description || r.symbol).replace(/"/g, '&quot;')}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i></td>
-      <td><span class="asset-cell-name">${r.symbol}</span></td>
+      <td><i class="bi bi-star sc-watch-star" data-sym="${STSafe.html(r.symbol)}" data-desc="${description}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i></td>
+      <td><span class="asset-cell-name">${STSafe.html(r.symbol)}</span></td>
       <td class="num">${dsPrice(r.price)}</td>
-      <td class="num" style="color:${r.change_24h_pct >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${r.change_24h_pct >= 0 ? '+' : ''}${r.change_24h_pct.toFixed(2)}%</td>
+      <td class="num" style="color:${change >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${change >= 0 ? '+' : ''}${Number.isFinite(change) ? change.toFixed(2) : '—'}%</td>
       <td class="num">${dsAbbr(r.volume_24h)}</td>
-      <td class="num">${r.rsi_14 != null ? r.rsi_14.toFixed(1) : '—'}</td>
-      <td class="num">${r.funding_pct != null ? (r.funding_pct >= 0 ? '+' : '') + r.funding_pct.toFixed(4) + '%' : '—'}</td>
+      <td class="num">${Number.isFinite(rsi) ? rsi.toFixed(1) : '—'}</td>
+      <td class="num">${Number.isFinite(funding) ? (funding >= 0 ? '+' : '') + funding.toFixed(4) + '%' : '—'}</td>
       <td class="num">${dsAbbr(r.open_interest)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
   tb.querySelectorAll('.sc-watch-star').forEach((el) => {
     el.addEventListener('click', () => scAddToWatchlist(el.dataset.sym, el.dataset.desc, el));
   });
@@ -629,24 +676,27 @@ function scRenderResultsCards(results) {
     return;
   }
   wrap.innerHTML = results.map((r) => {
-    const up = r.change_24h_pct >= 0;
+    const change = Number(r.change_24h_pct);
+    const up = Number.isFinite(change) && change >= 0;
     const tradeSym = scTradingSymbol(r.symbol);
+    const encodedTradeSym = encodeURIComponent(tradeSym);
+    const description = STSafe.html(r.description || r.symbol);
     return `
     <div class="scanner-card">
       <div class="scanner-card-head">
-        <span class="scanner-card-symbol">${r.symbol}</span>
-        <i class="bi bi-star sc-watch-star" data-sym="${r.symbol}" data-desc="${(r.description || r.symbol).replace(/"/g, '&quot;')}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i>
+        <span class="scanner-card-symbol">${STSafe.html(r.symbol)}</span>
+        <i class="bi bi-star sc-watch-star" data-sym="${STSafe.html(r.symbol)}" data-desc="${description}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i>
       </div>
       <div class="scanner-card-price">${dsPrice(r.price)}</div>
       <div class="scanner-card-metrics">
-        <span>24h <span class="num" style="color:${up ? 'var(--green)' : 'var(--red)'}">${up ? '+' : ''}${r.change_24h_pct.toFixed(2)}%</span></span>
+        <span>24h <span class="num" style="color:${up ? 'var(--green)' : 'var(--red)'}">${up ? '+' : ''}${Number.isFinite(change) ? change.toFixed(2) : '—'}%</span></span>
         <span>Vol <span class="num">${dsAbbr(r.volume_24h)}</span></span>
-        <span>RSI <span class="num" style="color:${scRsiBadgeColor(r.rsi_14)}">${r.rsi_14 != null ? r.rsi_14.toFixed(1) : '—'}</span></span>
+        <span>RSI <span class="num" style="color:${scRsiBadgeColor(r.rsi_14)}">${Number.isFinite(Number(r.rsi_14)) ? Number(r.rsi_14).toFixed(1) : '—'}</span></span>
         <span>OI <span class="num">${dsAbbr(r.open_interest)}</span></span>
       </div>
       <div class="scanner-card-actions">
-        <a class="btn btn-sm btn-outline-success" href="/trading?symbol=${tradeSym}&side=buy"><i class="bi bi-arrow-up-circle me-1"></i>Buy</a>
-        <a class="btn btn-sm btn-outline-danger" href="/trading?symbol=${tradeSym}&side=sell"><i class="bi bi-arrow-down-circle me-1"></i>Sell</a>
+        <a class="btn btn-sm btn-outline-success" href="/trading?symbol=${encodedTradeSym}&side=buy"><i class="bi bi-arrow-up-circle me-1"></i>Buy</a>
+        <a class="btn btn-sm btn-outline-danger" href="/trading?symbol=${encodedTradeSym}&side=sell"><i class="bi bi-arrow-down-circle me-1"></i>Sell</a>
       </div>
     </div>`;
   }).join('');
@@ -666,6 +716,7 @@ function scSetView(view) {
 // exactly what's currently shown in the Results table, not whatever is
 // mid-edit in the condition builder.
 let scLastApplied = { asset_type: 'perpetual_futures', conditions: [], combinator: 'AND' };
+let scApplyInFlight = false;
 
 function scUpdateExportLink() {
   const params = new URLSearchParams({
@@ -678,32 +729,41 @@ function scUpdateExportLink() {
 }
 
 async function scApply(presetKey) {
+  if (scApplyInFlight) return;
+  scApplyInFlight = true;
   const tb = document.getElementById('screenerBody');
   tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px"></i>Filtering…</td></tr>';
 
-  const params = new URLSearchParams({ asset_type: scAssetType });
-  const effectiveConditions = presetKey
-    ? (market_screener_presets_cache[presetKey] || [])
+  const assetType = SC_ASSET_TYPES.has(scAssetType) ? scAssetType : 'perpetual_futures';
+  const preset = Object.prototype.hasOwnProperty.call(market_screener_presets_cache, presetKey) ? presetKey : null;
+  const params = new URLSearchParams({ asset_type: assetType });
+  const effectiveConditions = preset
+    ? (market_screener_presets_cache[preset] || [])
     : scConditions.filter((c) => c.value !== '');
-  if (presetKey) {
-    params.set('preset', presetKey);
+  if (preset) {
+    params.set('preset', preset);
   } else {
     params.set('conditions', JSON.stringify(effectiveConditions));
     params.set('combinator', scCombinator);
   }
-  const data = await API.get('/scanner/delta-market-screener?' + params.toString()).catch(() => null);
-  if (!data) { dsSet('screenerMeta', 'Failed to load'); return; }
+  let data = null;
+  try {
+    data = await API.get('/scanner/delta-market-screener?' + params.toString()).catch(() => null);
+  } finally {
+    scApplyInFlight = false;
+  }
+  if (!data || data.error) { dsSet('screenerMeta', data?.error || 'Failed to load'); return; }
 
   if (!scFields) {
-    scFields = data.fields;
-    scOperators = data.operators;
-    if (!scConditions.length && !presetKey) {
+    scFields = data.fields && typeof data.fields === 'object' ? data.fields : {};
+    scOperators = Array.isArray(data.operators) ? data.operators : [];
+    if (!scConditions.length && !preset) {
       scRenderConditions();
     }
   }
   scRenderResults(data);
 
-  scLastApplied = { asset_type: scAssetType, conditions: effectiveConditions, combinator: scCombinator };
+  scLastApplied = { asset_type: assetType, conditions: effectiveConditions, combinator: scCombinator };
   scUpdateExportLink();
 }
 
@@ -721,18 +781,19 @@ const market_screener_presets_cache = {
 
 async function scSaveScreen() {
   const name = window.prompt('Name this screen:', '');
-  if (!name || !name.trim()) return;
+  const trimmedName = name?.trim().slice(0, 120);
+  if (!trimmedName) return;
   const res = await API.post('/scanner/delta-market-screener/saved', {
-    name: name.trim(),
+    name: trimmedName,
     asset_type: scLastApplied.asset_type,
     conditions: scLastApplied.conditions,
     combinator: scLastApplied.combinator,
   }).catch(() => null);
   if (res && res.id) {
-    if (typeof toast === 'function') toast('Screen saved', 'success');
+    scNotify('Screen saved', 'success');
     scSavedScreensLoaded = false; // force a re-fetch next time the dropdown opens
-  } else if (typeof toast === 'function') {
-    toast('Failed to save screen', 'error');
+  } else {
+    scNotify('Failed to save screen', 'error');
   }
 }
 
@@ -742,30 +803,35 @@ async function scLoadSavedScreens() {
   const menu = document.getElementById('screenerSavedMenu');
   if (!menu) return;
   const res = await API.get('/scanner/delta-market-screener/saved').catch(() => null);
-  const screens = res?.screens || [];
+  const screens = Array.isArray(res?.screens) ? res.screens : [];
   scSavedScreensLoaded = true;
   if (!screens.length) {
     menu.innerHTML = '<li><span class="dropdown-item-text text-muted small">No saved screens yet</span></li>';
     return;
   }
-  menu.innerHTML = screens.map((s) => `
+  menu.innerHTML = screens.map((s) => {
+    const id = STSafe.assetId(s.id);
+    const assetType = SC_ASSET_TYPES.has(s.asset_type) ? s.asset_type : 'perpetual_futures';
+    const conditions = Array.isArray(s.conditions) ? s.conditions : [];
+    return `
     <li class="d-flex align-items-center">
-      <a class="dropdown-item flex-grow-1 sc-load-screen" href="#" data-id="${s.id}">${s.name}
-        <span class="text-muted small d-block">${s.asset_type.replace('_', ' ')} · ${s.conditions.length} condition(s)</span>
+      <a class="dropdown-item flex-grow-1 sc-load-screen" href="#" data-id="${STSafe.html(id)}">${STSafe.html(s.name || 'Unnamed screen')}
+        <span class="text-muted small d-block">${STSafe.html(assetType.replace('_', ' '))} · ${conditions.length} condition(s)</span>
       </a>
-      <button class="btn btn-sm text-danger sc-delete-screen" data-id="${s.id}" title="Delete"><i class="bi bi-trash"></i></button>
+      <button class="btn btn-sm text-danger sc-delete-screen" data-id="${STSafe.html(id)}" title="Delete"><i class="bi bi-trash"></i></button>
     </li>
-  `).join('');
+  `;
+  }).join('');
   menu.querySelectorAll('.sc-load-screen').forEach((el) => {
     el.addEventListener('click', (e) => {
       e.preventDefault();
       const s = screens.find((x) => String(x.id) === el.dataset.id);
       if (!s) return;
-      scAssetType = s.asset_type;
-      scCombinator = s.combinator;
-      scConditions = (s.conditions || []).map((c) => ({ value2: '', abs: false, ...c }));
-      document.querySelectorAll('#screenerAssetTypeTabs .scan-chip').forEach((x) => x.classList.toggle('active', x.dataset.type === s.asset_type));
-      document.querySelectorAll('#screenerCombinator button').forEach((x) => x.classList.toggle('active', x.dataset.combinator === s.combinator));
+      scAssetType = SC_ASSET_TYPES.has(s.asset_type) ? s.asset_type : 'perpetual_futures';
+      scCombinator = s.combinator === 'OR' ? 'OR' : 'AND';
+      scConditions = (Array.isArray(s.conditions) ? s.conditions : []).slice(0, 20).map((c) => ({ value2: '', abs: false, ...c }));
+      document.querySelectorAll('#screenerAssetTypeTabs .scan-chip').forEach((x) => x.classList.toggle('active', x.dataset.type === scAssetType));
+      document.querySelectorAll('#screenerCombinator button').forEach((x) => x.classList.toggle('active', x.dataset.combinator === scCombinator));
       document.querySelectorAll('#screenerPresets .scan-chip').forEach((x) => x.classList.remove('active'));
       scRenderConditions();
       scApply(null);
@@ -774,7 +840,9 @@ async function scLoadSavedScreens() {
   menu.querySelectorAll('.sc-delete-screen').forEach((el) => {
     el.addEventListener('click', async (e) => {
       e.stopPropagation();
-      await API.delete(`/scanner/delta-market-screener/saved/${el.dataset.id}`).catch(() => null);
+      const id = STSafe.assetId(el.dataset.id);
+      if (!id) return;
+      await API.delete(`/scanner/delta-market-screener/saved/${Number(id)}`).catch(() => null);
       scLoadSavedScreens();
     });
   });
@@ -812,6 +880,7 @@ let icCombinator = 'AND';
 let icConditions = [];
 let icIndicators = null;   // {field_key: label} — loaded from the API's first response
 let icComparisons = null;
+let icApplyInFlight = false;
 
 const IC_COMPARISON_LABEL = {
   crosses_above: 'crosses above', crosses_below: 'crosses below',
@@ -833,20 +902,20 @@ function icRenderConditions() {
     wrap.innerHTML = '<div class="text-muted small py-2">No conditions yet — every coin matches. Add a Condition above.</div>';
     return;
   }
-  const fieldOpts = (fields) => Object.entries(icIndicators || {}).map(([k, label]) => `<option value="${k}" ${k === fields ? 'selected' : ''}>${label}</option>`).join('');
-  const compOpts = (comp) => (icComparisons || []).map((c) => `<option value="${c}" ${c === comp ? 'selected' : ''}>${IC_COMPARISON_LABEL[c] || c}</option>`).join('');
+  const fieldOpts = (fields) => Object.entries(icIndicators || {}).map(([k, label]) => `<option value="${STSafe.html(k)}" ${k === fields ? 'selected' : ''}>${STSafe.html(label)}</option>`).join('');
+  const compOpts = (comp) => (icComparisons || []).map((c) => `<option value="${STSafe.html(c)}" ${c === comp ? 'selected' : ''}>${STSafe.html(IC_COMPARISON_LABEL[c] || c)}</option>`).join('');
 
   wrap.innerHTML = icConditions.map((c, i) => {
     const isBetween = c.comparison === 'is_between';
     const rightControl = isBetween
-      ? `<input type="number" class="form-control form-control-sm ic-low" style="width:90px" placeholder="low" value="${c.low}" data-i="${i}">
+      ? `<input type="number" class="form-control form-control-sm ic-low" style="width:90px" placeholder="low" value="${STSafe.html(c.low)}" data-i="${i}">
          <span class="text-muted small">and</span>
-         <input type="number" class="form-control form-control-sm ic-high" style="width:90px" placeholder="high" value="${c.high}" data-i="${i}">`
+         <input type="number" class="form-control form-control-sm ic-high" style="width:90px" placeholder="high" value="${STSafe.html(c.high)}" data-i="${i}">`
       : `<select class="form-select form-select-sm ic-right-mode" style="width:auto" data-i="${i}">
            <option value="number" ${c.rightMode === 'number' ? 'selected' : ''}>a number…</option>
-           ${Object.entries(icIndicators || {}).map(([k, label]) => `<option value="indicator:${k}" ${c.rightMode === 'indicator' && c.rightField === k ? 'selected' : ''}>${label}</option>`).join('')}
+           ${Object.entries(icIndicators || {}).map(([k, label]) => `<option value="indicator:${STSafe.html(k)}" ${c.rightMode === 'indicator' && c.rightField === k ? 'selected' : ''}>${STSafe.html(label)}</option>`).join('')}
          </select>
-         ${c.rightMode === 'number' ? `<input type="number" class="form-control form-control-sm ic-right-value" style="width:110px" placeholder="value" value="${c.rightValue}" data-i="${i}">` : ''}`;
+         ${c.rightMode === 'number' ? `<input type="number" class="form-control form-control-sm ic-right-value" style="width:110px" placeholder="value" value="${STSafe.html(c.rightValue)}" data-i="${i}">` : ''}`;
 
     return `
     <div class="d-flex align-items-center gap-2 mb-2 flex-wrap" data-cond-row="${i}">
@@ -919,24 +988,24 @@ function icReferencedFields() {
 }
 
 function icRenderResults(data) {
-  const referenced = icReferencedFields();
+  const referenced = icReferencedFields().filter(f => Object.prototype.hasOwnProperty.call(icIndicators || {}, f));
   const thead = document.getElementById('indicatorTableHead');
   const tbody = document.getElementById('indicatorBody');
 
-  thead.innerHTML = `<tr><th></th><th>Symbol</th><th>Price</th><th>Vol (bar)</th>${referenced.map((f) => `<th>${(icIndicators[f] || f)}</th>`).join('')}</tr>`;
+  thead.innerHTML = `<tr><th></th><th>Symbol</th><th>Price</th><th>Vol (bar)</th>${referenced.map((f) => `<th>${STSafe.html(icIndicators[f] || f)}</th>`).join('')}</tr>`;
 
   dsSet('indicatorMatchCount', `${data.matched} of ${data.universe_size} match`);
   dsSet('indicatorMeta', data.generated_at ? 'refreshed ' + new Date(data.generated_at * 1000).toLocaleTimeString() : '');
 
   const summaryCard = document.getElementById('indicatorSummaryCard');
-  if (data.conditions_summary && data.conditions_summary.length) {
+  if (Array.isArray(data.conditions_summary) && data.conditions_summary.length) {
     document.getElementById('indicatorSummaryText').textContent = data.conditions_summary.join(icCombinator === 'OR' ? '  OR  ' : '  AND  ');
     summaryCard.style.display = '';
   } else {
     summaryCard.style.display = 'none';
   }
 
-  const results = data.results || [];
+  const results = Array.isArray(data.results) ? data.results : [];
   if (!results.length) {
     tbody.innerHTML = `<tr><td colspan="${4 + referenced.length}" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No matches</td></tr>`;
     return;
@@ -944,11 +1013,11 @@ function icRenderResults(data) {
 
   tbody.innerHTML = results.map((r) => `
     <tr>
-      <td><i class="bi bi-star sc-watch-star" data-sym="${r.symbol}" data-desc="${(r.description || r.symbol).replace(/"/g, '&quot;')}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i></td>
-      <td><span class="asset-cell-name">${r.symbol}</span></td>
+      <td><i class="bi bi-star sc-watch-star" data-sym="${STSafe.html(r.symbol)}" data-desc="${STSafe.html(r.description || r.symbol)}" style="cursor:pointer;color:var(--text-muted)" title="Add to watchlist"></i></td>
+      <td><span class="asset-cell-name">${STSafe.html(r.symbol)}</span></td>
       <td class="num">${dsPrice(r.price)}</td>
       <td class="num">${dsAbbr(r.volume_bar)}</td>
-      ${referenced.map((f) => `<td class="num">${r.indicators[f] != null ? (+r.indicators[f]).toFixed(4) : '—'}</td>`).join('')}
+      ${referenced.map((f) => { const value = Number(r.indicators?.[f]); return `<td class="num">${Number.isFinite(value) ? value.toFixed(4) : '—'}</td>`; }).join('')}
     </tr>
   `).join('');
   tbody.querySelectorAll('.sc-watch-star').forEach((el) => {
@@ -957,6 +1026,8 @@ function icRenderResults(data) {
 }
 
 async function icApply() {
+  if (icApplyInFlight) return;
+  icApplyInFlight = true;
   const tbody = document.getElementById('indicatorBody');
   tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px"></i>Scanning (fetches candles for every contract — a few seconds)…</td></tr>';
 
@@ -967,12 +1038,17 @@ async function icApply() {
     conditions: JSON.stringify(conditions),
     combinator: icCombinator,
   });
-  const data = await API.get('/scanner/delta-indicator-screener?' + params.toString()).catch(() => null);
-  if (!data) { dsSet('indicatorMeta', 'Failed to load'); return; }
+  let data = null;
+  try {
+    data = await API.get('/scanner/delta-indicator-screener?' + params.toString()).catch(() => null);
+  } finally {
+    icApplyInFlight = false;
+  }
+  if (!data || data.error) { dsSet('indicatorMeta', data?.error || 'Failed to load'); return; }
 
   if (!icIndicators) {
-    icIndicators = data.indicators;
-    icComparisons = data.comparisons;
+    icIndicators = data.indicators && typeof data.indicators === 'object' ? data.indicators : {};
+    icComparisons = Array.isArray(data.comparisons) ? data.comparisons : [];
     if (!icConditions.length) {
       icConditions.push(icNewCondition());
       icRenderConditions();
