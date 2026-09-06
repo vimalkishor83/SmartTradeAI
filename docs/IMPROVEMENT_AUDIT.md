@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.142 IMPLEMENTED - Harden audit log timestamp serialization
+
+Audit and system-log payloads now tolerate legacy rows with a null `created_at` instead of raising during admin/API serialization. Normal timestamps retain their ISO-8601 representation, so the fix is backward-compatible and requires no data migration.
+
+**Risk level:** Medium operational reliability value, low compatibility risk. **Affected modules:** `app/models/audit.py`, `tests/unit/test_audit_serialization.py`. **Migration:** none.
+
+**Regression evidence:** Audit serialization, pagination and existing audit-log checks passed (**11 passed**), Python compilation and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 122 (Audit serialization resilience):**
+- `app/models/audit.py` - make AuditLog and SystemLog timestamps null-safe.
+- `tests/unit/test_audit_serialization.py` - verify legacy and normal timestamp payloads.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.141 IMPLEMENTED - Harden Platform Config bootstrap
 
 Platform Config now exposes a live bootstrap status, prevents overlapping refresh requests, and restores the refresh control's busy state through `finally`. Configuration and asset-summary request failures now produce explicit retryable status text instead of leaving a partially initialized admin control surface; all configuration payloads, permissions and feature toggles remain unchanged.

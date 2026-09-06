@@ -68,7 +68,7 @@ class AuditLog(db.Model):
             "resource_id": self.resource_id or "",
             "status": self.status or "success",
             "ip_address": self.ip_address or "—",
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 
 
@@ -88,5 +88,5 @@ class SystemLog(db.Model):
             "level": self.level,
             "module": self.module,
             "message": self.message,
-            "created_at": self.created_at.isoformat(),
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }
