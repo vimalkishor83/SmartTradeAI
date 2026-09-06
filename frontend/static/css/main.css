@@ -3942,11 +3942,82 @@ select option {
 
 /* ═══ Enhanced Dashboard (image-parity) ═══════════════════════════ */
 .dash-header {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
   margin-bottom: 16px
+}
+
+/* Deeepr-style editorial label: it gives every module a visual entry point
+   while keeping the actual page title and data-driven content untouched. */
+.dash-header-greet::before {
+  content: '01 / MARKET OVERVIEW';
+  display: block;
+  width: fit-content;
+  margin-bottom: 7px;
+  color: var(--accent-light);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.25px;
+  text-transform: uppercase;
+}
+
+.dash-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 118px;
+  height: 12px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 52%, transparent);
+  border-radius: 50%;
+  transform: rotate(-3deg);
+  pointer-events: none;
+}
+
+body[data-active="signals"] .dash-header-greet::before,
+body[data-active="scanner"] .dash-header-greet::before,
+body[data-active="heatmap"] .dash-header-greet::before,
+body[data-active="delta_scanner"] .dash-header-greet::before,
+body[data-active="delta_bubbles"] .dash-header-greet::before {
+  content: '02 / SIGNAL DISCOVERY';
+}
+
+body[data-active="ai"] .dash-header-greet::before,
+body[data-active="ta_summary"] .dash-header-greet::before,
+body[data-active="mtf"] .dash-header-greet::before,
+body[data-active="advanced_analysis"] .dash-header-greet::before,
+body[data-active="news"] .dash-header-greet::before,
+body[data-active="economic_calendar"] .dash-header-greet::before {
+  content: '03 / INTELLIGENCE';
+}
+
+body[data-active="backtesting"] .dash-header-greet::before,
+body[data-active="analytics"] .dash-header-greet::before,
+body[data-active="reports"] .dash-header-greet::before,
+body[data-active="model_perf"] .dash-header-greet::before {
+  content: '04 / RESEARCH LAB';
+}
+
+body[data-active="portfolio"] .dash-header-greet::before,
+body[data-active="watchlist"] .dash-header-greet::before,
+body[data-active="risk"] .dash-header-greet::before,
+body[data-active="performance"] .dash-header-greet::before,
+body[data-active="journal"] .dash-header-greet::before,
+body[data-active="trading"] .dash-header-greet::before {
+  content: '05 / CAPITAL CONTROL';
+}
+
+body[data-active="settings"] .dash-header-greet::before,
+body[data-active="help"] .dash-header-greet::before {
+  content: '06 / ACCOUNT & SUPPORT';
+}
+
+body[data-requires-admin] .dash-header-greet::before {
+  content: '07 / OPERATIONS CONSOLE';
 }
 
 .dash-header-greet {

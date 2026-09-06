@@ -59,3 +59,13 @@ def test_shared_shell_exposes_route_aware_visual_atmosphere():
     assert ".page-content::before" in css
     assert "markets-atmosphere.png" in css
     assert "legal-center-atmosphere.png" in css
+
+
+def test_shared_shell_exposes_editorial_module_labels_and_wave_accent():
+    css = CSS.read_text(encoding="utf-8")
+
+    assert ".dash-header-greet::before" in css
+    assert "01 / MARKET OVERVIEW" in css
+    assert "02 / SIGNAL DISCOVERY" in css
+    assert "05 / CAPITAL CONTROL" in css
+    assert ".dash-header::after" in css
