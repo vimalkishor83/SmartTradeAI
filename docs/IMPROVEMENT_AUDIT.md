@@ -8,6 +8,38 @@ Phase 0 architecture and sequencing artifacts are maintained in [`docs/ARCHITECT
 
 ---
 
+### 7.158 IMPLEMENTED - Complete the public authentication journey polish
+
+The shared auth stylesheet now gives login, registration, recovery, reset and email verification a consistent control height, focus treatment, error surface, reduced-motion policy and small-screen layout. Password reset adds accessible visibility toggles, invalid reset links disable unusable fields, and email verification exposes an explicit busy state plus a home fallback. Existing auth endpoints, token handling and security-neutral messaging are unchanged.
+
+**Risk level:** High usability and accessibility value, low compatibility risk because the changes preserve form IDs and API contracts. **Affected modules:** `frontend/static/css/auth.css`, `frontend/templates/partials/base.html`, `frontend/templates/auth/login.html`, `frontend/templates/auth/register.html`, `frontend/templates/auth/forgot_password.html`, `frontend/templates/auth/reset_password.html`, `frontend/templates/auth/verify_email.html`, `tests/unit/test_auth_visual_system_contract.py`, `tests/unit/test_auth_experience_safety.py`. **Migration:** none.
+
+**Regression evidence:** Auth, public landing and legal UI checks passed (**10 passed** for the recovery slice; the auth foundation passed **8 tests**), JavaScript syntax, Python compilation and whitespace checks passed. Commits: `adfbed7`, `816837e`. Production deployment remains pending for this UI slice.
+
+### 7.157 IMPLEMENTED - Make the home secondary CTA truthful
+
+The home page's secondary “See Demo” action now opens the real live-signals preview on the same page instead of sending a logged-out visitor directly to registration. The primary signup CTA remains unchanged, preserving the conversion path while making the secondary action match its label.
+
+**Risk level:** Low compatibility risk and high conversion clarity value. **Affected modules:** `frontend/templates/landing.html`, `tests/unit/test_public_landing_safety.py`. **Migration:** none.
+
+**Regression evidence:** Public landing checks passed (**3 passed**) and whitespace validation passed. Commit: `5366bc8`. Production deployment remains pending for this UI slice.
+
+### 7.156 IMPLEMENTED - Keep legal navigation reachable on mobile
+
+All eight standalone legal pages now share a responsive navigation/readability layer. Mobile users retain access to Home, Login, Signup and document links, long legal tables scroll within their content surface, navigation landmarks are labeled, and reduced-motion behavior is consistent.
+
+**Risk level:** High accessibility and trust value, low content/API compatibility risk. **Affected modules:** `frontend/static/css/legal.css`, all eight `frontend/templates/legal/*.html` pages, `tests/unit/test_legal_responsive_contract.py`. **Migration:** none.
+
+**Regression evidence:** Legal and related public UI checks passed (**10 passed**), Python compilation and whitespace validation passed. Commit: `639567c`. Production deployment remains pending for this UI slice.
+
+### 7.155 IMPLEMENTED - Improve shared auth visual consistency
+
+Login, registration and forgot-password now opt into a shared auth visual layer rather than independently drifting control and mobile rules. The shared loader is scoped to public auth pages, so authenticated dashboard styling remains unaffected.
+
+**Risk level:** Low compatibility risk and high consistency value. **Affected modules:** `frontend/static/css/auth.css`, `frontend/templates/partials/base.html`, `frontend/templates/auth/login.html`, `frontend/templates/auth/register.html`, `frontend/templates/auth/forgot_password.html`, `tests/unit/test_auth_visual_system_contract.py`. **Migration:** none.
+
+**Regression evidence:** Auth visual and existing auth/public checks passed (**8 passed**), with compilation and whitespace validation passed. Commit: `adfbed7`. Production deployment remains pending for this UI slice.
+
 ### 7.118 IMPLEMENTED - Make Model Performance refresh state explicit
 
 The Model Performance dashboard now announces loading, successful, empty and unavailable states in an accessible live region. Refresh is disabled while the request is active and is restored in all completion paths, preventing duplicate requests and making stale values visible instead of leaving a failed refresh indistinguishable from a healthy page. Existing prediction endpoints, caching and rendering contracts remain unchanged.
