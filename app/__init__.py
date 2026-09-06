@@ -540,15 +540,26 @@ def _migrate_columns(app):
             try:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_def}")
                 conn.commit()
-            except Exception:
-                pass  # column already exists
+            except Exception as exc:
+                # PostgreSQL aborts the whole transaction after a duplicate
+                # column or missing legacy table error. Roll back here so the
+                # remaining compatibility operations can still run.
+                conn.rollback()
+                logging.getLogger(__name__).debug(
+                    "Startup column compatibility skipped for %s.%s: %s",
+                    table, column, exc,
+                )
 
         for table, idx_name, cols in index_migrations:
             try:
                 cur.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table} ({cols})")
                 conn.commit()
-            except Exception:
-                pass  # index already exists or table not yet created
+            except Exception as exc:
+                conn.rollback()
+                logging.getLogger(__name__).debug(
+                    "Startup index compatibility skipped for %s.%s: %s",
+                    table, idx_name, exc,
+                )
 
         # Partial unique index: at most one active signal per (asset,
         # timeframe) — closes the duplicate-signal race window in
@@ -568,8 +579,11 @@ def _migrate_columns(app):
                 WHERE status = 'active'
             """)
             conn.commit()
-        except Exception:
-            pass  # index already exists or table not yet created
+        except Exception as exc:
+            conn.rollback()
+            logging.getLogger(__name__).debug(
+                "Startup active-signal index compatibility skipped: %s", exc,
+            )
 
         # Backfill NULL values in new api_configs columns for existing rows
         try:
@@ -580,8 +594,11 @@ def _migrate_columns(app):
             cur.execute("UPDATE api_configs SET priority=0 WHERE priority IS NULL")
             cur.execute("UPDATE api_configs SET refresh_interval=60 WHERE refresh_interval IS NULL")
             conn.commit()
-        except Exception:
-            pass
+        except Exception as exc:
+            conn.rollback()
+            logging.getLogger(__name__).debug(
+                "Startup API-config backfill skipped: %s", exc,
+            )
 
         # Legacy OHLCV/indicator tables are no longer used by the application,
         # but startup must never destroy persisted data. Keep them intact so a

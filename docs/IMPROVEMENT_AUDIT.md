@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.151 IMPLEMENTED - Recover startup compatibility transactions
+
+Startup compatibility operations now roll back after an expected legacy-schema failure before continuing to the next column, index or backfill. This is important on PostgreSQL, where one failed statement otherwise aborts the connection transaction and causes all later compatibility work to fail silently; skipped operations remain debug-logged and startup remains tolerant.
+
+**Risk level:** High migration-reliability and observability value, low runtime compatibility risk. **Affected modules:** `app/__init__.py`, `tests/unit/test_startup_migration_safety.py`. **Migration:** none; this changes only the existing compatibility fallback behavior.
+
+**Regression evidence:** Startup migration safety checks passed (**2 passed**), Python compilation and whitespace validation passed. Commit: pending. Production deployment remains pending for this safety slice.
+
+**Session 131 (Startup compatibility transaction recovery):**
+- `app/__init__.py` - roll back failed compatibility statements and retain debug diagnostics.
+- `tests/unit/test_startup_migration_safety.py` - protect non-destructive and transaction-recovery contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.150 IMPLEMENTED - Make startup compatibility non-destructive
 
 Startup compatibility checks no longer drop the legacy `market_data` and `technical_indicators` tables. Current application code uses provider/API caches instead, but preserving those tables prevents an application restart from irreversibly deleting historical data; any cleanup can now be planned as a separately reviewed migration with backup and rollback evidence.
