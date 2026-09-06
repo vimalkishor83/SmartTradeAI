@@ -26,3 +26,14 @@ def test_risk_rendering_bounds_numbers_and_escapes_portfolio_warnings():
     assert "riskText(s.asset || 'Unknown asset')" in source
     assert "riskText(prettyMarket(w))" in source
     assert "riskText(p.symbol_a || 'Unknown')" in source
+
+
+def test_risk_calculator_enforces_direction_and_exposes_state():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'aria-pressed="true"' in source
+    assert 'id="riskValidation"' in source
+    assert "const validDirection = _direction === 'BUY'" in source
+    assert "Stop Loss must be below Entry" in source
+    assert "Stop Loss must be above Entry" in source
+    assert "if (value === null || value === undefined || value === '')" in source
