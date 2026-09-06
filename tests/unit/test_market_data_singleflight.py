@@ -67,6 +67,40 @@ def test_delta_ohlcv_collapses_concurrent_same_key_misses(monkeypatch):
     assert all(len(result) == 2 for result in results)
 
 
+def test_delta_symbol_discovery_collapses_concurrent_cold_misses(monkeypatch):
+    from app.services.data import fetcher as fetcher_module
+
+    calls = 0
+    calls_lock = threading.Lock()
+
+    class _Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"result": [{"symbol": "BTCUSD", "state": "live"}]}
+
+    class _Session:
+        def get(self, *_args, **_kwargs):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+            time.sleep(0.05)
+            return _Response()
+
+    monkeypatch.setattr(fetcher_module, "_http_session", _Session())
+    fetcher_module._delta_live_symbols._cache = None
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _index: fetcher_module._delta_live_symbols(), range(2)))
+    finally:
+        fetcher_module._delta_live_symbols._cache = None
+
+    assert calls == 1
+    assert all(result == {"BTCUSD"} for result in results)
+
+
 def test_yahoo_ohlcv_collapses_concurrent_same_key_misses(monkeypatch):
     from app.services.data import fetcher as fetcher_module
 

@@ -222,41 +222,52 @@ def _delta_live_symbols() -> set[str]:
     if cached and now - cached[1] < 600:  # 10 min TTL
         return cached[0]
 
-    # A cold-start cache miss (cached is None, e.g. right after process
-    # start) with no retry meant a single transient network blip made
-    # to_delta_symbol() return None for EVERY crypto symbol for every
-    # request that happened to land in that instant — a brief request-level
-    # blackout, not the 10-minute one the cache TTL alone might suggest
-    # (a failure never populates the cache, so the very next call retries
-    # immediately). Still worth a couple of quick retries within this one
-    # call so a single transient failure doesn't surface as "symbol not
-    # tradeable" to whichever requests happen to be in flight at that moment.
-    attempts = 1 if cached else 3
-    last_err = None
-    for attempt in range(attempts):
-        try:
-            resp = _http_session.get(
-                "https://api.india.delta.exchange/v2/products",
-                params={"contract_types": "perpetual_futures"},
-                timeout=8,
-            )
-            resp.raise_for_status()
-            symbols = {
-                p["symbol"] for p in resp.json().get("result", [])
-                if p.get("symbol", "").endswith("USD") and p.get("state") == "live"
-            }
-            _delta_live_symbols._cache = (symbols, now)
-            return symbols
-        except Exception as e:
-            last_err = e
-            if attempt < attempts - 1:
-                time.sleep(0.5 * (attempt + 1))
+    # Product discovery is shared by every cold crypto OHLCV/ticker request.
+    # Serialize only the cold refresh and check the cache again after waiting,
+    # so a concurrent fetch does not create a burst of identical product-list
+    # requests at process start or after the TTL expires.
+    with _delta_live_symbols._lock:
+        now = time.time()
+        cached = _delta_live_symbols._cache
+        if cached and now - cached[1] < 600:
+            return cached[0]
 
-    logger.debug(f"Delta symbol list fetch failed after {attempts} attempt(s): {last_err}")
-    return cached[0] if cached else set()
+        # A cold-start cache miss (cached is None, e.g. right after process
+        # start) with no retry meant a single transient network blip made
+        # to_delta_symbol() return None for EVERY crypto symbol for every
+        # request that happened to land in that instant — a brief request-level
+        # blackout, not the 10-minute one the cache TTL alone might suggest
+        # (a failure never populates the cache, so the very next call retries
+        # immediately). Still worth a couple of quick retries within this one
+        # call so a single transient failure doesn't surface as "symbol not
+        # tradeable" to whichever requests happen to be in flight at that moment.
+        attempts = 1 if cached else 3
+        last_err = None
+        for attempt in range(attempts):
+            try:
+                resp = _http_session.get(
+                    "https://api.india.delta.exchange/v2/products",
+                    params={"contract_types": "perpetual_futures"},
+                    timeout=8,
+                )
+                resp.raise_for_status()
+                symbols = {
+                    p["symbol"] for p in resp.json().get("result", [])
+                    if p.get("symbol", "").endswith("USD") and p.get("state") == "live"
+                }
+                _delta_live_symbols._cache = (symbols, time.time())
+                return symbols
+            except Exception as e:
+                last_err = e
+                if attempt < attempts - 1:
+                    time.sleep(0.5 * (attempt + 1))
+
+        logger.debug(f"Delta symbol list fetch failed after {attempts} attempt(s): {last_err}")
+        return cached[0] if cached else set()
 
 
 _delta_live_symbols._cache = None
+_delta_live_symbols._lock = threading.Lock()
 
 
 # ─────────────────────────────────────────────────────────
