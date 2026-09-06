@@ -11,6 +11,7 @@
     <p class="page-subtitle">Connect your own broker accounts — non-custodial, encrypted, never shared between users</p>
   </div>
 </div>
+<div id="brokerConnectionsStatus" class="visually-hidden" role="status" aria-live="polite"></div>
 
 <div class="alert alert-info py-2 fs-sm mb-4">
   <i class="bi bi-shield-check me-1"></i>
@@ -25,6 +26,7 @@
   </div>
   <div class="table-responsive">
     <table class="smart-table">
+      <caption class="visually-hidden">Your connected broker accounts and their current status</caption>
       <thead>
         <tr><th>Broker</th><th>Category</th><th>Status</th><th>Trading</th><th>Last Tested</th><th>Actions</th></tr>
       </thead>
@@ -43,9 +45,10 @@
   <div class="section-card-body">
     <div class="row g-3 mb-3">
       <div class="col-md-4">
-        <div class="search-bar" style="padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="brokerSearch" placeholder="Search brokers…" style="font-size:12.5px"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
+        <label class="visually-hidden" for="brokerSearch">Search brokers</label><div class="search-bar" style="padding:4px 10px"><i class="bi bi-search" style="font-size:12px"></i><input type="text" id="brokerSearch" placeholder="Search brokers…" style="font-size:12.5px"><i class="bi bi-x-circle-fill search-bar-clear" style="font-size:11px"></i></div>
       </div>
       <div class="col-md-4">
+        <label class="visually-hidden" for="categoryFilter">Filter brokers by category</label>
         <select class="form-select form-select-sm" id="categoryFilter">
           <option value="">All Categories</option>
           <option value="crypto">Crypto</option>
@@ -161,19 +164,33 @@ function providerMeta(provider) {
 
 async function loadBrokers() {
   const sequence = ++_brokerCatalogSequence;
-  const data = await API.get('/trading/brokers');
-  if (sequence !== _brokerCatalogSequence) return;
-  ALL_BROKERS = (Array.isArray(data?.brokers) ? data.brokers : []).map(normalizeBroker).filter(Boolean);
-  renderBrokerGrid();
+  try {
+    const data = await API.get('/trading/brokers');
+    if (sequence !== _brokerCatalogSequence) return;
+    ALL_BROKERS = (Array.isArray(data?.brokers) ? data.brokers : []).map(normalizeBroker).filter(Boolean);
+    renderBrokerGrid();
+  } catch (_) {
+    const status = document.getElementById('brokerConnectionsStatus');
+    if (status) status.textContent = 'Broker catalog is unavailable.';
+  }
 }
 
 async function loadConnections() {
   const sequence = ++_brokerConnectionSequence;
-  const data = await API.get('/trading/broker/connections');
-  if (sequence !== _brokerConnectionSequence) return;
-  MY_CONNECTIONS = (Array.isArray(data?.connections) ? data.connections : []).map(normalizeConnection).filter(Boolean);
-  renderConnections();
-  renderBrokerGrid();
+  const status = document.getElementById('brokerConnectionsStatus');
+  if (status) status.textContent = 'Loading broker connections…';
+  try {
+    const data = await API.get('/trading/broker/connections');
+    if (sequence !== _brokerConnectionSequence) return;
+    MY_CONNECTIONS = (Array.isArray(data?.connections) ? data.connections : []).map(normalizeConnection).filter(Boolean);
+    renderConnections();
+    renderBrokerGrid();
+    if (status) status.textContent = MY_CONNECTIONS.length ? 'Broker connections loaded.' : 'No broker connections yet.';
+  } catch (_) {
+    if (status) status.textContent = 'Broker connections are unavailable.';
+    const body = document.getElementById('connectionsBody');
+    if (body && sequence === _brokerConnectionSequence) body.innerHTML = '<tr><td colspan="6" class="text-center py-4 text-muted">Unable to load broker connections.</td></tr>';
+  }
 }
 
 function renderConnections() {
@@ -203,10 +220,10 @@ function renderConnections() {
       <td class="text-muted fs-xs">${lastSync}</td>
       <td>
         <div class="d-flex gap-1">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-action="test-broker" data-provider="${brokerEscape(c.provider)}" ${c.trading_enabled ? '' : 'disabled title="Not yet supported"'}>
+          <button type="button" aria-label="Test ${brokerEscape(c.provider_label)} connection" class="btn btn-sm btn-outline-secondary" data-action="test-broker" data-provider="${brokerEscape(c.provider)}" ${c.trading_enabled ? '' : 'disabled title="Not yet supported"'}>
             <i class="bi bi-plug"></i>
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger" data-action="disconnect-broker" data-provider="${brokerEscape(c.provider)}" data-label="${brokerEscape(c.provider_label)}">
+          <button type="button" aria-label="Disconnect ${brokerEscape(c.provider_label)}" class="btn btn-sm btn-outline-danger" data-action="disconnect-broker" data-provider="${brokerEscape(c.provider)}" data-label="${brokerEscape(c.provider_label)}">
             <i class="bi bi-x-lg"></i>
           </button>
         </div>

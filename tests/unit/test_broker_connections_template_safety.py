@@ -17,6 +17,9 @@ def test_broker_connections_uses_delegated_actions_and_safe_rendering():
     assert "_brokerMutations" in source
     assert "brokerEscape(c.provider_label)" in source
     assert "brokerEscape(b.help)" in source
+    assert 'id="brokerConnectionsStatus" class="visually-hidden" role="status" aria-live="polite"' in source
+    assert 'caption class="visually-hidden"' in source
+    assert 'aria-label="Disconnect ${brokerEscape(c.provider_label)}"' in source
 
 
 def test_broker_connections_validates_provider_urls_and_request_order():
@@ -30,4 +33,5 @@ def test_broker_connections_validates_provider_urls_and_request_order():
     assert "Promise.allSettled([loadBrokers(), loadConnections()])" in source
     assert "value.length > 1024" in source
     assert "[\\u0000-\\u001f]" in source
-
+    assert "Broker connections are unavailable." in source
+    assert "Broker catalog is unavailable." in source

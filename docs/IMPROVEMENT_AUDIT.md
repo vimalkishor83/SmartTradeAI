@@ -36,6 +36,20 @@ The Backtesting page now exposes accessible status announcements for history, sa
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.120 IMPLEMENTED - Clarify broker connection states and loading failures
+
+Broker Connections now exposes an accessible live status for initial connection/catalog loading, renders an explicit unavailable state when either read fails, labels search/category controls, names connection actions for assistive technology, and adds a table caption. Credential validation, encrypted transport, broker mutation guards and backend routes remain unchanged.
+
+**Risk level:** High trust and credential-workflow clarity value, low compatibility risk because the change is additive and does not alter secret payloads or broker APIs. **Affected modules:** `frontend/templates/dashboard/broker_connections.html`, `tests/unit/test_broker_connections_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Broker template and credential validation checks passed (**8 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 100 (Broker connection UX resilience):**
+- `frontend/templates/dashboard/broker_connections.html` - add status/error states, accessible labels/captions and named connection actions.
+- `tests/unit/test_broker_connections_template_safety.py` - protect state and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
 
 The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
