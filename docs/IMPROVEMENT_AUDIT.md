@@ -870,6 +870,94 @@ Platform Configuration now escapes page labels, routes and timeframe tokens befo
 
 **Regression evidence:** Platform Configuration, Security, API Configuration and Telegram Alerts checks passed (**9 passed**), both updated inline JavaScript blocks parsed successfully, whitespace validation passed, and the full local regression suite passed (**312 passed** in 122.22s).
 
+### 7.64 IMPLEMENTED - Harden Admin Dashboard rendering
+
+Admin Dashboard rendering now validates and escapes server-provided dashboard values, uses bounded numeric display helpers, and binds actions through validated event listeners instead of inline handlers. This reduces the chance that operational metrics or action labels can break the page or become executable markup.
+
+**Risk level:** High admin safety and trust value, low endpoint compatibility risk. **Affected modules:** `frontend/templates/admin/index.html`, `tests/unit/test_admin_dashboard_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Admin Dashboard safety checks, inline JavaScript parsing and whitespace validation passed; the full local suite remains green after subsequent slices.
+
+### 7.65 IMPLEMENTED - Scope summary caches to the full asset universe
+
+Market summary caches now include the full-universe scope in their cache identity and the summary route avoids reusing a partial request result for a full dashboard request. This prevents incomplete aggregate metrics from being shown after a narrower request warms the cache.
+
+**Risk level:** High correctness value for aggregate metrics, low response-shape risk. **Affected modules:** `app/api/v1/market_data.py`, `tests/integration/test_summary_cache_scope.py`. **Migration:** none.
+
+**Regression evidence:** Summary-cache scope and summary single-flight checks passed; the full local suite remains green after subsequent slices.
+
+### 7.66 IMPLEMENTED - Serialize indicator summary cold builds
+
+Indicator summary cache misses now use single-flight construction with a double-checked cache read. Concurrent dashboard requests therefore share one expensive indicator build instead of multiplying provider and calculation work.
+
+**Risk level:** High performance value, low API compatibility risk. **Affected modules:** `app/api/v1/market_data.py`, `tests/unit/test_summary_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** Indicator summary concurrency checks passed, including concurrent cold-request coverage; the full local suite remains green after subsequent slices.
+
+### 7.67 IMPLEMENTED - Serialize AI summary cold builds
+
+AI summary cache misses now use a dedicated single-flight path, preserving the existing cache contract while preventing duplicate model and summary work during simultaneous page loads.
+
+**Risk level:** High compute-cost reduction, low behavior risk because only concurrent cache misses are serialized. **Affected modules:** `app/api/v1/market_data.py`, `tests/unit/test_summary_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** AI summary concurrency checks passed with the indicator summary coverage; the full local suite remains green after subsequent slices.
+
+### 7.68 IMPLEMENTED - Complete Admin User Management controls
+
+Admin User Management now validates account identifiers and action payloads in the browser, escapes account and status data, handles API failures consistently, and uses event-bound controls for account actions. This removes unsafe username-bearing inline handlers and makes failure states visible instead of silently treating error payloads as success.
+
+**Risk level:** High administrative access-control value, low endpoint compatibility risk. **Affected modules:** `frontend/templates/admin/users.html`, `tests/unit/test_admin_users_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** User Management safety checks and script parsing passed; the full local suite remains green after subsequent slices.
+
+### 7.69 IMPLEMENTED - Harden shared toast and account banners
+
+Shared toast, notification, ticker, trial and account-banner rendering now escapes text, validates identifiers and URLs, clamps numeric display values, and treats API error payloads as failures. This protects every page that uses the shared UI layer and avoids duplicate or misleading account-state actions.
+
+**Risk level:** High cross-page trust value, moderate UI compatibility risk because shared helpers affect many screens. **Affected modules:** `frontend/static/js/app.js`, `tests/unit/test_global_ui_safety.py`. **Migration:** none.
+
+**Regression evidence:** Global UI safety checks and JavaScript syntax validation passed; the full local suite remains green after subsequent slices.
+
+### 7.70 IMPLEMENTED - Harden Scanner rendering and actions
+
+The Scanner page now renders provider and scan values through shared escaping helpers, validates preset filters, prevents duplicate scans, handles failed responses, safely quotes CSV cells including spreadsheet-formula prefixes, and revokes generated object URLs. This improves both operator trust and repeated-use performance.
+
+**Risk level:** High UI safety and reliability value, low API compatibility risk. **Affected modules:** `frontend/static/js/pages/scanner.js`, `tests/unit/test_scanner_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Scanner safety checks passed, JavaScript syntax validation passed, and the full local suite passed after the Scanner slice.
+
+### 7.71 IMPLEMENTED - Harden Delta Scanner flows
+
+Delta Scanner MTF, screener, indicator and symbol-picker flows now validate response shapes and inputs, escape dynamic values, encode asset links, recognize API error payloads, and suppress duplicate refresh, apply and scan requests. This protects the most data-dense scanner surface without changing its endpoint contract.
+
+**Risk level:** High operational-data trust value, moderate UI compatibility risk due to broad dynamic rendering changes. **Affected modules:** `frontend/static/js/pages/delta_scanner.js`, `tests/unit/test_delta_scanner_safety.py`, `tests/unit/test_scanner_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Delta Scanner and shared Scanner safety checks passed, and JavaScript syntax validation passed.
+
+### 7.72 IMPLEMENTED - Harden Delta Bubbles rendering
+
+Delta Bubbles now accepts only canonical group values, validates response arrays and numerics, escapes ticker and metric labels, encodes query parameters, and prevents duplicate group loads. This avoids malformed dashboard states and unnecessary provider work from repeated refreshes.
+
+**Risk level:** High UI safety and performance value, low API compatibility risk. **Affected modules:** `frontend/static/js/pages/delta_bubbles.js`, `tests/unit/test_delta_bubbles_safety.py`. **Migration:** none.
+
+**Regression evidence:** Delta Bubbles safety checks and JavaScript syntax validation passed.
+
+### 7.73 IMPLEMENTED - Harden Asset Detail interactions
+
+Asset Detail controls now use dataset-backed event listeners, validate asset and timeframe values, escape dynamic provider, DCA, sentiment and AI content, guard duplicate AI requests, and enforce safe links and numeric rendering. This removes inline handlers from a high-value trading workflow and makes unavailable analysis explicit.
+
+**Risk level:** High trading-workflow trust value, moderate UI compatibility risk because multiple detail panels share the control wiring. **Affected modules:** `frontend/templates/asset/detail.html`, `tests/unit/test_asset_detail_safety.py`. **Migration:** none.
+
+**Regression evidence:** Asset Detail safety checks, inline script parsing and whitespace validation passed; the full local suite passed after the Asset Detail slice.
+
+### 7.74 IMPLEMENTED - Harden scanner API caches and request boundaries
+
+Delta scanner API cache misses now use scoped single-flight locks with double-checked reads for MTF, bubbles, screener universes and indicator universes. MTF status results use bounded, deduplicated symbol lists and short-lived hashed cache keys. Scanner request bodies and condition payloads now enforce object/list/string bounds, supported markets and timeframes, valid combinators, and safe condition shapes before worker execution.
+
+**Risk level:** High performance and operational-safety value, low response-shape compatibility risk. **Affected modules:** `app/api/v1/scanner.py`, `app/services/scanner/delta_market_screener.py`, `app/services/scanner/delta_indicator_scanner.py`, `tests/unit/test_scanner_backend_hardening.py`. **Migration:** none.
+
+**Regression evidence:** Scanner backend focused checks passed (**4 passed**), Python compilation and whitespace validation passed, and the full local regression suite passed (**335 passed** in 131.81s).
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1076,5 +1164,50 @@ Platform Configuration now escapes page labels, routes and timeframe tokens befo
 - `frontend/templates/admin/platform_config.html` — escape configurable page/timeframe values, replace inline controls with event listeners, validate timeframe mutations, and handle API error responses consistently.
 - `frontend/templates/admin/security.html` — replace inline actions, validate timeout/chat inputs, and suppress duplicate save/test requests.
 - `tests/unit/test_admin_platform_config_template_safety.py`, `tests/unit/test_admin_security_template_safety.py` — protect both admin control surfaces.
+
+**Session 43 (UI security - Admin Dashboard rendering, §7.64):**
+- `frontend/templates/admin/index.html` - validate and escape dashboard values, bound numeric displays, and bind actions without inline handlers.
+- `tests/unit/test_admin_dashboard_template_safety.py` - protect the Admin Dashboard rendering contract.
+
+**Session 44 (backend correctness - full-universe summary cache scope, §7.65):**
+- `app/api/v1/market_data.py` - keep partial and full-universe summary cache entries distinct.
+- `tests/integration/test_summary_cache_scope.py` - verify full-universe requests do not reuse partial summaries.
+
+**Session 45 (backend performance - indicator summary single-flight, §7.66):**
+- `app/api/v1/market_data.py` - serialize concurrent indicator summary cold builds with double-checked cache reads.
+- `tests/unit/test_summary_singleflight.py` - verify concurrent indicator summary misses share one build.
+
+**Session 46 (backend performance - AI summary single-flight, §7.67):**
+- `app/api/v1/market_data.py` - serialize concurrent AI summary cold builds while preserving cache semantics.
+- `tests/unit/test_summary_singleflight.py` - verify concurrent AI summary misses share one build.
+
+**Session 47 (UI security/accessibility - complete Admin User Management controls, §7.68):**
+- `frontend/templates/admin/users.html` - validate account actions, escape values and replace inline controls with event listeners.
+- `tests/unit/test_admin_users_template_safety.py` - protect the User Management control contract.
+
+**Session 48 (UI security - shared toast and account banners, §7.69):**
+- `frontend/static/js/app.js` - harden shared toast, notification, ticker, trial and account-banner rendering and error handling.
+- `tests/unit/test_global_ui_safety.py` - protect shared UI helpers.
+
+**Session 49 (UI security/performance - Scanner rendering and actions, §7.70):**
+- `frontend/static/js/pages/scanner.js` - escape dynamic scan data, validate presets, prevent duplicate scans, and safely export CSV.
+- `tests/unit/test_scanner_template_safety.py` - protect Scanner rendering and action safety.
+
+**Session 50 (UI security/performance - Delta Scanner flows, §7.71):**
+- `frontend/static/js/pages/delta_scanner.js` - validate and escape MTF, screener, indicator and symbol-picker data, and suppress duplicate requests.
+- `tests/unit/test_delta_scanner_safety.py`, `tests/unit/test_scanner_template_safety.py` - protect Delta Scanner flows.
+
+**Session 51 (UI security/performance - Delta Bubbles rendering, §7.72):**
+- `frontend/static/js/pages/delta_bubbles.js` - enforce canonical groups, safe rendering and duplicate-load protection.
+- `tests/unit/test_delta_bubbles_safety.py` - protect Delta Bubbles rendering.
+
+**Session 52 (UI security/accessibility - Asset Detail interactions, §7.73):**
+- `frontend/templates/asset/detail.html` - replace inline controls, validate identifiers/timeframes, escape dynamic panel data and guard duplicate AI requests.
+- `tests/unit/test_asset_detail_safety.py` - protect Asset Detail rendering and control wiring.
+
+**Session 53 (backend performance/safety - scanner API caches and request boundaries, §7.74):**
+- `app/api/v1/scanner.py` - add scoped single-flight cache builds, bounded status inputs and request validation.
+- `app/services/scanner/delta_market_screener.py`, `app/services/scanner/delta_indicator_scanner.py` - reject malformed condition items before field access.
+- `tests/unit/test_scanner_backend_hardening.py` - verify concurrent cache-build coalescing and invalid request rejection.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
