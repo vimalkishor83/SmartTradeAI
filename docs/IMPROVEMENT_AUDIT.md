@@ -1453,6 +1453,22 @@ The research navigation now includes a Basic-tier Reporting Center that consolid
 
 **Database changes:** none. **API contract changes:** additive `GET /api/v1/signals/report` date-range response and optional date filters for history CSV; no existing field was removed or renamed. **No new credentials or secrets introduced.**
 
+### 7.101 IMPLEMENTED - Improve Markets and Terminal decision surfaces
+
+The stable Markets overview now separates live conditions from historical closed-trade metrics, exposes selected market context through accessible tabs, labels all filters and charts, and reports refresh timestamps plus partial-feed degradation. Market refreshes are serialized and queued, stale market selections are ignored, provider counters/percentages/prices are normalized before rendering, and unavailable feeds replace indefinite loading placeholders with explicit states. The Markets Terminal now uses keyboard-accessible market/timeframe tabs, semantic search controls, and truthful busy state while preserving its existing market-board API, pinned assets and card rendering behavior.
+
+**Risk level:** High decision-support clarity, accessibility and live-data resilience value, low compatibility risk because existing routes, endpoint payloads, DOM IDs, pinned-storage behavior and signal card contracts remain available. **Affected modules:** `frontend/static/js/pages/markets.js`, `frontend/templates/markets/index.html`, `frontend/templates/markets/terminal.html`, `tests/unit/test_markets_ui_safety.py`, `tests/unit/test_terminal_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Markets/Terminal/provider rendering checks passed (**10 passed**), browser JavaScript syntax validation, Jinja parsing and whitespace validation passed. Existing local pytest cache permission and pandas/SQLAlchemy/Flask-Migrate deprecation warnings remain non-blocking. Commit: `1d2c7c1`.
+
+**Session 81 (Markets and Terminal UX, refresh resilience and accessibility - UI-8, §7.101):**
+- `frontend/static/js/pages/markets.js` - bound provider values, serialize and queue refreshes, ignore stale selections, expose live/degraded/error states, and update accessible market tabs.
+- `frontend/templates/markets/index.html` - label filters, current versus historical data, chart/table semantics, market tab relationships and status context.
+- `frontend/templates/markets/terminal.html` - convert visual controls to accessible tabs/buttons, add keyboard navigation, search labels and busy-state synchronization while preserving pin/card behavior.
+- `tests/unit/test_markets_ui_safety.py`, `tests/unit/test_terminal_template_safety.py` - protect market rendering, refresh, status and control contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.99 IMPLEMENTED - Improve the primary dashboard decision surface
 
 The dashboard now distinguishes current market conditions, live active signals, today's UTC activity and historical closed-trade performance in the interface itself. A compact data-context bar reports refresh state and last update time, the equity range accurately says it is limited to the latest 100 closed trades, chart/table regions have accessible descriptions, and heatmap metrics expose a complete tab/tabpanel relationship. Refreshes are serialized, stale signal and heatmap responses are ignored, provider numbers are normalized and bounded before rendering, charts retain recoverable empty states, and partial API failures are reported instead of leaving indefinite loading placeholders.
