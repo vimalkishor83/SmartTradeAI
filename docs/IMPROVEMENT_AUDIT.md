@@ -2,11 +2,25 @@
 
 **Status:** Living document. Started as Phase 0 of a structured production-hardening pass; updated as each subsequent phase's investigation and fixes land. Every entry below is based on reading the actual code and, where marked, verifying behavior live on the production server — not on the platform's design intent or documentation claims.
 
-**Last updated:** 2026-09-06 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass)
+**Last updated:** 2026-09-06 (Phase 0 + Phase 1 + Phase 2 + Phase 3 + Phase 4 + Phase 5 initial pass + performance checkpoint)
 
 Phase 0 architecture and sequencing artifacts are maintained in [`docs/ARCHITECTURE.md`](ARCHITECTURE.md) and [`docs/ENTERPRISE_TRANSFORMATION_PLAN.md`](ENTERPRISE_TRANSFORMATION_PLAN.md). They describe the current implementation and do not imply that planned AI, calibration, observability or frontend capabilities already exist.
 
 ---
+
+### 7.110 IMPLEMENTED - Collapse concurrent non-crypto ticker misses
+
+The shared non-crypto ticker cache now uses a per-symbol single-flight lock. When dashboard, watchlist and portfolio refresh paths request the same uncached Yahoo ticker concurrently, only the first caller performs the synchronous provider request; waiting callers re-check the cache and reuse the result. The existing five-second freshness window, provider routing and crypto WebSocket-first behavior are unchanged.
+
+**Risk level:** Medium performance and upstream-rate-limit value, low compatibility risk because the ticker payload and cache TTL are unchanged. **Affected modules:** `app/services/data/fetcher.py`, `tests/unit/test_market_data_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** Market-data, provider-health and scanner hardening checks passed (**14 passed**); Python compilation and staged-diff whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache permission warnings remain non-blocking. Commit: `fdb2e8b`. Production deployment is pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 92 (ticker single-flight and cache-stampede prevention):**
+- `app/services/data/fetcher.py` - add per-symbol miss locks and a post-lock cache recheck around non-crypto Yahoo ticker reads.
+- `tests/unit/test_market_data_singleflight.py` - prove concurrent callers produce one upstream ticker request.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
 ## 1. Current Architecture (as verified)
 
