@@ -9,7 +9,7 @@
   <div><span class="page-eyebrow">Admin</span>
   <h1 class="page-title">Audit Log</h1>
   <p class="page-subtitle">Who did what, from where, and when — logins, logouts, admin actions, broker credential changes</p></div>
-  <button class="btn btn-outline-light btn-sm" id="refreshAuditBtn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+  <button type="button" class="btn btn-outline-light btn-sm" id="refreshAuditBtn" aria-busy="false"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
@@ -22,12 +22,13 @@
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Entries</span>
     <div class="d-flex gap-2">
-      <button class="btn btn-sm btn-outline-danger" id="deleteSelectedBtn" disabled><i class="bi bi-trash3 me-1"></i>Delete Selected</button>
-      <button class="btn btn-sm btn-outline-danger" id="clearAllBtn"><i class="bi bi-trash3-fill me-1"></i>Clear All</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="deleteSelectedBtn" disabled><i class="bi bi-trash3 me-1"></i>Delete Selected</button>
+      <button type="button" class="btn btn-sm btn-outline-danger" id="clearAllBtn"><i class="bi bi-trash3-fill me-1"></i>Clear All</button>
     </div>
   </div>
   <div class="section-card-body p-3">
     <input type="text" class="form-control mb-3" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px">
+    <div id="auditStatus" class="text-muted small mb-2" role="status" aria-live="polite"></div>
     <div class="table-responsive">
       <table class="table table-sm align-middle mb-0" id="auditTable" style="font-size:13px">
         <thead>
@@ -42,9 +43,9 @@
       </table>
     </div>
     <div class="d-flex justify-content-between align-items-center mt-2" id="pager" style="display:none">
-      <button class="btn btn-sm btn-outline-light" id="prevPageBtn"><i class="bi bi-chevron-left"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-light" id="prevPageBtn"><i class="bi bi-chevron-left"></i></button>
       <span class="text-muted small" id="pageLabel"></span>
-      <button class="btn btn-sm btn-outline-light" id="nextPageBtn"><i class="bi bi-chevron-right"></i></button>
+      <button type="button" class="btn btn-sm btn-outline-light" id="nextPageBtn"><i class="bi bi-chevron-right"></i></button>
     </div>
   </div>
 </div>
@@ -57,6 +58,7 @@ let allLogs = [];
 let selectedIds = new Set();
 let currentPage = 1;
 let totalPages = 1;
+let auditLoading = false;
 
 function timeAgo(iso) {
   if (!iso) return '—';
@@ -65,15 +67,32 @@ function timeAgo(iso) {
 }
 
 async function loadAuditLog() {
-  const data = await API.get('/admin/audit-logs', { page: currentPage, per_page: 50 });
-  if (!data) return;
-  allLogs = data.logs || [];
-  totalPages = data.pages || 1;
-  selectedIds.clear();
-  document.getElementById('selectAllCheckbox').checked = false;
-  renderTable();
-  renderPager();
-  updateDeleteSelectedBtn();
+  if (auditLoading) return;
+  const button = document.getElementById('refreshAuditBtn');
+  const status = document.getElementById('auditStatus');
+  auditLoading = true;
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  if (status) status.textContent = 'Loading audit entries...';
+  try {
+    const data = await API.get('/admin/audit-logs', { page: currentPage, per_page: 50 });
+    if (!data) {
+      if (status) status.textContent = 'Unable to load audit entries. Try Refresh.';
+      return;
+    }
+    allLogs = Array.isArray(data.logs) ? data.logs : [];
+    totalPages = data.pages || 1;
+    selectedIds.clear();
+    document.getElementById('selectAllCheckbox').checked = false;
+    renderTable();
+    renderPager();
+    updateDeleteSelectedBtn();
+    if (status) status.textContent = `${allLogs.length} entries loaded`;
+  } catch (_) {
+    if (status) status.textContent = 'Unable to load audit entries. Try Refresh.';
+  } finally {
+    auditLoading = false;
+    if (button) { button.disabled = false; button.setAttribute('aria-busy', 'false'); }
+  }
 }
 
 const STATUS_BADGE = { success: 'bg-success', failed: 'bg-danger' };

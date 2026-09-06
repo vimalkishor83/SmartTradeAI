@@ -29,3 +29,8 @@ def test_audit_log_escapes_values_and_uses_event_bindings():
     assert "STSafe.html(l.user || 'system')" in source
     assert "checkbox.addEventListener('change'" in source
     assert "refreshAuditBtn" in source
+    assert 'type="button"' in source
+    assert 'id="auditStatus"' in source
+    assert "let auditLoading = false;" in source
+    assert "Unable to load audit entries. Try Refresh." in source
+    assert "button.setAttribute('aria-busy', 'false')" in source
