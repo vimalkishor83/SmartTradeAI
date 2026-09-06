@@ -11,8 +11,12 @@ def test_portfolio_uses_event_bound_position_actions():
 
     assert "onclick=" not in source
     assert 'data-remove-position="${id}"' in source
+    assert '<button type="button" class="btn btn-sm btn-outline-danger"' in source
+    assert 'aria-label="Remove ${assetLabel}"' in source
+    assert 'role="button" tabindex="${id ? \'0\' : \'-1\'}"' in source
     assert "data-id=\"${id}\"" in source
     assert "document.getElementById('holdingsBody').addEventListener('click'" in source
+    assert "document.getElementById('holdingsBody').addEventListener('keydown'" in source
     assert "document.getElementById('exportPortfolioBtn').addEventListener('click'" in source
 
 

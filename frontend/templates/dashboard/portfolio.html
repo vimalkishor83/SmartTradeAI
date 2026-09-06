@@ -270,6 +270,7 @@ async function loadPortfolio() {
   document.getElementById('holdingsBody').innerHTML = holdings.map(h => {
     const sym = _ccySym(h.market), loc = _ccyLocale(h.market);
     const id = _portfolioId(h.id);
+    const assetLabel = _portfolioHtml(h.asset || 'position');
     const quantity = _portfolioNumber(h.quantity, 0);
     const buyPrice = _portfolioNumber(h.buy_price);
     const currentPrice = _portfolioNumber(h.current_price);
@@ -286,13 +287,13 @@ async function loadPortfolio() {
       <td>${currentPrice === null ? '—' : sym + _portfolioPrice(currentPrice)}</td>
       <td>${invested === null ? '—' : sym + invested.toLocaleString(loc, {maximumFractionDigits:0})}</td>
       <td>${current === null ? '—' : sym + current.toLocaleString(loc, {maximumFractionDigits:0})}</td>
-      <td class="sl-cell" data-id="${id}" data-sym="${_portfolioHtml(sym)}" data-sl="${stopLoss === null ? '' : stopLoss}" ${id ? '' : 'aria-disabled="true"'} style="cursor:pointer" title="Click to set or edit the stop loss for this position">
+      <td class="sl-cell" data-id="${id}" data-sym="${_portfolioHtml(sym)}" data-sl="${stopLoss === null ? '' : stopLoss}" role="button" tabindex="${id ? '0' : '-1'}" aria-label="Set or edit stop loss for ${assetLabel}" ${id ? '' : 'aria-disabled="true"'} style="cursor:pointer" title="Click to set or edit the stop loss for this position">
         ${stopLoss === null ? '<span class="text-muted"><i class="bi bi-plus-circle me-1"></i>Set</span>' : sym + _portfolioPrice(stopLoss)}
       </td>
       <td class="${pnlValue >= 0 ? 'text-green' : 'text-red'}">${pnlValue >= 0 ? '+' : ''}${sym}${Math.abs(pnlValue).toLocaleString(loc, {maximumFractionDigits:0})}</td>
       <td class="${pnlPercent >= 0 ? 'text-green' : 'text-red'}">${pnlPercent >= 0 ? '+' : ''}${pnlPercent.toFixed(2)}%</td>
       <td>${_portfolioNumber(h.holding_days, 0)}d</td>
-      <td><button class="btn btn-sm btn-outline-danger" data-remove-position="${id}" ${id ? '' : 'disabled'}><i class="bi bi-trash"></i></button></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger" data-remove-position="${id}" aria-label="Remove ${assetLabel}" ${id ? '' : 'disabled'}><i class="bi bi-trash" aria-hidden="true"></i></button></td>
     </tr>`;
   }).join('');
     } catch (error) {
@@ -426,6 +427,14 @@ document.getElementById('holdingsBody').addEventListener('click', event => {
   }
   const removeButton = event.target.closest('[data-remove-position]');
   if (removeButton) removePosition(removeButton.dataset.removePosition);
+});
+
+document.getElementById('holdingsBody').addEventListener('keydown', event => {
+  const stopCell = event.target.closest('.sl-cell');
+  if (stopCell && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    editStopLoss(stopCell);
+  }
 });
 
 document.getElementById('exportPortfolioBtn').addEventListener('click', () => {

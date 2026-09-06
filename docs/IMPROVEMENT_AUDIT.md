@@ -180,6 +180,20 @@ Advanced Analysis now exposes its chart and status as named regions, gives the o
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.138 IMPLEMENTED - Improve portfolio action accessibility
+
+Portfolio holding actions now use explicit button types and accessible labels, while stop-loss editing is exposed as a keyboard-operable button with Enter/Space handling. The existing click behavior, validation, risk calculations and mutation endpoints remain unchanged.
+
+**Risk level:** Medium usability and risk-management accessibility value, low compatibility risk. **Affected modules:** `frontend/templates/dashboard/portfolio.html`, `tests/unit/test_portfolio_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Portfolio template, input, risk and serialization checks passed (**23 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing local pytest-cache warnings remain non-blocking. Commit: pending. Production deployment remains pending explicit authorization for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 118 (Portfolio action accessibility):**
+- `frontend/templates/dashboard/portfolio.html` - add keyboard and semantic action controls.
+- `tests/unit/test_portfolio_template_safety.py` - protect accessible action contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.137 IMPLEMENTED - Stabilize audit-log pagination
 
 The admin audit feed now orders by `created_at` and `id` so records sharing a timestamp cannot move between pages unpredictably. A matching composite index supports the newest-first query, with both the model runtime guard and a reversible Alembic migration included; response shape, permissions and deletion behavior are unchanged.
