@@ -830,6 +830,14 @@ The heatmap endpoint now serializes only its cold rebuild and re-checks the shar
 
 **Regression evidence:** Heatmap single-flight test passed (**1 passed**), Python compilation and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.59 IMPLEMENTED — Optimize and harden admin log surfaces
+
+Admin User Management, Sessions and Audit Log queries now eager-load their related users, removing the per-row lazy-load pattern that grew linearly with page size. System Logs now exposes its page count so the existing pager can work; both log screens escape database values before HTML insertion, and Audit Log actions use event listeners with the pager visibility bug removed.
+
+**Risk level:** High admin performance/trust value, low API/UI compatibility risk (the System Logs response is additive and existing controls retain their behavior). **Affected modules:** `app/api/v1/admin.py`, `frontend/templates/admin/logs.html`, `frontend/templates/admin/audit_log.html`, `tests/unit/test_admin_logs_audit_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Admin log/audit template checks, audit-log, and session tracking checks passed (**13 passed**), Python compilation, inline-admin JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1013,5 +1021,11 @@ The heatmap endpoint now serializes only its cold rebuild and re-checks the shar
 **Session 37 (backend reliability — heatmap cold-cache single-flight, §7.58):**
 - `app/api/v1/market_data.py` — serialize the expensive cold heatmap rebuild and double-check the shared cache before building the active-universe payload.
 - `tests/unit/test_heatmap_singleflight.py` — verify simultaneous cold requests share one heatmap build.
+
+**Session 38 (admin performance/UI safety — log and audit operations, §7.59):**
+- `app/api/v1/admin.py` — eager-load related users for User Management, Sessions and Audit Log responses to remove per-row relationship queries; expose System Logs page count metadata.
+- `frontend/templates/admin/logs.html` — escape system-log values and activate the existing pagination surface with event-bound controls.
+- `frontend/templates/admin/audit_log.html` — escape audit values, replace inline controls with event listeners, and fix the pager visibility style.
+- `tests/unit/test_admin_logs_audit_template_safety.py` — protect the admin log/audit rendering and control-binding contracts.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**

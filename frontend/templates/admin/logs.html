@@ -40,6 +40,7 @@
 {% block extra_js %}
 <script>
 async function loadLogs(page = 1) {
+  currentLogPage = page;
   const level = document.getElementById('levelFilter').value;
   const params = { page, per_page: 50 };
   if (level) params.level = level;
@@ -49,15 +50,35 @@ async function loadLogs(page = 1) {
   const LEVEL_COLORS = { INFO: 'bg-info text-dark', WARNING: 'bg-warning text-dark', ERROR: 'bg-danger', CRITICAL: 'bg-danger' };
   if (!data.logs?.length) {
     document.getElementById('logsBody').innerHTML = '<tr><td colspan="4"><div class="text-center py-5" style="color:var(--text-muted)"><i class="bi bi-journal-text" style="font-size:2rem;opacity:.3;display:block;margin-bottom:10px"></i>No logs found</div></td></tr>';
+    renderLogPagination(0);
     return;
   }
   document.getElementById('logsBody').innerHTML = data.logs.map(l => `
     <tr>
-      <td><span class="badge ${LEVEL_COLORS[l.level] || 'bg-secondary'}">${l.level}</span></td>
-      <td style="color:var(--text-muted);font-size:12px">${l.module || '—'}</td>
-      <td><code style="font-size:11px;color:var(--text-primary)">${l.message}</code></td>
+      <td><span class="badge ${LEVEL_COLORS[String(l.level || '').toUpperCase()] || 'bg-secondary'}">${STSafe.html(l.level || 'UNKNOWN')}</span></td>
+      <td style="color:var(--text-muted);font-size:12px">${STSafe.html(l.module || '—')}</td>
+      <td><code style="font-size:11px;color:var(--text-primary)">${STSafe.html(l.message || '')}</code></td>
       <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${formatTime(l.created_at)}</td>
     </tr>`).join('');
+  renderLogPagination(data.pages || 1);
+}
+
+let currentLogPage = 1;
+
+function renderLogPagination(pages) {
+  const pagination = document.getElementById('logsPagination');
+  pagination.innerHTML = '';
+  for (let page = 1; page <= pages; page++) {
+    const item = document.createElement('li');
+    item.className = `page-item${page === currentLogPage ? ' active' : ''}`;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'page-link';
+    button.textContent = String(page);
+    button.addEventListener('click', () => loadLogs(page));
+    item.appendChild(button);
+    pagination.appendChild(item);
+  }
 }
 
 async function clearLogs() {

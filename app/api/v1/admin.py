@@ -14,6 +14,7 @@ from app.services.api_config_validation import (
     APIConfigValidationError,
     validate_api_config_payload,
 )
+from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint("admin", __name__)
@@ -359,7 +360,14 @@ def list_users():
     if status:
         query = query.filter(User.approval_status == status)
     page = bounded_page(request.args.get("page", 1))
-    users = query.order_by(User.created_at.desc()).paginate(page=page, per_page=20, error_out=False)
+    users = (query.options(
+                joinedload(User.role),
+                joinedload(User.subscription),
+                joinedload(User.broker),
+                joinedload(User.referral_code),
+            )
+            .order_by(User.created_at.desc())
+            .paginate(page=page, per_page=20, error_out=False))
     return jsonify({"users": [u.to_dict() for u in users.items], "total": users.total, "pages": users.pages}), 200
 
 
@@ -373,7 +381,13 @@ def list_pending_users():
     # worse UX than a slightly larger response. The .limit() is only a
     # safety cap against a pathological case (e.g. a signup-spam burst),
     # not a normal-operation constraint.
-    users = (User.query.filter_by(approval_status="pending")
+    users = (User.query.options(
+                 joinedload(User.role),
+                 joinedload(User.subscription),
+                 joinedload(User.broker),
+                 joinedload(User.referral_code),
+             )
+             .filter_by(approval_status="pending")
              .order_by(User.created_at.asc()).limit(1000).all())
     return jsonify({"users": [u.to_dict() for u in users], "total": len(users)}), 200
 
@@ -865,7 +879,9 @@ def list_sessions():
     if request.args.get("active_only") == "true":
         query = query.filter(UserSession.revoked_at.is_(None), UserSession.expires_at > _dt.utcnow())
 
-    sessions = query.order_by(UserSession.created_at.desc()).paginate(page=page, per_page=50, error_out=False)
+    sessions = (query.options(joinedload(UserSession.user))
+                .order_by(UserSession.created_at.desc())
+                .paginate(page=page, per_page=50, error_out=False))
     return jsonify({
         "sessions": [s.to_dict() for s in sessions.items],
         "total": sessions.total,
@@ -928,8 +944,9 @@ def revoke_all_user_sessions(user_id):
 def audit_logs():
     page = bounded_page(request.args.get("page", 1))
     per_page = bounded_per_page(request.args.get("per_page", 50), maximum=200)
-    logs = AuditLog.query.order_by(AuditLog.created_at.desc()) \
-        .paginate(page=page, per_page=per_page, error_out=False)
+    logs = (AuditLog.query.options(joinedload(AuditLog.user))
+            .order_by(AuditLog.created_at.desc())
+            .paginate(page=page, per_page=per_page, error_out=False))
     return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total, "pages": logs.pages}), 200
 
 
@@ -1095,7 +1112,7 @@ def system_logs():
         query = query.filter_by(level=level.upper())
     logs = query.order_by(SystemLog.created_at.desc()) \
         .paginate(page=page, per_page=50, error_out=False)
-    return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total}), 200
+    return jsonify({"logs": [l.to_dict() for l in logs.items], "total": logs.total, "pages": logs.pages}), 200
 
 
 @admin_bp.route("/system-logs", methods=["DELETE"])
