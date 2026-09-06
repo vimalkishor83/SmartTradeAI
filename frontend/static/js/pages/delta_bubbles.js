@@ -4,6 +4,8 @@
 let dbGroup = 'major';
 let dbData = null;
 let dbTableView = false;
+let dbLoadInFlight = false;
+const DB_GROUPS = new Set(['major', 'defi', 'meme', 'options']);
 
 const dbSet = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 
@@ -27,6 +29,7 @@ function dbAbbr(n) {
 // Deterministic hash -> hue, so the same symbol always gets the same
 // monogram-avatar color across reloads instead of a random one.
 function dbAvatarColor(symbol) {
+  symbol = String(symbol || '');
   let hash = 0;
   for (let i = 0; i < symbol.length; i++) hash = (hash * 31 + symbol.charCodeAt(i)) >>> 0;
   const hue = hash % 360;
@@ -34,7 +37,7 @@ function dbAvatarColor(symbol) {
 }
 
 function dbTickerRoot(symbol) {
-  return symbol.replace(/_OPTIONS$/, '').replace(/USD$/, '');
+  return String(symbol || '').replace(/_OPTIONS$/, '').replace(/USD$/, '');
 }
 
 /* ── Circle packing ────────────────────────────────────────────
@@ -101,16 +104,17 @@ function dbPackLayout(items) {
 
 function dbRenderCanvas(data) {
   const canvas = document.getElementById('bubbleCanvas');
-  const bubbles = data.bubbles || [];
+  if (!canvas) return;
+  const bubbles = Array.isArray(data?.bubbles) ? data.bubbles.filter(b => b && typeof b === 'object') : [];
   if (!bubbles.length) {
     canvas.style.height = '';
     canvas.innerHTML = '<div class="text-center text-muted py-5 w-100"><i class="bi bi-inbox d-block mb-2" style="font-size:24px;opacity:.4"></i>No data for this group</div>';
     return;
   }
-  const values = bubbles.map((b) => b.size_metric);
+  const values = bubbles.map((b) => Math.max(0, Number(b.size_metric) || 0));
   const minV = Math.min(...values);
   const maxV = Math.max(...values);
-  const withRadius = bubbles.map((b) => ({ ...b, r: dbRadiusFor(b.size_metric, minV, maxV) }));
+  const withRadius = bubbles.map((b, i) => ({ ...b, size_metric: values[i], r: dbRadiusFor(values[i], minV, maxV) }));
   // Biggest first so the dominant bubble seeds near the spiral's (and
   // therefore the pack's) center, matching how these market maps read.
   withRadius.sort((a, b) => b.r - a.r);
@@ -120,11 +124,12 @@ function dbRenderCanvas(data) {
 
   const bubblesHtml = nodes.map((b, i) => {
     const d = b.r * 2;
-    const up = b.change_pct >= 0;
+    const change = Number(b.change_pct);
+    const up = Number.isFinite(change) && change >= 0;
     const sign = up ? '+' : '';
     const avatarD = Math.max(16, Math.min(d * 0.28, 40));
     const ticker = dbTickerRoot(b.symbol);
-    const title = `${b.label}\n${data.color_label}: ${sign}${b.change_pct.toFixed(2)}%\n${data.metric_label}: ${dbAbbr(b.turnover_usd ?? b.size_metric)}${b.price != null ? `\nPrice: ${b.price}` : ''}`;
+    const title = `${b.label || b.symbol || ''}\n${data.color_label || 'Change'}: ${sign}${Number.isFinite(change) ? change.toFixed(2) : '—'}%\n${data.metric_label || 'Metric'}: ${dbAbbr(b.turnover_usd ?? b.size_metric)}${b.price != null ? `\nPrice: ${b.price}` : ''}`;
     const delay = (i % 12) * 0.35;
     const popDelay = Math.min(i * 0.012, 0.6);
 
@@ -132,12 +137,12 @@ function dbRenderCanvas(data) {
     const showName = d >= 70;
     const showPct = d >= 48;
 
-    return `<div class="mkt-bubble ${up ? 'dir-up' : 'dir-down'}" title="${title}"
+    return `<div class="mkt-bubble ${up ? 'dir-up' : 'dir-down'}" title="${STSafe.html(title)}"
         style="width:${d}px;height:${d}px;left:${b.x - b.r}px;top:${b.y - b.r}px;animation-delay:${delay}s,${popDelay}s">
-      <span class="mkt-bubble-ticker" style="font-size:${Math.max(9, Math.min(d * 0.14, 12))}px">${ticker}</span>
-      ${showAvatar ? `<span class="mkt-bubble-avatar" style="width:${avatarD}px;height:${avatarD}px;background:${dbAvatarColor(b.symbol)};font-size:${avatarD * 0.42}px">${ticker.slice(0, 2)}</span>` : ''}
-      ${showName ? `<span class="mkt-bubble-name" style="font-size:${Math.max(10, Math.min(d * 0.12, 14))}px">${b.label}</span>` : ''}
-      ${showPct ? `<span class="mkt-bubble-pct" style="color:${up ? 'var(--green)' : 'var(--red)'};font-size:${Math.max(9, Math.min(d * 0.13, 13))}px">${sign}${b.change_pct.toFixed(1)}%</span>` : ''}
+      <span class="mkt-bubble-ticker" style="font-size:${Math.max(9, Math.min(d * 0.14, 12))}px">${STSafe.html(ticker)}</span>
+      ${showAvatar ? `<span class="mkt-bubble-avatar" style="width:${avatarD}px;height:${avatarD}px;background:${dbAvatarColor(b.symbol)};font-size:${avatarD * 0.42}px">${STSafe.html(ticker.slice(0, 2))}</span>` : ''}
+      ${showName ? `<span class="mkt-bubble-name" style="font-size:${Math.max(10, Math.min(d * 0.12, 14))}px">${STSafe.html(b.label || b.symbol || '')}</span>` : ''}
+      ${showPct ? `<span class="mkt-bubble-pct" style="color:${up ? 'var(--green)' : 'var(--red)'};font-size:${Math.max(9, Math.min(d * 0.13, 13))}px">${sign}${Number.isFinite(change) ? change.toFixed(1) : '—'}%</span>` : ''}
     </div>`;
   }).join('');
 
@@ -146,6 +151,7 @@ function dbRenderCanvas(data) {
 
 function dbRenderTable(data) {
   const tb = document.getElementById('bubbleTableBody');
+  if (!tb) return;
   // Sort/display the real turnover_usd where it exists, not size_metric --
   // that's now a blended (turnover x move-magnitude) visualization value
   // for bubble sizing, and this table's column is explicitly labeled
@@ -154,32 +160,43 @@ function dbRenderTable(data) {
   // turnover_usd (they're sized by open interest, which IS what
   // metric_label says for that group), hence the fallback.
   const metricOf = (b) => b.turnover_usd ?? b.size_metric;
-  const bubbles = [...(data.bubbles || [])].sort((a, b) => metricOf(b) - metricOf(a));
-  dbSet('thColor', data.color_label);
-  dbSet('thSize', data.metric_label);
+  const bubbles = [...(Array.isArray(data?.bubbles) ? data.bubbles : [])].sort((a, b) => metricOf(b) - metricOf(a));
+  dbSet('thColor', data.color_label || 'Change');
+  dbSet('thSize', data.metric_label || 'Metric');
   if (!bubbles.length) {
     tb.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-4">No data for this group</td></tr>';
     return;
   }
-  tb.innerHTML = bubbles.map((b) => `
+  tb.innerHTML = bubbles.map((b) => {
+    const change = Number(b.change_pct);
+    return `
     <tr>
-      <td><span class="asset-cell-name">${b.label}</span></td>
-      <td class="num">${b.price != null ? (+b.price).toLocaleString() : '—'}</td>
-      <td class="num" style="color:${b.change_pct >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${b.change_pct >= 0 ? '+' : ''}${b.change_pct.toFixed(2)}%</td>
+      <td><span class="asset-cell-name">${STSafe.html(b.label || b.symbol || '')}</span></td>
+      <td class="num">${Number.isFinite(Number(b.price)) ? Number(b.price).toLocaleString() : '—'}</td>
+      <td class="num" style="color:${change >= 0 ? 'var(--green)' : 'var(--red)'};font-weight:700">${change >= 0 ? '+' : ''}${Number.isFinite(change) ? change.toFixed(2) : '—'}%</td>
       <td class="num">${dbAbbr(metricOf(b))}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 }
 
 async function dbLoad() {
+  if (dbLoadInFlight) return;
+  dbLoadInFlight = true;
   document.getElementById('bubbleCanvas').innerHTML = '<div class="text-center text-muted py-5 w-100"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:24px"></i>Loading…</div>';
-  const data = await API.get('/scanner/delta-bubbles?group=' + dbGroup).catch(() => null);
+  let data = null;
+  try {
+    data = await API.get('/scanner/delta-bubbles?group=' + encodeURIComponent(DB_GROUPS.has(dbGroup) ? dbGroup : 'major')).catch(() => null);
+  } finally {
+    dbLoadInFlight = false;
+  }
   if (!data) {
     dbSet('bubbleMeta', 'Failed to load');
     return;
   }
   dbData = data;
-  dbSet('bubbleMeta', `${data.bubbles.length} · generated ${new Date(data.generated_at * 1000).toLocaleTimeString()}`);
+  const bubbles = Array.isArray(data.bubbles) ? data.bubbles : [];
+  dbSet('bubbleMeta', `${bubbles.length} · generated ${data.generated_at ? new Date(data.generated_at * 1000).toLocaleTimeString() : '—'}`);
   document.getElementById('bubbleLegend').style.display = '';
   // The API call above already has a network-failure fallback ("Failed to
   // load"); this catches the separate case of a real response whose shape
@@ -216,15 +233,15 @@ function dbSetTableView(on) {
 // session).
 document.addEventListener('app:ready', () => {
   dbLoad();
-  document.getElementById('refreshBubblesBtn').addEventListener('click', dbLoad);
-  document.getElementById('tableViewBtn').addEventListener('click', () => dbSetTableView(!dbTableView));
+  document.getElementById('refreshBubblesBtn')?.addEventListener('click', dbLoad);
+  document.getElementById('tableViewBtn')?.addEventListener('click', () => dbSetTableView(!dbTableView));
   document.querySelectorAll('#bubbleTypeTabs .scan-chip').forEach((btn) => {
     btn.addEventListener('click', () => {
       document.querySelectorAll('#bubbleTypeTabs .scan-chip').forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
-      dbGroup = btn.dataset.group;
+      dbGroup = DB_GROUPS.has(btn.dataset.group) ? btn.dataset.group : 'major';
       const titleEl = document.getElementById('bubbleSectionTitle');
-      if (titleEl) titleEl.innerHTML = `<i class="bi bi-circle-fill text-accent me-1"></i>${btn.textContent.trim()}`;
+      if (titleEl) titleEl.innerHTML = `<i class="bi bi-circle-fill text-accent me-1"></i>${STSafe.html(btn.textContent.trim())}`;
       dbLoad();
     });
   });
