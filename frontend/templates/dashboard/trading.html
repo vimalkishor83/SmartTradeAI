@@ -12,7 +12,7 @@
   </div>
   <div class="d-flex gap-2 align-items-center">
     <span class="badge-tag" id="connStatus"><i class="bi bi-circle-fill me-1" style="font-size:8px;color:var(--text-muted)"></i>Checking…</span>
-    <button class="btn btn-sm btn-outline-secondary" id="refreshAllBtn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="refreshAllBtn"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
   </div>
 </div>
 
@@ -47,7 +47,7 @@
 <div class="section-card mb-3 d-none" id="brokerConnectedCard">
   <div class="section-card-body d-flex justify-content-between align-items-center py-3">
     <div class="fs-sm"><i class="bi bi-shield-check text-green me-1"></i>Your Delta Exchange account is connected</div>
-    <button class="btn btn-sm btn-outline-danger" id="disconnectBrokerBtn"><i class="bi bi-x-circle me-1"></i>Disconnect</button>
+    <button type="button" class="btn btn-sm btn-outline-danger" id="disconnectBrokerBtn"><i class="bi bi-x-circle me-1"></i>Disconnect</button>
   </div>
 </div>
 
@@ -66,7 +66,7 @@
         <div class="section-card-body">
           <form id="orderForm">
             <div class="mb-3">
-              <label class="form-label">Symbol</label>
+              <label class="form-label" for="ordSymbol">Symbol</label>
               <input type="text" class="form-control" id="ordSymbol" placeholder="BTCUSDT" required autocomplete="off" />
               <div class="fs-xs text-muted mt-1">Our symbol convention (e.g. BTCUSDT, ETHUSDT) — auto-mapped to Delta's format.</div>
             </div>
@@ -82,30 +82,30 @@
 
             <div class="row g-3 mb-3">
               <div class="col">
-                <label class="form-label">Order Type</label>
+                <label class="form-label" for="ordType">Order Type</label>
                 <select class="form-select" id="ordType">
                   <option value="limit_order">Limit</option>
                   <option value="market_order">Market</option>
                 </select>
               </div>
               <div class="col">
-                <label class="form-label">Leverage</label>
+                <label class="form-label" for="ordLeverage">Leverage</label>
                 <input type="number" class="form-control" id="ordLeverage" value="1" min="1" max="200" />
               </div>
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Size (contracts)</label>
+              <label class="form-label" for="ordSize">Size (contracts)</label>
               <input type="number" class="form-control" id="ordSize" min="1" max="10000000" step="1" required />
             </div>
 
             <div class="mb-3" id="limitPriceField">
-              <label class="form-label">Limit Price</label>
+              <label class="form-label" for="ordLimitPrice">Limit Price</label>
               <input type="number" class="form-control" id="ordLimitPrice" step="any" />
             </div>
 
             <div class="mb-3">
-              <label class="form-label">Stop Price (optional)</label>
+              <label class="form-label" for="ordStopPrice">Stop Price (optional)</label>
               <input type="number" class="form-control" id="ordStopPrice" step="any" />
             </div>
 
@@ -137,6 +137,7 @@
         </div>
         <div class="table-responsive">
           <table class="smart-table">
+            <caption class="visually-hidden">Open trading positions</caption>
             <thead>
               <tr><th>Symbol</th><th>Side</th><th>Size</th><th>Entry</th><th>Mark</th><th>Liq. Price</th><th>P&amp;L</th></tr>
             </thead>
@@ -155,6 +156,7 @@
         </div>
         <div class="table-responsive">
           <table class="smart-table">
+            <caption class="visually-hidden">Open trading orders</caption>
             <thead>
               <tr><th>Symbol</th><th>Side</th><th>Type</th><th>Size</th><th>Price</th><th>State</th><th>Action</th></tr>
             </thead>
@@ -172,6 +174,7 @@
         </div>
         <div class="table-responsive">
           <table class="smart-table">
+            <caption class="visually-hidden">Trading order history</caption>
             <thead>
               <tr><th>Symbol</th><th>Side</th><th>Type</th><th>Size</th><th>Avg Price</th><th>State</th><th>Time</th></tr>
             </thead>
@@ -399,7 +402,7 @@ async function loadOpenOrders() {
       <td>${fmtNum(o.size, 0)}</td>
       <td>${fmtNum(o.limit_price)}</td>
       <td><span class="badge-tag">${_tradeHtml(o.state || '—')}</span></td>
-      <td><button class="btn btn-sm btn-outline-danger" data-cancel-order="${_tradeId(o.id)}" data-cancel-product="${_tradeId(o.product_id)}" ${_tradeId(o.id) && _tradeId(o.product_id) ? '' : 'disabled'}><i class="bi bi-x-lg"></i></button></td>
+      <td><button type="button" class="btn btn-sm btn-outline-danger" aria-label="Cancel order" data-cancel-order="${_tradeId(o.id)}" data-cancel-product="${_tradeId(o.product_id)}" ${_tradeId(o.id) && _tradeId(o.product_id) ? '' : 'disabled'}><i class="bi bi-x-lg" aria-hidden="true"></i></button></td>
     </tr>`).join('');
 }
 
@@ -460,6 +463,19 @@ function syncLimitPriceRequirement() {
   document.getElementById('ordLimitPrice').required = limit;
 }
 
+function confirmOrderReview({symbol, side, orderType, size, leverage, limitPrice, stopPrice, reduceOnly}) {
+  const lines = [
+    'This will place a REAL order using real funds:',
+    `${side.toUpperCase()} ${size} ${symbol}`,
+    `Type: ${orderType === 'limit_order' ? 'Limit' : 'Market'}`,
+    `Leverage: ${leverage}x`,
+  ];
+  if (limitPrice) lines.push(`Limit price: ${limitPrice}`);
+  if (stopPrice) lines.push(`Stop price: ${stopPrice}`);
+  lines.push(`Reduce-only: ${reduceOnly ? 'Yes' : 'No'}`, '', 'Review the values carefully before continuing.');
+  return window.confirm(lines.join('\n'));
+}
+
 document.getElementById('ordType').addEventListener('change', syncLimitPriceRequirement);
 syncLimitPriceRequirement();
 
@@ -486,6 +502,18 @@ document.getElementById('orderForm').addEventListener('submit', async (e) => {
     return;
   }
 
+  const limitPrice = document.getElementById('ordLimitPrice').value.trim();
+  const stopPrice = document.getElementById('ordStopPrice').value.trim();
+  if (orderType === 'limit_order'
+      && (!limitPrice || !Number.isFinite(Number(limitPrice)) || Number(limitPrice) <= 0)) {
+    Toast.show('Limit price must be a finite value greater than zero.', 'warning');
+    return;
+  }
+  if (stopPrice && (!Number.isFinite(Number(stopPrice)) || Number(stopPrice) <= 0)) {
+    Toast.show('Stop price must be a finite value greater than zero.', 'warning');
+    return;
+  }
+
   const payload = {
     symbol,
     side,
@@ -494,9 +522,14 @@ document.getElementById('orderForm').addEventListener('submit', async (e) => {
     leverage,
     reduce_only: document.getElementById('ordReduceOnly').checked,
   };
-  if (orderType === 'limit_order') payload.limit_price = document.getElementById('ordLimitPrice').value;
-  const stopPrice = document.getElementById('ordStopPrice').value;
+  if (orderType === 'limit_order') payload.limit_price = limitPrice;
   if (stopPrice) payload.stop_price = stopPrice;
+
+  if (!confirmOrderReview({
+    symbol, side, orderType, size, leverage,
+    limitPrice: payload.limit_price, stopPrice,
+    reduceOnly: payload.reduce_only,
+  })) return;
 
   _placeOrderInFlight = true;
   btn.disabled = true;

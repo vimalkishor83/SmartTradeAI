@@ -37,3 +37,15 @@ def test_trading_form_mirrors_server_limits_and_validates_prefill():
     assert "Number(leverage) > 200" in source
     assert "syncLimitPriceRequirement();" in source
     assert "if (/^[A-Z0-9]{2,40}$/.test(symbol))" in source
+
+
+def test_trading_requires_final_order_review_and_describes_data_surfaces():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function confirmOrderReview({symbol, side, orderType, size, leverage, limitPrice, stopPrice, reduceOnly})" in source
+    assert "if (!confirmOrderReview({" in source
+    assert "Limit price must be a finite value greater than zero." in source
+    assert 'aria-label="Cancel order"' in source
+    assert '<caption class="visually-hidden">Open trading positions</caption>' in source
+    assert '<caption class="visually-hidden">Open trading orders</caption>' in source
+    assert '<caption class="visually-hidden">Trading order history</caption>' in source
