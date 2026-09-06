@@ -862,6 +862,14 @@ API Configurations now escapes provider metadata, numeric status details and con
 
 **Regression evidence:** API Configurations safety, provider-health and credential checks passed (**10 passed**), inline JavaScript parsing and whitespace validation passed. The full local regression suite is still pending for this checkpoint.
 
+### 7.63 IMPLEMENTED — Harden Platform Configuration and Security controls
+
+Platform Configuration now escapes page labels, routes and timeframe tokens before HTML insertion, replaces inline page/timeframe/gate controls with event listeners, validates reorder/remove indexes, and treats API error payloads as failures. Security now binds actions without inline handlers, enforces the server's 5-minute to 30-day timeout contract in the browser, validates numeric Telegram security chat IDs, and suppresses duplicate save/test requests while one is in flight.
+
+**Risk level:** High admin trust/security and operational-safety value, low API/UI compatibility risk (existing endpoints, permissions and settings payloads are preserved). **Affected modules:** `frontend/templates/admin/platform_config.html`, `frontend/templates/admin/security.html`, `tests/unit/test_admin_platform_config_template_safety.py`, `tests/unit/test_admin_security_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Platform Configuration, Security, API Configuration and Telegram Alerts checks passed (**9 passed**), both updated inline JavaScript blocks parsed successfully, whitespace validation passed, and the full local regression suite passed (**312 passed** in 122.22s).
+
 ## 8. Files changed this pass
 
 **Session 1 (win-rate display bugs, §2.1–2.5):**
@@ -1063,5 +1071,10 @@ API Configurations now escapes provider metadata, numeric status details and con
 **Session 41 (UI security/accessibility — API Configurations rendering safety, §7.62):**
 - `frontend/templates/admin/api_configs.html` — escape provider/test-result metadata, validate configuration IDs and actions, replace inline tab/modal/config handlers with event bindings, and keep credential values out of rendered markup.
 - `tests/unit/test_admin_api_configs_template_safety.py` — protect the API Configurations rendering and control-binding contract.
+
+**Session 42 (UI security/accessibility — Platform Configuration and Security controls, §7.63):**
+- `frontend/templates/admin/platform_config.html` — escape configurable page/timeframe values, replace inline controls with event listeners, validate timeframe mutations, and handle API error responses consistently.
+- `frontend/templates/admin/security.html` — replace inline actions, validate timeout/chat inputs, and suppress duplicate save/test requests.
+- `tests/unit/test_admin_platform_config_template_safety.py`, `tests/unit/test_admin_security_template_safety.py` — protect both admin control surfaces.
 
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
