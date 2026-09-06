@@ -12,10 +12,15 @@ def test_core_widgets_do_not_interpolate_untrusted_text_into_html():
     assert "${message}" not in source
     assert "${n.title}" not in source
     assert "${n.message}" not in source
+    assert "${u.subscription}" not in source
+    assert "onclick=" not in source
     assert "onclick=\"Notifications.markRead(" not in source
     assert 'data-symbol="${item.symbol}"' not in source
     assert "querySelectorAll(`[data-symbol=\"${tick.symbol}\"]`)" not in source
     assert "item.addEventListener('click'" in source
+    assert "aria-label=\"Close notification\"" in source
+    assert "el.querySelector('button')?.addEventListener('click'" in source
+    assert "STSafe.html(formatTime(n.created_at))" in source
     assert "el.querySelector('span').textContent" in source
 
 

@@ -284,7 +284,7 @@ const Auth = {
         trialBanner.style.display = '';
         trialBanner.className = 'approval-banner approval-banner-trial';
         trialBanner.innerHTML = `<i class="bi bi-hourglass-split me-2"></i>Trial active — ` +
-          `<strong>${days} day${days === 1 ? '' : 's'} left</strong> on the ${u.subscription} plan. ` +
+          `<strong>${days} day${days === 1 ? '' : 's'} left</strong> on the ${STSafe.html(u.subscription || 'current')} plan. ` +
           `Your account switches back to Free automatically once it ends.`;
       } else {
         trialBanner.style.display = 'none';
@@ -413,9 +413,10 @@ const Toast = {
     el.innerHTML = `<div class="toast-body d-flex align-items-center gap-2">
       <i class="bi bi-${icons[safeType]}" style="color:${colors[safeType]}"></i>
       <span></span>
-      <button type="button" class="btn-close btn-close-white ms-auto" onclick="this.closest('.toast').remove()"></button>
+      <button type="button" class="btn-close btn-close-white ms-auto" aria-label="Close notification"></button>
     </div>`;
     el.querySelector('span').textContent = String(message ?? '');
+    el.querySelector('button')?.addEventListener('click', () => el.remove());
     container.appendChild(el);
     setTimeout(() => el.remove(), duration);
   },
@@ -469,7 +470,7 @@ const Notifications = {
         <div class="notif-item ${n.is_read ? '' : 'unread'}" data-id="${STSafe.html(STSafe.assetId(n.id))}" style="cursor:pointer">
           <div class="fw-semibold" style="font-size:13px;color:var(--text-primary)">${STSafe.html(n.title)}</div>
           <div style="font-size:12px;color:var(--text-secondary)">${STSafe.html(n.message)}</div>
-          <div class="mt-1" style="font-size:11px;color:var(--text-muted)">${formatTime(n.created_at)}</div>
+          <div class="mt-1" style="font-size:11px;color:var(--text-muted)">${STSafe.html(formatTime(n.created_at))}</div>
         </div>`).join('');
       listEl.querySelectorAll('.notif-item').forEach(item => {
         item.addEventListener('click', () => this.markRead(item.dataset.id));
