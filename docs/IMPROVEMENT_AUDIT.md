@@ -92,6 +92,20 @@ My Performance now normalizes finite numeric values and dynamic rows before rend
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.116 IMPLEMENTED - Add final real-order review confirmation
+
+The Trading workspace now requires a final browser confirmation before sending a real order to Delta Exchange. The review shows side, symbol, order type, size, leverage, limit/stop prices and reduce-only state; finite positive limit and stop prices are validated before the review. Open-position/order/history tables also have captions, and cancellation actions have explicit accessible names. Existing broker routes, server-side validation and duplicate-submit protection remain unchanged.
+
+**Risk level:** Critical real-money safety and decision clarity value, low compatibility risk because valid order payloads and broker APIs are unchanged; users receive one additional deliberate confirmation before execution. **Affected modules:** `frontend/templates/dashboard/trading.html`, `tests/unit/test_trading_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Trading template, order-boundary and Delta-signing checks passed (**43 passed**), extracted inline JavaScript passed `node --check`, and whitespace validation passed. Existing pandas and local pytest-cache warnings remain non-blocking. Commit: `b046fed`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 98 (real-order review safety):**
+- `frontend/templates/dashboard/trading.html` - add explicit order review confirmation, finite price checks, semantic table captions and named cancellation controls.
+- `tests/unit/test_trading_template_safety.py` - protect review, price-validation and accessibility contracts.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
