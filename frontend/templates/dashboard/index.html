@@ -8,10 +8,10 @@
 <div class="dash-header">
   <div class="dash-header-greet">
     <div class="page-greeting" id="pageGreeting">Good morning 👋</div>
-    <p class="page-greeting-sub mb-0">Here's what's happening across all markets right now. &nbsp;<span class="live-dot"></span>&nbsp; Live</p>
+    <p class="page-greeting-sub mb-0" id="dashboardLiveStatus" role="status" aria-live="polite">Here's what's happening across all markets right now. &nbsp;<span class="live-dot"></span>&nbsp; Live data</p>
   </div>
 
-  <div class="market-state">
+  <div class="market-state" role="group" aria-label="Current market conditions">
     <div class="ms-item">
       <span class="ms-label">Market Regime</span>
       <span class="ms-value" id="msRegime">—</span>
@@ -21,7 +21,7 @@
       <span class="ms-value" id="msVol">—</span>
     </div>
     <div class="ms-item">
-      <span class="ms-label">AI Confidence (Avg)</span>
+      <span class="ms-label">Today avg confidence</span>
       <span class="ms-value text-accent" id="msConf">—</span>
     </div>
     <div class="ms-item">
@@ -31,17 +31,25 @@
   </div>
 
   <div class="dash-header-actions">
-    <select class="form-select form-select-sm" id="globalTimeframe" style="width:auto">
+    <label class="ui-visually-hidden" for="globalTimeframe">Signal timeframe</label>
+    <select class="form-select form-select-sm" id="globalTimeframe" aria-label="Signal timeframe" style="width:auto">
       <option value="1m">1 Min</option><option value="5m">5 Min</option>
       <option value="15m">15 Min</option><option value="30m">30 Min</option>
       <option value="1h" selected>1 Hour</option><option value="4h">4 Hours</option>
       <option value="1d">Daily</option>
     </select>
-    <button class="btn btn-sm btn-outline-secondary px-3" id="refreshAll"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
-    <button class="btn btn-sm px-3 btn-generate" id="generateSignalBtn"><i class="bi bi-magic me-1"></i>Generate Signal</button>
+    <button class="btn btn-sm btn-outline-secondary px-3" id="refreshAll" type="button" aria-label="Refresh dashboard data" aria-controls="dashboardContent" aria-busy="false"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    <button class="btn btn-sm px-3 btn-generate" id="generateSignalBtn" type="button"><i class="bi bi-magic me-1"></i>Generate Signal</button>
   </div>
 </div>
 
+<div class="dashboard-context" id="dashboardDataStatus" role="status" aria-live="polite">
+  <div class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><strong id="dashboardDataState">Loading dashboard data</strong></div>
+  <span id="dashboardLastUpdated">Last updated —</span>
+  <span>Auto-refresh every 90 seconds</span>
+</div>
+
+<div id="dashboardContent" aria-busy="true">
 <!-- ══ 8 actionable KPI cards ══ -->
 <div class="kpi-grid-8 mb-3" id="kpiRow">
   <div class="kpi-card green animate-in">
@@ -111,6 +119,7 @@
            more room and more context than a packed row ever could. -->
       <div class="table-responsive">
         <table class="smart-table signals-table-adv">
+          <caption class="ui-visually-hidden">Active signals with entry, current price, confidence and risk-reward values</caption>
           <thead><tr>
             <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
             <th>Confidence</th><th>R:R</th>
@@ -144,15 +153,15 @@
 <div class="row g-3 mb-3">
   <div class="col-lg-5">
     <div class="section-card h-100">
-      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-graph-up text-accent me-1"></i>Equity Curve</span><span class="badge-tag" id="equityRange">All Time</span></div>
-      <div class="section-card-body"><div class="chart-wrapper-sm"><canvas id="equityChart"></canvas></div></div>
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-graph-up text-accent me-1"></i>Equity Curve</span><span class="badge-tag" id="equityRange">Last 100 closed</span></div>
+      <div class="section-card-body"><div class="chart-wrapper-sm"><canvas id="equityChart" role="img" aria-label="Equity and drawdown chart for the last 100 closed trades"></canvas></div></div>
     </div>
   </div>
   <div class="col-lg-4">
     <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bar-chart-fill text-accent me-1"></i>Win Rate by Market</span></div>
       <div class="table-responsive">
-        <table class="smart-table"><thead><tr><th>Market</th><th>Win Rate</th><th>Avg R:R</th><th>Expectancy</th><th>Trades</th></tr></thead>
+        <table class="smart-table"><caption class="ui-visually-hidden">Historical win rate and expectancy by market</caption><thead><tr><th>Market</th><th>Win Rate</th><th>Avg R:R</th><th>Expectancy</th><th>Trades</th></tr></thead>
           <tbody id="winByMarketBody"><tr><td colspan="5" class="text-center text-muted py-4">Loading…</td></tr></tbody>
         </table>
       </div>
@@ -161,7 +170,7 @@
   <div class="col-lg-3">
     <div class="section-card h-100">
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-bullseye text-accent me-1"></i>Confidence Calibration</span></div>
-      <div class="section-card-body"><div class="chart-wrapper-sm"><canvas id="calibrationChart"></canvas></div></div>
+      <div class="section-card-body"><div class="chart-wrapper-sm"><canvas id="calibrationChart" role="img" aria-label="Expected versus actual confidence calibration chart"></canvas></div></div>
     </div>
   </div>
 </div>
@@ -170,20 +179,20 @@
 <div class="section-card mb-3">
   <div class="section-card-header">
     <span class="section-card-title"><i class="bi bi-grid-3x3-gap text-accent me-1"></i>Market Heatmap</span>
-    <div class="heatmap-modes" id="heatmapModes">
-      <button class="hm-tab active" data-mode="change">Price Change</button>
-      <button class="hm-tab" data-mode="ai">AI Score</button>
-      <button class="hm-tab" data-mode="confidence">Confidence</button>
-      <button class="hm-tab" data-mode="volatility">Volatility</button>
-      <button class="hm-tab" data-mode="signal">Signal Strength</button>
+    <div class="heatmap-modes" id="heatmapModes" role="tablist" aria-label="Heatmap metric">
+      <button class="hm-tab active" id="heatmapTabChange" type="button" role="tab" aria-controls="heatmapGrid" aria-selected="true" data-mode="change">Price Change</button>
+      <button class="hm-tab" id="heatmapTabAi" type="button" role="tab" aria-controls="heatmapGrid" aria-selected="false" data-mode="ai">AI Score</button>
+      <button class="hm-tab" id="heatmapTabConfidence" type="button" role="tab" aria-controls="heatmapGrid" aria-selected="false" data-mode="confidence">Confidence</button>
+      <button class="hm-tab" id="heatmapTabVolatility" type="button" role="tab" aria-controls="heatmapGrid" aria-selected="false" data-mode="volatility">Volatility</button>
+      <button class="hm-tab" id="heatmapTabSignal" type="button" role="tab" aria-controls="heatmapGrid" aria-selected="false" data-mode="signal">Signal Strength</button>
     </div>
   </div>
-  <div class="heatmap-grid" id="heatmapGrid"><div class="text-muted small p-3">Loading heatmap…</div></div>
+  <div class="heatmap-grid" id="heatmapGrid" role="tabpanel" aria-labelledby="heatmapTabChange" tabindex="0"><div class="text-muted small p-3">Loading heatmap…</div></div>
 </div>
 
 <!-- ══ Today's Summary strip ══ -->
 <div class="today-summary" id="todaySummary">
-  <div class="ts-title"><i class="bi bi-calendar-check text-accent me-1"></i>Today's Summary</div>
+  <div class="ts-title"><i class="bi bi-calendar-check text-accent me-1"></i>Today's Summary <span class="text-muted fw-normal">(UTC)</span></div>
   <div class="ts-item"><span class="ts-label">Signals Generated</span><span class="ts-value" id="tsGenerated">—</span></div>
   <div class="ts-item"><span class="ts-label">New Signals</span><span class="ts-value text-blue" id="tsNew">—</span></div>
   <div class="ts-item"><span class="ts-label">Closed</span><span class="ts-value" id="tsClosed">—</span></div>
@@ -191,6 +200,7 @@
   <div class="ts-item"><span class="ts-label">Losing</span><span class="ts-value text-red" id="tsLoss">—</span></div>
   <div class="ts-item"><span class="ts-label">Win Rate</span><span class="ts-value" id="tsWinRate">—</span></div>
   <div class="ts-item"><span class="ts-label">Total P&amp;L</span><span class="ts-value" id="tsPnl">—</span></div>
+</div>
 </div>
 
 <script>

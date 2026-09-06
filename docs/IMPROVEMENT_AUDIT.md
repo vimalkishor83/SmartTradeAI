@@ -1435,6 +1435,22 @@ The shared Flask/Jinja shell now presents eight task-oriented navigation groups:
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.99 IMPLEMENTED - Improve the primary dashboard decision surface
+
+The dashboard now distinguishes current market conditions, live active signals, today's UTC activity and historical closed-trade performance in the interface itself. A compact data-context bar reports refresh state and last update time, the equity range accurately says it is limited to the latest 100 closed trades, chart/table regions have accessible descriptions, and heatmap metrics expose a complete tab/tabpanel relationship. Refreshes are serialized, stale signal and heatmap responses are ignored, provider numbers are normalized and bounded before rendering, charts retain recoverable empty states, and partial API failures are reported instead of leaving indefinite loading placeholders.
+
+**Risk level:** High decision-support clarity, accessibility and perceived-performance value, low compatibility risk because existing API paths, response shapes, navigation targets and table/chart IDs are preserved. **Affected modules:** `frontend/templates/dashboard/index.html`, `frontend/static/js/pages/dashboard.js`, `frontend/static/css/main.css`, `tests/unit/test_dashboard_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Dashboard safety/accessibility checks passed (**6 passed**), dashboard JavaScript syntax validation passed, the Jinja template parsed successfully, and whitespace validation passed. Existing local pytest cache permission and unrelated working-tree warnings remain non-blocking. Commit: pending.
+
+**Session 79 (dashboard UX, data freshness and resilient rendering - UI-6, §7.99):**
+- `frontend/templates/dashboard/index.html` - label live/current versus historical/UTC dashboard data, improve action and chart/table semantics, and add a complete heatmap tab relationship.
+- `frontend/static/js/pages/dashboard.js` - serialize full refreshes, ignore stale responses, expose degraded states, normalize provider numbers, preserve chart recovery and bound live rendering.
+- `frontend/static/css/main.css` - add responsive dashboard data-context status styling using the shared design tokens.
+- `tests/unit/test_dashboard_template_safety.py` - protect dashboard scope labels, ARIA relationships, refresh coordination, stale-response handling and numeric/chart safeguards.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ### 7.97 IMPLEMENTED - Improve the public/pre-login experience
 
 The public landing page now has skip navigation, semantic public navigation and a real mobile menu instead of hiding all navigation links on small screens. The page exposes a main landmark, explicit live-price region, keyboard focus treatment and reduced-motion behavior. Public ticker, sentiment, social-link, stats and signal-preview payloads are now bounded, validated, escaped or DOM-rendered safely; ticker polling is serialized and its timeout is always released. Blocked browser storage falls back without breaking the page.

@@ -6,9 +6,91 @@ let _equityChart = null, _calibChart = null;
 let _signalPage = 1, _signalData = [];
 let _heatmapMode = 'change';
 let _aiSummaryCache = null;
+let _dashboardLoadPromise = null;
+let _dashboardBooted = false;
+let _signalsRequestId = 0;
+let _heatmapRequestId = 0;
 
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
-const fmt = (n, d = 2) => (n == null || isNaN(n)) ? '—' : (+n).toFixed(d);
+const numberOr = (value, fallback = null) => {
+  if (value === null || value === undefined || value === '') return fallback;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+};
+const clamp = (value, min, max, fallback = min) => {
+  const number = numberOr(value, fallback);
+  return Math.min(max, Math.max(min, number));
+};
+const countOr = value => Math.max(0, Math.floor(numberOr(value, 0)));
+const percentOr = value => {
+  const number = numberOr(value);
+  return number == null ? null : Math.min(100, Math.max(0, number));
+};
+const fmt = (n, d = 2) => {
+  const number = numberOr(n);
+  return number == null ? '—' : number.toFixed(d);
+};
+const safePrice = (value, market) => {
+  const number = numberOr(value);
+  return number == null || number < 0 ? '—' : formatPrice(number, market);
+};
+
+function setDashboardState(kind, message) {
+  const status = document.getElementById('dashboardDataStatus');
+  const state = document.getElementById('dashboardDataState');
+  if (status) status.className = 'dashboard-context is-' + kind;
+  if (state) state.textContent = message;
+  const live = document.getElementById('dashboardLiveStatus');
+  const updated = document.getElementById('dashboardLastUpdated');
+  if (kind === 'ready') {
+    const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    if (updated) updated.textContent = 'Last updated ' + time;
+    if (live) live.textContent = 'Live data updated ' + time;
+  } else if (live) {
+    live.textContent = kind === 'error' ? 'Dashboard data unavailable' : 'Dashboard partially updated';
+  }
+}
+
+function setDashboardBusy(isBusy) {
+  const content = document.getElementById('dashboardContent');
+  const refresh = document.getElementById('refreshAll');
+  if (content) content.setAttribute('aria-busy', String(isBusy));
+  if (refresh) {
+    refresh.setAttribute('aria-busy', String(isBusy));
+    refresh.disabled = isBusy;
+  }
+}
+
+function stateRow(container, message, icon = 'bi-exclamation-circle') {
+  if (!container) return;
+  const state = `<div class="ui-state ui-state--${icon === 'bi-hourglass-split' ? 'loading' : 'error'}"><i class="bi ${icon}" aria-hidden="true"></i><span>${STSafe.html(message)}</span></div>`;
+  if (container.tagName === 'TBODY') {
+    const colspan = container.closest('table')?.querySelectorAll('thead th').length || 1;
+    container.innerHTML = `<tr><td colspan="${colspan}" class="text-center py-4">${state}</td></tr>`;
+  } else {
+    container.innerHTML = state;
+  }
+}
+
+function chartState(canvas, message) {
+  const wrapper = canvas?.parentElement;
+  if (!wrapper) return;
+  if (canvas) canvas.style.display = 'none';
+  let state = wrapper.querySelector('.dashboard-chart-state');
+  if (!state) {
+    state = document.createElement('div');
+    state.className = 'dashboard-chart-state text-center text-muted py-4 fs-sm';
+    wrapper.appendChild(state);
+  }
+  state.textContent = message;
+}
+
+function restoreChart(canvas) {
+  const wrapper = canvas?.parentElement;
+  if (!wrapper) return;
+  canvas.style.display = '';
+  wrapper.querySelector('.dashboard-chart-state')?.remove();
+}
 
 // Recolor a KPI card (value text, icon, accent) to reflect actual severity
 // instead of a fixed decorative color — e.g. Max Drawdown shouldn't read as
@@ -44,58 +126,64 @@ async function loadKPIs() {
     API.get('/signals/open-pnl'),
   ]);
 
-  const buy = summary?.buy_today ?? 0, sell = summary?.sell_today ?? 0;
-  const hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
+  const buy = countOr(summary?.buy_today), sell = countOr(summary?.sell_today);
+  const hold = countOr(summary?.hold_today), exit = countOr(summary?.exit_today);
   const active = buy + sell + hold + exit;
 
   // KPI cards — overall stats live under perf.overall
   const ov = perf?.overall || {};
   set('kpiActiveSignals', active); set('kpiBuy', buy); set('kpiSell', sell);
-  set('kpiWinRate', ov.win_rate != null ? ov.win_rate.toFixed(1) + '%' : '—');
-  set('kpiWinRateSub', 'n = ' + (ov.total_closed ?? 0));
-  set('kpiProfitFactor', ov.profit_factor != null ? fmt(ov.profit_factor) : '—');
-  set('kpiExpectancy', ov.avg_pnl_pct != null ? fmt(ov.avg_pnl_pct) : '—');
+  const winRate = percentOr(ov.win_rate);
+  set('kpiWinRate', winRate == null ? '—' : winRate.toFixed(1) + '%');
+  set('kpiWinRateSub', 'n = ' + countOr(ov.total_closed));
+  set('kpiProfitFactor', fmt(ov.profit_factor));
+  set('kpiExpectancy', fmt(ov.avg_pnl_pct));
   set('kpiExpectancySub', 'avg P&L % / trade');
   // Sharpe / Max Drawdown / Avg R:R are computed from the closed-trade history
   // (see loadEquityCurve) — set to a loading dash until that resolves.
 
   // Open P&L
-  if (Array.isArray(pnl) && pnl.length) {
-    const total = pnl.reduce((s, r) => s + (r.pnl_pct || 0), 0);
-    const avg = total / pnl.length;
+  const openRows = Array.isArray(pnl) ? pnl : [];
+  const openPnls = openRows.map(row => numberOr(row?.pnl_pct)).filter(value => value != null);
+  if (openPnls.length) {
+    const total = openPnls.reduce((s, value) => s + value, 0);
+    const avg = total / openPnls.length;
     const el = document.getElementById('kpiOpenPnl');
     if (el) { el.textContent = (avg >= 0 ? '+' : '') + avg.toFixed(2) + '%'; el.className = 'kpi-value ' + (avg >= 0 ? 'text-green' : 'text-red'); }
-    set('kpiPnlChange', pnl.length + ' open position' + (pnl.length !== 1 ? 's' : ''));
+    set('kpiPnlChange', openPnls.length + ' open position' + (openPnls.length !== 1 ? 's' : ''));
   } else { set('kpiOpenPnl', '—'); }
 
   // Header market-state
-  const conf = summary?.avg_confidence;
-  set('msConf', conf != null ? conf.toFixed(1) + '%' : '—');
+  const conf = percentOr(summary?.avg_confidence);
+  set('msConf', conf == null ? '—' : conf.toFixed(1) + '%');
   loadTodaySummary(summary, perf);
   loadCalibration(perf);
-  return { summary, perf };
+  return { summary, perf, hasData: Boolean(summary || perf || openRows.length) };
 }
 
 function loadTodaySummary(summary, perf) {
-  const buy = summary?.buy_today ?? 0, sell = summary?.sell_today ?? 0;
-  const hold = summary?.hold_today ?? 0, exit = summary?.exit_today ?? 0;
+  const buy = countOr(summary?.buy_today), sell = countOr(summary?.sell_today);
+  const hold = countOr(summary?.hold_today), exit = countOr(summary?.exit_today);
   set('tsGenerated', buy + sell + hold + exit);
-  set('tsNew', summary?.new_today ?? (buy + sell));
+  set('tsNew', countOr(summary?.new_today ?? (buy + sell)));
   // These are all genuinely "today" figures from /signals/summary now (it
   // didn't return any of them before — every cell here silently fell
   // through to '—' regardless of real activity). win_rate_today is null
   // (not 0) when nothing closed today, rendered as '—' rather than a
   // misleading "0%".
-  set('tsClosed', summary?.closed_today ?? '—');
-  set('tsWin', summary?.wins_today ?? '—');
-  set('tsLoss', summary?.losses_today ?? '—');
-  set('tsWinRate', summary?.win_rate_today != null ? summary.win_rate_today.toFixed(1) + '%' : '—');
+  const closed = summary?.closed_today == null ? null : countOr(summary.closed_today);
+  set('tsClosed', closed == null ? '—' : closed);
+  set('tsWin', summary?.wins_today == null ? '—' : countOr(summary.wins_today));
+  set('tsLoss', summary?.losses_today == null ? '—' : countOr(summary.losses_today));
+  const winRate = percentOr(summary?.win_rate_today);
+  set('tsWinRate', winRate == null ? '—' : winRate.toFixed(1) + '%');
   const el = document.getElementById('tsPnl');
   const tp = summary?.total_pnl_today;
   if (el) {
-    if (tp != null && summary?.closed_today) {
-      el.textContent = (tp >= 0 ? '+' : '') + fmt(tp) + '%';
-      el.className = 'ts-value ' + (tp >= 0 ? 'text-green' : 'text-red');
+    const totalPnl = numberOr(tp);
+    if (totalPnl != null && closed) {
+      el.textContent = (totalPnl >= 0 ? '+' : '') + fmt(totalPnl) + '%';
+      el.className = 'ts-value ' + (totalPnl >= 0 ? 'text-green' : 'text-red');
     } else {
       el.textContent = '—';
       el.className = 'ts-value';
@@ -105,9 +193,9 @@ function loadTodaySummary(summary, perf) {
 
 /* ── Market-state (regime / volatility / risk) from heatmap ───── */
 function loadHeaderStats(heatmap) {
-  const rows = heatmap?.heatmap || [];
+  const rows = Array.isArray(heatmap?.heatmap) ? heatmap.heatmap : [];
   if (!rows.length) return;
-  const changes = rows.map(r => r.change_pct || 0);
+  const changes = rows.map(r => numberOr(r?.change_pct, 0));
   const avg = changes.reduce((a, b) => a + b, 0) / changes.length;
   const variance = changes.reduce((a, b) => a + (b - avg) ** 2, 0) / changes.length;
   const std = Math.sqrt(variance);
@@ -139,17 +227,17 @@ function loadOpportunityRadar(signals) {
   const wrap = document.getElementById('oppRadar');
   if (!wrap) return;
   const seen = new Set();
-  const top = (signals || [])
-    .filter(s => { if (!s.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
-    .sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0))
+  const top = (Array.isArray(signals) ? signals : [])
+    .filter(s => { if (!s?.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
+    .sort((a, b) => numberOr(b?.confidence_score, 0) - numberOr(a?.confidence_score, 0))
     .slice(0, 5);
   if (!top.length) { wrap.innerHTML = '<div class="text-muted small p-3">No opportunities right now.</div>'; return; }
 
   wrap.innerHTML = top.map(s => {
-    const conf = s.confidence_score || 0;
-    const tag = _oppTag(conf, s.signal_type);
-    const rr = parseFloat(s.risk_reward);
-    const note = (s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || (s.confidence_label || '');
+    const conf = clamp(s.confidence_score, 0, 100, 0);
+    const tag = _oppTag(conf, s.signal_type === 'SELL' ? 'SELL' : 'BUY');
+    const rr = numberOr(s.risk_reward, 0);
+    const note = String(s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || String(s.confidence_label || '');
     return `<a class="opp-card" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
       <div class="opp-top">
         <div class="opp-name">${STSafe.html(s.asset)}</div>
@@ -170,6 +258,7 @@ function loadOpportunityRadar(signals) {
 /* ── Live Signals (enhanced) ──────────────────────────────────── */
 async function loadSignals(page) {
   page = page || 1; _signalPage = page;
+  const requestId = ++_signalsRequestId;
   const market = document.getElementById('signalMarketFilter')?.value || '';
   const type = document.getElementById('signalTypeFilter')?.value || '';
   const tf = document.getElementById('globalTimeframe')?.value || '1h';
@@ -178,41 +267,48 @@ async function loadSignals(page) {
   if (type) params.signal_type = type;
 
   const data = await API.get('/signals/', params);
-  if (!data) return;
-  _signalData = data.signals || [];
+  if (requestId !== _signalsRequestId || !data) {
+    if (!data && requestId === _signalsRequestId) {
+      stateRow(document.getElementById('signalsBody'), 'Signals are temporarily unavailable. Try refreshing.');
+      return null;
+    }
+    return undefined;
+  }
+  _signalData = Array.isArray(data.signals) ? data.signals : [];
   _renderSignals(_signalData);
   loadOpportunityRadar(_signalData);
   if (_signalData.length) loadInspector([..._signalData].sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0))[0]);
 
-  set('signalCount', (data.total || 0) + ' active');
+  set('signalCount', countOr(data.total) + ' active');
   const pag = document.getElementById('signalPagination');
-  const pages = Math.min(data.pages || 1, 7);
+  const pages = Math.min(Math.max(1, countOr(data.pages) || 1), 7);
   if (pag) {
-    pag.innerHTML = ''; if (pages > 1) for (let i = 1; i <= pages; i++) {
+      pag.innerHTML = ''; if (pages > 1) for (let i = 1; i <= pages; i++) {
       const li = document.createElement('li'); li.className = 'page-item' + (i === page ? ' active' : '');
       li.innerHTML = `<a class="page-link" href="#">${i}</a>`;
       li.querySelector('a').addEventListener('click', e => { e.preventDefault(); loadSignals(i); });
       pag.appendChild(li);
     }
   }
+  return data;
 }
 
 function _renderSignals(signals) {
   const tbody = document.getElementById('signalsBody');
   if (!tbody) return;
-  const minConf = window.MIN_CONFIDENCE || 0;
-  const filtered = signals.filter(s => (s.confidence_score || 0) >= minConf);
+  const minConf = clamp(window.MIN_CONFIDENCE, 0, 100, 0);
+  const filtered = (Array.isArray(signals) ? signals : []).filter(s => numberOr(s?.confidence_score, 0) >= minConf);
   if (!filtered.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No signals yet — generate one from a market page.</td></tr>`;
     return;
   }
   tbody.innerHTML = filtered.map(s => {
-    const conf = s.confidence_score || 0;
+    const conf = clamp(s.confidence_score, 0, 100, 0);
     const confClr = conf >= 85 ? 'var(--green)' : conf >= 70 ? 'var(--accent-light)' : conf >= 55 ? 'var(--yellow)' : 'var(--red)';
-    const rr = parseFloat(s.risk_reward) || 0;
+    const rr = Math.max(0, numberOr(s.risk_reward, 0));
     const rrClr = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
-    const cur = s.current_price || s.entry_price;
-    const mkt = (s.market || '').replace('_', ' ');
+    const cur = numberOr(s.current_price, numberOr(s.entry_price));
+    const mkt = String(s.market || '').replace('_', ' ');
     // Row itself navigates to the asset's AI Position Analysis (SL/targets/
     // age/regime/model-agreement/status all live there now) — only the
     // trash-icon-style affordance differs, so make the whole row clickable
@@ -221,8 +317,8 @@ function _renderSignals(signals) {
       <td><span class="asset-cell-name">${STSafe.html(s.asset)}</span><div class="asset-cell-sub"><span class="badge-tag">${STSafe.html(mkt)}</span></div></td>
       <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
-      <td class="num">${formatPrice(s.entry_price, s.market)}</td>
-      <td class="num">${formatPrice(cur, s.market)}</td>
+      <td class="num">${safePrice(s.entry_price, s.market)}</td>
+      <td class="num">${safePrice(cur, s.market)}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
     </tr>`;
@@ -240,25 +336,28 @@ function _renderSignals(signals) {
 function loadInspector(s) {
   const body = document.getElementById('inspectorBody');
   if (!body || !s) return;
-  const conf = s.confidence_score || 0;
+  const conf = clamp(s.confidence_score, 0, 100, 0);
   document.getElementById('inspHeader').textContent = `${s.asset} · ${s.signal_type} · ${conf.toFixed(0)}%`;
-  const cur = s.current_price || s.entry_price;
-  const riskPct = (s.entry_price && s.stop_loss) ? Math.abs((s.entry_price - s.stop_loss) / s.entry_price * 100) : null;
-  const quality = s.data_quality || {};
+  const entry = numberOr(s.entry_price);
+  const stop = numberOr(s.stop_loss);
+  const cur = numberOr(s.current_price, entry);
+  const riskPct = entry && stop != null ? Math.abs((entry - stop) / entry * 100) : null;
+  const quality = s.data_quality && typeof s.data_quality === 'object' ? s.data_quality : {};
   const qualityStatus = ['GREEN', 'YELLOW', 'RED'].includes(quality.status) ? quality.status : 'UNKNOWN';
   const qualityClass = qualityStatus.toLowerCase();
   const qualityAge = Number.isFinite(Number(quality.last_candle_age_seconds))
     ? `${Math.max(0, Math.round(Number(quality.last_candle_age_seconds) / 60))} min ago`
     : 'timestamp unavailable';
   const qualityProvider = STSafe.html(quality.provider || 'provider unavailable');
-  const provenance = s.reproducibility || {};
+  const provenance = s.reproducibility && typeof s.reproducibility === 'object' ? s.reproducibility : {};
   const provenanceText = value => STSafe.html(value || 'unavailable');
   const sourceLabel = provenance.generation_source === 'manual' ? 'Manual' :
     provenance.generation_source === 'automatic' ? 'Automatic' : 'Legacy / unknown';
   const modelLabel = provenance.model_version === 'not_applicable' ? 'Rule-based scoring' :
     provenanceText(provenance.model_version);
-  const fingerprintLabel = provenance.data_fingerprint
-    ? STSafe.html(`${provenance.data_fingerprint.slice(0, 12)}...`)
+  const fingerprint = String(provenance.data_fingerprint || '');
+  const fingerprintLabel = fingerprint
+    ? STSafe.html(`${fingerprint.slice(0, 12)}...`)
     : 'unavailable';
   const decisionTitle = provenance.model_version && provenance.model_version !== 'not_applicable'
     ? 'Why This Signal Qualified (AI-assisted)' : 'Why This Signal Qualified';
@@ -271,14 +370,14 @@ function loadInspector(s) {
   // against >= 55, a threshold sized for the OTHER checks' 0-100 scale.
   // The check could not pass for any signal in the system, in either case.
   const checks = [
-    ['EMA Trend Alignment', (s.trend_score || 0) >= 55],
-    ['RSI / Momentum Recovery', (s.momentum_score || 0) >= 55],
-    ['Volume Confirmation', (s.volume_score || 0) >= 50],
-    ['Pattern Support', (s.pattern_score || 0) >= 50],
+    ['EMA Trend Alignment', numberOr(s.trend_score, 0) >= 55],
+    ['RSI / Momentum Recovery', numberOr(s.momentum_score, 0) >= 55],
+    ['Volume Confirmation', numberOr(s.volume_score, 0) >= 50],
+    ['Pattern Support', numberOr(s.pattern_score, 0) >= 50],
   ];
   const warnings = [];
   if (riskPct != null && riskPct > 3) warnings.push(`Wide stop (${riskPct.toFixed(1)}% risk)`);
-  if ((s.volume_score || 0) < 40) warnings.push('Low volume confirmation');
+  if (numberOr(s.volume_score, 0) < 40) warnings.push('Low volume confirmation');
   if (conf < 65) warnings.push('Confidence below 65%');
   const dir = s.signal_type === 'SELL' ? 'var(--red)' : 'var(--green)';
   // Honest breakdown of the real components behind confidence_score (see
@@ -292,8 +391,8 @@ function loadInspector(s) {
   // anywhere in this codebase. This is what the checklist above is
   // actually built from -- no fabricated per-model attribution.
   const factors = [
-    ['Trend', s.trend_score], ['Momentum', s.momentum_score],
-    ['Volume', s.volume_score], ['Pattern', s.pattern_score],
+    ['Trend', clamp(s.trend_score, 0, 100, 0)], ['Momentum', clamp(s.momentum_score, 0, 100, 0)],
+    ['Volume', clamp(s.volume_score, 0, 100, 0)], ['Pattern', clamp(s.pattern_score, 0, 100, 0)],
   ];
   // Evidence / Counter-Evidence — SignalEngine already computes this per
   // factor (reasoning_detail's `aligned` flag, see
@@ -306,31 +405,34 @@ function loadInspector(s) {
   // same `aligned` flag `_build_retrospective_note` already uses server-
   // side keeps this consistent with the plain-language summary on
   // /signal-journal.
-  const detail = s.reasoning_detail || [];
+  const detail = Array.isArray(s.reasoning_detail) ? s.reasoning_detail.filter(r => r && typeof r === 'object') : [];
   const evidence = detail.filter(r => r.aligned);
   const counterEvidence = detail.filter(r => !r.aligned);
-  const history = s.historical_context || {};
-  const historyAccuracy = Number.isFinite(Number(history.accuracy)) ? Number(history.accuracy) : null;
-  const historySample = Number(history.sample_size || 0);
-  const historyDecisive = Number(history.decisive_sample_size || 0);
-  const historyPnl = Number.isFinite(Number(history.avg_pnl_pct)) ? Number(history.avg_pnl_pct) : null;
+  const history = s.historical_context && typeof s.historical_context === 'object' ? s.historical_context : {};
+  const historyAccuracy = percentOr(history.accuracy);
+  const historySample = countOr(history.sample_size);
+  const historyDecisive = countOr(history.decisive_sample_size);
+  const historyPnl = numberOr(history.avg_pnl_pct);
+  const historyWins = countOr(history.wins);
+  const historyLosses = countOr(history.losses);
+  const historyNeutral = countOr(history.neutral);
   const historySummary = historyDecisive
-    ? `${history.wins || 0} wins · ${history.losses || 0} losses${history.neutral ? ` · ${history.neutral} neutral` : ''}`
+    ? `${historyWins} wins · ${historyLosses} losses${historyNeutral ? ` · ${historyNeutral} neutral` : ''}`
     : 'No decisive closed sample yet';
 
   body.innerHTML = `
     <div class="insp-grid">
-      <div><div class="insp-k">Entry</div><div class="insp-v">${formatPrice(s.entry_price, s.market)}</div></div>
-      <div><div class="insp-k">Current</div><div class="insp-v">${formatPrice(cur, s.market)}</div></div>
-      <div><div class="insp-k">Stop Loss</div><div class="insp-v" style="color:var(--red)">${formatPrice(s.stop_loss, s.market)}</div></div>
-      <div><div class="insp-k">Take Profit 1</div><div class="insp-v" style="color:var(--green)">${formatPrice(s.target1, s.market)}</div></div>
-      <div><div class="insp-k">Take Profit 2</div><div class="insp-v" style="color:var(--green)">${s.target2 ? formatPrice(s.target2, s.market) : '—'}</div></div>
-      <div><div class="insp-k">R:R</div><div class="insp-v">${s.risk_reward ? '1:' + parseFloat(s.risk_reward).toFixed(1) : '—'}</div></div>
+      <div><div class="insp-k">Entry</div><div class="insp-v">${safePrice(entry, s.market)}</div></div>
+      <div><div class="insp-k">Current</div><div class="insp-v">${safePrice(cur, s.market)}</div></div>
+      <div><div class="insp-k">Stop Loss</div><div class="insp-v" style="color:var(--red)">${safePrice(stop, s.market)}</div></div>
+      <div><div class="insp-k">Take Profit 1</div><div class="insp-v" style="color:var(--green)">${safePrice(s.target1, s.market)}</div></div>
+      <div><div class="insp-k">Take Profit 2</div><div class="insp-v" style="color:var(--green)">${safePrice(s.target2, s.market)}</div></div>
+      <div><div class="insp-k">R:R</div><div class="insp-v">${numberOr(s.risk_reward, 0) > 0 ? '1:' + fmt(s.risk_reward, 1) : '—'}</div></div>
       <div><div class="insp-k">Risk</div><div class="insp-v">${riskPct != null ? riskPct.toFixed(2) + '%' : '—'}</div></div>
     </div>
     <div class="insp-context insp-quality-${qualityClass}" role="status">
       <div class="insp-context-main"><i class="bi bi-database-check"></i><strong>Data ${qualityStatus}</strong><span>${qualityAge}</span></div>
-      <div class="insp-context-meta">${qualityProvider} · ${STSafe.html(quality.candle_count ?? '—')} candles</div>
+      <div class="insp-context-meta">${qualityProvider} · ${quality.candle_count == null ? '—' : countOr(quality.candle_count)} candles</div>
     </div>
     <div class="insp-context insp-regime" role="status">
       <div class="insp-context-main"><i class="bi bi-activity"></i><strong>Market regime</strong><span>${STSafe.html(s.regime || 'Not classified')}</span></div>
@@ -338,7 +440,7 @@ function loadInspector(s) {
     </div>
     <div class="insp-context insp-provenance" role="status">
       <div class="insp-context-main"><i class="bi bi-fingerprint"></i><strong>Signal provenance</strong><span>${STSafe.html(sourceLabel)}</span></div>
-      <div class="insp-context-meta">${modelLabel} · ${STSafe.html(provenance.data_candles ?? '—')} candles · data ${fingerprintLabel}</div>
+      <div class="insp-context-meta">${modelLabel} · ${provenance.data_candles == null ? '—' : countOr(provenance.data_candles)} candles · data ${fingerprintLabel}</div>
     </div>
     <div class="insp-context insp-history" role="status">
       <div class="insp-context-main"><i class="bi bi-bar-chart-line"></i><strong>Historical context</strong><span>${historyAccuracy == null ? '—' : historyAccuracy.toFixed(1) + '% accuracy'}</span></div>
@@ -360,12 +462,15 @@ async function loadEquityCurve() {
   const ctx = document.getElementById('equityChart');
   if (!ctx) return;
   const data = await API.get('/signals/history', { per_page: 100 });
-  const rows = (data?.history || data?.signals || []).slice().reverse();
-  if (!rows.length) { ctx.parentElement.innerHTML = '<div class="text-center text-muted py-4 fs-sm">No closed trades yet</div>'; return; }
+  const rawRows = Array.isArray(data?.history) ? data.history : (Array.isArray(data?.signals) ? data.signals : []);
+  const rows = rawRows.map(row => ({ ...row, pnl_pct: numberOr(row?.pnl_pct) }))
+    .filter(row => row.pnl_pct != null).slice().reverse();
+  if (!rows.length) { chartState(ctx, data ? 'No closed trades yet' : 'Historical performance is temporarily unavailable'); return null; }
+  restoreChart(ctx);
   let eq = 0; const eqPts = [], ddPts = []; let peak = 0, maxDD = 0;
   const pnls = [];
   rows.forEach(r => {
-    const p = r.pnl_pct || 0; pnls.push(p);
+    const p = r.pnl_pct; pnls.push(p);
     eq += p; eqPts.push(eq); peak = Math.max(peak, eq);
     const dd = eq - peak; ddPts.push(dd); maxDD = Math.min(maxDD, dd);
   });
@@ -387,6 +492,7 @@ async function loadEquityCurve() {
   const avgLoss = losses.length ? Math.abs(losses.reduce((a, b) => a + b, 0) / losses.length) : 0;
   set('kpiAvgRR', avgLoss > 0 ? '1:' + fmt(avgWin / avgLoss) : '—');
   set('kpiAvgRRSub', 'reward per risk · last ' + pnls.length);
+  if (typeof Chart === 'undefined') { chartState(ctx, 'Chart library unavailable. Use Signal Analytics for the table view.'); return data; }
   if (_equityChart) _equityChart.destroy();
   const css = getComputedStyle(document.documentElement);
   _equityChart = new Chart(ctx, {
@@ -402,36 +508,45 @@ async function loadEquityCurve() {
       scales: { y: { ticks: { callback: v => v + '%' }, grid: { color: 'rgba(148,163,184,.1)' } }, x: { display: false } }
     },
   });
+  return data;
 }
 
 async function loadWinByMarket() {
   const tbody = document.getElementById('winByMarketBody');
   if (!tbody) return;
   const data = await API.get('/signals/analytics');
-  const rows = (data?.by_market || []).filter(m => m.total > 0);
-  if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No market data yet</td></tr>'; return; }
-  const label = m => m === 'indian_stock' ? 'Stocks' : m === 'index' ? 'Indices' : m.charAt(0).toUpperCase() + m.slice(1);
+  const rows = (Array.isArray(data?.by_market) ? data.by_market : [])
+    .filter(m => countOr(m?.total) > 0);
+  if (!rows.length) {
+    stateRow(tbody, data ? 'No market history yet' : 'Market performance is temporarily unavailable');
+    return null;
+  }
+  const label = m => m === 'indian_stock' ? 'Stocks' : m === 'index' ? 'Indices' : String(m || 'Unknown').replace('_', ' ').replace(/^\w/, c => c.toUpperCase());
   tbody.innerHTML = rows.map(m => {
-    const wr = m.win_rate || 0;
-    const exp = m.avg_pnl_pct ?? m.expectancy;
+    const wr = percentOr(m.win_rate) ?? 0;
+    const exp = numberOr(m.avg_pnl_pct, numberOr(m.expectancy));
+    const total = countOr(m.total);
     return `<tr>
       <td>${STSafe.html(label(m.market))}</td>
       <td class="num" style="color:${wr >= 50 ? 'var(--green)' : 'var(--red)'};font-weight:700">${wr.toFixed(0)}%</td>
-      <td class="num">${m.avg_rr != null ? '1:' + fmt(m.avg_rr) : '—'}</td>
+      <td class="num">${numberOr(m.avg_rr) != null ? '1:' + fmt(m.avg_rr) : '—'}</td>
       <td class="num" style="color:${(exp || 0) >= 0 ? 'var(--green)' : 'var(--red)'}">${exp != null ? (exp >= 0 ? '+' : '') + fmt(exp) : '—'}</td>
-      <td class="num">${m.total}</td>
+      <td class="num">${total}</td>
     </tr>`;
   }).join('');
+  return data;
 }
 
 function loadCalibration(perf) {
   const ctx = document.getElementById('calibrationChart');
   if (!ctx) return;
-  const bands = perf?.calibration || perf?.confidence_calibration || [];
-  if (!bands.length) { if (!_calibChart) ctx.parentElement.innerHTML = '<div class="text-center text-muted py-4 fs-sm">Not enough data</div>'; return; }
-  const labels = bands.map(b => b.range || b.band);
-  const expected = bands.map(b => b.expected_win_rate);
-  const actual = bands.map(b => b.actual_win_rate);
+  const bands = Array.isArray(perf?.calibration) ? perf.calibration : (Array.isArray(perf?.confidence_calibration) ? perf.confidence_calibration : []);
+  if (!bands.length) { chartState(ctx, 'Not enough closed-trade data yet'); return; }
+  restoreChart(ctx);
+  const labels = bands.map(b => String(b?.range || b?.band || 'Unknown').slice(0, 24));
+  const expected = bands.map(b => percentOr(b?.expected_win_rate));
+  const actual = bands.map(b => percentOr(b?.actual_win_rate));
+  if (typeof Chart === 'undefined') { chartState(ctx, 'Chart library unavailable. Use Model Performance for details.'); return; }
   if (_calibChart) _calibChart.destroy();
   const css = getComputedStyle(document.documentElement);
   _calibChart = new Chart(ctx, {
@@ -453,27 +568,41 @@ function loadCalibration(perf) {
 async function loadHeatmap() {
   const grid = document.getElementById('heatmapGrid');
   if (!grid) return;
+  const requestId = ++_heatmapRequestId;
   const data = await API.get('/market-data/heatmap');
-  if (!data?.heatmap?.length) { grid.innerHTML = '<div class="text-muted small p-3">No data</div>'; return; }
+  if (requestId !== _heatmapRequestId) return undefined;
+  const items = Array.isArray(data?.heatmap) ? data.heatmap.filter(item => item && typeof item === 'object') : [];
+  if (!items.length) {
+    stateRow(grid, data ? 'Market data is not available yet' : 'Market data is temporarily unavailable');
+    return null;
+  }
   loadHeaderStats(data);
   if (!_aiSummaryCache && (_heatmapMode === 'ai' || _heatmapMode === 'confidence')) {
     _aiSummaryCache = await API.get('/market-data/ai-summary').catch(() => null);
   }
-  _renderHeatmap(data.heatmap);
+  if (requestId !== _heatmapRequestId) return undefined;
+  _renderHeatmap(items);
+  return data;
 }
 
 function _renderHeatmap(items) {
   const grid = document.getElementById('heatmapGrid');
   const aiMap = {};
-  (_aiSummaryCache?.assets || []).forEach(a => { aiMap[a.symbol] = a; });
-  grid.innerHTML = items.map(item => {
-    let main, sub, clr, up = (item.change_pct || 0) >= 0;
+  (Array.isArray(_aiSummaryCache?.assets) ? _aiSummaryCache.assets : []).forEach(a => { aiMap[String(a?.symbol || '')] = a; });
+  grid.innerHTML = (Array.isArray(items) ? items : []).map(item => {
+    let main, sub, clr;
+    const change = numberOr(item?.change_pct, 0);
+    const up = change >= 0;
     const ai = aiMap[item.symbol];
-    if (_heatmapMode === 'change') { main = (up ? '▲' : '▼') + Math.abs(item.change_pct || 0).toFixed(2) + '%'; clr = up ? 'var(--green)' : 'var(--red)'; sub = formatPrice(item.price); }
-    else if (_heatmapMode === 'ai') { const tf = ai?.tf?.['1h'] || Object.values(ai?.tf || {})[0]; const c = tf?.confidence ?? 50; const d = tf?.direction || 'neutral'; main = 'AI ' + Math.round(c); clr = d === 'bullish' ? 'var(--green)' : d === 'bearish' ? 'var(--red)' : 'var(--yellow)'; sub = d.toUpperCase(); }
-    else if (_heatmapMode === 'confidence') { const tf = ai?.tf?.['1h'] || Object.values(ai?.tf || {})[0]; const c = tf?.confidence ?? 50; main = Math.round(c) + '%'; clr = c >= 70 ? 'var(--green)' : c >= 55 ? 'var(--yellow)' : 'var(--red)'; sub = 'confidence'; }
-    else if (_heatmapMode === 'volatility') { const v = Math.abs(item.change_pct || 0); main = v.toFixed(2) + '%'; clr = v > 3 ? 'var(--red)' : v > 1.5 ? 'var(--yellow)' : 'var(--green)'; sub = v > 3 ? 'high' : v > 1.5 ? 'med' : 'low'; }
-    else { const strength = Math.min(100, Math.abs(item.change_pct || 0) * 25 + 30); main = Math.round(strength); clr = up ? 'var(--green)' : 'var(--red)'; sub = up ? 'bullish' : 'bearish'; }
+    const tfMap = ai?.tf && typeof ai.tf === 'object' ? ai.tf : {};
+    const tf = tfMap['1h'] || Object.values(tfMap)[0] || {};
+    const aiConfidence = clamp(tf.confidence, 0, 100, 50);
+    const direction = ['bullish', 'bearish', 'neutral'].includes(tf.direction) ? tf.direction : 'neutral';
+    if (_heatmapMode === 'change') { main = (up ? '▲' : '▼') + Math.abs(change).toFixed(2) + '%'; clr = up ? 'var(--green)' : 'var(--red)'; sub = safePrice(item.price); }
+    else if (_heatmapMode === 'ai') { main = 'AI ' + Math.round(aiConfidence); clr = direction === 'bullish' ? 'var(--green)' : direction === 'bearish' ? 'var(--red)' : 'var(--yellow)'; sub = direction.toUpperCase(); }
+    else if (_heatmapMode === 'confidence') { main = Math.round(aiConfidence) + '%'; clr = aiConfidence >= 70 ? 'var(--green)' : aiConfidence >= 55 ? 'var(--yellow)' : 'var(--red)'; sub = 'confidence'; }
+    else if (_heatmapMode === 'volatility') { const volatility = Math.abs(change); main = volatility.toFixed(2) + '%'; clr = volatility > 3 ? 'var(--red)' : volatility > 1.5 ? 'var(--yellow)' : 'var(--green)'; sub = volatility > 3 ? 'high' : volatility > 1.5 ? 'med' : 'low'; }
+    else { const strength = Math.min(100, Math.abs(change) * 25 + 30); main = Math.round(strength); clr = up ? 'var(--green)' : 'var(--red)'; sub = up ? 'bullish' : 'bearish'; }
     return `<a class="heatmap-cell ${up ? 'up' : 'down'}" href="${STSafe.marketHref(item.market)}" style="text-decoration:none;color:inherit">
       <div class="cell-symbol">${STSafe.html(item.symbol)}</div>
       <div class="cell-change" style="color:${clr}">${main}</div>
@@ -502,14 +631,41 @@ async function _generateSignal() {
 
 /* ── Load everything ──────────────────────────────────────────── */
 function loadAll() {
-  loadKPIs();
-  loadSignals(1);
-  loadHeatmap();
-  loadEquityCurve();
-  loadWinByMarket();
+  if (_dashboardLoadPromise) return _dashboardLoadPromise;
+  setDashboardBusy(true);
+  setDashboardState('loading', 'Refreshing dashboard data');
+  _dashboardLoadPromise = Promise.allSettled([
+    loadKPIs(),
+    loadSignals(1),
+    loadHeatmap(),
+    loadEquityCurve(),
+    loadWinByMarket(),
+  ]).then(results => {
+    const rejected = results.filter(result => result.status === 'rejected').length;
+    const empty = results.filter(result => result.status === 'fulfilled' && (
+      result.value === null || result.value?.hasData === false
+    )).length;
+    if (rejected === results.length || empty === results.length) {
+      setDashboardState('error', 'Dashboard data unavailable');
+    } else if (rejected || empty) {
+      setDashboardState('degraded', 'Dashboard partially updated');
+    } else {
+      setDashboardState('ready', 'Dashboard data current');
+    }
+    return results;
+  }).catch(() => {
+    setDashboardState('error', 'Dashboard data unavailable');
+    return [];
+  }).finally(() => {
+    setDashboardBusy(false);
+    _dashboardLoadPromise = null;
+  });
+  return _dashboardLoadPromise;
 }
 
 document.addEventListener('app:ready', () => {
+  if (_dashboardBooted) return;
+  _dashboardBooted = true;
   _chartDefaults();
   populateMarketSelect(document.getElementById('signalMarketFilter'), { includeAll: true });
   loadAll();
@@ -521,7 +677,10 @@ document.addEventListener('app:ready', () => {
   document.getElementById('signalTypeFilter')?.addEventListener('change', () => loadSignals(1));
   document.querySelectorAll('.hm-tab').forEach(tab => tab.addEventListener('click', () => {
     document.querySelectorAll('.hm-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active'); _heatmapMode = tab.dataset.mode; _aiSummaryCache = null; loadHeatmap();
+    document.querySelectorAll('.hm-tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
+    tab.classList.add('active');
+    document.getElementById('heatmapGrid')?.setAttribute('aria-labelledby', tab.id);
+    _heatmapMode = tab.dataset.mode; _aiSummaryCache = null; loadHeatmap();
   }));
 
   setInterval(loadAll, 90000);
