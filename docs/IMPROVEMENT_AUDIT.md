@@ -1405,4 +1405,17 @@ Dhan endpoints now canonicalize supported underlyings, reject unknown or empty i
 - `frontend/templates/dashboard/dhan_indices.html` - validate and escape quote/chain payloads, bound rows and serialize status/refresh requests.
 - `tests/integration/test_dhan_input_validation.py`, `tests/unit/test_dhan_template_safety.py` - cover Dhan request boundaries and browser rendering contracts.
 
+### 7.93 IMPLEMENTED - Harden Advanced Analysis dashboard
+
+Advanced Analysis now validates configured timeframes at the API boundary and reuses its short-lived computed payload cache. The dashboard safely normalizes candle and provider-derived analysis values, bounds chart/panel collections, deduplicates chart timestamps, ignores stale or duplicate requests, uses delegated accessible controls, makes FVG and Order Block toggles functional, and adapts chart/panel sizing on smaller screens.
+
+**Risk level:** Critical decision-support integrity and usability value, low compatibility risk for valid timeframes and existing analysis responses. **Affected modules:** `app/api/v1/market_data.py`, `frontend/templates/dashboard/advanced_analysis.html`, `tests/integration/test_advanced_analysis_validation.py`, `tests/unit/test_advanced_analysis_template_safety.py`. **Migration:** none.
+
+**Regression evidence:** Advanced Analysis checks passed (**7 passed**), Python compilation and extracted browser JavaScript parsing passed, and whitespace validation passed. Existing pandas/SQLAlchemy/Flask-Migrate deprecation warnings and the local pytest cache permission warning remain non-blocking. Commit: `8db011d`.
+
+**Session 73 (decision-support UI/API reliability - Advanced Analysis, §7.93):**
+- `app/api/v1/market_data.py` - reject unsupported Advanced Analysis timeframes before provider access.
+- `frontend/templates/dashboard/advanced_analysis.html` - harden chart/panel rendering, request sequencing, accessibility, responsive sizing and zone toggles.
+- `tests/integration/test_advanced_analysis_validation.py`, `tests/unit/test_advanced_analysis_template_safety.py` - cover timeframe boundaries and browser rendering/control contracts.
+
 **Database changes:** additive nullable columns were added to `signals` for data-quality context and, in §7.29, signal provenance; Backtest rows gained additive cost, reproducibility and risk fields; §7.31 adds an additive nullable `predictions.model_version` column, §7.32 adds nullable `predictions.data_quality` JSON, and §7.33 adds nullable `predictions.model_outputs` JSON. **API contract changes:** additive metadata only — `POST /backtesting/run`, `Signal.to_dict()`, and `Prediction.to_dict()` gained fields; the prediction endpoint can return the existing warming-up status more accurately when the predictor falls back. No field was removed or renamed. Phase 3 adds a new internal gate to `generate_signal()` that can return `None` (no signal) in cases that previously would have produced one — specifically only when data is stale (live path only) or corrupt (both live and backtest) — no existing route, response shape, or subscription rule changed. §7.36 changes only row ordering and targeted cache invalidation. **No destructive migration. No new credentials or secrets introduced.**
