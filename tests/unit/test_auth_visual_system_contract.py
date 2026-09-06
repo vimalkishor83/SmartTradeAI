@@ -20,5 +20,6 @@ def test_shared_auth_styles_cover_keyboard_focus_and_mobile_layout():
     source = (ROOT / "frontend/static/css/auth.css").read_text(encoding="utf-8")
     assert ".auth-shell a:focus-visible" in source
     assert ".auth-shell .auth-container.has-auth-side" in source
+    assert ".auth-shell .auth-simple-card::after" in source
     assert "prefers-reduced-motion" in source
     assert "min-height: 46px" in source

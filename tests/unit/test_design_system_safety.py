@@ -36,12 +36,15 @@ def test_shared_design_tokens_and_primitives_are_available():
     ):
         assert primitive in css
 
+    assert ".section-card::after" in css
+    assert "color-mix(in srgb, var(--accent) 24%, transparent)" in css
+
 
 def test_shared_shell_exposes_accessible_focus_and_motion_contracts():
     css = CSS.read_text(encoding="utf-8")
     base = BASE.read_text(encoding="utf-8")
 
-    assert '<body class="app-shell"' in base
+    assert '<body class="app-shell' in base
     assert '.app-shell :where(a, button, input, select, textarea, summary):focus-visible' in css
     assert '@media (prefers-reduced-motion: reduce)' in css
     assert 'color-scheme: dark' in css

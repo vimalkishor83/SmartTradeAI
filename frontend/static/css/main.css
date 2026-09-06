@@ -1715,7 +1715,24 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
   border-radius: var(--radius);
   margin-bottom: 18px;
   overflow: hidden;
+  position: relative;
   transition: border-color var(--transition-slow);
+}
+
+/* A quiet curved highlight adds depth to dense trading surfaces without
+   competing with prices, signals, or chart data. */
+.section-card::after {
+  content: '';
+  position: absolute;
+  width: 240px;
+  height: 90px;
+  right: -78px;
+  bottom: -54px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  border-radius: 50%;
+  transform: rotate(-10deg);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--accent) 8%, transparent);
+  pointer-events: none;
 }
 
 .section-card-header {

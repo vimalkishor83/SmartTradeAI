@@ -20,6 +20,8 @@
 }
 
 .auth-shell .auth-simple-card {
+  overflow: hidden;
+  position: relative;
   background: rgba(16, 20, 28, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 16px;
@@ -27,6 +29,24 @@
   max-width: 460px;
   padding: clamp(24px, 5vw, 42px);
   width: 100%;
+}
+
+.auth-shell .auth-simple-card::after {
+  content: '';
+  position: absolute;
+  width: 210px;
+  height: 76px;
+  right: -70px;
+  bottom: -42px;
+  border: 1px solid rgba(245, 166, 35, 0.24);
+  border-radius: 50%;
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
+
+.auth-shell .auth-simple-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .auth-shell .auth-form-panel {
