@@ -5,8 +5,14 @@
 let _breadthChart = null;
 let _levelAssets = [];
 let _levelActive = null;
+let _briefLoadPromise = null;
 const bset = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const bcolor = (id, cls) => { const el = document.getElementById(id); if (el) el.className = cls; };
+
+function briefingNumber(value, fallback = 0) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : fallback;
+}
 
 function _cssv(n, f) { return (getComputedStyle(document.documentElement).getPropertyValue(n) || f).trim(); }
 
@@ -21,8 +27,12 @@ function renderHeader() {
 /* ── Master heatmap-driven sections ───────────────────────────── */
 async function loadMarketState() {
   const data = await API.get('/market-data/heatmap');
-  const rows = data?.heatmap || [];
-  if (!rows.length) return;
+  const rows = Array.isArray(data?.heatmap)
+    ? data.heatmap.filter(row => row && typeof row === 'object').map(row => ({
+      ...row, change_pct: briefingNumber(row.change_pct), price: briefingNumber(row.price),
+    }))
+    : [];
+  if (!rows.length) throw new Error('Market briefing data unavailable');
   const ch = rows.map(r => r.change_pct || 0);
   const avg = ch.reduce((a, b) => a + b, 0) / ch.length;
   const std = Math.sqrt(ch.reduce((a, b) => a + (b - avg) ** 2, 0) / ch.length);
@@ -375,7 +385,26 @@ function shareBriefing() {
 }
 
 /* ── Load all ─────────────────────────────────────────────────── */
-function loadAll() { renderHeader(); loadMarketState(); loadHeadlines(); loadEcon(); loadGlance(); }
+function loadAll() {
+  if (_briefLoadPromise) return _briefLoadPromise;
+  renderHeader();
+  const status = document.getElementById('briefStatus');
+  const refresh = document.getElementById('briefRefresh');
+  if (status) status.textContent = 'Loading current market briefing…';
+  if (refresh) { refresh.disabled = true; refresh.setAttribute('aria-busy', 'true'); }
+  _briefLoadPromise = Promise.allSettled([loadMarketState(), loadHeadlines(), loadEcon(), loadGlance()])
+    .then(results => {
+      const failed = results.some(result => result.status === 'rejected');
+      if (status) status.textContent = failed
+        ? 'Some briefing data is unavailable. Try refreshing.'
+        : `Briefing updated at ${new Date().toLocaleTimeString()}.`;
+    })
+    .finally(() => {
+      _briefLoadPromise = null;
+      if (refresh) { refresh.disabled = false; refresh.setAttribute('aria-busy', 'false'); }
+    });
+  return _briefLoadPromise;
+}
 
 document.addEventListener('app:ready', () => {
   if (typeof Chart !== 'undefined') Chart.defaults.color = _cssv('--text-muted', '#94a3b8');

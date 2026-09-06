@@ -41,3 +41,16 @@ def test_briefing_page_escapes_provider_values_and_uses_safe_links():
     assert "${e.forecast ?? '—'}" not in source
     assert "STSafe.externalUrl(n.url)" in source
     assert "STSafe.assetId(asset.asset_id)" in source
+
+
+def test_briefing_serializes_refreshes_and_normalizes_market_state():
+    template = (Path(__file__).parents[2] / "frontend" / "templates" / "dashboard" / "briefing.html").read_text(encoding="utf-8")
+    source = (STATIC_JS / "pages" / "briefing.js").read_text(encoding="utf-8")
+
+    assert 'id="briefStatus" role="status" aria-live="polite"' in template
+    assert 'id="breadthDonut" role="img" aria-label="Market breadth chart"' in template
+    assert '<caption class="visually-hidden">Crypto market snapshot</caption>' in template
+    assert "let _briefLoadPromise = null;" in source
+    assert "function briefingNumber(value, fallback = 0)" in source
+    assert "Promise.allSettled([loadMarketState(), loadHeadlines(), loadEcon(), loadGlance()])" in source
+    assert "Some briefing data is unavailable. Try refreshing." in source
