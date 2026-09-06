@@ -22,6 +22,20 @@ The shared non-crypto ticker cache now uses a per-symbol single-flight lock. Whe
 
 **Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
 
+### 7.111 IMPLEMENTED - Collapse concurrent Delta symbol discovery
+
+Delta product discovery now serializes only cold or expired refreshes and performs a second cache check after waiting. Concurrent crypto fetches therefore share one `/v2/products` request instead of producing a cold-start or TTL-expiry burst, while warm reads remain lock-free and symbol validation/fallback behavior is unchanged.
+
+**Risk level:** Medium provider-load and cold-start reliability value, low compatibility risk because the discovered symbol set and ten-minute TTL are unchanged. **Affected modules:** `app/services/data/fetcher.py`, `tests/unit/test_market_data_singleflight.py`. **Migration:** none.
+
+**Regression evidence:** Market-data, provider-health and scanner hardening checks passed (**15 passed**); Python compilation and whitespace validation passed. Existing pandas, SQLAlchemy, Flask-Migrate and local pytest-cache permission warnings remain non-blocking. Commit: `11b18c0`. Production deployment remains pending the security approval required for source transfer to `ubuntu@140.238.247.245`; no unsafe transfer workaround was used.
+
+**Session 93 (Delta symbol discovery single-flight):**
+- `app/services/data/fetcher.py` - add double-checked locking around the cached Delta product-list refresh.
+- `tests/unit/test_market_data_singleflight.py` - prove concurrent cold discovery performs one provider request.
+
+**Database changes:** none. **API contract changes:** none. **No new credentials or secrets introduced.**
+
 ## 1. Current Architecture (as verified)
 
 | Layer | Implementation |
