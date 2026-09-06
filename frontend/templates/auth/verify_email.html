@@ -4,7 +4,7 @@
 
 {% block auth_content %}
 <div class="auth-container">
-  <main class="auth-card text-center" aria-labelledby="veTitle">
+  <main class="auth-card auth-simple-card text-center" aria-labelledby="veTitle" aria-busy="true">
     <div class="d-flex justify-content-center align-items-center gap-2 mb-3">
       <div class="brand-icon"><i class="bi bi-graph-up-arrow"></i></div>
       <span class="fs-4 fw-bold">SmartTrade <span class="text-accent">AI</span></span>
@@ -13,6 +13,7 @@
     <h2 class="fw-bold" id="veTitle">Verifying your email…</h2>
     <p class="text-muted small" id="veMessage" role="status" aria-live="polite">Please wait a moment.</p>
     <a href="/login" class="btn btn-primary mt-2 d-none" id="veLoginBtn">Go to Sign In</a>
+    <a href="/home" class="d-block text-muted small mt-3">Back to home</a>
   </main>
 </div>
 {% endblock %}
@@ -31,6 +32,7 @@
     icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
     title.textContent = 'Invalid link';
     message.textContent = 'This verification link is missing its token.';
+    document.querySelector('main').setAttribute('aria-busy', 'false');
     loginBtn.classList.remove('d-none');
     return;
   }
@@ -56,6 +58,7 @@
     title.textContent = 'Network error';
     message.textContent = 'Could not reach the server.';
   }
+  document.querySelector('main').setAttribute('aria-busy', 'false');
   loginBtn.classList.remove('d-none');
 })();
 </script>

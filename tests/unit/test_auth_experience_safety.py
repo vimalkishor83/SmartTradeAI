@@ -36,6 +36,11 @@ def test_auth_pages_use_explicit_form_labels_and_feedback_regions():
     assert 'id="fpSuccessView" class="text-center" aria-hidden="true"' in forgot
     assert 'for="newPassword"' in reset
     assert 'for="confirmPassword"' in reset
+    assert 'id="toggleNewPassword"' in reset
+    assert 'id="toggleConfirmPassword"' in reset
+    assert 'class="auth-card auth-simple-card"' in reset
+    assert 'class="auth-card auth-simple-card text-center"' in verify
+    assert 'aria-busy="true"' in verify
     assert 'id="veMessage" role="status" aria-live="polite"' in verify
 
 
@@ -71,3 +76,4 @@ def test_auth_submit_and_state_transitions_recover_cleanly():
     assert "setAttribute('aria-hidden', 'true')" in forgot
     assert "clearTimeout(timeout);" in forgot
     assert "data.message || 'Password updated successfully.'" in reset
+    assert "wirePasswordToggle('newPassword', 'toggleNewPassword')" in reset

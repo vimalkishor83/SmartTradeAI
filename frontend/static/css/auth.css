@@ -12,6 +12,23 @@
   min-height: 100dvh;
 }
 
+.auth-shell .auth-container:not(.has-auth-side) {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  padding: 24px 16px;
+}
+
+.auth-shell .auth-simple-card {
+  background: rgba(16, 20, 28, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+  max-width: 460px;
+  padding: clamp(24px, 5vw, 42px);
+  width: 100%;
+}
+
 .auth-shell .auth-form-panel {
   min-height: 100dvh;
   scrollbar-gutter: stable;
