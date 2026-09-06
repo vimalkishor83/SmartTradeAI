@@ -127,3 +127,39 @@ def test_yahoo_batch_refetches_short_cached_frame_for_larger_limit(monkeypatch):
 
     assert calls == 1
     assert len(result["NIFTY50"]) == 3
+
+
+def test_non_crypto_ticker_collapses_concurrent_cache_misses(monkeypatch):
+    from app.services.data import fetcher as fetcher_module
+
+    calls = 0
+    calls_lock = threading.Lock()
+
+    class _Info:
+        last_price = 22000.0
+
+    class _Ticker:
+        def __init__(self, _symbol):
+            nonlocal calls
+            with calls_lock:
+                calls += 1
+            time.sleep(0.05)
+
+        @property
+        def fast_info(self):
+            return _Info()
+
+    monkeypatch.setattr(fetcher_module, "_YF_AVAILABLE", True)
+    monkeypatch.setattr(fetcher_module, "yf", SimpleNamespace(Ticker=_Ticker))
+    fetcher_module._ticker_cache._store.clear()
+    client = fetcher_module.MarketDataFetcher()
+    asset = SimpleNamespace(symbol="NIFTY50", market="index")
+
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            results = list(pool.map(lambda _index: client.fetch_ticker(asset), range(2)))
+    finally:
+        fetcher_module._ticker_cache._store.clear()
+
+    assert calls == 1
+    assert all(result["price"] == 22000.0 for result in results)

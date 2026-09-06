@@ -398,6 +398,13 @@ class _TickerCache:
     def __init__(self):
         self._store: dict[str, tuple[dict, float]] = {}
         self._lock = threading.Lock()
+        self._miss_locks: dict[str, threading.Lock] = {}
+        self._miss_locks_lock = threading.Lock()
+
+    def lock_for(self, key: str) -> threading.Lock:
+        """Return a per-key lock that collapses concurrent ticker misses."""
+        with self._miss_locks_lock:
+            return self._miss_locks.setdefault(key, threading.Lock())
 
     def get(self, key: str) -> dict | None:
         with self._lock:
@@ -958,16 +965,23 @@ class MarketDataFetcher:
         if cached is not None:
             return cached
 
-        try:
-            yf_symbol = self.yahoo._yahoo_symbol(asset.symbol)
-            info  = yf.Ticker(yf_symbol).fast_info
-            price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
-            if price:
-                ticker = {"symbol": asset.symbol, "price": float(price), "change_pct": 0.0}
-                _ticker_cache.set(cache_key, ticker)
-                return ticker
-        except Exception:
-            pass
+        # Re-check after taking the per-symbol lock: another request may have
+        # populated this ticker while we were waiting, avoiding a duplicate
+        # synchronous Yahoo call during concurrent dashboard refreshes.
+        with _ticker_cache.lock_for(cache_key):
+            cached = _ticker_cache.get(cache_key)
+            if cached is not None:
+                return cached
+            try:
+                yf_symbol = self.yahoo._yahoo_symbol(asset.symbol)
+                info  = yf.Ticker(yf_symbol).fast_info
+                price = getattr(info, 'last_price', None) or getattr(info, 'regularMarketPrice', None)
+                if price:
+                    ticker = {"symbol": asset.symbol, "price": float(price), "change_pct": 0.0}
+                    _ticker_cache.set(cache_key, ticker)
+                    return ticker
+            except Exception:
+                pass
         return None
 
     def fetch_many(self, assets: list, timeframes: list[str], limit: int = 220) -> dict[str, dict[str, pd.DataFrame]]:
