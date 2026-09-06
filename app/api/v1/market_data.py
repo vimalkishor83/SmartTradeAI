@@ -15,6 +15,24 @@ logger = logging.getLogger(__name__)
 market_data_bp = Blueprint("market_data", __name__)
 
 _HEATMAP_BUILD_LOCK = threading.Lock()
+_TA_SUMMARY_BUILD_LOCK = threading.Lock()
+_EMA_SUMMARY_BUILD_LOCK = threading.Lock()
+
+
+def _filter_summary_assets(payload, user_id, market):
+    """Apply per-user visibility and market filters after global-cache reads."""
+    from app.models.user import UserAssetPreference
+
+    prefs = {
+        p.asset_id: p.enabled
+        for p in UserAssetPreference.query.filter_by(user_id=user_id).all()
+    }
+    assets = payload.get("assets", [])
+    if market != "all":
+        assets = [asset for asset in assets if asset.get("market") == market]
+    if prefs:
+        assets = [asset for asset in assets if prefs.get(asset["id"], True)]
+    return assets
 
 
 @market_data_bp.route("/<int:asset_id>/ohlcv", methods=["GET"])
@@ -109,41 +127,41 @@ def get_sentiment(asset_id):
 @login_required
 def ta_summary():
     from app.auth.decorators import get_current_user
-    from app.models.user import UserAssetPreference
-    user   = get_current_user()
+
+    user = get_current_user()
     market = request.args.get("market") or "all"
-
-    # ── Serve from pre-warmed global cache (near-instant) ────────
     global_cache = cache.get("ta_summary_all")
-    if global_cache:
-        prefs = {p.asset_id: p.enabled
-                 for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-        assets = global_cache["assets"]
-        if market != "all":
-            assets = [a for a in assets if a.get("market") == market]
-        if prefs:
-            assets = [a for a in assets if prefs.get(a["id"], True)]
-        return jsonify({"assets": assets, "timeframes": global_cache["timeframes"]}), 200
+    if not global_cache:
+        with _TA_SUMMARY_BUILD_LOCK:
+            # Another request may have completed the build while this one
+            # waited, so always re-check before doing the expensive work.
+            global_cache = cache.get("ta_summary_all")
+            if not global_cache:
+                global_cache = _build_ta_summary_cache()
+                cache.set("ta_summary_all", global_cache, timeout=330)
 
-    # ── Cold path: compute on-demand (first boot before scheduler runs) ──
+    assets = _filter_summary_assets(global_cache, user.id, market)
+    return jsonify({"assets": assets, "timeframes": global_cache["timeframes"]}), 200
+
+
+def _build_ta_summary_cache():
+    """Build the full-universe TA payload used by all user-scoped reads."""
     from app.services.indicators.ema_mtf import get_ta_timeframes
+    from concurrent.futures import ThreadPoolExecutor
+
     tfs = get_ta_timeframes()
-    asset_q = Asset.query.filter_by(is_active=True)
-    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets = all_assets
+    all_assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
 
     # Drop paused-feed markets before any compute — fetch_many refuses them
     # anyway, so building their all-None TA rows and caching them is waste.
     blocked = blocked_data_markets()
-    if blocked:
-        assets = [a for a in assets if a.market not in blocked]
-
+    assets = [a for a in all_assets if a.market not in blocked] if blocked else all_assets
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
 
     def _process_asset(asset):
-        sym  = asset.symbol
-        dfs  = all_data.get(sym, {})
-        row  = {
+        sym = asset.symbol
+        dfs = all_data.get(sym, {})
+        row = {
             "id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market,
             "tf": {}, "price": None, "open": None, "high": None, "low": None,
             "change": None, "change_pct": None, "volume": None, "time": None,
@@ -151,52 +169,39 @@ def ta_summary():
         df_price = dfs.get("1h")
         if df_price is not None and len(df_price) >= 2:
             try:
-                last  = df_price.iloc[-1];  prev = df_price.iloc[-2]
-                price = float(last["close"]); chg = price - float(prev["close"])
-                row.update({"price": price, "open": float(last["open"]),
-                            "high": float(last["high"]), "low": float(last["low"]),
-                            "change": round(chg, 6),
-                            "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
-                            "volume": float(last.get("volume", 0)),
-                            "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else ""})
+                last = df_price.iloc[-1]
+                prev = df_price.iloc[-2]
+                price = float(last["close"])
+                chg = price - float(prev["close"])
+                row.update({
+                    "price": price,
+                    "open": float(last["open"]),
+                    "high": float(last["high"]),
+                    "low": float(last["low"]),
+                    "change": round(chg, 6),
+                    "change_pct": round(chg / float(prev["close"]) * 100, 2) if prev["close"] else 0,
+                    "volume": float(last.get("volume", 0)),
+                    "time": df_price.index[-1].strftime("%H:%M") if hasattr(df_price.index[-1], "strftime") else "",
+                })
             except Exception:
                 pass
         for tf in tfs:
             try:
                 df = dfs.get(tf)
-                if df is None or len(df) < 52: row["tf"][tf] = None; continue
-                # light=True: _compute_ta_rating only reads a specific
-                # subset of indicator keys — see calculate_all_indicators'
-                # docstring. Skips vwap/keltner/obv/unused-atr/senkou on
-                # this hot path (runs per asset x 7 timeframes, every
-                # 5-min prewarm cycle).
+                if df is None or len(df) < 52:
+                    row["tf"][tf] = None
+                    continue
+                # light=True keeps the scheduled all-assets refresh focused on
+                # the indicators used by the summary rating.
                 ind = calculate_all_indicators(df, light=True)
                 row["tf"][tf] = _compute_ta_rating(ind, float(df["close"].iloc[-1]))
             except Exception:
                 row["tf"][tf] = None
         return row
 
-    from concurrent.futures import ThreadPoolExecutor
-    # `or 1`: assets can be empty (all prefs disabled, or every market paused),
-    # and ThreadPoolExecutor(max_workers=0) raises — same guard ema_summary uses.
     with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
         result = list(ex.map(_process_asset, assets))
-
-    payload = {"assets": result, "timeframes": tfs}
-    # Store as global cache so next request is instant. 330s (not 150s)
-    # to comfortably exceed prewarm_ta_cache's 5-min (300s) scheduler
-    # interval — the prewarm job itself already uses 330s
-    # (data_tasks.py), but this on-demand cold-path re-cache (hit
-    # whenever a user request lands before the scheduler first runs, or
-    # if a prewarm cycle fails) was still using the old short value,
-    # silently undoing the fix until the next scheduled prewarm
-    # overwrote it.
-    cache.set("ta_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
-    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-    assets_out = [a for a in result if market == "all" or a.get("market") == market]
-    if prefs:
-        assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
-    return jsonify({"assets": assets_out, "timeframes": tfs}), 200
+    return {"assets": result, "timeframes": tfs}
 
 
 def _compute_ta_rating(ind, close):
@@ -272,57 +277,49 @@ def _compute_ta_rating(ind, close):
 @market_data_bp.route("/ema-summary", methods=["GET"])
 @login_required
 def ema_summary():
-    """EMA 9/21 multi-timeframe confirmation grid — each cell's rating is the
-    EMA9/21 cross on that timeframe, confirmed (or not) by the same cross on
-    the next-higher timeframe. See app/services/indicators/ema_mtf.py for the
-    exact rules; each cell carries the raw EMA9/EMA21/close numbers used."""
+    """Return the EMA 9/21 confirmation grid from a full-universe cache."""
     from app.auth.decorators import get_current_user
-    from app.models.user import UserAssetPreference
-    from app.services.indicators.ema_mtf import get_ta_timeframes, get_higher_tf_map, compute_ema921_cell
+    from app.services.indicators.ema_mtf import get_higher_tf_map
 
-    user   = get_current_user()
+    user = get_current_user()
     market = request.args.get("market") or "all"
     higher_tf_map = get_higher_tf_map()
-
-    # ── Serve from pre-warmed global cache (near-instant) ────────
     global_cache = cache.get("ema_summary_all")
-    if global_cache:
-        prefs = {p.asset_id: p.enabled
-                 for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-        assets = global_cache["assets"]
-        if market != "all":
-            assets = [a for a in assets if a.get("market") == market]
-        if prefs:
-            assets = [a for a in assets if prefs.get(a["id"], True)]
-        return jsonify({
-            "assets": assets,
-            "timeframes": global_cache["timeframes"],
-            "higher_tf_map": higher_tf_map,
-        }), 200
+    if not global_cache:
+        with _EMA_SUMMARY_BUILD_LOCK:
+            global_cache = cache.get("ema_summary_all")
+            if not global_cache:
+                global_cache = _build_ema_summary_cache(higher_tf_map)
+                cache.set("ema_summary_all", global_cache, timeout=330)
 
-    # ── Cold path: compute on-demand (first boot before scheduler runs) ──
+    assets = _filter_summary_assets(global_cache, user.id, market)
+    return jsonify({
+        "assets": assets,
+        "timeframes": global_cache["timeframes"],
+        "higher_tf_map": higher_tf_map,
+    }), 200
+
+
+def _build_ema_summary_cache(higher_tf_map):
+    """Build the full-universe EMA payload used by all user-scoped reads."""
+    from app.services.indicators.ema_mtf import get_ta_timeframes, compute_ema921_cell
+    from concurrent.futures import ThreadPoolExecutor
+
     tfs = get_ta_timeframes()
-    asset_q = Asset.query.filter_by(is_active=True)
-    all_assets = asset_q.order_by(Asset.market, Asset.symbol).all()
-    assets = all_assets
+    all_assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
 
     # Drop paused-feed markets before any compute — fetch_many refuses them,
     # so their EMA cells would all be None; skip building/caching them.
     blocked = blocked_data_markets()
-    if blocked:
-        assets = [a for a in assets if a.market not in blocked]
-
+    assets = [a for a in all_assets if a.market not in blocked] if blocked else all_assets
     all_data = market_fetcher.fetch_many(assets, tfs, limit=200)
 
     def _process_asset(asset):
         sym = asset.symbol
         dfs = all_data.get(sym, {})
         row = {"id": asset.id, "symbol": sym, "name": asset.name, "market": asset.market, "tf": {}}
-        # Shared across all 7 timeframe columns for this ONE asset — each
-        # timeframe is read once as its own column's base AND again as the
-        # next-lower timeframe's "higher" confirmation leg; in the live
-        # case (bars_back=0 throughout) those two reads resolve to the same
-        # bar, so without this cache read_ema921 ran twice for half the grid.
+        # Share reads across the timeframe columns for one asset: the same
+        # higher-timeframe series is often used by multiple adjacent cells.
         read_cache: dict = {}
         for tf in tfs:
             try:
@@ -335,20 +332,9 @@ def ema_summary():
                 row["tf"][tf] = None
         return row
 
-    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=min(8, len(assets) or 1)) as ex:
         result = list(ex.map(_process_asset, assets))
-
-    # 330s — same reasoning as ta_summary_all above: this route and
-    # prewarm_ta_cache (data_tasks.py, every 5min/300s) share this cache
-    # key, but this cold-path re-cache had never received the TTL fix and
-    # was still using 150s, shorter than the prewarm interval.
-    cache.set("ema_summary_all", {"assets": result, "timeframes": tfs}, timeout=330)
-    prefs = {p.asset_id: p.enabled for p in UserAssetPreference.query.filter_by(user_id=user.id).all()}
-    assets_out = [a for a in result if market == "all" or a.get("market") == market]
-    if prefs:
-        assets_out = [a for a in assets_out if prefs.get(a["id"], True)]
-    return jsonify({"assets": assets_out, "timeframes": tfs, "higher_tf_map": higher_tf_map}), 200
+    return {"assets": result, "timeframes": tfs}
 
 
 #: Cap on how far back a single request may scrub, per timeframe's own bars.
