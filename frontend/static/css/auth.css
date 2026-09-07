@@ -164,3 +164,103 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Authentication screens share the home page atmosphere while keeping every
+   existing form id, action and JavaScript hook intact. */
+.auth-shell {
+  background:
+    radial-gradient(circle at 16% 12%, rgba(139, 124, 255, 0.11), transparent 28rem),
+    radial-gradient(circle at 88% 82%, rgba(53, 201, 232, 0.08), transparent 24rem),
+    #080b12;
+}
+
+.auth-shell .auth-container {
+  position: relative;
+  isolation: isolate;
+}
+
+.auth-shell .auth-container::before,
+.auth-shell .auth-container::after {
+  content: '';
+  position: fixed;
+  z-index: -1;
+  width: 34vw;
+  height: 13vw;
+  min-width: 280px;
+  min-height: 110px;
+  border: 1px solid rgba(139, 124, 255, 0.16);
+  border-radius: 50%;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+.auth-shell .auth-container::before {
+  top: 8%;
+  right: -10%;
+  box-shadow: 0 0 34px rgba(139, 124, 255, 0.08);
+}
+
+.auth-shell .auth-container::after {
+  bottom: 4%;
+  left: -12%;
+  border-color: rgba(53, 201, 232, 0.13);
+}
+
+.auth-shell .auth-card,
+.auth-shell .auth-simple-card {
+  border-color: rgba(139, 124, 255, 0.22);
+  background: linear-gradient(145deg, rgba(139, 124, 255, 0.08), transparent 38%), rgba(16, 20, 28, 0.82);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.025);
+  backdrop-filter: blur(18px);
+}
+
+.auth-shell .auth-card::before,
+.auth-shell .auth-simple-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--accent), #8b7cff, transparent);
+  opacity: 0.85;
+}
+
+.auth-shell .auth-card h2,
+.auth-shell .auth-simple-card h2 {
+  letter-spacing: -0.5px;
+}
+
+.auth-shell .form-control,
+.auth-shell .form-select {
+  border-color: rgba(139, 124, 255, 0.2);
+  background: rgba(8, 11, 18, 0.64);
+}
+
+.auth-shell .form-control:focus,
+.auth-shell .form-select:focus {
+  border-color: #8b7cff;
+  box-shadow: 0 0 0 3px rgba(139, 124, 255, 0.16), 0 0 24px rgba(139, 124, 255, 0.11);
+}
+
+.auth-shell .btn-primary {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  box-shadow: 0 10px 26px rgba(245, 166, 35, 0.2);
+}
+
+.auth-shell .btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 30px rgba(245, 166, 35, 0.3);
+}
+
+.auth-shell .auth-home-link,
+.auth-shell .auth-trust-item i,
+.auth-shell .auth-side-feature i {
+  color: var(--accent-light);
+}
+
+@media (max-width: 900px) {
+  .auth-shell .auth-form-panel {
+    background: linear-gradient(180deg, rgba(139, 124, 255, 0.035), transparent 35%);
+  }
+}

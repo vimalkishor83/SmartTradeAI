@@ -6288,3 +6288,228 @@ html[data-theme="light"] .app-shell {
     transform: none;
   }
 }
+
+/* ── UI refinement layer ────────────────────────────────────────────────
+   Shared presentation polish for every authenticated module. This layer
+   deliberately sits at the end of the stylesheet so legacy page markup can
+   inherit one consistent treatment without changing its data hooks. */
+:root {
+  --accent-violet: #8b7cff;
+  --accent-cyan: #35c9e8;
+  --surface-glow: rgba(139, 124, 255, 0.16);
+  --shadow-card: 0 14px 34px rgba(0, 0, 0, 0.24);
+  --radius-card: 14px;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 92% -8%, rgba(53, 201, 232, 0.055), transparent 28rem),
+    radial-gradient(circle at 18% 0%, rgba(139, 124, 255, 0.045), transparent 32rem),
+    var(--bg-primary);
+}
+
+.app-shell .main-wrapper {
+  background: transparent;
+}
+
+.app-shell .page-content {
+  padding-top: clamp(22px, 3vw, 34px);
+  padding-inline: clamp(16px, 2.6vw, 34px);
+}
+
+.app-shell .page-header {
+  position: relative;
+  padding-bottom: 17px;
+  margin-bottom: 24px;
+}
+
+.app-shell .page-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: min(320px, 60%);
+  height: 1px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-violet), transparent);
+  opacity: 0.75;
+}
+
+.app-shell .page-title {
+  font-size: clamp(21px, 2vw, 27px);
+  letter-spacing: -0.7px;
+}
+
+.app-shell .page-subtitle {
+  max-width: 70ch;
+}
+
+.app-shell .section-card,
+.app-shell .kpi-card,
+.app-shell .glass-card {
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+.app-shell .section-card {
+  border-color: color-mix(in srgb, var(--border) 72%, var(--accent-violet));
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.018), transparent 40%),
+    var(--bg-card);
+}
+
+.app-shell .section-card:hover {
+  border-color: color-mix(in srgb, var(--border-hover) 72%, var(--accent-violet));
+}
+
+.app-shell .section-card-header {
+  min-height: 54px;
+  padding-inline: 20px;
+  background: linear-gradient(105deg, rgba(139, 124, 255, 0.08), transparent 58%);
+}
+
+.app-shell .section-card-title i,
+.app-shell .kpi-icon {
+  color: var(--accent-light);
+}
+
+.app-shell .kpi-card {
+  border-color: color-mix(in srgb, var(--border) 78%, var(--card-accent, var(--accent)));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card-accent, var(--accent)) 7%, transparent), transparent 48%),
+    linear-gradient(165deg, var(--bg-card), var(--bg-secondary));
+}
+
+.app-shell .kpi-card:hover {
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.3), 0 0 0 1px color-mix(in srgb, var(--card-accent, var(--accent)) 25%, transparent);
+}
+
+.app-shell .smart-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: color-mix(in srgb, var(--bg-secondary) 94%, var(--accent-violet));
+  backdrop-filter: blur(10px);
+}
+
+.app-shell .smart-table tbody td {
+  height: 54px;
+}
+
+.app-shell .smart-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(139, 124, 255, 0.09), rgba(53, 201, 232, 0.025));
+}
+
+.app-shell .form-control,
+.app-shell .form-select,
+.app-shell textarea,
+.app-shell input[type="date"],
+.app-shell input[type="number"] {
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--bg-card) 86%, var(--accent-violet));
+  border-color: color-mix(in srgb, var(--border) 80%, var(--accent-violet));
+}
+
+.app-shell .form-control:hover,
+.app-shell .form-select:hover,
+.app-shell textarea:hover {
+  border-color: color-mix(in srgb, var(--border-hover) 60%, var(--accent-cyan));
+}
+
+.app-shell .form-control:focus,
+.app-shell .form-select:focus,
+.app-shell textarea:focus,
+.app-shell input:focus-visible,
+.app-shell button:focus-visible,
+.app-shell a:focus-visible {
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 3px rgba(139, 124, 255, 0.18), 0 0 22px rgba(139, 124, 255, 0.1);
+  outline: none;
+}
+
+.app-shell .btn {
+  border-radius: var(--radius-sm);
+  font-weight: 700;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.app-shell .btn:hover {
+  transform: translateY(-1px);
+}
+
+.app-shell .btn-primary,
+.app-shell .btn-accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent-dark));
+  border-color: transparent;
+  box-shadow: 0 8px 20px rgba(245, 166, 35, 0.18);
+}
+
+.app-shell .btn-primary:hover,
+.app-shell .btn-accent:hover {
+  box-shadow: 0 10px 26px rgba(245, 166, 35, 0.28);
+}
+
+.app-shell .btn-outline-light,
+.app-shell .btn-outline-secondary {
+  border-color: color-mix(in srgb, var(--border-hover) 70%, var(--accent-violet));
+  color: var(--text-secondary);
+}
+
+.app-shell .btn-outline-light:hover,
+.app-shell .btn-outline-secondary:hover {
+  border-color: var(--accent-violet);
+  background: rgba(139, 124, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.app-shell .sidebar {
+  background:
+    linear-gradient(180deg, rgba(139, 124, 255, 0.06), transparent 22%),
+    var(--bg-sidebar);
+  border-right-color: color-mix(in srgb, var(--border) 72%, var(--accent-violet));
+}
+
+.app-shell .nav-item {
+  border-radius: var(--radius-sm);
+  margin-inline: 8px;
+  width: auto;
+}
+
+.app-shell .nav-item:hover {
+  background: rgba(139, 124, 255, 0.1);
+}
+
+.app-shell .nav-item.active {
+  background: linear-gradient(90deg, rgba(245, 166, 35, 0.16), rgba(139, 124, 255, 0.1));
+  box-shadow: inset 0 0 0 1px rgba(245, 166, 35, 0.16);
+}
+
+.app-shell .filter-bar,
+.app-shell .ui-toolbar {
+  border-color: color-mix(in srgb, var(--border) 78%, var(--accent-violet));
+  border-radius: var(--radius-card);
+  background: linear-gradient(105deg, rgba(139, 124, 255, 0.06), transparent 60%), var(--bg-card);
+  box-shadow: var(--shadow-sm);
+}
+
+@media (max-width: 768px) {
+  .app-shell .page-content {
+    padding-inline: 14px;
+  }
+
+  .app-shell .page-header {
+    align-items: flex-start;
+  }
+
+  .app-shell .section-card-body {
+    padding: 14px;
+  }
+
+  .app-shell .kpi-card {
+    padding: 16px;
+  }
+
+  .app-shell .ui-table-wrap {
+    border-radius: var(--radius-sm);
+  }
+}
