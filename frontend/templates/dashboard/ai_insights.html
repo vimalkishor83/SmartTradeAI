@@ -395,7 +395,7 @@ let _predictionRunning = false;
 let _aiBooted = false;
 let _aiPreferences = { ...DEFAULT_AI_PREFERENCES, timeframes: [...DEFAULT_AI_PREFERENCES.timeframes] };
 
-function normaliseAiPreferences(value) {
+function normaliseAiPreferences(value, { fallbackTimeframes = true } = {}) {
   const raw = value && typeof value === 'object' ? value : {};
   const timeframes = Array.isArray(raw.timeframes)
     ? [...new Set(raw.timeframes.map(tf => String(tf).trim()).filter(tf => AI_TIMEFRAMES.has(tf)))]
@@ -403,7 +403,9 @@ function normaliseAiPreferences(value) {
   const assetId = Number(raw.asset_id);
   return {
     asset_id: Number.isInteger(assetId) && assetId > 0 ? assetId : null,
-    timeframes: timeframes.length ? [...AI_TIMEFRAMES].filter(tf => timeframes.includes(tf)) : [...DEFAULT_AI_PREFERENCES.timeframes],
+    timeframes: timeframes.length
+      ? [...AI_TIMEFRAMES].filter(tf => timeframes.includes(tf))
+      : (fallbackTimeframes ? [...DEFAULT_AI_PREFERENCES.timeframes] : []),
   };
 }
 
@@ -524,11 +526,11 @@ function controlsToAiPreferences() {
   return normaliseAiPreferences({
     asset_id: Number.isInteger(assetId) && assetId > 0 ? assetId : null,
     timeframes: [...document.querySelectorAll('input[name="aiTf"]:checked')].map(cb => cb.value),
-  });
+  }, { fallbackTimeframes: false });
 }
 
 async function saveAiDefaults(nextPreferences, { allowEmptyAsset = false } = {}) {
-  const preferences = normaliseAiPreferences(nextPreferences || controlsToAiPreferences());
+  const preferences = normaliseAiPreferences(nextPreferences || controlsToAiPreferences(), { fallbackTimeframes: false });
   if (!preferences.timeframes.length) {
     Toast.show('Select at least one timeframe before saving defaults', 'warning');
     return false;
