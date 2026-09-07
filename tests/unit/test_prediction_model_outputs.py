@@ -10,7 +10,7 @@ import pandas as pd
 import pytest
 
 from app.services.ai import predictor as predictor_module
-from app.services.ai.predictor import AIPredictor
+from app.services.ai.predictor import AIPredictor, _directional_entry_zone
 
 
 class _FakeModel:
@@ -43,6 +43,12 @@ def test_inference_only_returns_real_member_probabilities(monkeypatch):
     }
 
 
+def test_directional_entry_zone_uses_pullback_side_of_price():
+    assert _directional_entry_zone(100.0, 2.0, "bullish") == (99.3, 99.9)
+    assert _directional_entry_zone(100.0, 2.0, "bearish") == (100.1, 100.7)
+    assert _directional_entry_zone(100.0, 2.0, "neutral") == (None, None)
+
+
 def test_prediction_cache_keeps_member_outputs_on_fast_path():
     predictor = AIPredictor()
     cache_key = "CACHEASSET_1h"
@@ -65,8 +71,35 @@ def test_prediction_cache_keeps_member_outputs_on_fast_path():
 
     assert result["model_version"] == "ensemble-calibrated-v2"
     assert result["model_outputs"] == {"random_forest": 60.0, "xgboost": 64.0}
-    assert result["entry_range_low"] == 99.5
-    assert result["entry_range_high"] == 100.5
+    assert result["entry_range_low"] == 99.3
+    assert result["entry_range_high"] == 99.9
+
+
+def test_neutral_prediction_does_not_publish_directional_levels():
+    predictor = AIPredictor()
+    cache_key = "NEUTRALASSET_1h"
+    with predictor._cache_lock:
+        predictor._pred_cache[cache_key] = (
+            0.55,
+            {"random_forest": 0.55},
+            9999999999.0,
+        )
+
+    try:
+        frame = pd.DataFrame({
+            "high": [101.0] * 100,
+            "low": [99.0] * 100,
+            "close": [100.0] * 100,
+        })
+        result = predictor.predict(frame, "NEUTRALASSET", "1h")
+    finally:
+        predictor.invalidate_cache("NEUTRALASSET", "1h")
+
+    assert result["predicted_direction"] == "neutral"
+    assert result["predicted_target"] is None
+    assert result["predicted_stop"] is None
+    assert result["entry_range_low"] is None
+    assert result["entry_range_high"] is None
 
 
 def test_model_artifact_path_changes_with_training_contract(monkeypatch):

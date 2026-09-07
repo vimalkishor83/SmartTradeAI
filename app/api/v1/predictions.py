@@ -1,9 +1,11 @@
+import math
+
 from flask import Blueprint, request, jsonify
 from app.models.asset import Asset
 from app.models.prediction import Prediction
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, premium_required, subscription_feature_required
-from app.services.ai.predictor import ai_predictor
+from app.services.ai.predictor import ai_predictor, _directional_entry_zone
 from app.services.ai.prediction_records import build_prediction_record
 from app.services.data.fetcher import market_fetcher
 from app.services.data.quality import assess_data_quality
@@ -46,6 +48,38 @@ def _prediction_history_context(asset_id: int, timeframe: str) -> dict:
 
 def _prediction_response(prediction: Prediction) -> dict:
     payload = prediction.to_dict()
+    # Older rows may have a symmetric range from the previous contract, or no
+    # range at all. Derive the new directional pullback zone from their stored
+    # risk map so the UI improves immediately without rewriting history.
+    entry = payload.get("entry_price")
+    target = payload.get("predicted_target")
+    stop = payload.get("predicted_stop")
+    direction = payload.get("predicted_direction")
+    try:
+        entry = float(entry)
+        target = float(target)
+        stop = float(stop)
+    except (TypeError, ValueError):
+        entry = target = stop = None
+
+    risk_zone = None
+    if all(value is not None and math.isfinite(value) and value > 0 for value in (entry, target, stop)):
+        valid_geometry = (
+            direction == "bullish" and stop < entry < target
+        ) or (
+            direction == "bearish" and target < entry < stop
+        )
+        if valid_geometry:
+            risk_zone = _directional_entry_zone(entry, abs(entry - stop), direction)
+
+    if risk_zone and all(value is not None for value in risk_zone):
+        payload["entry_range_low"], payload["entry_range_high"] = risk_zone
+        payload["entry_zone_source"] = "risk_map"
+    elif payload.get("entry_range_low") is not None and payload.get("entry_range_high") is not None:
+        payload["entry_zone_source"] = "stored"
+    else:
+        payload["entry_zone_source"] = None
+
     payload["historical_context"] = _prediction_history_context(
         prediction.asset_id, prediction.timeframe,
     )

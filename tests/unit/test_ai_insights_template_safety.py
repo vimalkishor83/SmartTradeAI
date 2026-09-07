@@ -28,6 +28,10 @@ def test_ai_insights_validates_asset_and_prediction_payloads():
     assert "const entryLowRaw = data.entry_range_low" in source
     assert "const entryHighRaw = data.entry_range_high" in source
     assert "predicted_stop" in source
+    assert "Best Long Entry Zone" in source
+    assert "Best Short Entry Zone" in source
+    assert "entry_zone_source" in source
+    assert "limit reference only" in source
 
 
 def test_ai_insights_serializes_run_lifecycle():

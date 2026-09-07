@@ -38,6 +38,32 @@ AI_MODEL_VERSION    = "ensemble-calibrated-v2"
 _PRED_TTL = {"1m":60,"5m":300,"15m":900,"30m":1800,"1h":3600,"2h":7200,"4h":14400,"1d":86400}
 
 
+def _directional_entry_zone(
+    close: float,
+    atr: float,
+    direction: str,
+) -> tuple[float | None, float | None]:
+    """Return an explainable pullback zone for a directional prediction.
+
+    The zone sits just beyond the current close so a limit entry can seek a
+    modest pullback rather than chase an extended candle. Neutral predictions
+    do not have a directional edge and must not publish a fabricated zone.
+    """
+    if not np.isfinite(close) or close <= 0 or not np.isfinite(atr) or atr <= 0:
+        return None, None
+
+    if direction == "bullish":
+        low = close - atr * 0.35
+        high = close - atr * 0.05
+    elif direction == "bearish":
+        low = close + atr * 0.05
+        high = close + atr * 0.35
+    else:
+        return None, None
+
+    return round(max(0.0, low), 6), round(max(0.0, high), 6)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Feature engineering
 # ─────────────────────────────────────────────────────────────────────────────
@@ -502,14 +528,13 @@ class AIPredictor:
 
         close = float(df["close"].iloc[-1])
         atr   = float((df["high"].iloc[-20:] - df["low"].iloc[-20:]).mean())
-        # Keep the entry guidance honest and explainable: it is a narrow band
-        # around the latest close sized from the same recent range used for
-        # the target/stop reference levels. It does not place or configure an
-        # order and remains useful for both directional and neutral outputs.
+        # Use the same recent range for all levels so the risk map is
+        # internally consistent. Entry guidance is a pullback reference, not
+        # an order instruction or a guarantee of a fill.
         valid_atr = np.isfinite(atr) and atr > 0
-        entry_band = atr * 0.25 if valid_atr else None
-        entry_range_low = round(max(0.0, close - entry_band), 6) if entry_band else None
-        entry_range_high = round(close + entry_band, 6) if entry_band else None
+        entry_range_low, entry_range_high = _directional_entry_zone(
+            close, atr, direction,
+        ) if valid_atr else (None, None)
         model_outputs_pct = {
             name: round(float(prob) * 100, 1)
             for name, prob in model_outputs.items()
@@ -528,7 +553,7 @@ class AIPredictor:
             if direction == "bullish":
                 predicted_target = round(close + atr * 1.5, 6)
                 predicted_stop = round(close - atr, 6)
-            else:
+            elif direction == "bearish":
                 predicted_target = round(close - atr * 1.5, 6)
                 predicted_stop = round(close + atr, 6)
 

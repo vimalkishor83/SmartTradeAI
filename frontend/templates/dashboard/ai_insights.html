@@ -183,7 +183,16 @@
 .app-shell .ai-level-card { padding:9px 10px; border-radius:8px; }
 .app-shell .ai-level-card.bullish { background:rgba(34,217,127,.07); border:1px solid rgba(34,217,127,.2); }
 .app-shell .ai-level-card.bearish { background:rgba(255,90,106,.07); border:1px solid rgba(255,90,106,.2); }
-.app-shell .ai-level-card.entry { background:rgba(53,201,232,.07); border:1px solid rgba(53,201,232,.22); }
+.app-shell .ai-level-card.entry {
+  position:relative; overflow:hidden;
+  background:linear-gradient(135deg, rgba(53,201,232,.14), rgba(53,201,232,.04));
+  border:1px solid rgba(53,201,232,.34);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.05), 0 0 18px rgba(53,201,232,.06);
+}
+.app-shell .ai-level-card.entry::after {
+  content:''; position:absolute; top:0; right:0; width:42px; height:42px;
+  border-radius:0 8px 0 100%; background:rgba(53,201,232,.12); pointer-events:none;
+}
 .app-shell .ai-level-label { color:var(--text-muted); font-size:10px; }
 .app-shell .ai-level-value { font-size:14px; font-weight:750; }
 .app-shell .ai-level-note { margin-top:3px; color:var(--text-muted); font-size:9px; line-height:1.35; }
@@ -623,6 +632,13 @@ function buildResultCard(tf, data) {
   const entryLow = Number.isFinite(Number(entryLowRaw)) && Number(entryLowRaw) > 0 ? Number(entryLowRaw) : null;
   const entryHigh = Number.isFinite(Number(entryHighRaw)) && Number(entryHighRaw) >= Number(entryLow) ? Number(entryHighRaw) : null;
   const entryRange = entryLow != null && entryHigh != null ? `${formatPrice(entryLow)} - ${formatPrice(entryHigh)}` : null;
+  const entryZoneLabel = dir === 'bullish' ? 'Best Long Entry Zone' : dir === 'bearish' ? 'Best Short Entry Zone' : 'Reference Zone';
+  const entryZoneNote = dir === 'bullish'
+    ? 'Pullback area below current price'
+    : dir === 'bearish'
+      ? 'Pullback area above current price'
+      : 'No directional edge';
+  const entryZoneSource = data.entry_zone_source === 'risk_map' ? 'Risk-map aligned' : 'Volatility reference';
   const memberEntries = Object.entries(modelOutputs)
     .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
     .slice(0, 3)
@@ -712,9 +728,9 @@ function buildResultCard(tf, data) {
     ${(entryRange || target || stop) ? `
     <div class="ai-level-grid mt-2">
       ${entryRange ? `<div class="ai-level-card entry">
-          <div class="ai-level-label">Entry Range</div>
+          <div class="ai-level-label">${entryZoneLabel}</div>
           <div class="ai-level-value" style="color:var(--accent-cyan)">${entryRange}</div>
-          <div class="ai-level-note">Volatility reference zone</div>
+          <div class="ai-level-note">${entryZoneNote} · ${entryZoneSource} · limit reference only</div>
         </div>` : ''}
       ${target ? `<div class="ai-level-card bullish">
           <div class="ai-level-label">Target</div>

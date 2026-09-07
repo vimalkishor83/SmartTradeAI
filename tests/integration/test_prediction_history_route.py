@@ -115,3 +115,31 @@ def test_prediction_endpoint_returns_newest_recent_row(app, client, premium_head
     payload = response.get_json()
     assert payload["predicted_direction"] == "bullish"
     assert payload["bullish_probability"] == 80.0
+
+
+def test_prediction_endpoint_derives_directional_zone_for_legacy_row(app, client, premium_headers):
+    with app.app_context():
+        from app.extensions import db
+        from app.models.asset import Asset
+        from app.models.prediction import Prediction
+
+        asset = Asset(symbol="LEGACYZONE", name="Legacy Zone", market="crypto", is_active=True)
+        db.session.add(asset)
+        db.session.flush()
+        db.session.add(Prediction(
+            asset_id=asset.id, timeframe="1h", model_name="ensemble+cal",
+            predicted_direction="bearish", bullish_probability=30,
+            bearish_probability=70, confidence=70, entry_price=100,
+            predicted_target=97, predicted_stop=102,
+            predicted_at=datetime.utcnow(),
+        ))
+        db.session.commit()
+        asset_id = asset.id
+
+    response = client.get(f"/api/v1/predictions/{asset_id}?timeframe=1h", headers=premium_headers)
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["entry_range_low"] == 100.1
+    assert payload["entry_range_high"] == 100.7
+    assert payload["entry_zone_source"] == "risk_map"
