@@ -37,15 +37,214 @@
 }
 .prob-bar-wrap { height:6px; background:var(--border); border-radius:3px; overflow:hidden; margin:4px 0 2px; }
 .prob-bar-fill { height:100%; border-radius:3px; transition:width .5s ease; }
+
+/* Prediction desk presentation. These styles stay local to this page so the
+   AI workflow can have a stronger visual identity without altering shared
+   controls or any data-driven behavior. */
+.app-shell .ai-page-header {
+  position:relative; isolation:isolate; overflow:hidden;
+  min-height:156px; padding:22px 24px 20px; margin-bottom:16px;
+  border:1px solid color-mix(in srgb, var(--border) 65%, var(--accent-violet));
+  border-radius:var(--radius-card, 14px);
+  background:
+    linear-gradient(105deg, rgba(139,124,255,.13), rgba(53,201,232,.045) 46%, transparent 78%),
+    url('/static/img/markets-atmosphere.png') right center / auto 220px no-repeat,
+    var(--bg-card);
+  box-shadow:var(--shadow-card, 0 14px 34px rgba(0,0,0,.24));
+}
+.app-shell .ai-page-header::before {
+  content:''; position:absolute; inset:0; z-index:-1; pointer-events:none;
+  background:linear-gradient(90deg, transparent 0 58%, rgba(10,13,19,.4) 78%, var(--bg-card) 100%);
+}
+.app-shell .ai-page-copy { position:relative; z-index:1; max-width:min(68%, 720px); }
+.app-shell .ai-title-line { display:flex; align-items:center; gap:12px; }
+.app-shell .ai-title-icon {
+  display:grid; place-items:center; width:42px; height:42px; flex:0 0 42px;
+  border:1px solid rgba(139,124,255,.44); border-radius:12px;
+  color:var(--accent-light); background:rgba(139,124,255,.14);
+  box-shadow:0 0 24px rgba(139,124,255,.18);
+}
+.app-shell .ai-page-header .page-title { font-size:clamp(24px, 2.5vw, 34px); }
+.app-shell .ai-page-header .page-subtitle { max-width:62ch; margin-top:6px; }
+.app-shell .ai-hero-pills { display:flex; flex-wrap:wrap; gap:7px; margin-top:15px; }
+.app-shell .ai-hero-pill {
+  display:inline-flex; align-items:center; gap:6px; min-height:25px; padding:3px 9px;
+  border:1px solid rgba(139,124,255,.24); border-radius:999px;
+  color:var(--text-secondary); background:rgba(9,11,16,.4); font-size:10px; font-weight:700;
+  letter-spacing:.04em; text-transform:uppercase;
+}
+.app-shell .ai-hero-pill i { color:var(--accent-cyan); }
+.app-shell .ai-hero-visual {
+  position:absolute; z-index:0; top:50%; right:6%; width:185px; height:125px;
+  transform:translateY(-50%); opacity:.9; pointer-events:none;
+}
+.app-shell .ai-hero-visual::before,
+.app-shell .ai-hero-visual::after {
+  content:''; position:absolute; inset:10px 0; border:1px solid rgba(53,201,232,.2);
+  border-radius:50%; transform:rotate(-18deg) scaleY(.6);
+}
+.app-shell .ai-hero-visual::after { inset:0 20px; border-color:rgba(139,124,255,.3); transform:rotate(28deg) scaleY(.7); }
+.app-shell .ai-hero-core {
+  position:absolute; top:34px; left:70px; display:grid; place-items:center; gap:2px;
+  width:46px; height:46px; border:1px solid rgba(245,166,35,.6); border-radius:50%;
+  color:var(--accent-light); background:rgba(245,166,35,.13); box-shadow:0 0 22px rgba(245,166,35,.22);
+}
+.app-shell .ai-hero-core i { font-size:18px; }
+.app-shell .ai-hero-core span { font:700 7px/1 var(--font-mono); letter-spacing:.08em; }
+.app-shell .ai-hero-readout { position:absolute; color:var(--text-muted); font:600 9px/1 var(--font-mono); letter-spacing:.08em; }
+.app-shell .ai-readout-one { top:20px; left:2px; color:var(--green); }
+.app-shell .ai-readout-two { right:0; bottom:18px; color:var(--accent-light); }
+.app-shell .ai-readout-three { left:46px; bottom:0; color:var(--accent-cyan); }
+
+.app-shell .ai-control-card,
+.app-shell .ai-model-card { overflow:hidden; }
+.app-shell .ai-card-heading { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.app-shell .ai-card-kicker {
+  color:var(--accent-cyan); font:700 9px/1.2 var(--font-mono); letter-spacing:.13em; text-transform:uppercase;
+}
+.app-shell .ai-header-note { color:var(--text-muted); font-size:10px; white-space:nowrap; }
+.app-shell .ai-control-body { padding-top:20px; }
+.app-shell .ai-control-body .form-label { color:var(--text-primary); font-weight:750; }
+.app-shell .ai-control-body .form-text { line-height:1.45; }
+.app-shell .tf-checkbox-grid { gap:7px; }
+.app-shell .tf-cb-label { min-width:42px; justify-content:center; padding-inline:10px; }
+.app-shell .ai-guidance {
+  display:flex; align-items:flex-start; gap:10px; padding:12px 13px !important;
+  border:1px solid rgba(245,166,35,.22) !important; border-radius:10px !important;
+  background:linear-gradient(135deg, rgba(245,166,35,.12), rgba(245,166,35,.035)) !important;
+}
+.app-shell .ai-guidance > i { flex:0 0 auto; margin-top:2px; color:var(--accent-light); }
+.app-shell .ai-guidance-copy { color:var(--text-muted); font-size:11px; line-height:1.5; }
+.app-shell .ai-guidance-copy strong { display:block; margin-bottom:2px; color:var(--text-secondary); font-size:11px; }
+.app-shell .ai-model-card .section-card-body { padding:0; }
+.app-shell .ai-model-row { min-height:52px; padding:10px 18px !important; border-bottom-color:var(--border) !important; }
+.app-shell .ai-model-row:last-child { border-bottom:0 !important; }
+.app-shell .ai-model-row > i { width:28px !important; }
+.app-shell .ai-model-name { color:var(--text-primary); font-size:12px; font-weight:750; }
+.app-shell .ai-model-desc { color:var(--text-muted); font-size:10px; }
+.app-shell .ai-feature-summary { padding:13px 18px !important; color:var(--text-muted); font-size:10px !important; line-height:1.5; }
+
+.app-shell .ai-empty-state {
+  position:relative; isolation:isolate; overflow:hidden; min-height:470px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:48px 28px !important;
+  background:
+    linear-gradient(135deg, rgba(139,124,255,.09), transparent 50%),
+    radial-gradient(circle at 50% 30%, rgba(53,201,232,.08), transparent 48%),
+    var(--bg-card);
+}
+.app-shell .ai-empty-state::before {
+  content:''; position:absolute; inset:0; z-index:-1; opacity:.35; pointer-events:none;
+  background-image:linear-gradient(rgba(139,124,255,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(139,124,255,.12) 1px, transparent 1px);
+  background-size:34px 34px; mask-image:linear-gradient(to bottom, #000, transparent 78%);
+}
+.app-shell .ai-empty-art {
+  display:grid; place-items:center; width:94px; height:94px; margin-bottom:20px;
+  border:1px solid rgba(139,124,255,.35); border-radius:50%; color:var(--accent-light);
+  background:radial-gradient(circle, rgba(245,166,35,.16), rgba(139,124,255,.09) 48%, transparent 70%);
+  box-shadow:0 0 0 12px rgba(139,124,255,.04), 0 0 38px rgba(139,124,255,.16);
+}
+.app-shell .ai-empty-art i { font-size:34px; }
+.app-shell .ai-empty-kicker { color:var(--accent-cyan); font:700 9px/1.2 var(--font-mono); letter-spacing:.16em; text-transform:uppercase; }
+.app-shell .ai-empty-state p { max-width:42ch; text-align:center; }
+.app-shell .ai-results-heading {
+  display:flex; align-items:flex-end; justify-content:space-between; gap:12px; margin-bottom:12px;
+}
+.app-shell .ai-results-kicker { color:var(--accent-cyan); font:700 9px/1.2 var(--font-mono); letter-spacing:.14em; text-transform:uppercase; }
+.app-shell .ai-results-title { display:block; margin-top:3px; color:var(--text-primary); font-size:16px; font-weight:800; }
+.app-shell .ai-results-meta { color:var(--text-muted); font-size:10px; text-align:right; }
+.app-shell .ai-confluence-card { border-color:rgba(53,201,232,.2); background:linear-gradient(135deg, rgba(53,201,232,.06), transparent 55%), var(--bg-card); }
+.app-shell .ai-confluence-card .section-card-body { padding-top:16px; }
+.app-shell .ai-confluence-kpi {
+  min-height:86px; padding:12px 10px; border:1px solid var(--border); border-radius:10px;
+  background:rgba(255,255,255,.025); text-align:center;
+}
+.app-shell .ai-confluence-kpi.bullish { border-color:rgba(34,217,127,.24); background:rgba(34,217,127,.07); }
+.app-shell .ai-confluence-kpi.bearish { border-color:rgba(255,90,106,.24); background:rgba(255,90,106,.07); }
+.app-shell .ai-confluence-kpi.neutral { border-color:rgba(245,181,68,.24); background:rgba(245,181,68,.07); }
+.app-shell .ai-confluence-value { font-size:26px; font-weight:900; line-height:1.1; }
+.app-shell .ai-confluence-label { margin-top:5px; color:var(--text-muted); font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+.app-shell .ai-verdict { display:inline-flex; align-items:center; justify-content:center; gap:3px; padding:8px 12px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,.025); font-size:12px; font-weight:750; }
+.app-shell .ai-prediction-topline { display:flex; align-items:center; justify-content:space-between; gap:12px; min-height:28px; margin-bottom:10px; }
+.app-shell .ai-prediction-label { color:var(--text-secondary); font-size:12px; font-weight:750; }
+.app-shell .ai-prediction-label i { color:var(--accent-cyan); }
+.app-shell .ai-prediction-card { padding:17px 18px; }
+.app-shell .ai-direction { display:inline-flex; align-items:center; gap:4px; margin-left:8px; font-size:18px; font-weight:900; }
+.app-shell .ai-confidence { min-width:78px; padding-left:10px; border-left:1px solid var(--border); text-align:right; }
+.app-shell .ai-confidence-label { color:var(--text-muted); font-size:10px; }
+.app-shell .ai-confidence-value { font-size:18px; font-weight:850; }
+.app-shell .ai-probability-card {
+  height:100%; padding:10px 11px 9px; border:1px solid var(--border); border-radius:9px; background:rgba(255,255,255,.025);
+}
+.app-shell .ai-probability-card.bullish { border-color:rgba(34,217,127,.18); }
+.app-shell .ai-probability-card.bearish { border-color:rgba(255,90,106,.18); }
+.app-shell .ai-probability-label { color:var(--text-muted); font-size:10px; font-weight:700; }
+.app-shell .ai-probability-value { font-size:13px; font-weight:800; }
+.app-shell .ai-level-card { padding:9px 10px; border-radius:8px; }
+.app-shell .ai-level-card.bullish { background:rgba(34,217,127,.07); border:1px solid rgba(34,217,127,.2); }
+.app-shell .ai-level-card.bearish { background:rgba(255,90,106,.07); border:1px solid rgba(255,90,106,.2); }
+.app-shell .ai-level-label { color:var(--text-muted); font-size:10px; }
+.app-shell .ai-level-value { font-size:14px; font-weight:750; }
+.app-shell .ai-model-output, .app-shell .ai-quality-row, .app-shell .ai-history { border-color:var(--border) !important; }
+.app-shell .ai-model-output { color:var(--text-muted); font-size:10px; }
+.app-shell .ai-model-output-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.app-shell .ai-model-output-heading > * { min-width:0; }
+.app-shell .ai-model-output-heading > span:last-child { white-space:nowrap; }
+.app-shell .ai-quality-row { font-size:10px; color:var(--text-muted); }
+.app-shell .ai-quality-row strong { margin-left:4px; }
+.app-shell .ai-model-foot { color:var(--text-muted); font-size:10px; line-height:1.45; }
+.app-shell .ai-lock-state { border-color:rgba(245,166,35,.25); background:linear-gradient(135deg, rgba(245,166,35,.08), transparent 65%), var(--bg-card); }
+.app-shell .ai-lock-state .section-card-body > i { display:grid; place-items:center; width:54px; height:54px; margin-inline:auto; border:1px solid rgba(245,166,35,.3); border-radius:50%; color:var(--accent-light); background:rgba(245,166,35,.1); font-size:24px; }
+.app-shell .ai-empty-state .btn, .app-shell .ai-lock-state .btn { min-width:170px; }
+.app-shell .ai-results-stack { display:flex; flex-direction:column; gap:12px; }
+.app-shell .pred-card { position:relative; overflow:hidden; box-shadow:var(--shadow-sm); }
+.app-shell .pred-card::before { content:''; position:absolute; top:0; left:0; width:34%; height:2px; background:var(--accent-violet); box-shadow:0 0 16px currentColor; }
+.app-shell .pred-card.bullish::before { background:var(--green); }
+.app-shell .pred-card.bearish::before { background:var(--red); }
+.app-shell .pred-card.neutral::before { background:var(--yellow); }
+.app-shell .pred-card > * { position:relative; z-index:1; }
+.app-shell .pred-card .row > * { min-width:0; }
+
+@media (max-width:680px) {
+  .app-shell .ai-page-header { min-height:0; padding:18px 16px; background-position:120% center; }
+  .app-shell .ai-page-copy { max-width:100%; }
+  .app-shell .ai-hero-visual { right:-34px; opacity:.22; }
+  .app-shell .ai-header-note { white-space:normal; text-align:right; }
+  .app-shell .ai-empty-state { min-height:360px; padding:38px 18px !important; }
+  .app-shell .ai-results-heading { align-items:flex-start; flex-direction:column; gap:4px; }
+  .app-shell .ai-results-meta { text-align:left; }
+}
+@media (max-width:440px) {
+  .app-shell .ai-title-line { align-items:flex-start; gap:9px; }
+  .app-shell .ai-title-icon { width:36px; height:36px; flex-basis:36px; border-radius:10px; }
+  .app-shell .ai-page-header .page-title { font-size:23px; }
+  .app-shell .ai-hero-pills { display:grid; grid-template-columns:1fr 1fr; }
+  .app-shell .ai-hero-pill { justify-content:center; }
+  .app-shell .ai-header-note { display:none; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div>
-    <span class="page-eyebrow">Signals & Tools</span>
-    <h1 class="page-title">AI Prediction Engine</h1>
+<div class="page-header ai-page-header">
+  <div class="ai-page-copy">
+    <span class="page-eyebrow">Prediction Desk</span>
+    <div class="ai-title-line">
+      <span class="ai-title-icon" aria-hidden="true"><i class="bi bi-cpu"></i></span>
+      <h1 class="page-title">AI Prediction Engine</h1>
+    </div>
     <p class="page-subtitle">Ensemble ML predictions: Random Forest + XGBoost + LightGBM</p>
+    <div class="ai-hero-pills" aria-label="Prediction engine capabilities">
+      <span class="ai-hero-pill"><i class="bi bi-layers" aria-hidden="true"></i> 3 model ensemble</span>
+      <span class="ai-hero-pill"><i class="bi bi-clock-history" aria-hidden="true"></i> Multi-timeframe</span>
+      <span class="ai-hero-pill"><i class="bi bi-shield-check" aria-hidden="true"></i> Quality checked</span>
+    </div>
+  </div>
+  <div class="ai-hero-visual" aria-hidden="true">
+    <span class="ai-hero-readout ai-readout-one">RF + XGB</span>
+    <span class="ai-hero-readout ai-readout-two">SIGNAL READY</span>
+    <span class="ai-hero-readout ai-readout-three">XGB + LGBM</span>
+    <div class="ai-hero-core"><i class="bi bi-cpu"></i><span>ENSEMBLE</span></div>
   </div>
 </div>
 
@@ -57,11 +256,15 @@
 <div class="row g-4 ai-insights-layout" id="aiContent" aria-busy="false">
   <!-- ── Left: Controls ─────────────────────────────── -->
   <div class="col-lg-4 ai-insights-controls">
-    <div class="section-card">
+    <div class="section-card ai-control-card">
       <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Run Prediction</span>
+        <div class="ai-card-heading">
+          <span class="ai-card-kicker">Control desk</span>
+          <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Run Prediction</span>
+        </div>
+        <span class="ai-header-note">Configure your read</span>
       </div>
-      <div class="section-card-body">
+      <div class="section-card-body ai-control-body">
         <div class="mb-3">
           <label class="form-label" for="aiAsset">Select Asset</label>
           <select class="form-select" id="aiAsset" aria-describedby="aiAssetHelp">
@@ -74,7 +277,7 @@
           <div class="form-label d-flex justify-content-between" id="aiTfLabel">
             <span>Timeframes</span>
             <span style="font-size:11px;color:var(--text-muted)" id="tfSelectedCount">3 selected</span>
-          </label>
+          </div>
           <div class="tf-checkbox-grid" id="tfCheckboxGrid" role="group" aria-labelledby="aiTfLabel">
             {% for tf, label in [('1m','1m'),('5m','5m'),('15m','15m'),('30m','30m'),('1h','1H'),('2h','2H'),('4h','4H'),('1d','1D')] %}
             <label class="tf-cb-label">
@@ -93,20 +296,24 @@
           <i class="bi bi-cpu me-1" aria-hidden="true"></i> Run Prediction
         </button>
 
-        <div class="mt-3 p-3 rounded" style="background:rgba(245, 166, 35, 0.08);border:1px solid rgba(245, 166, 35, 0.2)">
-          <div style="font-size:11px;color:var(--text-muted)">
-            <i class="bi bi-info-circle me-1"></i>
-            Select multiple timeframes to get predictions across all of them simultaneously.
-            Higher timeframe confluence = stronger signal.
+        <div class="mt-3 p-3 rounded ai-guidance">
+          <i class="bi bi-info-circle" aria-hidden="true"></i>
+          <div class="ai-guidance-copy">
+            <strong>Build confluence, not certainty</strong>
+            Select multiple timeframes to compare predictions together. Higher timeframe agreement can add context, but never guarantees an outcome.
           </div>
         </div>
       </div>
     </div>
 
     <!-- Model info -->
-    <div class="section-card mt-4">
+    <div class="section-card mt-4 ai-model-card">
       <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-info-circle text-accent"></i> Models</span>
+        <div class="ai-card-heading">
+          <span class="ai-card-kicker">Signal stack</span>
+          <span class="section-card-title"><i class="bi bi-info-circle text-accent"></i> Models</span>
+        </div>
+        <span class="badge-tag">4 engines</span>
       </div>
       <div class="section-card-body p-0">
         <div class="d-flex flex-column gap-0">
@@ -116,16 +323,16 @@
             ('bi-diagram-3','#a78bfa','LightGBM','Fast gradient boost'),
             ('bi-graph-up','#3b82f6','Ensemble','Avg of all models')
           ] %}
-          <div class="d-flex align-items-center gap-3 px-3 py-2" style="border-bottom:1px solid var(--border)">
+          <div class="d-flex align-items-center gap-3 px-3 py-2 ai-model-row" style="border-bottom:1px solid var(--border)">
             <i class="{{ icon }}" style="font-size:20px;color:{{ color }};width:24px;text-align:center"></i>
             <div>
-              <div style="font-size:13px;font-weight:700;color:var(--text-primary)">{{ name }}</div>
-              <div style="font-size:11px;color:var(--text-muted)">{{ desc }}</div>
+              <div class="ai-model-name">{{ name }}</div>
+              <div class="ai-model-desc">{{ desc }}</div>
             </div>
           </div>
           {% endfor %}
         </div>
-        <div class="p-3" style="font-size:11px;color:var(--text-muted)">
+        <div class="p-3 ai-feature-summary">
           Features: OHLCV, EMA20/50, RSI, MACD, ATR, Bollinger Bands, OBV, price returns
         </div>
       </div>
@@ -136,8 +343,9 @@
   <div class="col-lg-8 ai-insights-results">
     <div id="aiRightPanel" role="region" aria-live="polite" aria-busy="false" aria-label="AI prediction results">
       <!-- Placeholder — shown by default -->
-      <div class="section-card text-center py-5">
-        <i class="bi bi-cpu" style="font-size:64px;color:var(--accent);opacity:0.35"></i>
+      <div class="section-card text-center py-5 ai-empty-state">
+        <div class="ai-empty-art" aria-hidden="true"><i class="bi bi-cpu"></i></div>
+        <div class="ai-empty-kicker">Awaiting input</div>
         <p class="mt-3 mb-1" style="color:var(--text-secondary);font-size:15px;font-weight:600">Select an asset and timeframes</p>
         <p style="font-size:12px;color:var(--text-muted)">Click <strong style="color:var(--accent)">Run Prediction</strong> — all selected timeframes run in parallel</p>
       </div>
@@ -230,7 +438,7 @@ function updateTfCount() {
 }
 
 function buildSkeletonCard(tf) {
-  return `<div class="pred-card loading" id="predCard_${tf}">
+  return `<div class="pred-card ai-prediction-card loading" id="predCard_${tf}">
     <div class="d-flex justify-content-between align-items-center mb-2">
       <span class="pred-tf-badge">${escapePredictionMeta(TF_LABEL[tf] || tf)}</span>
       <span style="font-size:11px;color:var(--text-muted)">Predicting...</span>
@@ -249,7 +457,7 @@ function escapePredictionMeta(value) {
 function buildResultCard(tf, data) {
   const tfLabel = escapePredictionMeta(TF_LABEL[tf] || tf);
   if (!data) {
-    return `<div class="pred-card" id="predCard_${tf}">
+    return `<div class="pred-card ai-prediction-card" id="predCard_${tf}">
       <div class="d-flex justify-content-between align-items-center">
         <span class="pred-tf-badge">${tfLabel}</span>
         <span style="font-size:11px;color:var(--red)">Failed — insufficient data</span>
@@ -281,8 +489,8 @@ function buildResultCard(tf, data) {
     ? Math.max(...memberEntries.map(([, value]) => value)) - Math.min(...memberEntries.map(([, value]) => value))
     : null;
   const memberOutputsHtml = memberEntries.length ? `
-    <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)">
-      <div class="d-flex justify-content-between align-items-center">
+    <div class="mt-2 pt-2 ai-model-output" style="border-top:1px solid var(--border)">
+      <div class="ai-model-output-heading">
         <span>Independent member outputs (bullish)</span>
         <span style="font-weight:800;color:var(--text-secondary)">${memberEntries.length}/3 · spread ${memberSpread == null ? 'n/a' : `${memberSpread.toFixed(1)} pts`}</span>
       </div>
@@ -314,7 +522,7 @@ function buildResultCard(tf, data) {
   const historySample = Math.max(0, Math.trunc(Number(history?.sample_size || 0) || 0));
   const historyCorrect = Math.max(0, Math.min(historySample, Math.trunc(Number(history?.correct || 0) || 0)));
   const historyHtml = history ? `
-    <div class="mt-3 pt-2" style="border-top:1px solid var(--border)">
+    <div class="mt-3 pt-2 ai-history" style="border-top:1px solid var(--border)">
       <div class="d-flex justify-content-between align-items-center" style="font-size:11px;color:var(--text-muted)">
         <span><i class="bi bi-bar-chart-line me-1"></i>Observed history</span>
         <span style="font-weight:700;color:var(--text-secondary)">${historyAccuracy == null ? 'No resolved sample' : `${historyAccuracy.toFixed(1)}% accurate`}</span>
@@ -324,63 +532,67 @@ function buildResultCard(tf, data) {
       </div>
     </div>` : '';
 
-  return `<div class="pred-card ${dirCls}" id="predCard_${tf}">
+  return `<div class="pred-card ai-prediction-card ${dirCls}" id="predCard_${tf}">
     <div class="d-flex justify-content-between align-items-start mb-3">
       <div>
         <span class="pred-tf-badge">${tfLabel}</span>
-        <span class="ms-2" style="font-size:18px;font-weight:900;color:${dirClr}">
+        <span class="ai-direction" style="color:${dirClr}">
           <i class="bi ${dirIcon} me-1"></i>${dir.toUpperCase()}
         </span>
       </div>
-      <div class="text-end">
-        <div style="font-size:11px;color:var(--text-muted)">Confidence</div>
-        <div style="font-size:18px;font-weight:800;color:${dirClr}">${conf.toFixed(1)}%</div>
+      <div class="ai-confidence">
+        <div class="ai-confidence-label">Confidence</div>
+        <div class="ai-confidence-value" style="color:${dirClr}">${conf.toFixed(1)}%</div>
       </div>
     </div>
 
     <div class="row g-3">
       <div class="col-6">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Bullish Probability</div>
+        <div class="ai-probability-card bullish">
+        <div class="ai-probability-label">Bullish Probability</div>
         <div class="prob-bar-wrap">
           <div class="prob-bar-fill" style="width:${bull}%;background:var(--green)"></div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:var(--green)">${bull.toFixed(1)}%</div>
+        <div class="ai-probability-value" style="color:var(--green)">${bull.toFixed(1)}%</div>
+        </div>
       </div>
       <div class="col-6">
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:2px">Bearish Probability</div>
+        <div class="ai-probability-card bearish">
+        <div class="ai-probability-label">Bearish Probability</div>
         <div class="prob-bar-wrap">
           <div class="prob-bar-fill" style="width:${bear}%;background:var(--red)"></div>
         </div>
-        <div style="font-size:13px;font-weight:700;color:var(--red)">${bear.toFixed(1)}%</div>
+        <div class="ai-probability-value" style="color:var(--red)">${bear.toFixed(1)}%</div>
+        </div>
       </div>
     </div>
 
     ${(target || stop) ? `
     <div class="row g-2 mt-2">
       ${target ? `<div class="col-6">
-        <div style="padding:8px;border-radius:6px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2)">
-          <div style="font-size:10px;color:var(--text-muted)">Target</div>
-          <div style="font-size:14px;font-weight:700;color:var(--green)">${formatPrice(target)}</div>
+        <div class="ai-level-card bullish">
+          <div class="ai-level-label">Target</div>
+          <div class="ai-level-value" style="color:var(--green)">${formatPrice(target)}</div>
         </div>
       </div>` : ''}
       ${stop ? `<div class="col-6">
-        <div style="padding:8px;border-radius:6px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2)">
-          <div style="font-size:10px;color:var(--text-muted)">Stop Loss</div>
-          <div style="font-size:14px;font-weight:700;color:var(--red)">${formatPrice(stop)}</div>
+        <div class="ai-level-card bearish">
+          <div class="ai-level-label">Stop Loss</div>
+          <div class="ai-level-value" style="color:var(--red)">${formatPrice(stop)}</div>
         </div>
       </div>` : ''}
     </div>` : ''}
 
     ${memberOutputsHtml}
 
-    <div class="mt-2 pt-2" style="border-top:1px solid var(--border);font-size:10px;color:var(--text-muted)">
+    <div class="mt-2 pt-2 ai-quality-row" style="border-top:1px solid var(--border)">
       <span>Input quality</span>
       <span style="font-weight:800;color:${qualityColor};margin-left:4px">${escapePredictionMeta(qualityStatus)}</span>
       <span style="margin-left:4px">· ${escapePredictionMeta(qualityDetail)}</span>
       ${qualityIssue}
     </div>
 
-    <div class="mt-2" style="font-size:10px;color:var(--text-muted)">
+    <div class="mt-2 ai-model-foot">
       Model: ${modelName} · Version: ${modelVersion}<br>
       Probabilities are model outputs, not guaranteed outcomes.
     </div>
@@ -409,9 +621,9 @@ async function runPrediction() {
 
   try {
     panel.innerHTML = `
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span>
-        <span class="badge-tag">${assetLabel}</span>
+      <div class="ai-results-heading">
+        <div><span class="ai-results-kicker">Live analysis</span><span class="ai-results-title">Results by Timeframe</span></div>
+        <div class="ai-results-meta">Running ${selected.length} views · <span class="badge-tag">${assetLabel}</span></div>
       </div>
       <div id="aiResultCards" class="d-flex flex-column gap-3">
         ${selected.map(buildSkeletonCard).join('')}
@@ -429,7 +641,7 @@ async function runPrediction() {
     const tierGated = results.some(result => result.data?.status === 403);
     if (tierGated) {
       panel.innerHTML = `
-        <div class="section-card">
+      <div class="section-card ai-lock-state">
           <div class="section-card-body p-4 text-center">
             <i class="bi bi-lock-fill" style="font-size:28px;color:var(--accent)"></i>
             <h5 class="mt-3 mb-2">AI Insights is a Premium feature</h5>
@@ -465,25 +677,28 @@ async function runPrediction() {
     if (!total) verdict = '<i class="bi bi-exclamation-triangle me-1"></i>No valid prediction returned for the selected timeframes';
 
     const confluenceHtml = selected.length > 1 ? `
-      <div class="section-card mb-3">
+      <div class="section-card mb-3 ai-confluence-card">
         <div class="section-card-header">
           <span class="section-card-title"><i class="bi bi-bar-chart-steps text-accent"></i> Confluence Summary</span>
           <span class="badge-tag">${assetLabel}</span>
         </div>
         <div class="section-card-body">
           <div class="row g-3 text-center mb-3">
-            <div class="col-4"><div class="p-3 rounded" style="background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.2)"><div class="fw-900" style="font-size:28px;color:var(--green)">${bull}</div><div style="font-size:12px;color:var(--text-muted)">Bullish TFs</div></div></div>
-            <div class="col-4"><div class="p-3 rounded" style="background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2)"><div class="fw-900" style="font-size:28px;color:var(--red)">${bear}</div><div style="font-size:12px;color:var(--text-muted)">Bearish TFs</div></div></div>
-            <div class="col-4"><div class="p-3 rounded" style="background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2)"><div class="fw-900" style="font-size:28px;color:var(--yellow)">${neut}</div><div style="font-size:12px;color:var(--text-muted)">Neutral TFs</div></div></div>
+            <div class="col-4"><div class="ai-confluence-kpi bullish"><div class="ai-confluence-value" style="color:var(--green)">${bull}</div><div class="ai-confluence-label">Bullish TFs</div></div></div>
+            <div class="col-4"><div class="ai-confluence-kpi bearish"><div class="ai-confluence-value" style="color:var(--red)">${bear}</div><div class="ai-confluence-label">Bearish TFs</div></div></div>
+            <div class="col-4"><div class="ai-confluence-kpi neutral"><div class="ai-confluence-value" style="color:var(--yellow)">${neut}</div><div class="ai-confluence-label">Neutral TFs</div></div></div>
           </div>
-          <div class="text-center"><span style="font-size:15px;font-weight:700;color:${vClr}">${verdict}</span></div>
+          <div class="text-center"><span class="ai-verdict" style="color:${vClr}">${verdict}</span></div>
         </div>
       </div>` : '';
 
     panel.innerHTML = `
       ${confluenceHtml}
-      <div class="d-flex justify-content-between align-items-center mb-3"><span style="font-size:13px;font-weight:700;color:var(--text-secondary)">Results by Timeframe</span><span class="badge-tag">${assetLabel}</span></div>
-      <div class="d-flex flex-column gap-3">${predictions.map(result => buildResultCard(result.tf, result.prediction)).join('')}</div>`;
+      <div class="ai-results-heading">
+        <div><span class="ai-results-kicker">Decision support</span><span class="ai-results-title">Results by Timeframe</span></div>
+        <div class="ai-results-meta">${predictions.length} views · <span class="badge-tag">${assetLabel}</span></div>
+      </div>
+      <div class="ai-results-stack">${predictions.map(result => buildResultCard(result.tf, result.prediction)).join('')}</div>`;
     setAiStatus(total ? 'ready' : 'degraded', total ? 'Prediction results are ready' : 'Prediction results are incomplete', `${total}/${selected.length} timeframes returned usable model output · review input quality and observed history`);
   } finally {
     if (sequence === _predictionRunSequence) {

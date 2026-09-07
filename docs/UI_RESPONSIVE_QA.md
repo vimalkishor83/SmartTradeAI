@@ -68,7 +68,7 @@ session, so a screenshot-level visual sign-off remains outstanding.
 | Analytics | `dashboard/analytics.html` | Static pass | Context bar, charts, KPI cards, and tables are fluid. |
 | Reports | `dashboard/reports.html` | Static pass | Report KPI grid, chart wrapper, and tables are fluid. |
 | Market news | `dashboard/news.html` | Static pass | Filter control and news table are bounded. |
-| AI Insights | `dashboard/ai_insights.html` | Changed and verified statically | Dedicated fluid grid; two columns above 1100px and one column at or below 1100px. |
+| AI Insights | `dashboard/ai_insights.html` | Redesigned and verified statically | Prediction desk header, control/model cards, empty/loading/locked states, confluence summary, and result cards share a fluid layout; two columns above 1100px and one column at or below 1100px. |
 | Model performance | `dashboard/model_performance.html` | Static pass | Trend canvas, table, search, and data columns are bounded. |
 | Market heatmap | `dashboard/heatmap.html` | Static pass | Existing auto-fill tile grid retained. |
 | Risk manager | `dashboard/risk.html` | Changed and verified statically | Legacy four-column inline KPI declaration is overridden to two readable columns at tablet/phone sizes. |
@@ -111,7 +111,8 @@ session, so a screenshot-level visual sign-off remains outstanding.
   - Added mobile toolbar, header, notification, context-bar, KPI, and heatmap rules.
   - Added the AI Insights fluid layout.
 - `frontend/templates/dashboard/ai_insights.html`
-  - Added presentation-only layout hooks to the existing Bootstrap columns.
+  - Added a page-specific prediction desk header, visual hierarchy, responsive empty/locked/loading states, confluence KPI cards, and readable prediction result cards.
+  - Preserved all existing API calls, IDs, controls, accessibility relationships, and prediction rendering behavior.
 - `frontend/templates/admin/daily_compound_calculator.html`
   - Added phone-only layout rules.
 
@@ -133,5 +134,5 @@ session, so a screenshot-level visual sign-off remains outstanding.
 2. Check interaction states visually: sidebar open/collapsed, command palette,
    notification menu, table scroll affordance, filter wrapping, loading,
    empty, error, and populated states.
-3. The responsive QA files are committed locally; deploy only after the browser
-   pass and an explicit user request for production synchronization.
+3. Production still serves the older AI Insights markup; deploy this local page
+   only after browser pass and an explicit user request for production synchronization.
