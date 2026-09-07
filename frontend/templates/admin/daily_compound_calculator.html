@@ -158,6 +158,15 @@
   .modal-backdrop.open .modal { transform: translateX(0); }
   .modal h3 { margin: 0 0 12px; font-size: 15px; }
   @media (max-width: 520px) {
+    main { padding: 16px; }
+    .topbar { padding: 12px 16px; gap: 10px; flex-wrap: wrap; }
+    .topbar-title { min-width: 0; }
+    .back-link { margin-left: auto; }
+    .row2 { grid-template-columns: 1fr; }
+    .btn-row { flex-wrap: wrap; }
+    .btn-row .btn { flex: 1 1 140px; }
+    .tabs { overflow-x: auto; }
+    .tab { white-space: nowrap; }
     .modal { width: 100%; max-width: 100%; }
   }
 </style>

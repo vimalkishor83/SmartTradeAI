@@ -6592,3 +6592,189 @@ html[data-theme="light"] .app-shell {
     flex: 1 1 auto;
   }
 }
+
+/* Full responsive QA pass. Keep dense trading modules fluid at every
+   requested viewport without changing their data or interaction contracts. */
+.app-shell :where(#pageContentBody, .page-content, .main-wrapper),
+.app-shell .row > *,
+.app-shell .section-card,
+.app-shell .kpi-card,
+.app-shell .glass-card {
+  min-width: 0;
+}
+
+.app-shell .page-header > *,
+.app-shell .dash-header > *,
+.app-shell .section-card-header > * {
+  min-width: 0;
+}
+
+.app-shell .section-card-header .text-muted,
+.app-shell .section-card-header small {
+  overflow-wrap: anywhere;
+}
+
+/* Tables keep their readable intrinsic width and scroll inside the card on
+   small screens instead of forcing the entire document wider than its shell. */
+.app-shell .table-responsive,
+.app-shell .ui-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.app-shell .table-responsive > table,
+.app-shell .ui-table-wrap > table {
+  width: max-content;
+  min-width: 100%;
+}
+
+.app-shell :where(.chart-wrapper, .chart-wrapper-lg, .chart-wrapper-sm,
+  .report-chart-wrap, .trend-canvas-wrap, #aaChartWrap) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.app-shell :where(.chart-wrapper, .chart-wrapper-lg, .chart-wrapper-sm,
+  .report-chart-wrap, .trend-canvas-wrap) > canvas,
+.app-shell #aaChart {
+  display: block;
+  max-width: 100%;
+}
+
+.app-shell img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* AI Insights uses a dedicated fluid grid so the results panel always owns
+   the remaining width rather than inheriting a constrained Bootstrap column. */
+.app-shell .ai-insights-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(0, 1.68fr);
+  gap: var(--space-6);
+  margin-inline: 0;
+}
+
+.app-shell .ai-insights-layout > .ai-insights-controls,
+.app-shell .ai-insights-layout > .ai-insights-results {
+  width: auto;
+  max-width: none;
+  padding-inline: 0;
+  margin-top: 0;
+  flex: none;
+}
+
+.app-shell .ai-insights-controls,
+.app-shell .ai-insights-results,
+.app-shell #aiRightPanel {
+  min-width: 0;
+  width: 100%;
+}
+
+.app-shell .data-context-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--border) 74%, var(--accent-cyan));
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, rgba(53, 201, 232, 0.06), transparent 72%), var(--bg-card);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+  .app-shell .ai-insights-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 820px) {
+  /* The 768px tablet target cannot support eight readable KPI cards. */
+  .app-shell .kpi-grid-8 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* Risk Manager has a legacy inline four-column declaration. The important
+     override keeps that presentation readable on phone and tablet widths. */
+  .app-shell .kpi-grid-auto {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 680px) {
+  .app-shell .top-navbar {
+    gap: 7px;
+    padding-inline: 10px;
+  }
+
+  .app-shell .navbar-left {
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .app-shell .breadcrumb-nav {
+    min-width: 0;
+    max-width: 34vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell .navbar-right {
+    gap: 5px;
+  }
+
+  .app-shell .ws-status {
+    padding-inline: 6px;
+  }
+
+  .app-shell .section-card-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .app-shell .section-card-header > .text-muted,
+  .app-shell .section-card-header > small {
+    flex: 1 1 100%;
+  }
+
+  .app-shell .section-card-header > .d-flex {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .app-shell .data-context-bar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .app-shell .filter-bar > :where(.form-control, .form-select, .search-bar) {
+    flex: 1 1 100%;
+    width: 100% !important;
+    max-width: none;
+  }
+
+  .app-shell .notif-dropdown {
+    width: min(340px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 520px) {
+  .app-shell .kpi-grid-8 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .app-shell #backupCodesList {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .app-shell #hourHeatmap {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}

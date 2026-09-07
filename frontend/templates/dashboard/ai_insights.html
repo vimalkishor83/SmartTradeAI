@@ -54,9 +54,9 @@
   <span id="aiUpdatedAt">Predictions are model outputs, not guarantees. Input quality and observed history appear with each result.</span>
 </div>
 
-<div class="row g-4" id="aiContent" aria-busy="false">
+<div class="row g-4 ai-insights-layout" id="aiContent" aria-busy="false">
   <!-- ── Left: Controls ─────────────────────────────── -->
-  <div class="col-lg-4">
+  <div class="col-lg-4 ai-insights-controls">
     <div class="section-card">
       <div class="section-card-header">
         <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Run Prediction</span>
@@ -133,7 +133,7 @@
   </div>
 
   <!-- ── Right: single panel, JS replaces innerHTML ── -->
-  <div class="col-lg-8">
+  <div class="col-lg-8 ai-insights-results">
     <div id="aiRightPanel" role="region" aria-live="polite" aria-busy="false" aria-label="AI prediction results">
       <!-- Placeholder — shown by default -->
       <div class="section-card text-center py-5">
