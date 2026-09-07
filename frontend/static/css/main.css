@@ -6513,3 +6513,82 @@ html[data-theme="light"] .app-shell {
     border-radius: var(--radius-sm);
   }
 }
+
+/* Authenticated terminal shell finish: make the visual change immediately
+   apparent on dense post-login pages, not only inside individual cards. */
+.app-shell .top-navbar {
+  background: linear-gradient(90deg, rgba(139, 124, 255, 0.07), transparent 42%), rgba(10, 13, 19, 0.9);
+  border-bottom-color: color-mix(in srgb, var(--border) 70%, var(--accent-violet));
+}
+
+.app-shell .top-navbar::after {
+  content: '';
+  position: absolute;
+  right: 18px;
+  bottom: -1px;
+  left: 18px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(139, 124, 255, 0.55), rgba(53, 201, 232, 0.35), transparent);
+  pointer-events: none;
+}
+
+.app-shell .ticker-strip {
+  background: linear-gradient(90deg, rgba(245, 166, 35, 0.07), rgba(139, 124, 255, 0.055), rgba(53, 201, 232, 0.045)), var(--bg-secondary);
+  border-bottom-color: color-mix(in srgb, var(--border) 70%, var(--accent-cyan));
+}
+
+.app-shell .dash-header {
+  padding: 18px 20px 20px;
+  border: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent-violet));
+  border-radius: var(--radius-card);
+  background: linear-gradient(120deg, rgba(139, 124, 255, 0.1), rgba(53, 201, 232, 0.025) 48%, transparent 76%), var(--bg-card);
+  box-shadow: var(--shadow-card);
+}
+
+.app-shell .dash-header::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 22px;
+  width: 150px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-violet), transparent);
+  box-shadow: 0 0 16px rgba(139, 124, 255, 0.4);
+}
+
+.app-shell .dashboard-context {
+  border-radius: var(--radius-sm);
+  border-color: color-mix(in srgb, var(--border) 75%, var(--accent-cyan));
+  background: linear-gradient(90deg, rgba(53, 201, 232, 0.06), rgba(139, 124, 255, 0.04), transparent), var(--bg-card);
+}
+
+.app-shell .kpi-grid-8 {
+  gap: 14px;
+}
+
+.app-shell .opp-card {
+  border-color: color-mix(in srgb, var(--border) 78%, var(--accent-violet));
+  background: linear-gradient(145deg, rgba(139, 124, 255, 0.065), transparent 55%), var(--bg-secondary);
+  transition: transform var(--transition), border-color var(--transition), box-shadow var(--transition);
+}
+
+.app-shell .opp-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-violet);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28), 0 0 20px rgba(139, 124, 255, 0.1);
+}
+
+@media (max-width: 760px) {
+  .app-shell .dash-header {
+    padding: 16px;
+  }
+
+  .app-shell .dash-header-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .app-shell .dash-header-actions > * {
+    flex: 1 1 auto;
+  }
+}
