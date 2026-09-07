@@ -183,8 +183,21 @@
 .app-shell .ai-level-card { padding:9px 10px; border-radius:8px; }
 .app-shell .ai-level-card.bullish { background:rgba(34,217,127,.07); border:1px solid rgba(34,217,127,.2); }
 .app-shell .ai-level-card.bearish { background:rgba(255,90,106,.07); border:1px solid rgba(255,90,106,.2); }
+.app-shell .ai-level-card.entry { background:rgba(53,201,232,.07); border:1px solid rgba(53,201,232,.22); }
 .app-shell .ai-level-label { color:var(--text-muted); font-size:10px; }
 .app-shell .ai-level-value { font-size:14px; font-weight:750; }
+.app-shell .ai-level-note { margin-top:3px; color:var(--text-muted); font-size:9px; line-height:1.35; }
+.app-shell .ai-level-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+.app-shell .ai-defaults-panel {
+  margin-top:16px; padding:12px; border:1px solid rgba(53,201,232,.2); border-radius:10px;
+  background:linear-gradient(135deg, rgba(53,201,232,.07), rgba(139,124,255,.04));
+}
+.app-shell .ai-defaults-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.app-shell .ai-defaults-title { color:var(--text-secondary); font-size:11px; font-weight:800; }
+.app-shell .ai-defaults-status { color:var(--accent-cyan); font-size:10px; font-weight:700; text-align:right; }
+.app-shell .ai-defaults-copy { margin:5px 0 10px; color:var(--text-muted); font-size:10px; line-height:1.45; }
+.app-shell .ai-defaults-actions { display:flex; flex-wrap:wrap; gap:7px; }
+.app-shell .ai-defaults-actions .btn { flex:1 1 120px; }
 .app-shell .ai-model-output, .app-shell .ai-quality-row, .app-shell .ai-history { border-color:var(--border) !important; }
 .app-shell .ai-model-output { color:var(--text-muted); font-size:10px; }
 .app-shell .ai-model-output-heading { display:flex; align-items:center; justify-content:space-between; gap:8px; }
@@ -213,6 +226,7 @@
   .app-shell .ai-empty-state { min-height:360px; padding:38px 18px !important; }
   .app-shell .ai-results-heading { align-items:flex-start; flex-direction:column; gap:4px; }
   .app-shell .ai-results-meta { text-align:left; }
+  .app-shell .ai-level-grid { grid-template-columns:1fr; }
 }
 @media (max-width:440px) {
   .app-shell .ai-title-line { align-items:flex-start; gap:9px; }
@@ -292,6 +306,18 @@
           </div>
         </div>
 
+        <div class="ai-defaults-panel" aria-labelledby="aiDefaultsTitle">
+          <div class="ai-defaults-heading">
+            <span class="ai-defaults-title" id="aiDefaultsTitle"><i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>Remember this setup</span>
+            <span class="ai-defaults-status" id="aiDefaultStatus">Account defaults</span>
+          </div>
+          <p class="ai-defaults-copy">Save the selected asset and timeframes so they are ready the next time you open AI Insights.</p>
+          <div class="ai-defaults-actions">
+            <button type="button" class="btn btn-sm btn-outline-primary" id="saveAiDefaults"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save as default</button>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="resetAiDefaults">Reset</button>
+          </div>
+        </div>
+
         <button type="button" class="btn btn-primary w-100" id="runAI" aria-controls="aiRightPanel" aria-busy="false">
           <i class="bi bi-cpu me-1" aria-hidden="true"></i> Run Prediction
         </button>
@@ -362,9 +388,64 @@ const MARKET_LABELS = {crypto:'Crypto', forex:'Forex', gold:'Gold', silver:'Silv
   indian_stock:'Indian Stocks', us_stock:'US Stocks', index:'Indices', commodity:'Commodity'};
 const AI_TIMEFRAMES = new Set(Object.keys(TF_LABEL));
 const AI_DIRECTIONS = new Set(['bullish', 'bearish', 'neutral']);
+const AI_DEFAULT_STORAGE_KEY = 'smarttradeai_ai_insights_preferences';
+const DEFAULT_AI_PREFERENCES = { asset_id: null, timeframes: ['1h', '4h', '1d'] };
 let _predictionRunSequence = 0;
 let _predictionRunning = false;
 let _aiBooted = false;
+let _aiPreferences = { ...DEFAULT_AI_PREFERENCES, timeframes: [...DEFAULT_AI_PREFERENCES.timeframes] };
+
+function normaliseAiPreferences(value) {
+  const raw = value && typeof value === 'object' ? value : {};
+  const timeframes = Array.isArray(raw.timeframes)
+    ? [...new Set(raw.timeframes.map(tf => String(tf).trim()).filter(tf => AI_TIMEFRAMES.has(tf)))]
+    : [];
+  const assetId = Number(raw.asset_id);
+  return {
+    asset_id: Number.isInteger(assetId) && assetId > 0 ? assetId : null,
+    timeframes: timeframes.length ? [...AI_TIMEFRAMES].filter(tf => timeframes.includes(tf)) : [...DEFAULT_AI_PREFERENCES.timeframes],
+  };
+}
+
+function readLocalAiPreferences() {
+  try { return normaliseAiPreferences(JSON.parse(localStorage.getItem(AI_DEFAULT_STORAGE_KEY) || 'null')); }
+  catch (_) { return normaliseAiPreferences(DEFAULT_AI_PREFERENCES); }
+}
+
+function writeLocalAiPreferences(preferences) {
+  try { localStorage.setItem(AI_DEFAULT_STORAGE_KEY, JSON.stringify(preferences)); }
+  catch (_) { /* Private browsing may disable storage; the account API still works. */ }
+}
+
+function setAiDefaultStatus(message) {
+  const status = document.getElementById('aiDefaultStatus');
+  if (status) status.textContent = message;
+}
+
+function applyAiPreferences() {
+  const select = document.getElementById('aiAsset');
+  if (select && _aiPreferences.asset_id && select.querySelector(`option[value="${_aiPreferences.asset_id}"]`)) {
+    select.value = String(_aiPreferences.asset_id);
+  }
+  document.querySelectorAll('input[name="aiTf"]').forEach(cb => {
+    cb.checked = _aiPreferences.timeframes.includes(cb.value);
+  });
+  updateTfCount();
+}
+
+async function loadAiPreferences() {
+  const localFallback = readLocalAiPreferences();
+  try {
+    const data = await API.get('/auth/me/ai-insights-preferences');
+    _aiPreferences = normaliseAiPreferences(data?.preferences);
+    writeLocalAiPreferences(_aiPreferences);
+    setAiDefaultStatus('Account defaults');
+  } catch (_) {
+    _aiPreferences = localFallback;
+    setAiDefaultStatus('Browser fallback');
+  }
+  applyAiPreferences();
+}
 
 function setAiStatus(state, message, detail) {
   const context = document.getElementById('aiContext');
@@ -421,6 +502,7 @@ async function loadAssets() {
       ${byMarket[m].map(a => `<option value="${STSafe.assetId(a.id)}">${escapePredictionMeta(a.symbol)} — ${escapePredictionMeta(a.name)}</option>`).join('')}
     </optgroup>`).join('');
   select.disabled = false;
+  applyAiPreferences();
   setAiStatus('ready', 'Ready for a prediction', `${assets.length} assets available · select timeframes to compare confluence`);
   return true;
 }
@@ -435,6 +517,58 @@ function updateTfCount() {
   const checked = document.querySelectorAll('input[name="aiTf"]:checked').length;
   const count = document.getElementById('tfSelectedCount');
   if (count) count.textContent = `${checked} selected`;
+}
+
+function controlsToAiPreferences() {
+  const assetId = Number(document.getElementById('aiAsset')?.value);
+  return normaliseAiPreferences({
+    asset_id: Number.isInteger(assetId) && assetId > 0 ? assetId : null,
+    timeframes: [...document.querySelectorAll('input[name="aiTf"]:checked')].map(cb => cb.value),
+  });
+}
+
+async function saveAiDefaults(nextPreferences, { allowEmptyAsset = false } = {}) {
+  const preferences = normaliseAiPreferences(nextPreferences || controlsToAiPreferences());
+  if (!preferences.timeframes.length) {
+    Toast.show('Select at least one timeframe before saving defaults', 'warning');
+    return false;
+  }
+  if (!preferences.asset_id && !allowEmptyAsset) {
+    Toast.show('Select an asset before saving defaults', 'warning');
+    return false;
+  }
+
+  const button = document.getElementById('saveAiDefaults');
+  if (button) button.disabled = true;
+  try {
+    const data = await API.put('/auth/me/ai-insights-preferences', preferences);
+    _aiPreferences = normaliseAiPreferences(data?.preferences || preferences);
+    writeLocalAiPreferences(_aiPreferences);
+    applyAiPreferences();
+    setAiDefaultStatus('Saved to account');
+    Toast.show('AI Insights defaults saved', 'success');
+    return true;
+  } catch (_) {
+    // Keep a local fallback so a temporary API outage does not discard the
+    // user's setup, while clearly distinguishing it from account persistence.
+    _aiPreferences = preferences;
+    writeLocalAiPreferences(_aiPreferences);
+    setAiDefaultStatus('Saved on this browser');
+    Toast.show('Account save failed; browser fallback saved', 'warning');
+    return false;
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function resetAiDefaults() {
+  document.querySelectorAll('input[name="aiTf"]').forEach(cb => {
+    cb.checked = DEFAULT_AI_PREFERENCES.timeframes.includes(cb.value);
+  });
+  const select = document.getElementById('aiAsset');
+  if (select?.options.length) select.selectedIndex = 0;
+  updateTfCount();
+  await saveAiDefaults({ ...DEFAULT_AI_PREFERENCES, timeframes: [...DEFAULT_AI_PREFERENCES.timeframes] }, { allowEmptyAsset: true });
 }
 
 function buildSkeletonCard(tf) {
@@ -481,6 +615,12 @@ function buildResultCard(tf, data) {
   const modelOutputs = data.model_outputs && typeof data.model_outputs === 'object' && !Array.isArray(data.model_outputs) ? data.model_outputs : {};
   const target = Number.isFinite(Number(data.predicted_target)) && Number(data.predicted_target) > 0 ? Number(data.predicted_target) : null;
   const stop = Number.isFinite(Number(data.predicted_stop)) && Number(data.predicted_stop) > 0 ? Number(data.predicted_stop) : null;
+  const range = data.entry_range && typeof data.entry_range === 'object' ? data.entry_range : {};
+  const entryLowRaw = data.entry_range_low ?? range.low;
+  const entryHighRaw = data.entry_range_high ?? range.high;
+  const entryLow = Number.isFinite(Number(entryLowRaw)) && Number(entryLowRaw) > 0 ? Number(entryLowRaw) : null;
+  const entryHigh = Number.isFinite(Number(entryHighRaw)) && Number(entryHighRaw) >= Number(entryLow) ? Number(entryHighRaw) : null;
+  const entryRange = entryLow != null && entryHigh != null ? `${formatPrice(entryLow)} - ${formatPrice(entryHigh)}` : null;
   const memberEntries = Object.entries(modelOutputs)
     .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
     .slice(0, 3)
@@ -567,20 +707,21 @@ function buildResultCard(tf, data) {
       </div>
     </div>
 
-    ${(target || stop) ? `
-    <div class="row g-2 mt-2">
-      ${target ? `<div class="col-6">
-        <div class="ai-level-card bullish">
+    ${(entryRange || target || stop) ? `
+    <div class="ai-level-grid mt-2">
+      ${entryRange ? `<div class="ai-level-card entry">
+          <div class="ai-level-label">Entry Range</div>
+          <div class="ai-level-value" style="color:var(--accent-cyan)">${entryRange}</div>
+          <div class="ai-level-note">Volatility reference zone</div>
+        </div>` : ''}
+      ${target ? `<div class="ai-level-card bullish">
           <div class="ai-level-label">Target</div>
           <div class="ai-level-value" style="color:var(--green)">${formatPrice(target)}</div>
-        </div>
-      </div>` : ''}
-      ${stop ? `<div class="col-6">
-        <div class="ai-level-card bearish">
+        </div>` : ''}
+      ${stop ? `<div class="ai-level-card bearish">
           <div class="ai-level-label">Stop Loss</div>
           <div class="ai-level-value" style="color:var(--red)">${formatPrice(stop)}</div>
-        </div>
-      </div>` : ''}
+        </div>` : ''}
     </div>` : ''}
 
     ${memberOutputsHtml}
@@ -718,7 +859,9 @@ document.addEventListener('app:ready', () => {
   document.querySelector('[data-action="clear-all-timeframes"]')?.addEventListener('click', () => setAllTfs(false));
   document.querySelectorAll('input[name="aiTf"]').forEach(cb => cb.addEventListener('change', updateTfCount));
   updateTfCount();
-  loadAssets();
+  document.getElementById('saveAiDefaults')?.addEventListener('click', () => saveAiDefaults());
+  document.getElementById('resetAiDefaults')?.addEventListener('click', resetAiDefaults);
+  Promise.all([loadAiPreferences(), loadAssets()]).then(() => applyAiPreferences());
 });
 </script>
 {% endblock %}

@@ -65,6 +65,8 @@ def test_prediction_cache_keeps_member_outputs_on_fast_path():
 
     assert result["model_version"] == "ensemble-calibrated-v2"
     assert result["model_outputs"] == {"random_forest": 60.0, "xgboost": 64.0}
+    assert result["entry_range_low"] == 99.5
+    assert result["entry_range_high"] == 100.5
 
 
 def test_model_artifact_path_changes_with_training_contract(monkeypatch):

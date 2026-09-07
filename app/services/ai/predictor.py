@@ -412,6 +412,8 @@ class AIPredictor:
             "model_outputs": {},
             "predicted_target": None,
             "predicted_stop": None,
+            "entry_range_low": None,
+            "entry_range_high": None,
         }
 
         if df is None or len(df) < 100:
@@ -500,6 +502,14 @@ class AIPredictor:
 
         close = float(df["close"].iloc[-1])
         atr   = float((df["high"].iloc[-20:] - df["low"].iloc[-20:]).mean())
+        # Keep the entry guidance honest and explainable: it is a narrow band
+        # around the latest close sized from the same recent range used for
+        # the target/stop reference levels. It does not place or configure an
+        # order and remains useful for both directional and neutral outputs.
+        valid_atr = np.isfinite(atr) and atr > 0
+        entry_band = atr * 0.25 if valid_atr else None
+        entry_range_low = round(max(0.0, close - entry_band), 6) if entry_band else None
+        entry_range_high = round(close + entry_band, 6) if entry_band else None
         model_outputs_pct = {
             name: round(float(prob) * 100, 1)
             for name, prob in model_outputs.items()
@@ -512,6 +522,16 @@ class AIPredictor:
             model_name = "heuristic"
             model_version = None
 
+        predicted_target = None
+        predicted_stop = None
+        if valid_atr:
+            if direction == "bullish":
+                predicted_target = round(close + atr * 1.5, 6)
+                predicted_stop = round(close - atr, 6)
+            else:
+                predicted_target = round(close - atr * 1.5, 6)
+                predicted_stop = round(close + atr, 6)
+
         return {
             "bullish_probability": bull_prob,
             "bearish_probability": bear_prob,
@@ -520,8 +540,10 @@ class AIPredictor:
             "model_name":          model_name,
             "model_version":       model_version,
             "model_outputs":       model_outputs_pct,
-            "predicted_target":    round(close + atr * 1.5, 6) if direction == "bullish" else round(close - atr * 1.5, 6),
-            "predicted_stop":      round(close - atr,       6) if direction == "bullish" else round(close + atr,       6),
+            "predicted_target":    predicted_target,
+            "predicted_stop":      predicted_stop,
+            "entry_range_low":     entry_range_low,
+            "entry_range_high":    entry_range_high,
         }
 
     def _ensemble_predict(

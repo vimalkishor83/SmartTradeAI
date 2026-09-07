@@ -22,6 +22,63 @@ _PROFILE_TEXT_LIMITS = {
     "telegram_bot_token": 256,
 }
 
+_AI_INSIGHT_TIMEFRAMES = ("1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d")
+_DEFAULT_AI_INSIGHT_PREFERENCES = {
+    "asset_id": None,
+    "timeframes": ["1h", "4h", "1d"],
+}
+
+
+def _normalise_ai_insight_preferences(data: dict | None, *, validate_asset: bool = False) -> dict:
+    """Validate the small, user-owned setup used by the AI Insights page."""
+    data = data if isinstance(data, dict) else {}
+    raw_timeframes = data.get("timeframes", _DEFAULT_AI_INSIGHT_PREFERENCES["timeframes"])
+    if not isinstance(raw_timeframes, list) or not raw_timeframes:
+        raise ValueError("timeframes must be a non-empty list")
+    if any(not isinstance(tf, str) for tf in raw_timeframes):
+        raise ValueError("timeframes must contain text values")
+    timeframes = [tf.strip() for tf in raw_timeframes]
+    if len(timeframes) != len(set(timeframes)):
+        raise ValueError("timeframes must not contain duplicates")
+    invalid = [tf for tf in timeframes if tf not in _AI_INSIGHT_TIMEFRAMES]
+    if invalid:
+        raise ValueError("timeframes contains an unsupported value")
+
+    raw_asset_id = data.get("asset_id")
+    if raw_asset_id in (None, ""):
+        asset_id = None
+    else:
+        if isinstance(raw_asset_id, bool):
+            raise ValueError("asset_id must be an integer or null")
+        try:
+            asset_id = int(raw_asset_id)
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("asset_id must be an integer or null")
+        if asset_id < 1:
+            raise ValueError("asset_id must be an integer or null")
+
+        if validate_asset:
+            from app.models.asset import Asset
+            if not Asset.query.filter_by(id=asset_id, is_active=True).first():
+                raise ValueError("asset_id must reference an active asset")
+
+    return {
+        "asset_id": asset_id,
+        # Canonical ordering keeps the UI stable even if a client sends a
+        # different checkbox order.
+        "timeframes": [tf for tf in _AI_INSIGHT_TIMEFRAMES if tf in timeframes],
+    }
+
+
+def _current_ai_insight_preferences(user) -> dict:
+    stored = user.ai_insights_preferences
+    try:
+        return _normalise_ai_insight_preferences(stored)
+    except ValueError:
+        # Old or manually edited rows should never stop the AI page from
+        # loading. They fall back to safe defaults until the user saves again.
+        return dict(_DEFAULT_AI_INSIGHT_PREFERENCES)
+
 
 def _profile_text(data: dict, field: str) -> str | None:
     if field not in data:
@@ -889,6 +946,33 @@ def save_asset_preferences():
         cache.delete(f"ta_summary_{user.id}_{mkt}")
         cache.delete(f"mtf_matrix_{user.id}_{mkt}")
     return jsonify({"message": "Preferences saved"}), 200
+
+
+@auth_bp.route("/me/ai-insights-preferences", methods=["GET"])
+@login_required
+def get_ai_insights_preferences():
+    """Return the account's default AI Insights asset and timeframes."""
+    user = get_current_user()
+    return jsonify({"preferences": _current_ai_insight_preferences(user)}), 200
+
+
+@auth_bp.route("/me/ai-insights-preferences", methods=["PUT"])
+@login_required
+def save_ai_insights_preferences():
+    """Persist a complete, validated AI Insights setup for the current user."""
+    user = get_current_user()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+
+    try:
+        preferences = _normalise_ai_insight_preferences(data, validate_asset=True)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    user.ai_insights_preferences = preferences
+    db.session.commit()
+    return jsonify({"message": "AI Insights defaults saved", "preferences": preferences}), 200
 
 
 def _audit(user_id, action, resource, resource_id, status="success"):

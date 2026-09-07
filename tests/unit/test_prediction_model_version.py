@@ -15,6 +15,8 @@ def _result(model_version="ensemble-calibrated-v1"):
         "predicted_direction": "bullish",
         "predicted_target": 105.0,
         "predicted_stop": 98.0,
+        "entry_range_low": 99.5,
+        "entry_range_high": 100.5,
         "confidence": 65.0,
     }
 
@@ -34,6 +36,9 @@ def test_prediction_record_maps_model_version_from_predictor_result():
     assert prediction.to_dict()["model_version"] == "ensemble-calibrated-v1"
     assert prediction.to_dict()["data_quality"]["status"] == "GREEN"
     assert prediction.to_dict()["model_outputs"]["xgboost"] == 68.0
+    assert prediction.to_dict()["predicted_stop"] == 98.0
+    assert prediction.to_dict()["entry_range_low"] == 99.5
+    assert prediction.to_dict()["entry_range_high"] == 100.5
 
 
 def test_legacy_prediction_serializes_missing_model_version_explicitly():

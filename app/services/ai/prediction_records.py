@@ -27,6 +27,8 @@ def build_prediction_record(
         predicted_direction=result["predicted_direction"],
         predicted_target=result.get("predicted_target"),
         predicted_stop=result.get("predicted_stop"),
+        entry_range_low=result.get("entry_range_low"),
+        entry_range_high=result.get("entry_range_high"),
         entry_price=entry_price,
         confidence=result["confidence"],
         valid_until=valid_until,

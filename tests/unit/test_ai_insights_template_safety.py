@@ -25,6 +25,9 @@ def test_ai_insights_validates_asset_and_prediction_payloads():
     assert "const bounded = value =>" in source
     assert "Array.isArray(data.model_outputs)" in source
     assert "STSafe.assetId(a.id)" in source
+    assert "const entryLowRaw = data.entry_range_low" in source
+    assert "const entryHighRaw = data.entry_range_high" in source
+    assert "predicted_stop" in source
 
 
 def test_ai_insights_serializes_run_lifecycle():
@@ -33,6 +36,7 @@ def test_ai_insights_serializes_run_lifecycle():
     assert "let _predictionRunSequence = 0;" in source
     assert "let _predictionRunning = false;" in source
     assert "if (_predictionRunning) return;" in source
+    assert "_predictionRunning = true;" in source
     assert "if (sequence !== _predictionRunSequence) return;" in source
     assert "Promise.all(selected.map(tf =>" in source
 
@@ -50,4 +54,13 @@ def test_ai_insights_exposes_prediction_context_and_unavailable_states():
     assert "Prediction results are incomplete" in source
     assert "try {\n    data = await API.get('/assets/');" in source
     assert "if (!panel || !btn) return;" in source
-    assert "_predictionRunning = true;" in source
+
+
+def test_ai_insights_persists_user_defaults():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert 'id="saveAiDefaults"' in source
+    assert 'id="resetAiDefaults"' in source
+    assert "API.get('/auth/me/ai-insights-preferences')" in source
+    assert "API.put('/auth/me/ai-insights-preferences'" in source
+    assert "Promise.all([loadAiPreferences(), loadAssets()])" in source

@@ -25,6 +25,10 @@ class Prediction(db.Model):
     predicted_direction = db.Column(db.String(10))  # bullish, bearish, neutral
     predicted_target = db.Column(db.Float)
     predicted_stop = db.Column(db.Float)
+    # Volatility-adjusted reference band around the prediction's entry close.
+    # These are informational levels, not executable order instructions.
+    entry_range_low = db.Column(db.Float)
+    entry_range_high = db.Column(db.Float)
     # The actual close price at the moment the prediction was made — the
     # correct reference point for evaluating accuracy later. Previously
     # missing entirely; evaluate_expired_predictions() fell back to using
@@ -64,7 +68,10 @@ class Prediction(db.Model):
             "bearish_probability": self.bearish_probability,
             "predicted_direction": self.predicted_direction,
             "predicted_target": self.predicted_target,
+            "predicted_stop": self.predicted_stop,
             "entry_price": self.entry_price,
+            "entry_range_low": self.entry_range_low,
+            "entry_range_high": self.entry_range_high,
             "confidence": self.confidence,
             "predicted_at": self.predicted_at.isoformat() if self.predicted_at else None,
         }

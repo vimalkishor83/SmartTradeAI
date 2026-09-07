@@ -164,6 +164,9 @@ class User(db.Model):
     account_size = db.Column(db.Float, default=100000.0)
     risk_per_trade_pct = db.Column(db.Float, default=1.0)
     min_confidence_filter = db.Column(db.Integer, default=60)
+    # Per-user AI Insights defaults. The API validates the JSON shape and
+    # active asset IDs before persisting it.
+    ai_insights_preferences = db.Column(db.JSON, default=dict)
 
     # Two-Factor Authentication
     totp_secret       = db.Column(db.String(64), nullable=True)
