@@ -637,6 +637,15 @@
       width: 100%;
       border-collapse: collapse;
     }
+    .snapshot-table-wrap {
+      max-width: 100%;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .snapshot-table-wrap .snapshot-table {
+      min-width: 560px;
+    }
     .snapshot-table th {
       text-align: left;
       font-size: 10.5px;
@@ -1342,20 +1351,22 @@
       <div class="snapshot-head-title"><span class="live-dot"></span> Today's Top Signals</div>
       <a href="/register" class="btn btn-ghost" style="padding:6px 14px;font-size:13px">View all →</a>
     </div>
-    <table class="snapshot-table">
-      <thead>
-        <tr>
-          <th>Asset</th>
-          <th>Signal</th>
-          <th>Confidence</th>
-          <th>Entry</th>
-          <th>Target 1</th>
-        </tr>
-      </thead>
-      <tbody id="landingSignalsBody">
-        <tr><td colspan="5" class="mono" style="color:var(--text3)">Loading live signals…</td></tr>
-      </tbody>
-    </table>
+    <div class="snapshot-table-wrap">
+      <table class="snapshot-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Signal</th>
+            <th>Confidence</th>
+            <th>Entry</th>
+            <th>Target 1</th>
+          </tr>
+        </thead>
+        <tbody id="landingSignalsBody">
+          <tr><td colspan="5" class="mono" style="color:var(--text3)">Loading live signals…</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="stats-band" id="landingStatsBand" style="margin-top:32px">

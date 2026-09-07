@@ -795,10 +795,12 @@ function renderFibPanel(fib, close) {
     </tr>`;
   }).join('');
   el.innerHTML = `
-    <table class="fib-table">
-      <thead><tr><th>Level</th><th>Price</th><th>Dist%</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+    <div class="table-responsive aa-table-scroll">
+      <table class="fib-table">
+        <thead><tr><th>Level</th><th>Price</th><th>Dist%</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`;
 }
 
 function renderLiqPanel(liq) {

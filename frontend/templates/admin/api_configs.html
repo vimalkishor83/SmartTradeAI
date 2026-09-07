@@ -943,20 +943,22 @@ async function viewLogs(id) {
     return;
   }
   document.getElementById('logsModalBody').innerHTML = `
-    <table class="table table-sm mb-0" style="color:var(--text-primary)">
-      <thead style="background:var(--bg-secondary);font-size:11px">
-        <tr><th class="px-3">Action</th><th>Status</th><th>Latency</th><th>Error</th><th>Time</th></tr>
-      </thead>
-      <tbody>${data.logs.map(l => `
-        <tr>
-          <td class="px-3"><code style="font-size:11px">${escapeHtml(l.action || '—')}</code></td>
-          <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${escapeHtml(l.status || 'unknown')}</span></td>
-          <td class="text-muted small">${l.response_time_ms ? escapeHtml(l.response_time_ms)+'ms' : '—'}</td>
-          <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.error_message || '—')}</td>
-          <td class="text-muted small">${timeAgo(l.created_at)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table>`;
+    <div class="table-responsive">
+      <table class="table table-sm mb-0" style="color:var(--text-primary)">
+        <thead style="background:var(--bg-secondary);font-size:11px">
+          <tr><th class="px-3">Action</th><th>Status</th><th>Latency</th><th>Error</th><th>Time</th></tr>
+        </thead>
+        <tbody>${data.logs.map(l => `
+          <tr>
+            <td class="px-3"><code style="font-size:11px">${escapeHtml(l.action || '—')}</code></td>
+            <td><span class="badge ${l.status==='ok'?'bg-success':'bg-danger'}" style="font-size:10px">${escapeHtml(l.status || 'unknown')}</span></td>
+            <td class="text-muted small">${l.response_time_ms ? escapeHtml(l.response_time_ms)+'ms' : '—'}</td>
+            <td class="text-muted small" style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(l.error_message || '—')}</td>
+            <td class="text-muted small">${timeAgo(l.created_at)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
 }
 
 function providerLabel(p) {

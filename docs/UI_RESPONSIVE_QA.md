@@ -28,7 +28,7 @@ session, so a screenshot-level visual sign-off remains outstanding.
 
 | Page or route | Template | Status | Notes |
 | --- | --- | --- | --- |
-| Home | `landing.html` | Static pass | Existing desktop, tablet, and mobile sections retained. |
+| Home | `landing.html` | Static pass | Existing desktop, tablet, and mobile sections retained; live signal snapshot now scrolls inside its card on narrow screens. |
 | Login | `auth/login.html` | Static pass | Shared auth controls and 900px single-column breakpoint retained. |
 | Register | `auth/register.html` | Static pass | Shared auth controls and 900px single-column breakpoint retained. |
 | Forgot password | `auth/forgot_password.html` | Static pass | Shared auth controls and small-screen form behavior retained. |
@@ -73,7 +73,7 @@ session, so a screenshot-level visual sign-off remains outstanding.
 | Market heatmap | `dashboard/heatmap.html` | Static pass | Existing auto-fill tile grid retained. |
 | Risk manager | `dashboard/risk.html` | Changed and verified statically | Legacy four-column inline KPI declaration is overridden to two readable columns at tablet/phone sizes. |
 | Account settings | `dashboard/settings.html` | Changed and verified statically | Backup codes change to two columns on narrow phones; tables and 2FA layout stay bounded. |
-| Advanced analysis | `dashboard/advanced_analysis.html` | Static pass | Existing chart and toolbar breakpoints retained; shared canvas bounds added. |
+| Advanced analysis | `dashboard/advanced_analysis.html` | Static pass | Existing chart and toolbar breakpoints retained; shared canvas bounds added and Fibonacci output is bounded inside a scroll wrapper. |
 | Auto generate | `dashboard/auto_generate.html` | Static pass | KPI grid and table wrappers use shared responsive rules. |
 | Trading | `dashboard/trading.html` | Static pass | Broker form and order tables remain fluid. |
 | Algo trading | `dashboard/algo_trading.html` | Static pass | Shared card columns and context/status presentation retained. |
@@ -94,7 +94,7 @@ session, so a screenshot-level visual sign-off remains outstanding.
 | Admin dashboard | `admin/index.html` | Static pass | KPI cards and tables use shared responsive rules. |
 | Users | `admin/users.html` | Static pass | Search/actions wrap; tables scroll. |
 | System logs | `admin/logs.html` | Static pass | Log table is internally scrollable. |
-| API configurations | `admin/api_configs.html` | Static pass | Existing configuration panel breakpoints retained. |
+| API configurations | `admin/api_configs.html` | Static pass | Existing configuration panel breakpoints retained; connection logs scroll inside the modal on narrow screens. |
 | Assets | `admin/assets.html` | Static pass | Search, filters, table, and result panel are bounded. |
 | Platform configuration | `admin/platform_config.html` | Static pass | Shared cards and forms remain fluid. |
 | Telegram alerts | `admin/telegram_alerts.html` | Static pass | Channel table and controls remain bounded. |
@@ -115,6 +115,12 @@ session, so a screenshot-level visual sign-off remains outstanding.
   - Preserved all existing API calls, IDs, controls, accessibility relationships, and prediction rendering behavior.
 - `frontend/templates/admin/daily_compound_calculator.html`
   - Added phone-only layout rules.
+- `frontend/templates/landing.html`
+  - Bounded the live signal snapshot table inside a touch-scroll wrapper.
+- `frontend/templates/dashboard/advanced_analysis.html`
+  - Bounded dynamically rendered Fibonacci levels inside a table wrapper.
+- `frontend/templates/admin/api_configs.html`
+  - Bounded dynamically rendered connection logs inside the modal.
 
 ## Verification
 
