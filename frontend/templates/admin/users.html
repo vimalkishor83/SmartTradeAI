@@ -10,7 +10,7 @@
 <h1 class="page-title">User Management</h1></div>
   <div class="d-flex gap-2">
     <div class="search-bar" style="width:240px"><i class="bi bi-search"></i><input type="text" id="userSearch" placeholder="Search users…"><i class="bi bi-x-circle-fill search-bar-clear"></i></div>
-    <button class="btn btn-primary text-nowrap" id="createUserBtn" data-bs-toggle="modal" data-bs-target="#createUserModal"><i class="bi bi-person-plus me-1"></i>Create Test User</button>
+    <button type="button" class="btn btn-primary text-nowrap" id="createUserBtn" data-bs-toggle="modal" data-bs-target="#createUserModal"><i class="bi bi-person-plus me-1"></i>Create Test User</button>
   </div>
 </div>
 
@@ -28,12 +28,12 @@
      entirely — meant for handing a working login to a tester or
      stakeholder on the spot, with whatever role/plan you want them
      testing as, not for real signups. -->
-<div class="modal fade" id="createUserModal" tabindex="-1">
+<div class="modal fade" id="createUserModal" tabindex="-1" aria-labelledby="createUserTitle" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title"><i class="bi bi-person-plus me-2"></i>Create Test User</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title" id="createUserTitle"><i class="bi bi-person-plus me-2"></i>Create Test User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close create user dialog"></button>
       </div>
       <div class="modal-body">
         <form id="createUserForm">
@@ -65,15 +65,15 @@
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">Role</label>
-              <select class="form-select" id="cuRole"></select>
+            <select class="form-select" id="cuRole" required></select>
             </div>
             <div class="col">
               <label class="form-label">Plan</label>
-              <select class="form-select" id="cuSubscription"></select>
+            <select class="form-select" id="cuSubscription" required></select>
             </div>
           </div>
           <div class="fs-xs text-muted mb-3">Created accounts are approved and verified immediately — no email step, ready to hand to a tester right away.</div>
-          <button type="submit" class="btn btn-primary w-100">Create Account</button>
+          <button type="submit" class="btn btn-primary w-100" data-submit-label="Create Account">Create Account</button>
         </form>
         <div id="cuResult" class="mt-3" style="display:none">
           <div class="p-3 rounded" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3)">
@@ -83,6 +83,9 @@
           </div>
         </div>
       </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
     </div>
   </div>
 </div>
@@ -91,12 +94,12 @@
      reset their password, and (for admin-role accounts) grant/revoke
      super admin access itself. Separate from the role/plan quick-selects
      in the table, which handle the common case inline. -->
-<div class="modal fade" id="editUserModal" tabindex="-1">
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserTitle" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title"><i class="bi bi-pencil-square me-2"></i>Edit User</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title" id="editUserTitle"><i class="bi bi-pencil-square me-2"></i>Edit User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close edit user dialog"></button>
       </div>
       <div class="modal-body">
         <form id="editUserForm">
@@ -132,7 +135,7 @@
               Super Admin <span class="text-muted small">— full access to create/edit/delete across the Admin panel (only meaningful for the Admin role)</span>
             </label>
           </div>
-          <button type="submit" class="btn btn-primary w-100">Save Changes</button>
+          <button type="submit" class="btn btn-primary w-100" data-submit-label="Save Changes">Save Changes</button>
         </form>
         <div id="euResult" class="mt-3" style="display:none">
           <div class="p-3 rounded" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3)">
@@ -141,6 +144,9 @@
             <div class="small">Password: <strong id="euResultPassword"></strong></div>
           </div>
         </div>
+      </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -151,12 +157,12 @@
      automatically when it expires; the site-wide banner (base.html /
      app.js) tells the user how many days are left on every page while it's
      active, including the public Home page if they're logged in. -->
-<div class="modal fade" id="trialModal" tabindex="-1">
+<div class="modal fade" id="trialModal" tabindex="-1" aria-labelledby="trialTitle" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content" style="background:var(--bg-card);border-color:var(--border)">
       <div class="modal-header" style="border-color:var(--border)">
-        <h5 class="modal-title"><i class="bi bi-hourglass-split me-2"></i>Start Plan Trial</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h5 class="modal-title" id="trialTitle"><i class="bi bi-hourglass-split me-2"></i>Start Plan Trial</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close trial dialog"></button>
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-3">Grants <strong id="trUsername"></strong> full access to the selected plan for a limited time. Their account automatically switches back to Free once it ends — no need to remember to revoke it.</p>
@@ -164,14 +170,17 @@
           <input type="hidden" id="trUserId" />
           <div class="mb-3">
             <label class="form-label">Plan to trial</label>
-            <select class="form-select" id="trPlan"></select>
+            <select class="form-select" id="trPlan" required></select>
           </div>
           <div class="mb-3">
             <label class="form-label">Duration (days)</label>
             <input type="number" class="form-control" id="trDays" min="1" max="365" value="7" required />
           </div>
-          <button type="submit" class="btn btn-primary w-100"><i class="bi bi-play-fill me-1"></i>Start Trial</button>
+          <button type="submit" class="btn btn-primary w-100" data-submit-label="Start Trial"><i class="bi bi-play-fill me-1"></i>Start Trial</button>
         </form>
+      </div>
+      <div class="modal-footer" style="border-color:var(--border)">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
       </div>
     </div>
   </div>
@@ -217,6 +226,35 @@ let allRoles = [];
 let allSubscriptions = [];
 let allUsersById = {};
 let isSuperAdmin = false;
+
+function userModal(id) {
+  const el = document.getElementById(id);
+  if (!el || typeof bootstrap === 'undefined' || !bootstrap.Modal) {
+    Toast.show('This dialog is unavailable. Please reload the page.', 'error');
+    return null;
+  }
+  // Reuse Bootstrap's singleton so repeated edit/open cycles cannot stack
+  // modal instances or leave an old backdrop intercepting clicks.
+  return bootstrap.Modal.getOrCreateInstance(el);
+}
+
+function setFormBusy(form, busy, busyLabel = 'Working…') {
+  const submit = form?.querySelector('button[type="submit"]');
+  if (!submit) return;
+  if (busy) {
+    submit.dataset.idleHtml = submit.innerHTML;
+    submit.disabled = true;
+    submit.innerHTML = `<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>${STSafe.html(busyLabel)}`;
+  } else {
+    submit.disabled = false;
+    submit.innerHTML = submit.dataset.idleHtml || submit.dataset.submitLabel || 'Submit';
+    delete submit.dataset.idleHtml;
+  }
+}
+
+function apiErrorMessage(res, fallback) {
+  return res?.error || res?.message || fallback;
+}
 
 async function loadRolesAndSubscriptions() {
   const [rolesData, subsData] = await Promise.all([
@@ -307,18 +345,18 @@ async function loadUsers(page = 1) {
     // gated on Subscription (see the backend for why), so trialing a
     // different plan on an admin-role account is a real, meaningful change.
     const trialBtn = u.is_on_trial
-      ? `<button class="btn btn-sm btn-outline-warning" data-user-action="cancel-trial" data-id="${STSafe.assetId(u.id)}" title="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
-      : `<button class="btn btn-sm btn-outline-secondary" data-user-action="start-trial" data-id="${STSafe.assetId(u.id)}" title="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
+      ? `<button type="button" class="btn btn-sm btn-outline-warning" data-user-action="cancel-trial" data-id="${STSafe.assetId(u.id)}" title="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
+      : `<button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="start-trial" data-id="${STSafe.assetId(u.id)}" title="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
     return `
         <div class="d-flex gap-1">
-          <button class="btn btn-sm btn-outline-secondary" data-user-action="edit-user" data-id="${STSafe.assetId(u.id)}" title="Edit">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="edit-user" data-id="${STSafe.assetId(u.id)}" title="Edit">
             <i class="bi bi-pencil"></i>
           </button>
           ${trialBtn}
-          <button class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" data-user-action="toggle-user" data-id="${STSafe.assetId(u.id)}" data-active="${!u.is_active}" title="${u.is_active ? 'Disable' : 'Enable'}">
+          <button type="button" class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" data-user-action="toggle-user" data-id="${STSafe.assetId(u.id)}" data-active="${!u.is_active}" title="${u.is_active ? 'Disable' : 'Enable'}">
             ${u.is_active ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
           </button>
-          <button class="btn btn-sm btn-outline-danger" data-user-action="delete-user" data-id="${STSafe.assetId(u.id)}" data-username="${STSafe.html(u.username)}" title="Delete">
+          <button type="button" class="btn btn-sm btn-outline-danger" data-user-action="delete-user" data-id="${STSafe.assetId(u.id)}" data-username="${STSafe.html(u.username)}" title="Delete">
             <i class="bi bi-trash"></i>
           </button>
         </div>`;
@@ -455,31 +493,49 @@ document.getElementById('cuGenPwd').addEventListener('click', () => {
 
 document.getElementById('createUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const email = document.getElementById('cuEmail').value;
+  const form = e.currentTarget;
+  if (!form.reportValidity()) return;
+  const email = document.getElementById('cuEmail').value.trim();
   const password = document.getElementById('cuPassword').value;
-  const res = await API.post('/admin/users', {
-    first_name: document.getElementById('cuFirstName').value,
-    last_name: document.getElementById('cuLastName').value,
-    username: document.getElementById('cuUsername').value,
-    email,
-    password,
-    role_id: parseInt(document.getElementById('cuRole').value),
-    subscription_id: parseInt(document.getElementById('cuSubscription').value),
-  });
-  if (res && !res.error) {
-    Toast.show('Test user created', 'success');
-    document.getElementById('cuResultEmail').textContent = email;
-    document.getElementById('cuResultPassword').textContent = password;
-    document.getElementById('cuResult').style.display = '';
-    document.getElementById('createUserForm').reset();
-    loadUsers(userPage);
-  } else {
-    Toast.show(res?.error || 'Failed to create user', 'error');
+  const roleId = Number(document.getElementById('cuRole').value);
+  const subscriptionId = Number(document.getElementById('cuSubscription').value);
+  if (!Number.isSafeInteger(roleId) || roleId <= 0 || !Number.isSafeInteger(subscriptionId) || subscriptionId <= 0) {
+    Toast.show('Role and plan options are still loading. Please try again.', 'warning');
+    return;
+  }
+
+  setFormBusy(form, true, 'Creating account…');
+  try {
+    const res = await API.post('/admin/users', {
+      first_name: document.getElementById('cuFirstName').value.trim(),
+      last_name: document.getElementById('cuLastName').value.trim(),
+      username: document.getElementById('cuUsername').value.trim(),
+      email,
+      password,
+      role_id: roleId,
+      subscription_id: subscriptionId,
+    });
+    if (res && !res.error) {
+      Toast.show('Test user created', 'success');
+      document.getElementById('cuResultEmail').textContent = email;
+      document.getElementById('cuResultPassword').textContent = password;
+      document.getElementById('cuResult').style.display = '';
+      form.reset();
+      loadUsers(userPage);
+    } else {
+      Toast.show(apiErrorMessage(res, 'Failed to create user'), 'error');
+    }
+  } catch (error) {
+    console.error('Create user error:', error);
+    Toast.show('Unable to create user. Please try again.', 'error');
+  } finally {
+    setFormBusy(form, false);
   }
 });
 
 document.getElementById('createUserModal').addEventListener('hidden.bs.modal', () => {
   document.getElementById('cuResult').style.display = 'none';
+  document.getElementById('createUserForm').reset();
 });
 
 // ── Edit User (super admin only) ────────────────────────────────────────
@@ -496,7 +552,7 @@ function openEditUser(id) {
   document.getElementById('euPassword').value = '';
   document.getElementById('euSuperAdmin').checked = !!u.is_super_admin;
   document.getElementById('euResult').style.display = 'none';
-  new bootstrap.Modal(document.getElementById('editUserModal')).show();
+  userModal('editUserModal')?.show();
 }
 
 document.getElementById('euGenPwd').addEventListener('click', () => {
@@ -508,31 +564,45 @@ document.getElementById('euGenPwd').addEventListener('click', () => {
 
 document.getElementById('editUserForm').addEventListener('submit', async (e) => {
   e.preventDefault();
-  const id = document.getElementById('euId').value;
-  const email = document.getElementById('euEmail').value;
+  const form = e.currentTarget;
+  if (!form.reportValidity()) return;
+  const id = STSafe.assetId(document.getElementById('euId').value);
+  if (!id) {
+    Toast.show('The selected user is no longer available. Reload the page.', 'error');
+    return;
+  }
+  const email = document.getElementById('euEmail').value.trim();
   const password = document.getElementById('euPassword').value;
   const payload = {
-    first_name: document.getElementById('euFirstName').value,
-    last_name: document.getElementById('euLastName').value,
-    username: document.getElementById('euUsername').value,
+    first_name: document.getElementById('euFirstName').value.trim(),
+    last_name: document.getElementById('euLastName').value.trim(),
+    username: document.getElementById('euUsername').value.trim(),
     email,
     is_super_admin: document.getElementById('euSuperAdmin').checked,
   };
   if (password) payload.password = password;
 
-  const res = await API.put(`/admin/users/${id}`, payload);
-  if (res && !res.error) {
-    Toast.show('User updated', 'success');
-    if (password) {
-      document.getElementById('euResultEmail').textContent = email;
-      document.getElementById('euResultPassword').textContent = password;
-      document.getElementById('euResult').style.display = '';
+  setFormBusy(form, true, 'Saving changes…');
+  try {
+    const res = await API.put(`/admin/users/${id}`, payload);
+    if (res && !res.error) {
+      Toast.show('User updated', 'success');
+      if (password) {
+        document.getElementById('euResultEmail').textContent = email;
+        document.getElementById('euResultPassword').textContent = password;
+        document.getElementById('euResult').style.display = '';
+      } else {
+        userModal('editUserModal')?.hide();
+      }
+      loadUsers(userPage);
     } else {
-      bootstrap.Modal.getInstance(document.getElementById('editUserModal'))?.hide();
+      Toast.show(apiErrorMessage(res, 'Failed to update user'), 'error');
     }
-    loadUsers(userPage);
-  } else {
-    Toast.show(res?.error || 'Failed to update user', 'error');
+  } catch (error) {
+    console.error('Update user error:', error);
+    Toast.show('Unable to update user. Please try again.', 'error');
+  } finally {
+    setFormBusy(form, false);
   }
 });
 
@@ -550,7 +620,7 @@ function openTrialModal(id) {
   document.getElementById('trUserId').value = u.id;
   document.getElementById('trUsername').textContent = u.username;
   document.getElementById('trDays').value = 7;
-  new bootstrap.Modal(document.getElementById('trialModal')).show();
+  userModal('trialModal')?.show();
 }
 
 document.getElementById('trialForm').addEventListener('submit', async (e) => {

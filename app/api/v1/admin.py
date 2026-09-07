@@ -15,6 +15,7 @@ from app.services.api_config_validation import (
     validate_api_config_payload,
 )
 from sqlalchemy.orm import joinedload
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 
 admin_bp = Blueprint("admin", __name__)
@@ -418,7 +419,9 @@ def update_user(user_id):
     accounts (or their own account) without going through the self-service
     /auth/me flow, which requires knowing the current password."""
     user = User.query.get_or_404(user_id)
-    data = request.get_json()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not data:
+        return jsonify({"error": "A non-empty JSON object is required"}), 400
 
     if "username" in data:
         new_username = (data["username"] or "").strip()
@@ -436,15 +439,37 @@ def update_user(user_id):
             return jsonify({"error": "Email already registered"}), 409
         user.email = new_email
 
+    if "role_id" in data:
+        try:
+            role_id = int(data["role_id"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid role"}), 400
+        if role_id <= 0 or not Role.query.get(role_id):
+            return jsonify({"error": "Invalid role"}), 400
+        user.role_id = role_id
+
+    if "subscription_id" in data:
+        try:
+            subscription_id = int(data["subscription_id"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid subscription"}), 400
+        if subscription_id <= 0 or not Subscription.query.get(subscription_id):
+            return jsonify({"error": "Invalid subscription"}), 400
+        user.subscription_id = subscription_id
+
     if data.get("password"):
         user.set_password(data["password"])
 
-    for f in ["is_active", "role_id", "subscription_id", "is_verified",
+    for f in ["is_active", "is_verified",
               "approval_status", "is_super_admin", "first_name", "last_name"]:
         if f in data:
             setattr(user, f, data[f])
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "User details conflict with an existing account"}), 409
     _audit_admin_action(user.id, "admin_update_user")
     return jsonify(user.to_dict()), 200
 
@@ -481,23 +506,41 @@ def create_user():
     approved, verified, and usable immediately, since an admin is directly
     vouching for the account rather than a stranger self-registering.
     """
-    data = request.get_json() or {}
-    if not all((data.get(f) or "").strip() if isinstance(data.get(f), str) else data.get(f) for f in ["username", "email", "password"]):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required"}), 400
+
+    username = (data.get("username") or "").strip()
+    email = (data.get("email") or "").strip()
+    password = data.get("password")
+    if not username or not email or not isinstance(password, str) or not password:
         return jsonify({"error": "username, email, and password are required"}), 400
 
-    if User.query.filter_by(username=data["username"]).first():
+    if User.query.filter_by(username=username).first():
         return jsonify({"error": "Username already taken"}), 409
-    if User.query.filter_by(email=data["email"]).first():
+    if User.query.filter_by(email=email).first():
         return jsonify({"error": "Email already registered"}), 409
 
     role_id = data.get("role_id")
+    if role_id:
+        try:
+            role_id = int(role_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid role"}), 400
     if role_id and not Role.query.get(role_id):
         return jsonify({"error": "Invalid role"}), 400
     if not role_id:
         free_role = Role.query.filter_by(name="free").first()
         role_id = free_role.id if free_role else None
+    if not role_id:
+        return jsonify({"error": "No assignable role is configured"}), 400
 
     subscription_id = data.get("subscription_id")
+    if subscription_id:
+        try:
+            subscription_id = int(subscription_id)
+        except (TypeError, ValueError):
+            return jsonify({"error": "Invalid subscription"}), 400
     if subscription_id and not Subscription.query.get(subscription_id):
         return jsonify({"error": "Invalid subscription"}), 400
     if not subscription_id:
@@ -505,8 +548,8 @@ def create_user():
         subscription_id = free_sub.id if free_sub else None
 
     user = User(
-        username=data["username"],
-        email=data["email"],
+        username=username,
+        email=email,
         first_name=(data.get("first_name") or "").strip(),
         last_name=(data.get("last_name") or "").strip(),
         role_id=role_id,
@@ -515,9 +558,13 @@ def create_user():
         is_verified=True,
         approval_status="approved",
     )
-    user.set_password(data["password"])
+    user.set_password(password)
     db.session.add(user)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "User details conflict with an existing account"}), 409
 
     _audit_admin_action(user.id, "admin_create_user")
 
