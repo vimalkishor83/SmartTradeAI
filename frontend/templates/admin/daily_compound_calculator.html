@@ -12,8 +12,8 @@
   </div>
 </div>
 
-<div class="row g-4">
-  <div class="col-lg-4">
+<div class="row g-4 dcc-layout">
+  <div class="col-lg-4 dcc-input-column">
     <div class="section-card mb-4">
       <div class="section-card-header">
         <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Scenario Inputs</span>
@@ -52,10 +52,10 @@
         <label class="form-label small">Max Integer Digits (safety cap, 4-20)</label>
         <input type="number" class="form-control mono mb-3" id="cMaxDigits" min="4" max="20" step="1" value="20" />
 
-        <div class="d-flex gap-2">
-          <button type="button" class="btn btn-primary flex-fill" id="btnCalculate">Calculate</button>
-          <button type="button" class="btn btn-outline-secondary" id="btnSave">Save</button>
-          <button type="button" class="btn btn-outline-secondary" id="btnReset">Reset</button>
+        <div class="dcc-action-row">
+          <button type="button" class="btn btn-primary" id="btnCalculate"><i class="bi bi-calculator me-1"></i>Calculate</button>
+          <button type="button" class="btn btn-outline-secondary" id="btnSave"><i class="bi bi-bookmark-plus me-1"></i>Save</button>
+          <button type="button" class="btn btn-outline-secondary" id="btnReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
         </div>
       </div>
     </div>
@@ -71,39 +71,52 @@
     </div>
   </div>
 
-  <div class="col-lg-8">
+  <div class="col-lg-8 dcc-results-column">
     <div class="section-card" id="resultsEmptyCard">
-      <div class="p-4 text-center text-muted small">Enter a scenario and click Calculate to see the growth schedule.</div>
+      <div class="dcc-empty-state">
+        <div class="dcc-empty-icon"><i class="bi bi-graph-up-arrow"></i></div>
+        <div>
+          <div class="dcc-empty-title">Your projection will appear here</div>
+          <div class="text-muted small">Enter a scenario and click Calculate to see the growth schedule.</div>
+        </div>
+      </div>
     </div>
 
     <div id="resultsBody" style="display:none">
-      <div class="section-card mb-3" style="background:linear-gradient(135deg, rgba(245,166,35,.14), rgba(245,166,35,.03)); border-color:rgba(245,166,35,.25)">
-        <div class="p-3">
-          <div class="mono fw-800" id="rFinalAmount" style="font-size:28px;color:var(--accent)">—</div>
-          <div class="text-muted small mt-1">Final Amount &middot; <span class="text-green fw-600" id="rTotalInterest">—</span> total interest earned</div>
+      <div class="section-card mb-3 dcc-result-hero">
+        <div class="dcc-result-hero-icon"><i class="bi bi-graph-up-arrow"></i></div>
+        <div class="dcc-result-hero-copy">
+          <div class="dcc-result-kicker">Projected outcome</div>
+          <div class="mono fw-800 dcc-final-amount" id="rFinalAmount">—</div>
+          <div class="text-muted small">Final amount &middot; <span class="text-green fw-600" id="rTotalInterest">—</span> total interest earned</div>
         </div>
+        <span class="dcc-result-status"><i class="bi bi-check-circle me-1"></i>Calculated</span>
       </div>
 
       <div id="rTruncatedBanner" class="alert alert-warning py-2 small mb-3" style="display:none">
         The schedule stopped early — the balance passed the configured magnitude cap before the full duration completed.
       </div>
 
-      <div class="d-flex flex-wrap gap-2 mb-3">
+      <div class="dcc-summary-chips mb-3">
         <span class="badge-tag">Principal <b class="mono" id="chipPrincipal">—</b></span>
         <span class="badge-tag">Rate <b class="mono" id="chipRate">—</b></span>
         <span class="badge-tag">Period <b class="mono" id="chipPeriod">—</b></span>
         <span class="badge-tag">Duration <b class="mono" id="chipDuration">—</b></span>
       </div>
 
-      <div class="section-card">
+      <div class="section-card dcc-schedule-card">
         <div class="section-card-header" style="border-bottom:none;padding-bottom:0">
+          <div>
+            <div class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Growth schedule</div>
+            <div class="dcc-schedule-hint">Switch views to inspect the projection at the level you need.</div>
+          </div>
           <div class="d-flex gap-1" id="scheduleTabs">
             <button type="button" class="btn btn-sm btn-outline-secondary active" data-tab="daily">Day-wise</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-tab="monthly">Month-wise</button>
             <button type="button" class="btn btn-sm btn-outline-secondary" data-tab="yearly">Year-wise</button>
           </div>
         </div>
-        <div class="table-responsive" style="max-height:520px">
+        <div class="table-responsive dcc-schedule-wrap" style="max-height:520px">
           <table class="smart-table" data-mobile-cards>
             <thead id="tHead"></thead>
             <tbody id="tBody"></tbody>
@@ -118,13 +131,20 @@
      — a fixed-width centered dialog either overflows or gets cramped on a
      narrow phone; an edge-anchored panel can cleanly become full-width
      there via one media query instead of needing a separate mobile layout. -->
-<div class="dcc-panel-backdrop" id="savePanel">
-  <div class="dcc-panel">
-    <h3 class="mb-3">Save Scenario</h3>
+<div class="dcc-panel-backdrop" id="savePanel" role="presentation" aria-hidden="true">
+  <div class="dcc-panel" role="dialog" aria-modal="true" aria-labelledby="savePanelTitle">
+    <div class="dcc-panel-head">
+      <div>
+        <div class="dcc-panel-kicker">Scenario library</div>
+        <h3 class="mb-0" id="savePanelTitle">Save Scenario</h3>
+      </div>
+      <button type="button" class="dcc-panel-close" id="pClose" aria-label="Close save scenario panel"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <p class="dcc-panel-help">Save the current inputs so you can reload and compare this projection later.</p>
     <label class="form-label small">Name</label>
     <input type="text" class="form-control mb-3" id="pName" placeholder="e.g. Retirement Fund" />
-    <div class="d-flex gap-2">
-      <button type="button" class="btn btn-primary flex-fill" id="pConfirm">Save</button>
+    <div class="dcc-panel-actions">
+      <button type="button" class="btn btn-primary" id="pConfirm"><i class="bi bi-bookmark-check me-1"></i>Save scenario</button>
       <button type="button" class="btn btn-outline-secondary" id="pCancel">Cancel</button>
     </div>
   </div>
@@ -133,22 +153,60 @@
 
 {% block extra_js %}
 <style>
+  .dcc-action-row { display: grid; grid-template-columns: minmax(0, 1.5fr) repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dcc-action-row .btn { min-height: 40px; white-space: nowrap; }
   .badge-tag { background: var(--glass); border: 1px solid var(--border); border-radius: 999px; padding: 5px 12px; font-size: 12px; color: var(--text-muted); }
   .badge-tag b { color: var(--text-primary); margin-left: 4px; }
   .smart-table td.pos { color: var(--green); }
   #scheduleTabs .btn.active { background: var(--accent); border-color: var(--accent); color: #1a1200; }
+  .dcc-empty-state { display:flex; align-items:center; gap:14px; min-height:132px; padding:24px; }
+  .dcc-empty-icon, .dcc-result-hero-icon { display:grid; place-items:center; flex:0 0 42px; width:42px; height:42px; border-radius:13px; color:var(--accent); background:rgba(245,166,35,.12); border:1px solid rgba(245,166,35,.3); font-size:19px; }
+  .dcc-empty-title { color:var(--text-primary); font-weight:700; margin-bottom:3px; }
+  .dcc-result-hero { display:flex; align-items:center; gap:14px; padding:16px; background:linear-gradient(135deg, rgba(245,166,35,.14), rgba(245,166,35,.03)); border-color:rgba(245,166,35,.25); }
+  .dcc-result-hero-copy { min-width:0; flex:1; }
+  .dcc-result-kicker, .dcc-panel-kicker { color:var(--accent-light); font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
+  .dcc-final-amount { font-size:28px; color:var(--accent); line-height:1.15; overflow-wrap:anywhere; }
+  .dcc-result-status { align-self:flex-start; padding:5px 8px; color:var(--green); border:1px solid rgba(16,185,129,.3); border-radius:999px; background:rgba(16,185,129,.08); font-size:10px; font-weight:700; white-space:nowrap; }
+  .dcc-summary-chips { display:flex; flex-wrap:wrap; gap:8px; }
+  .dcc-schedule-hint { margin-top:3px; color:var(--text-muted); font-size:11px; }
+  .dcc-schedule-wrap { border-top:1px solid var(--border); }
   .dcc-panel-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; z-index: 1000;
+    position: fixed; inset: 0; background: rgba(0,0,0,0.58); display: none; z-index: 1100; backdrop-filter: blur(3px);
   }
   .dcc-panel-backdrop.open { display: block; }
   .dcc-panel {
-    position: fixed; top: 0; right: 0; bottom: 0; width: 360px; max-width: 90vw;
-    background: var(--bg-card, #161d29); border-left: 1px solid var(--border);
-    padding: 22px 20px; box-shadow: -8px 0 24px rgba(0,0,0,0.35);
+    position: fixed; top: 0; right: 0; bottom: 0; width: 390px; max-width: 92vw;
+    display:flex; flex-direction:column; overflow-y:auto;
+    background: linear-gradient(180deg, rgba(139,124,255,.08), transparent 28%), var(--bg-card, #161d29); border-left: 1px solid var(--border);
+    padding: max(22px, env(safe-area-inset-top)) 20px max(22px, env(safe-area-inset-bottom)); box-shadow: -8px 0 24px rgba(0,0,0,0.35);
     transform: translateX(100%); transition: transform .22s ease;
   }
   .dcc-panel-backdrop.open .dcc-panel { transform: translateX(0); }
-  @media (max-width: 520px) { .dcc-panel { width: 100%; max-width: 100%; } }
+  .dcc-panel-head { display:flex; align-items:flex-start; justify-content:space-between; gap:14px; padding-bottom:16px; border-bottom:1px solid var(--border); }
+  .dcc-panel-close { display:grid; place-items:center; width:34px; height:34px; flex:0 0 34px; border:1px solid var(--border); border-radius:9px; color:var(--text-secondary); background:var(--glass); }
+  .dcc-panel-close:hover, .dcc-panel-close:focus-visible { color:var(--text-primary); border-color:var(--accent); background:rgba(245,166,35,.1); }
+  .dcc-panel-help { margin:16px 0 20px; color:var(--text-muted); font-size:12px; line-height:1.55; }
+  .dcc-panel-actions { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:8px; margin-top:auto; padding-top:18px; }
+  @media (max-width: 991px) { .dcc-results-column { order:0; } }
+  @media (max-width: 680px) {
+    .dcc-empty-state { min-height:112px; padding:18px; }
+    .dcc-result-hero { align-items:flex-start; padding:14px; }
+    .dcc-result-status { margin-left:auto; }
+    .dcc-final-amount { font-size:24px; }
+    .dcc-schedule-card .section-card-header { align-items:flex-start; flex-direction:column; gap:12px; }
+    #scheduleTabs { width:100%; }
+    #scheduleTabs .btn { flex:1; min-height:38px; padding-inline:6px; }
+  }
+  @media (max-width: 520px) {
+    .dcc-action-row { grid-template-columns:1fr; }
+    .dcc-action-row .btn { width:100%; }
+    .dcc-result-hero { flex-wrap:wrap; }
+    .dcc-result-status { margin-left:56px; margin-top:-8px; }
+    .dcc-panel { width:100%; max-width:100%; border-left:0; }
+    .dcc-panel-actions { grid-template-columns:1fr; }
+    .dcc-panel-actions .btn { width:100%; min-height:42px; }
+  }
+  @media (prefers-reduced-motion: reduce) { .dcc-panel { transition:none; } }
 </style>
 <script>
 (function () {
@@ -265,13 +323,23 @@
     lastResult = null;
   });
 
+  function setPanelOpen(open) {
+    el('savePanel').classList.toggle('open', open);
+    el('savePanel').setAttribute('aria-hidden', String(!open));
+    if (open) setTimeout(() => el('pName').focus(), 0);
+  }
+
   el('btnSave').addEventListener('click', () => {
     el('pName').value = el('cName').value.trim();
-    el('savePanel').classList.add('open');
+    setPanelOpen(true);
   });
-  el('pCancel').addEventListener('click', () => el('savePanel').classList.remove('open'));
+  el('pCancel').addEventListener('click', () => setPanelOpen(false));
+  el('pClose').addEventListener('click', () => setPanelOpen(false));
   el('savePanel').addEventListener('click', (e) => {
-    if (e.target.id === 'savePanel') el('savePanel').classList.remove('open');
+    if (e.target.id === 'savePanel') setPanelOpen(false);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && el('savePanel').classList.contains('open')) setPanelOpen(false);
   });
   el('pConfirm').addEventListener('click', async () => {
     const name = el('pName').value.trim();
@@ -281,7 +349,7 @@
     const res = await API.post('/daily-compound-calculator/saved', inputs);
     if (res && !res.error) {
       Toast.show('Scenario saved', 'success');
-      el('savePanel').classList.remove('open');
+      setPanelOpen(false);
       el('cName').value = name;
       loadSaved();
     } else {
