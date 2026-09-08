@@ -6,7 +6,12 @@ cells can take several minutes and should not occupy a web worker.
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+
+# Executing a script by absolute path puts /app/scripts first on sys.path;
+# add the application root so the same command works inside Docker and locally.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import create_app
 from app.extensions import db
