@@ -6777,3 +6777,15 @@ html[data-theme="light"] .app-shell {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
   }
 }
+
+/* Respect the operating system's reduced-motion preference. This is shared
+   by all dashboard modules, including dynamically-rendered result cards. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
