@@ -239,9 +239,9 @@ const MARKET_SHORT = { crypto: 'CR', forex: 'FX', gold: 'GD', silver: 'SL', indi
 // Field name convention matches the backend exactly:
 // telegram_<key>_individual_markets / telegram_<key>_group_markets
 const ALERT_CATEGORIES = [
-  { key: 'signal', pages: ['Terminal', 'Auto-Generate', 'TA Summary'], label: 'New signal alerts', hasGroup: true },
+  { key: 'signal', pages: ['Terminal', 'Auto-Generate', 'Technical Ratings'], label: 'New signal alerts', hasGroup: true },
   { key: 'signal_closed', pages: ['Signal reaching target or stop loss'], label: 'Signal closed', hasGroup: true },
-  { key: 'rating_change', pages: ['Delta Scanner', 'MTF Analysis'], label: 'MTF rating changes', hasGroup: true },
+  { key: 'rating_change', pages: ['Delta Scanner', 'Timeframe Confluence'], label: 'Timeframe rating changes', hasGroup: true },
   { key: 'watchlist', pages: ['Watchlist'], label: 'Watchlist price alerts', hasGroup: false },
   { key: 'protective_order', pages: ['Live positions (broker-connected)'], label: 'Live position stop-loss / take-profit hits', hasGroup: false },
 ];
