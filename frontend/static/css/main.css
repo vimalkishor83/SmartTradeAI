@@ -6841,6 +6841,19 @@ html[data-theme="light"] .app-shell {
   }
 }
 
+/* The compact command trigger must win over the wider tablet minimum above.
+   Keeping it icon-only at phone widths prevents the toolbar from creating a
+   horizontal scroll area that can push page content off-screen. */
+@media (max-width: 768px) {
+  .app-shell .cmd-trigger {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    margin-inline: 0;
+    padding-inline: 9px;
+  }
+}
+
 @media (max-width: 520px) {
   .app-shell .kpi-grid-8 {
     grid-template-columns: repeat(2, minmax(0, 1fr));

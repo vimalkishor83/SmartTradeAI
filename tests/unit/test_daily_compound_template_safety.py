@@ -10,6 +10,7 @@ TEMPLATE = (
     / "admin"
     / "daily_compound_calculator.html"
 )
+SHELL_CSS = Path(__file__).parents[2] / "frontend" / "static" / "css" / "main.css"
 
 
 def test_calculator_has_mobile_safe_input_and_results_regions():
@@ -30,6 +31,15 @@ def test_calculator_result_panel_has_clear_empty_and_loaded_states():
     assert "Projected outcome" in source
     assert "Growth schedule" in source
     assert "Switch views to inspect the projection" in source
+
+
+def test_mobile_toolbar_does_not_create_horizontal_overflow():
+    source = SHELL_CSS.read_text(encoding="utf-8")
+
+    assert "@media (max-width: 768px)" in source
+    assert ".app-shell .cmd-trigger" in source
+    assert "flex: 0 0 36px" in source
+    assert "min-width: 36px" in source
 
 
 def test_save_panel_is_mobile_safe_and_keyboard_dismissible():
