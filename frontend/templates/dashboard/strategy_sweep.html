@@ -1,0 +1,150 @@
+{% extends "partials/base.html" %}
+{% block title %}Strategy Sweep - SmartTrade AI{% endblock %}
+{% set active = 'backtest_sweep' %}
+{% block breadcrumb %}<i class="bi bi-grid-3x3-gap me-2"></i> Strategy Sweep{% endblock %}
+
+{% block extra_css %}
+<style>
+  .sweep-hero { background: linear-gradient(135deg, rgba(245,166,35,.13), rgba(31,201,151,.06) 55%, var(--bg-card)); border: 1px solid var(--border); border-radius: 18px; padding: 24px; }
+  .sweep-kpi { border: 1px solid var(--border); border-radius: 14px; padding: 16px; background: rgba(255,255,255,.025); min-height: 104px; }
+  .sweep-kpi .value { display: block; margin-top: 6px; font: 700 24px/1 var(--font-mono); color: var(--text-primary); }
+  .sweep-table-wrap { overflow-x: auto; }
+  .sweep-table { min-width: 980px; }
+  .sweep-table th { white-space: nowrap; color: var(--text-secondary); font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+  .sweep-table td { vertical-align: middle; white-space: nowrap; }
+  .sweep-table tbody tr { transition: background .18s ease; cursor: pointer; }
+  .sweep-table tbody tr:hover, .sweep-table tbody tr.is-selected { background: rgba(245,166,35,.08); }
+  .sweep-badge { border: 1px solid var(--border); border-radius: 999px; padding: 4px 9px; font-size: 11px; font-weight: 700; }
+  .sweep-badge.good { color: var(--green); border-color: rgba(31,201,151,.45); }
+  .sweep-badge.bad { color: var(--red); border-color: rgba(255,82,102,.45); }
+  .sweep-detail { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 18px; }
+  .sweep-note { color: var(--text-secondary); font-size: 12px; line-height: 1.6; }
+  @media (max-width: 700px) { .sweep-hero { padding: 18px; } .sweep-kpi { min-height: 90px; } .sweep-kpi .value { font-size: 20px; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+  <div class="page-kicker">07 / RESEARCH LAB</div>
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-3">
+    <div>
+      <h1 class="page-title mb-1">Strategy Sweep</h1>
+      <p class="text-secondary mb-0">A reproducible comparison of SOLUSDT and XRPUSDT across the supported strategies and requested timeframes.</p>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <label class="visually-hidden" for="sweepRun">Report run</label>
+      <select id="sweepRun" class="form-select form-select-sm" aria-label="Select saved strategy sweep"></select>
+      <button id="sweepRefresh" class="btn btn-outline-secondary btn-sm" type="button"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+    </div>
+  </div>
+
+  <div id="sweepStatus" class="small text-secondary mb-3" role="status" aria-live="polite">Loading the latest server report...</div>
+  <section id="sweepHero" class="sweep-hero mb-3" hidden>
+    <div class="d-flex flex-wrap justify-content-between gap-3">
+      <div><div class="text-accent text-uppercase small fw-bold">Saved server run</div><h2 id="sweepName" class="h4 mt-2 mb-1"></h2><div id="sweepMeta" class="sweep-note"></div></div>
+      <div class="text-end"><div class="text-secondary small">Status</div><div id="sweepRunStatus" class="sweep-badge mt-2"></div></div>
+    </div>
+    <div class="row g-2 mt-3" id="sweepKpis"></div>
+  </section>
+
+  <section id="sweepEmpty" class="section-card p-4 text-center">
+    <i class="bi bi-hourglass-split fs-1 text-accent"></i><h2 class="h5 mt-3">No saved sweep yet</h2><p class="text-secondary mb-0">Run the server command, then refresh this page.</p>
+  </section>
+
+  <section id="sweepReport" hidden>
+    <div class="section-card mb-3">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-table text-accent me-2"></i>Performance matrix</span></div>
+      <div class="section-card-body pt-2">
+        <div class="row g-2 mb-3">
+          <div class="col-md-4"><label class="form-label small" for="sweepAsset">Asset</label><select id="sweepAsset" class="form-select form-select-sm"><option value="all">All assets</option></select></div>
+          <div class="col-md-4"><label class="form-label small" for="sweepStrategy">Strategy</label><select id="sweepStrategy" class="form-select form-select-sm"><option value="all">All strategies</option></select></div>
+          <div class="col-md-4"><label class="form-label small" for="sweepTf">Timeframe</label><select id="sweepTf" class="form-select form-select-sm"><option value="all">All timeframes</option></select></div>
+        </div>
+        <div class="sweep-table-wrap"><table class="table table-dark table-sm sweep-table mb-0"><thead><tr><th>Asset</th><th>Timeframe</th><th>Strategy</th><th>Trades</th><th>Win rate</th><th>Net return</th><th>Drawdown</th><th>Profit factor</th><th>Score</th><th>Status</th></tr></thead><tbody id="sweepRows"></tbody></table></div>
+        <div class="sweep-note mt-3">Rows with fewer than five trades have no comparison score. The score is a review aid, not a prediction or trading recommendation.</div>
+      </div>
+    </div>
+    <div id="sweepDetail" class="section-card sweep-detail" hidden><div class="section-card-header"><span class="section-card-title"><i class="bi bi-activity text-green me-2"></i>Selected cell</span></div><div class="section-card-body" id="sweepDetailBody"></div></div>
+  </section>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(() => {
+  const state = { report: null, cells: [], selected: null };
+  const $ = id => document.getElementById(id);
+  const escape = value => STSafe.html(value == null ? '' : String(value));
+  const number = (value, digits = 2) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '-';
+  const percent = value => value == null ? '-' : `${Number(value) >= 0 ? '+' : ''}${number(value)}%`;
+  const runQuery = new URLSearchParams(location.search).get('run');
+
+  function setStatus(message) { $('sweepStatus').textContent = message; }
+  function fillSelect(id, values, labeler) {
+    const select = $(id); const current = select.value;
+    select.innerHTML = '<option value="all">All</option>' + values.map(value => `<option value="${escape(value)}">${escape(labeler ? labeler(value) : value)}</option>`).join('');
+    if ([...select.options].some(option => option.value === current)) select.value = current;
+  }
+  function renderSummary() {
+    const report = state.report; const summary = report.summary || {}; const best = summary.best_overall;
+    $('sweepHero').hidden = false; $('sweepEmpty').hidden = true; $('sweepReport').hidden = false;
+    $('sweepName').textContent = report.name || 'Strategy sweep';
+    $('sweepMeta').textContent = `${report.assets.join(', ')} | ${report.timeframes.join(', ')} | ${report.completed_cells}/${report.total_cells} cells | ${report.candle_limit} candles per cell | engine ${report.engine_version || '-'}`;
+    $('sweepRunStatus').textContent = report.status || 'unknown';
+    $('sweepRunStatus').className = `sweep-badge ${report.status === 'completed' ? 'good' : 'bad'}`;
+    const cards = [['Completed cells', `${summary.completed_cells || 0}/${report.total_cells || 0}`, 'text-green'], ['Reviewable cells', summary.eligible_cells || 0, 'text-accent'], ['Cells with errors', summary.failed_cells || 0, summary.failed_cells ? 'text-red' : 'text-green'], ['Best review candidate', best ? `${best.asset} | ${best.timeframe}` : '-', 'text-primary']];
+    $('sweepKpis').innerHTML = cards.map(([label, value, color]) => `<div class="col-6 col-xl-3"><div class="sweep-kpi"><span class="text-secondary small">${escape(label)}</span><span class="value ${color}">${escape(value)}</span>${label === 'Best review candidate' && best ? `<span class="sweep-note">${escape(best.strategy)} | score ${number(best.comparison_score)}</span>` : ''}</div></div>`).join('');
+  }
+  function renderRows() {
+    const asset = $('sweepAsset').value; const strategy = $('sweepStrategy').value; const timeframe = $('sweepTf').value;
+    const rows = state.cells.filter(cell => (asset === 'all' || cell.asset === asset) && (strategy === 'all' || cell.strategy === strategy) && (timeframe === 'all' || cell.timeframe === timeframe));
+    $('sweepRows').innerHTML = rows.map(cell => {
+      const stats = cell.stats || {}; const score = stats.comparison_score;
+      return `<tr data-cell-index="${state.cells.indexOf(cell)}" class="${state.selected === cell ? 'is-selected' : ''}"><td><strong>${escape(cell.asset)}</strong><small class="d-block text-secondary">${escape(cell.asset_name)}</small></td><td><span class="sweep-badge">${escape(cell.timeframe)}</span><small class="d-block text-secondary">${cell.data_mode === 'derived_from_1h' ? 'derived from 1h' : 'native data'}</small></td><td>${escape(cell.strategy_label || cell.strategy)}</td><td>${escape(stats.total_trades ?? '-')}</td><td>${number(stats.win_rate, 1)}%</td><td class="${Number(stats.net_profit_pct) >= 0 ? 'text-green' : 'text-red'}">${percent(stats.net_profit_pct)}</td><td>${number(stats.max_drawdown)}%</td><td>${number(stats.profit_factor)}</td><td>${score == null ? '-' : number(score)}</td><td><span class="sweep-badge ${cell.status === 'completed' ? 'good' : 'bad'}">${escape(cell.status)}</span></td></tr>`;
+    }).join('') || '<tr><td colspan="10" class="text-center text-secondary py-4">No cells match the selected filters.</td></tr>';
+    document.querySelectorAll('[data-cell-index]').forEach(row => row.addEventListener('click', () => selectCell(state.cells[Number(row.dataset.cellIndex)])));
+  }
+  function selectCell(cell) {
+    state.selected = cell; renderRows(); $('sweepDetail').hidden = false; const stats = cell.stats || {};
+    if (cell.status !== 'completed') { $('sweepDetailBody').innerHTML = `<div class="text-red">${escape(cell.error || 'Cell failed')}</div>`; return; }
+    const metrics = [['Net return', percent(stats.net_profit_pct)], ['Win rate', `${number(stats.win_rate, 1)}%`], ['Max drawdown', `${number(stats.max_drawdown)}%`], ['Sharpe', number(stats.sharpe_ratio)], ['Sortino', number(stats.sortino_ratio)], ['Profit factor', number(stats.profit_factor)]];
+    $('sweepDetailBody').innerHTML = `<div class="row g-3"><div class="col-md-7"><h3 class="h6">${escape(cell.asset)} | ${escape(cell.timeframe)} | ${escape(cell.strategy_label)}</h3><p class="sweep-note mb-2">${escape(cell.description)}</p><div class="sweep-note">Data: ${escape(cell.data_mode)} | ${escape(cell.candles)} candles | ${escape(cell.data_start)} to ${escape(cell.data_end)}</div></div><div class="col-md-5"><div class="row g-2">${metrics.map(([label, value]) => `<div class="col-6"><div class="sweep-note">${escape(label)}</div><strong>${escape(value)}</strong></div>`).join('')}</div></div></div>`;
+  }
+  async function loadReport(runId = runQuery) {
+    setStatus('Loading saved server report...'); $('sweepRefresh').disabled = true;
+    try {
+      const suffix = runId ? `?run=${encodeURIComponent(runId)}` : '';
+      const data = await API.get(`/backtesting/sweeps/latest${suffix}`);
+      state.report = data; state.cells = Array.isArray(data.result_data?.cells) ? data.result_data.cells : [];
+      fillSelect('sweepAsset', [...new Set(state.cells.map(cell => cell.asset))]);
+      fillSelect('sweepStrategy', [...new Set(state.cells.map(cell => cell.strategy))], key => state.cells.find(cell => cell.strategy === key)?.strategy_label || key);
+      fillSelect('sweepTf', [...new Set(state.cells.map(cell => cell.timeframe))]);
+      renderSummary(); renderRows(); setStatus(`Loaded ${state.cells.length} persisted result cells.`);
+    } catch (error) {
+      $('sweepHero').hidden = true; $('sweepReport').hidden = true; $('sweepEmpty').hidden = false; setStatus('No saved report is available yet.');
+    } finally { $('sweepRefresh').disabled = false; }
+  }
+  async function loadRunList() {
+    try {
+      const data = await API.get('/backtesting/sweeps');
+      const runs = Array.isArray(data?.sweeps) ? data.sweeps : [];
+      $('sweepRun').innerHTML = runs.map(run => `<option value="${escape(run.id)}">Run ${escape(run.id)} | ${escape(run.status)} | ${escape(run.created_at || '')}</option>`).join('');
+      if (runQuery) $('sweepRun').value = runQuery;
+      if (!$('sweepRun').dataset.bound) {
+        $('sweepRun').addEventListener('change', () => {
+          const runId = $('sweepRun').value;
+          history.replaceState({}, '', runId ? `/backtesting/strategy-sweep?run=${encodeURIComponent(runId)}` : '/backtesting/strategy-sweep');
+          loadReport(runId);
+        });
+        $('sweepRun').dataset.bound = '1';
+      }
+    } catch (error) {
+      $('sweepRun').innerHTML = '<option value="">No saved runs</option>';
+    }
+  }
+  ['sweepAsset', 'sweepStrategy', 'sweepTf'].forEach(id => $(id).addEventListener('change', renderRows));
+  $('sweepRefresh').addEventListener('click', () => { loadRunList(); loadReport($('sweepRun').value || runQuery); });
+  loadRunList(); loadReport();
+})();
+</script>
+{% endblock %}

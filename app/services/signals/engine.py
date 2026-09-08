@@ -41,7 +41,7 @@ _LOCKOUT = {
 # Signal expiry per timeframe (minutes)
 _EXPIRY = {
     "1m": 5,  "5m": 20,  "15m": 60,  "30m": 120,
-    "1h": 240, "2h": 480, "4h": 960,  "1d": 2880,
+    "1h": 240, "2h": 480, "3h": 720, "4h": 960,  "1d": 2880,
 }
 
 # Minimum candle count required (drives minimum data need)

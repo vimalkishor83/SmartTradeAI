@@ -16,6 +16,11 @@ _CACHE_KEY = "platform_config"
 # column instead of just being skipped.
 FETCHABLE_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"]
 
+# 3h is assembled from hourly candles for backtesting. It is deliberately
+# kept out of the live display list so other pages do not trigger an extra
+# provider fetch or imply that the exchange exposes a native 3h interval.
+BACKTEST_DERIVED_TIMEFRAMES = ["3h"]
+
 
 def get_platform_config() -> dict:
     cached = cache.get(_CACHE_KEY)
