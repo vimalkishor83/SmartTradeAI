@@ -6189,6 +6189,19 @@ html[data-theme="light"] .app-shell {
   margin-top: var(--space-3);
 }
 
+@media (max-width: 680px) {
+  .ui-state {
+    flex-direction: column;
+    min-height: 156px;
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .ui-state__actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+}
+
 .ui-table-wrap {
   max-width: 100%;
   overflow-x: auto;
