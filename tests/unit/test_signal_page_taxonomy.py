@@ -48,3 +48,12 @@ def test_discovery_scanner_sets_expectations_before_trading():
     assert "exploratory filter results" in source
     assert "not persisted actionable signals" in source
     assert 'href="/signals">Signal Center</a>' in source
+
+
+def test_sidebar_exposes_scannable_group_markers_and_keyboard_targets():
+    source = _read("partials/base.html")
+
+    assert source.count("nav-section-icon") == 8
+    assert source.count('class="nav-group-header"') == 8
+    assert 'class="sidebar-nav" id="sidebarNav"' in source
+    assert 'id="sidebarToggle"' in source

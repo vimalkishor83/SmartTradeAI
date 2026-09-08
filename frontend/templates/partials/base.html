@@ -81,9 +81,9 @@
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
 
     <!-- Overview -->
-    <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
+    <div class="nav-group {% if grp_overview %}open active-group{% endif %}" data-group="overview">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_overview else 'false' }}" aria-controls="navGroupBodyOverview">
-        <span class="nav-section-label">Overview</span>
+        <span class="nav-section-label"><i class="bi bi-grid-1x2 nav-section-icon" aria-hidden="true"></i>Overview</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyOverview">
@@ -101,9 +101,9 @@
     </div>
 
     <!-- Markets -->
-    <div class="nav-group {% if grp_markets %}open{% endif %}" data-group="markets">
+    <div class="nav-group {% if grp_markets %}open active-group{% endif %}" data-group="markets">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_markets else 'false' }}" aria-controls="navGroupBodyMarkets">
-        <span class="nav-section-label">Markets</span>
+        <span class="nav-section-label"><i class="bi bi-bar-chart-line nav-section-icon" aria-hidden="true"></i>Markets</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyMarkets">
@@ -146,9 +146,9 @@
     </div>
 
     <!-- Signals & Discovery -->
-    <div class="nav-group {% if grp_signals %}open{% endif %}" data-group="signals">
+    <div class="nav-group {% if grp_signals %}open active-group{% endif %}" data-group="signals">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_signals else 'false' }}" aria-controls="navGroupBodySignals">
-        <span class="nav-section-label">Signals &amp; Discovery</span>
+        <span class="nav-section-label"><i class="bi bi-lightning-charge nav-section-icon" aria-hidden="true"></i>Signals &amp; Discovery</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodySignals">
@@ -191,9 +191,9 @@
     </div>
 
     <!-- AI & Analysis -->
-    <div class="nav-group {% if grp_analysis %}open{% endif %}" data-group="analysis">
+    <div class="nav-group {% if grp_analysis %}open active-group{% endif %}" data-group="analysis">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_analysis else 'false' }}" aria-controls="navGroupBodyAnalysis">
-        <span class="nav-section-label">AI &amp; Analysis</span>
+        <span class="nav-section-label"><i class="bi bi-cpu nav-section-icon" aria-hidden="true"></i>AI &amp; Analysis</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyAnalysis">
@@ -236,9 +236,9 @@
     </div>
 
     <!-- Research -->
-    <div class="nav-group {% if grp_research %}open{% endif %}" data-group="research">
+    <div class="nav-group {% if grp_research %}open active-group{% endif %}" data-group="research">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_research else 'false' }}" aria-controls="navGroupBodyResearch">
-        <span class="nav-section-label">Research</span>
+        <span class="nav-section-label"><i class="bi bi-flask nav-section-icon" aria-hidden="true"></i>Research</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyResearch">
@@ -261,9 +261,9 @@
     </div>
 
     <!-- Portfolio -->
-    <div class="nav-group {% if grp_portfolio %}open{% endif %}" data-group="portfolio">
+    <div class="nav-group {% if grp_portfolio %}open active-group{% endif %}" data-group="portfolio">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_portfolio else 'false' }}" aria-controls="navGroupBodyPortfolio">
-        <span class="nav-section-label">Portfolio</span>
+        <span class="nav-section-label"><i class="bi bi-briefcase nav-section-icon" aria-hidden="true"></i>Portfolio</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyPortfolio">
@@ -307,9 +307,9 @@
     </div>
 
     <!-- Account -->
-    <div class="nav-group {% if grp_account %}open{% endif %}" data-group="account">
+    <div class="nav-group {% if grp_account %}open active-group{% endif %}" data-group="account">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_account else 'false' }}" aria-controls="navGroupBodyAccount">
-        <span class="nav-section-label">Account</span>
+        <span class="nav-section-label"><i class="bi bi-person-gear nav-section-icon" aria-hidden="true"></i>Account</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyAccount">
@@ -333,9 +333,9 @@
 
     <!-- Admin (hidden until role check) -->
     <div id="adminNav" style="display:none">
-      <div class="nav-group {% if grp_admin %}open{% endif %}" data-group="admin">
+      <div class="nav-group {% if grp_admin %}open active-group{% endif %}" data-group="admin">
         <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_admin else 'false' }}" aria-controls="navGroupBodyAdmin">
-          <span class="nav-section-label">Admin</span>
+          <span class="nav-section-label"><i class="bi bi-shield-lock nav-section-icon" aria-hidden="true"></i>Admin</span>
           <i class="bi bi-chevron-down nav-group-arrow"></i>
         </button>
         <div class="nav-group-body" id="navGroupBodyAdmin">
