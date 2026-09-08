@@ -375,7 +375,7 @@
       <div id="tabSignals" style="display:none">
         <div class="section-card" style="border-top-left-radius:0;border-top-right-radius:0">
           <div class="table-responsive">
-            <table class="smart-table">
+            <table class="smart-table" data-mobile-cards>
               <thead>
                 <tr>
                   <th>Time</th><th>TF</th><th>Type</th>
@@ -932,7 +932,7 @@ async function loadDcaSetup() {
       Tranche ladder — ${_escHtml(cfg.tranches)} × $${_escHtml(plan.per_tranche)}, ${_escHtml(cfg.spacing_pct)}% apart
     </h6>
     <div class="table-responsive mb-3">
-      <table class="smart-table">
+      <table class="smart-table" data-mobile-cards>
         <thead><tr><th>#</th><th>Add at</th><th>Drop</th><th>Size</th></tr></thead>
         <tbody>${ladder}</tbody>
       </table>
