@@ -6789,3 +6789,67 @@ html[data-theme="light"] .app-shell {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* High-priority data tables become readable stacked cards on phones. The
+   labels are supplied from each table header by the shared shell script, so
+   dynamic rows do not need to duplicate presentation markup. */
+@media (max-width: 680px) {
+  .app-shell table[data-mobile-cards] {
+    min-width: 0 !important;
+    width: 100% !important;
+    border-collapse: separate;
+    border-spacing: 0 8px;
+  }
+
+  .app-shell table[data-mobile-cards] thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  .app-shell table[data-mobile-cards] tbody,
+  .app-shell table[data-mobile-cards] tr,
+  .app-shell table[data-mobile-cards] td {
+    display: block;
+    width: 100%;
+  }
+
+  .app-shell table[data-mobile-cards] tr {
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: linear-gradient(135deg, rgba(139,124,255,.06), transparent 70%), var(--bg-card);
+  }
+
+  .app-shell table[data-mobile-cards] td {
+    display: grid;
+    grid-template-columns: minmax(92px, 38%) minmax(0, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-height: 32px;
+    padding: 5px 0;
+    border: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  .app-shell table[data-mobile-cards] td::before {
+    content: attr(data-label);
+    color: var(--text-muted);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .app-shell table[data-mobile-cards] td[colspan] {
+    display: block;
+    text-align: center;
+  }
+
+  .app-shell table[data-mobile-cards] td[colspan]::before { content: none; }
+}

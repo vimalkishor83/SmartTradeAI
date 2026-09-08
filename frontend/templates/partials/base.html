@@ -837,6 +837,27 @@ document.querySelectorAll('[data-nav-group-toggle]').forEach(header => {
 
   input && input.addEventListener('input', e => filterItems(e.target.value));
 })();
+
+// Add mobile-friendly labels to opted-in tables after both initial render and
+// client-side row updates. Complex analytical tables remain unchanged unless
+// they explicitly opt in with data-mobile-cards.
+(function () {
+  function labelMobileTable(table) {
+    const headers = Array.from(table.tHead?.rows?.[0]?.cells || [])
+      .map(cell => cell.textContent.trim());
+    if (!headers.length) return;
+    table.querySelectorAll('tbody tr').forEach(row => {
+      Array.from(row.cells).forEach((cell, index) => {
+        if (cell.colSpan === 1 && headers[index]) cell.dataset.label = headers[index];
+      });
+    });
+  }
+  function refresh() {
+    document.querySelectorAll('table[data-mobile-cards]').forEach(labelMobileTable);
+  }
+  refresh();
+  if (document.body) new MutationObserver(refresh).observe(document.body, { childList: true, subtree: true });
+})();
 </script>
 </body>
 </html>
