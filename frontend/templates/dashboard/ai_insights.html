@@ -212,10 +212,18 @@
 .app-shell .ai-trade-marker.stop { color:var(--red); }
 .app-shell .ai-trade-marker.entry { color:var(--accent-cyan); }
 .app-shell .ai-trade-marker.target { color:var(--green); }
+.app-shell .ai-trade-marker.stop { transform:translateX(0); align-items:flex-start; }
+.app-shell .ai-trade-marker.target { transform:translateX(-100%); align-items:flex-end; }
 .app-shell .ai-trade-marker.current { top:15px; color:var(--text-secondary); }
 .app-shell .ai-trade-marker.current::before { width:1px; height:15px; border:0; border-radius:0; background:currentColor; }
 .app-shell .ai-trade-map-foot { display:flex; justify-content:space-between; gap:8px; color:var(--text-muted); font-size:9px; line-height:1.4; }
 .app-shell .ai-trade-map-foot strong { color:var(--text-secondary); }
+@media (max-width:680px) {
+  .app-shell .ai-trade-map { padding-inline:10px; }
+  .app-shell .ai-trade-track { margin-inline:9px; }
+  .app-shell .ai-trade-map-foot { flex-wrap:wrap; }
+  .app-shell .ai-trade-map-foot > span:last-child { margin-left:auto; text-align:right; }
+}
 .app-shell .ai-defaults-panel {
   margin-top:16px; padding:12px; border:1px solid rgba(53,201,232,.2); border-radius:10px;
   background:linear-gradient(135deg, rgba(53,201,232,.07), rgba(139,124,255,.04));
