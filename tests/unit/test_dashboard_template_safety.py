@@ -34,6 +34,7 @@ def test_dashboard_explains_data_scope_and_refresh_state():
     source = TEMPLATE.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")
 
+    assert '<h1 class="page-greeting" id="pageGreeting">' in page
     assert 'id="dashboardContent" aria-busy="true"' in page
     assert 'id="dashboardDataStatus" role="status" aria-live="polite"' in page
     assert 'Last 100 closed' in page

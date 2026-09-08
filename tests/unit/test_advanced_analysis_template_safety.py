@@ -7,6 +7,8 @@ TEMPLATE = Path(__file__).parents[2] / "frontend" / "templates" / "dashboard" / 
 def test_advanced_analysis_uses_accessible_delegated_controls():
     source = TEMPLATE.read_text(encoding="utf-8")
 
+    assert '<h1 class="page-title">Advanced Analysis</h1>' in source
+    assert '<span class="page-eyebrow">Analysis</span>' in source
     assert "onclick=" not in source
     assert "onchange=" not in source
     assert 'id="aaTabs"' in source
