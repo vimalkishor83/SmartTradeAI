@@ -32,6 +32,9 @@ def test_ai_insights_validates_asset_and_prediction_payloads():
     assert "Best Short Entry Zone" in source
     assert "entry_zone_source" in source
     assert "limit reference only" in source
+    assert "Trade map" in source
+    assert "riskReward" in source
+    assert "Invalidates at" in source
 
 
 def test_ai_insights_serializes_run_lifecycle():

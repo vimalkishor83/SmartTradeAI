@@ -197,6 +197,25 @@
 .app-shell .ai-level-value { font-size:14px; font-weight:750; }
 .app-shell .ai-level-note { margin-top:3px; color:var(--text-muted); font-size:9px; line-height:1.35; }
 .app-shell .ai-level-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:8px; }
+.app-shell .ai-trade-map {
+  margin-top:10px; padding:12px 13px; border:1px solid rgba(53,201,232,.2); border-radius:10px;
+  background:linear-gradient(135deg, rgba(53,201,232,.07), rgba(255,255,255,.015));
+}
+.app-shell .ai-trade-map-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.app-shell .ai-trade-map-title { color:var(--text-secondary); font-size:11px; font-weight:800; }
+.app-shell .ai-trade-map-title i { color:var(--accent-cyan); }
+.app-shell .ai-rr-badge { padding:3px 7px; border:1px solid rgba(34,217,127,.25); border-radius:999px; color:var(--green); background:rgba(34,217,127,.08); font-size:10px; font-weight:800; white-space:nowrap; }
+.app-shell .ai-trade-track { position:relative; height:42px; margin:14px 7px 4px; border-top:2px solid var(--border); }
+.app-shell .ai-trade-zone { position:absolute; top:-3px; height:5px; border-radius:999px; background:var(--accent-cyan); box-shadow:0 0 12px rgba(53,201,232,.45); }
+.app-shell .ai-trade-marker { position:absolute; top:-8px; transform:translateX(-50%); display:flex; flex-direction:column; align-items:center; gap:4px; color:var(--text-muted); font-size:9px; font-weight:750; white-space:nowrap; }
+.app-shell .ai-trade-marker::before { content:''; width:8px; height:8px; border:2px solid currentColor; border-radius:50%; background:var(--bg-card); }
+.app-shell .ai-trade-marker.stop { color:var(--red); }
+.app-shell .ai-trade-marker.entry { color:var(--accent-cyan); }
+.app-shell .ai-trade-marker.target { color:var(--green); }
+.app-shell .ai-trade-marker.current { top:15px; color:var(--text-secondary); }
+.app-shell .ai-trade-marker.current::before { width:1px; height:15px; border:0; border-radius:0; background:currentColor; }
+.app-shell .ai-trade-map-foot { display:flex; justify-content:space-between; gap:8px; color:var(--text-muted); font-size:9px; line-height:1.4; }
+.app-shell .ai-trade-map-foot strong { color:var(--text-secondary); }
 .app-shell .ai-defaults-panel {
   margin-top:16px; padding:12px; border:1px solid rgba(53,201,232,.2); border-radius:10px;
   background:linear-gradient(135deg, rgba(53,201,232,.07), rgba(139,124,255,.04));
@@ -639,6 +658,31 @@ function buildResultCard(tf, data) {
       ? 'Pullback area above current price'
       : 'No directional edge';
   const entryZoneSource = data.entry_zone_source === 'risk_map' ? 'Risk-map aligned' : 'Volatility reference';
+  const currentPrice = Number.isFinite(Number(data.entry_price)) && Number(data.entry_price) > 0 ? Number(data.entry_price) : null;
+  const planEntry = entryLow != null && entryHigh != null ? (entryLow + entryHigh) / 2 : currentPrice;
+  const risk = planEntry != null && stop != null ? Math.abs(planEntry - stop) : null;
+  const reward = planEntry != null && target != null ? Math.abs(target - planEntry) : null;
+  const riskReward = risk > 0 && reward != null ? reward / risk : null;
+  const mapValues = [stop, planEntry, target, currentPrice].filter(value => value != null);
+  const mapMin = mapValues.length ? Math.min(...mapValues) : 0;
+  const mapMax = mapValues.length ? Math.max(...mapValues) : 0;
+  const mapSpan = mapMax - mapMin;
+  const mapPosition = value => mapSpan > 0 ? Math.max(0, Math.min(100, ((value - mapMin) / mapSpan) * 100)) : 50;
+  const tradeMapHtml = dir !== 'neutral' && stop != null && target != null && planEntry != null && mapSpan > 0 ? `
+    <div class="ai-trade-map" role="img" aria-label="Trade map showing stop loss, entry zone, current price, and target">
+      <div class="ai-trade-map-heading">
+        <span class="ai-trade-map-title"><i class="bi bi-signpost-split me-1" aria-hidden="true"></i>Trade map</span>
+        <span class="ai-rr-badge">R:R ${riskReward != null ? `1:${riskReward.toFixed(2)}` : 'n/a'}</span>
+      </div>
+      <div class="ai-trade-track">
+        ${entryLow != null && entryHigh != null ? `<span class="ai-trade-zone" style="left:${mapPosition(entryLow)}%;width:${Math.max(1, mapPosition(entryHigh) - mapPosition(entryLow))}%" aria-hidden="true"></span>` : ''}
+        <span class="ai-trade-marker stop" style="left:${mapPosition(stop)}%">Stop ${formatPrice(stop)}</span>
+        <span class="ai-trade-marker entry" style="left:${mapPosition(planEntry)}%">Entry</span>
+        <span class="ai-trade-marker target" style="left:${mapPosition(target)}%">Target ${formatPrice(target)}</span>
+        ${currentPrice != null ? `<span class="ai-trade-marker current" style="left:${mapPosition(currentPrice)}%">Now</span>` : ''}
+      </div>
+      <div class="ai-trade-map-foot"><span>${dir === 'bullish' ? 'Long setup' : 'Short setup'} · cyan band = entry zone</span><span><strong>Invalidates at ${formatPrice(stop)}</strong></span></div>
+    </div>` : '';
   const memberEntries = Object.entries(modelOutputs)
     .filter(([name, value]) => name !== 'heuristic' && Number.isFinite(Number(value)))
     .slice(0, 3)
@@ -741,6 +785,8 @@ function buildResultCard(tf, data) {
           <div class="ai-level-value" style="color:var(--red)">${formatPrice(stop)}</div>
         </div>` : ''}
     </div>` : ''}
+
+    ${tradeMapHtml}
 
     ${memberOutputsHtml}
 
