@@ -89,7 +89,8 @@
     const report = state.report; const summary = report.summary || {}; const best = summary.best_overall;
     $('sweepHero').hidden = false; $('sweepEmpty').hidden = true; $('sweepReport').hidden = false;
     $('sweepName').textContent = report.name || 'Strategy sweep';
-    $('sweepMeta').textContent = `${report.assets.join(', ')} | ${report.timeframes.join(', ')} | ${report.completed_cells}/${report.total_cells} cells | ${report.candle_limit} candles per cell | engine ${report.engine_version || '-'}`;
+    const aiRun = report.engine_version === 'ai-insights-walkforward-v1';
+    $('sweepMeta').textContent = `${report.assets.join(', ')} | ${report.timeframes.join(', ')} | ${report.completed_cells}/${report.total_cells} cells | ${report.candle_limit} candles per cell | ${aiRun ? 'strict walk-forward AI model' : `engine ${report.engine_version || '-'}`}`;
     $('sweepRunStatus').textContent = report.status || 'unknown';
     $('sweepRunStatus').className = `sweep-badge ${report.status === 'completed' ? 'good' : 'bad'}`;
     const cards = [['Completed cells', `${summary.completed_cells || 0}/${report.total_cells || 0}`, 'text-green'], ['Reviewable cells', summary.eligible_cells || 0, 'text-accent'], ['Cells with errors', summary.failed_cells || 0, summary.failed_cells ? 'text-red' : 'text-green'], ['Best review candidate', best ? `${best.asset} | ${best.timeframe}` : '-', 'text-primary']];
@@ -108,7 +109,11 @@
     state.selected = cell; renderRows(); $('sweepDetail').hidden = false; const stats = cell.stats || {};
     if (cell.status !== 'completed') { $('sweepDetailBody').innerHTML = `<div class="text-red">${escape(cell.error || 'Cell failed')}</div>`; return; }
     const metrics = [['Net return', percent(stats.net_profit_pct)], ['Win rate', `${number(stats.win_rate, 1)}%`], ['Max drawdown', `${number(stats.max_drawdown)}%`], ['Sharpe', number(stats.sharpe_ratio)], ['Sortino', number(stats.sortino_ratio)], ['Profit factor', number(stats.profit_factor)]];
-    $('sweepDetailBody').innerHTML = `<div class="row g-3"><div class="col-md-7"><h3 class="h6">${escape(cell.asset)} | ${escape(cell.timeframe)} | ${escape(cell.strategy_label)}</h3><p class="sweep-note mb-2">${escape(cell.description)}</p><div class="sweep-note">Data: ${escape(cell.data_mode)} | ${escape(cell.candles)} candles | ${escape(cell.data_start)} to ${escape(cell.data_end)}</div></div><div class="col-md-5"><div class="row g-2">${metrics.map(([label, value]) => `<div class="col-6"><div class="sweep-note">${escape(label)}</div><strong>${escape(value)}</strong></div>`).join('')}</div></div></div>`;
+    const diagnostics = cell.ai_diagnostics || {};
+    const aiNote = diagnostics.prediction_count != null
+      ? `<div class="sweep-note mt-3">AI checkpoints: ${escape(diagnostics.model_checkpoints)} | predictions: ${escape(diagnostics.prediction_count)} | threshold: ${number(Number(diagnostics.threshold) * 100, 0)}% | retrain every ${escape(diagnostics.retrain_every)} bars</div><div class="sweep-note">Fill assumption: ${escape(diagnostics.entry_fill_assumption)}</div>`
+      : '';
+    $('sweepDetailBody').innerHTML = `<div class="row g-3"><div class="col-md-7"><h3 class="h6">${escape(cell.asset)} | ${escape(cell.timeframe)} | ${escape(cell.strategy_label)}</h3><p class="sweep-note mb-2">${escape(cell.description)}</p><div class="sweep-note">Data: ${escape(cell.data_mode)} | ${escape(cell.candles)} candles | ${escape(cell.data_start)} to ${escape(cell.data_end)}</div>${cell.model_version ? `<div class="sweep-note">Model: ${escape(cell.model_version)} | engine: ${escape(report.engine_version || '-')}</div>` : ''}${aiNote}</div><div class="col-md-5"><div class="row g-2">${metrics.map(([label, value]) => `<div class="col-6"><div class="sweep-note">${escape(label)}</div><strong>${escape(value)}</strong></div>`).join('')}</div></div></div>`;
   }
   async function loadReport(runId = runQuery) {
     setStatus('Loading saved server report...'); $('sweepRefresh').disabled = true;

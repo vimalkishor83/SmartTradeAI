@@ -137,6 +137,8 @@ def _cell_record(asset, timeframe: str, strategy: dict, df: pd.DataFrame, result
             "data_end": provenance.get("data_end") or str(df.index[-1]),
             "data_fingerprint": provenance.get("data_fingerprint"),
             "stats": stats,
+            "ai_diagnostics": result.get("ai_diagnostics"),
+            "model_version": provenance.get("model_version"),
             # The report needs enough data to inspect shape and recent fills,
             # not a second database full of every intermediate candle.
             "equity_curve": result.get("equity_curve", [])[-160:],
@@ -189,11 +191,33 @@ def _build_summary(cells: list[dict]) -> dict:
     }
 
 
-def run_strategy_sweep(sweep, assets, *, candle_limit=SWEEP_CANDLE_LIMIT):
+def run_strategy_sweep(
+    sweep,
+    assets,
+    *,
+    candle_limit=SWEEP_CANDLE_LIMIT,
+    strategies=None,
+    timeframes=None,
+    result_runner=None,
+    engine_version=None,
+):
     """Run and persist the matrix sequentially so progress survives failures."""
     from app.extensions import db
 
-    strategies = sweep_strategy_catalog()
+    strategies = [dict(item) for item in (strategies or sweep_strategy_catalog())]
+    timeframes = tuple(timeframes or SWEEP_TIMEFRAMES)
+    result_runner = result_runner or (
+        lambda df, asset, timeframe, strategy: backtest_engine.run(
+            df,
+            asset,
+            timeframe,
+            sweep.initial_capital,
+            strategy=strategy["key"],
+            commission=sweep.commission,
+            slippage=sweep.slippage,
+            spread=sweep.spread,
+        )
+    )
     cells = list((sweep.result_data or {}).get("cells") or [])
     errors = list(sweep.errors or [])
     completed_keys = {
@@ -203,14 +227,14 @@ def run_strategy_sweep(sweep, assets, *, candle_limit=SWEEP_CANDLE_LIMIT):
     }
     sweep.status = "running"
     sweep.started_at = sweep.started_at or datetime.utcnow()
-    sweep.total_cells = len(assets) * len(SWEEP_TIMEFRAMES) * len(strategies)
+    sweep.total_cells = len(assets) * len(timeframes) * len(strategies)
     sweep.candle_limit = candle_limit
-    sweep.engine_version = BACKTEST_ENGINE_VERSION
+    sweep.engine_version = engine_version or BACKTEST_ENGINE_VERSION
     sweep.result_data = {"cells": cells}
     db.session.commit()
 
     for asset in assets:
-        for timeframe in SWEEP_TIMEFRAMES:
+        for timeframe in timeframes:
             try:
                 df = fetch_sweep_frame(asset, timeframe, candle_limit)
             except Exception as exc:
@@ -226,16 +250,7 @@ def run_strategy_sweep(sweep, assets, *, candle_limit=SWEEP_CANDLE_LIMIT):
                 try:
                     if df is None or len(df) < 100:
                         raise ValueError(f"{fetch_error}; received {len(df) if df is not None else 0} candles")
-                    result = backtest_engine.run(
-                        df,
-                        asset,
-                        timeframe,
-                        sweep.initial_capital,
-                        strategy=strategy["key"],
-                        commission=sweep.commission,
-                        slippage=sweep.slippage,
-                        spread=sweep.spread,
-                    )
+                    result = result_runner(df, asset, timeframe, strategy)
                     if "error" in result:
                         raise ValueError(result["error"])
                     cell = _cell_record(asset, timeframe, strategy, df, result)
