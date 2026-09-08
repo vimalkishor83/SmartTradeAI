@@ -18,10 +18,7 @@ function _cssv(n, f) { return (getComputedStyle(document.documentElement).getPro
 
 /* ── Header subtitle ──────────────────────────────────────────── */
 function renderHeader() {
-  const now = new Date();
-  const d = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-  const t = now.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
-  bset('briefSubtitle', `Your daily trading snapshot — updated on ${d}, ${t} IST`);
+  bset('briefSubtitle', 'Your daily trading snapshot across global markets');
 }
 
 /* ── Master heatmap-driven sections ───────────────────────────── */

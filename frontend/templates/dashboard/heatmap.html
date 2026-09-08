@@ -113,7 +113,6 @@
   <div class="legend-strip"><div class="legend-box hm-slight-down"></div>0 → -1%</div>
   <div class="legend-strip"><div class="legend-box hm-down"></div>-1% → -3%</div>
   <div class="legend-strip"><div class="legend-box hm-strong-down"></div>&lt;-3%</div>
-  <span class="text-muted fs-xs ms-auto" id="hmTimestamp"></span>
 </div>
 
 <!-- Heatmap body -->
@@ -286,7 +285,6 @@ async function loadHeatmapPage() {
       if (!Array.isArray(data?.heatmap) || data.error) throw new Error('No data');
       _hmData = data.heatmap.filter(item => item && typeof item === 'object');
       const updated = new Date().toLocaleTimeString('en-IN', {timeZone:'Asia/Kolkata', hour:'2-digit', minute:'2-digit'});
-      document.getElementById('hmTimestamp').textContent = 'Updated ' + updated;
       document.getElementById('heatmapUpdatedAt').textContent = 'Updated ' + updated;
       if (status) status.textContent = _hmData.length ? `${_hmData.length} assets available` : 'No market data available';
       renderPage();

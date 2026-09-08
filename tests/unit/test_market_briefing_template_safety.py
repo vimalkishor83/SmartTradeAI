@@ -54,3 +54,5 @@ def test_briefing_serializes_refreshes_and_normalizes_market_state():
     assert "function briefingNumber(value, fallback = 0)" in source
     assert "Promise.allSettled([loadMarketState(), loadHeadlines(), loadEcon(), loadGlance()])" in source
     assert "Some briefing data is unavailable. Try refreshing." in source
+    assert "Your daily trading snapshot across global markets" in source
+    assert "updated on ${d}, ${t} IST" not in source

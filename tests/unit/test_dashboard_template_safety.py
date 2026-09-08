@@ -49,6 +49,8 @@ def test_dashboard_explains_data_scope_and_refresh_state():
     assert "requestId !== _signalsRequestId" in source
     assert "requestId !== _heatmapRequestId" in source
     assert "stateRow" in source
+    assert "Live conditions across all markets" in source
+    assert "Live data updated ' + time" not in source
     assert "setAttribute('aria-labelledby', tab.id)" in source
 
 

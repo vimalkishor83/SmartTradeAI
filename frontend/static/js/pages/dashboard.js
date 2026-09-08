@@ -45,7 +45,7 @@ function setDashboardState(kind, message) {
   if (kind === 'ready') {
     const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     if (updated) updated.textContent = 'Last updated ' + time;
-    if (live) live.textContent = 'Live data updated ' + time;
+    if (live) live.textContent = 'Live conditions across all markets';
   } else if (live) {
     live.textContent = kind === 'error' ? 'Dashboard data unavailable' : 'Dashboard partially updated';
   }
