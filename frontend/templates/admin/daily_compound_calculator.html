@@ -165,7 +165,7 @@
   .dcc-result-hero { display:flex; align-items:center; gap:14px; padding:16px; background:linear-gradient(135deg, rgba(245,166,35,.14), rgba(245,166,35,.03)); border-color:rgba(245,166,35,.25); }
   .dcc-result-hero-copy { min-width:0; flex:1; }
   .dcc-result-kicker, .dcc-panel-kicker { color:var(--accent-light); font-size:10px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; }
-  .dcc-final-amount { font-size:28px; color:var(--accent); line-height:1.15; overflow-wrap:anywhere; }
+  .dcc-final-amount { max-width:100%; overflow:hidden; color:var(--accent); font-size:28px; line-height:1.15; font-variant-numeric:tabular-nums; text-overflow:ellipsis; white-space:nowrap; }
   .dcc-result-status { align-self:flex-start; padding:5px 8px; color:var(--green); border:1px solid rgba(16,185,129,.3); border-radius:999px; background:rgba(16,185,129,.08); font-size:10px; font-weight:700; white-space:nowrap; }
   .dcc-summary-chips { display:flex; flex-wrap:wrap; gap:8px; }
   .dcc-schedule-hint { margin-top:3px; color:var(--text-muted); font-size:11px; }
@@ -222,6 +222,16 @@
     return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   };
 
+  // Keep crore-scale outcomes readable on phones while retaining the exact
+  // value in the element title and accessible label.
+  const fmtOutcome = (n) => {
+    if (n == null) return '—';
+    const abs = Math.abs(n);
+    if (abs < 1e7) return fmt(n);
+    const crore = n / 1e7;
+    return crore.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' Cr';
+  };
+
   el('cStartDate').value = new Date().toISOString().slice(0, 10);
 
   function readForm() {
@@ -251,7 +261,9 @@
     el('resultsEmptyCard').style.display = 'none';
     el('resultsBody').style.display = 'block';
 
-    el('rFinalAmount').textContent = fmt(result.final_amount);
+    el('rFinalAmount').textContent = fmtOutcome(result.final_amount);
+    el('rFinalAmount').title = fmt(result.final_amount);
+    el('rFinalAmount').setAttribute('aria-label', 'Projected outcome ' + fmt(result.final_amount));
     el('rTotalInterest').textContent = fmt(result.total_interest) + ' interest';
     el('rTruncatedBanner').style.display = result.truncated ? 'block' : 'none';
 

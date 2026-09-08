@@ -29,6 +29,9 @@ def test_calculator_result_panel_has_clear_empty_and_loaded_states():
 
     assert "Your projection will appear here" in source
     assert "Projected outcome" in source
+    assert "fmtOutcome" in source
+    assert "Cr" in source
+    assert "white-space:nowrap" in source
     assert "Growth schedule" in source
     assert "Switch views to inspect the projection" in source
 
