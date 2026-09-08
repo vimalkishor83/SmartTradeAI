@@ -200,8 +200,10 @@
   @media (max-width: 520px) {
     .dcc-action-row { grid-template-columns:1fr; }
     .dcc-action-row .btn { width:100%; }
-    .dcc-result-hero { flex-wrap:wrap; }
-    .dcc-result-status { margin-left:56px; margin-top:-8px; }
+    .dcc-result-hero { display:grid; grid-template-columns:42px minmax(0, 1fr); column-gap:14px; row-gap:10px; }
+    .dcc-result-hero-icon { grid-column:1; grid-row:1; }
+    .dcc-result-hero-copy { grid-column:2; grid-row:1; }
+    .dcc-result-status { grid-column:2; grid-row:2; justify-self:start; margin:0; }
     .dcc-panel { width:100%; max-width:100%; border-left:0; }
     .dcc-panel-actions { grid-template-columns:1fr; }
     .dcc-panel-actions .btn { width:100%; min-height:42px; }

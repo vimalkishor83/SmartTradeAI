@@ -32,6 +32,7 @@ def test_calculator_result_panel_has_clear_empty_and_loaded_states():
     assert "fmtOutcome" in source
     assert "Cr" in source
     assert "white-space:nowrap" in source
+    assert "grid-template-columns:42px minmax(0, 1fr)" in source
     assert "Growth schedule" in source
     assert "Switch views to inspect the projection" in source
 
