@@ -2993,6 +2993,7 @@ select option {
 .analysis-kpi-row .kpi-change { color: var(--text-muted); }
 .ta-insight-strip + .nav-tabs { margin-top: 2px; }
 #ratingsWrap, #aiRatingsWrap, #emaRatingsWrap, #matrixWrap { position: relative; }
+#ratingsWrap .smart-table, #aiRatingsWrap .smart-table, #emaRatingsWrap .smart-table, #matrixWrap .smart-table { width: 100%; }
 #ratingsWrap::after, #aiRatingsWrap::after, #emaRatingsWrap::after, #matrixWrap::after { content: 'Scroll horizontally to explore all timeframes'; display: block; padding: 7px 12px; color: var(--text-muted); font-size: 10px; text-align: right; background: linear-gradient(90deg, transparent, rgba(34,211,238,.05)); }
 @media (max-width: 900px) {
   .analysis-insight-strip { grid-template-columns: 1fr 1fr; }
