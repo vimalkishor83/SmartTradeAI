@@ -1472,7 +1472,6 @@ html.sidebar-preload-collapsed .sidebar .sidebar-user-info {
    ════════════════════════════════════════════════════════════ */
 .page-content {
   position: relative;
-  isolation: isolate;
   padding: 20px 24px 28px;
   flex: 1;
 }
