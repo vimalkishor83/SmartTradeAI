@@ -147,3 +147,55 @@ def test_regular_admin_cannot_create_user(client, app):
         },
     )
     assert response.status_code == 403
+
+
+def test_super_admin_can_delete_user_with_owned_records(client, app, super_admin_headers):
+    with app.app_context():
+        from app.extensions import db
+        from app.models.user import Role, Subscription, User
+        from app.models.watchlist import Watchlist, WatchlistItem
+        from app.models.portfolio import Portfolio, PortfolioItem
+        from app.models.notification import Notification
+        from app.models.user_session import UserSession
+        from datetime import datetime, timedelta
+
+        role = Role.query.filter_by(name="free").first()
+        subscription = Subscription.query.filter_by(name="free").first()
+        user = User(
+            username="delete_user_flow",
+            email="delete_user_flow@example.com",
+            role_id=role.id,
+            subscription_id=subscription.id,
+            approval_status="approved",
+        )
+        user.set_password("TestPass123!")
+        db.session.add(user)
+        db.session.flush()
+
+        watchlist = Watchlist(user_id=user.id, name="Delete me")
+        portfolio = Portfolio(user_id=user.id, name="Delete me")
+        db.session.add_all([watchlist, portfolio])
+        db.session.flush()
+        db.session.add_all([
+            WatchlistItem(watchlist_id=watchlist.id, asset_id=1),
+            PortfolioItem(portfolio_id=portfolio.id, asset_id=1, quantity=1, buy_price=100),
+            Notification(user_id=user.id, title="Delete me", message="Delete me"),
+            UserSession(
+                user_id=user.id,
+                expires_at=datetime.utcnow() + timedelta(hours=1),
+            ),
+        ])
+        db.session.commit()
+        user_id = user.id
+
+    response = client.delete(f"/api/v1/admin/users/{user_id}", headers=super_admin_headers)
+    assert response.status_code == 200
+
+    with app.app_context():
+        from app.models.user import User
+        from app.models.watchlist import Watchlist
+        from app.models.portfolio import Portfolio
+
+        assert User.query.get(user_id) is None
+        assert Watchlist.query.filter_by(user_id=user_id).count() == 0
+        assert Portfolio.query.filter_by(user_id=user_id).count() == 0

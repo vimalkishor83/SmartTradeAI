@@ -585,8 +585,65 @@ def _audit_admin_action(target_user_id, action):
 @super_admin_required
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
-    db.session.delete(user)
-    db.session.commit()
+    # User-owned tables use non-null foreign keys, so deleting only the
+    # parent row fails as soon as an account has used any persistent feature.
+    # Keep this explicit rather than relying on database-specific cascades;
+    # it makes the retention policy visible and works with existing schemas.
+    from app.models.user import UserAssetPreference
+    from app.models.watchlist import Watchlist, WatchlistItem
+    from app.models.portfolio import Portfolio, PortfolioItem
+    from app.models.notification import Notification
+    from app.models.backtest import Backtest
+    from app.models.journal import JournalEntry
+    from app.models.api_config import UserBrokerCredential
+    from app.models.algo_trading import AlgoExecutionPolicy
+    from app.models.mtf_watch_config import MtfWatchConfig
+    from app.models.saved_screen import SavedScreen
+    from app.models.protective_order import ProtectiveOrder
+    from app.models.user_session import UserSession
+    from app.models.daily_compound_calculator import DailyCompoundCalculation
+    from app.models.platform_config import PlatformConfig
+
+    try:
+        # Nested children must be removed before their watchlist/portfolio.
+        WatchlistItem.query.filter(WatchlistItem.watchlist_id.in_(
+            db.session.query(Watchlist.id).filter(Watchlist.user_id == user_id)
+        )).delete(synchronize_session=False)
+        ProtectiveOrder.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        PortfolioItem.query.filter(PortfolioItem.portfolio_id.in_(
+            db.session.query(Portfolio.id).filter(Portfolio.user_id == user_id)
+        )).delete(synchronize_session=False)
+
+        for model in (
+            UserAssetPreference, Notification, Backtest, JournalEntry,
+            UserBrokerCredential, AlgoExecutionPolicy, MtfWatchConfig,
+            SavedScreen, UserSession,
+        ):
+            model.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        # These records are owned by the account, but their FK is named
+        # created_by_user_id rather than user_id.
+        DailyCompoundCalculation.query.filter_by(created_by_user_id=user_id).delete(
+            synchronize_session=False
+        )
+        Portfolio.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        Watchlist.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        # Audit history and the singleton config remain useful after account
+        # removal; both references are nullable and can safely become system-owned.
+        AuditLog.query.filter_by(user_id=user_id).update(
+            {AuditLog.user_id: None}, synchronize_session=False
+        )
+        PlatformConfig.query.filter_by(updated_by=user_id).update(
+            {PlatformConfig.updated_by: None}, synchronize_session=False
+        )
+        db.session.delete(user)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": "User cannot be deleted because another record still references this account"
+        }), 409
     return jsonify({"message": "User deleted"}), 200
 
 

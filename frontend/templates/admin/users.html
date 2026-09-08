@@ -463,9 +463,20 @@ async function deleteUser(id, username) {
   id = STSafe.assetId(id);
   if (!id) return;
   if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
-  const ok = await API.delete(`/admin/users/${id}`);
-  if (ok) { Toast.show('User deleted', 'success'); loadUsers(userPage); }
-  else Toast.show('Delete failed', 'error');
+  let result;
+  try {
+    const response = await fetch(`/api/v1/admin/users/${id}`, {
+      method: 'DELETE',
+      headers: API.headers(),
+    });
+    const body = await response.json().catch(() => ({}));
+    result = { ok: response.ok, ...body };
+  } catch (error) {
+    console.error('User delete request failed:', error);
+    result = { ok: false, error: 'Network error' };
+  }
+  if (result.ok) { Toast.show('User deleted', 'success'); loadUsers(userPage); }
+  else Toast.show(result.error || 'Delete failed', 'error');
 }
 
 document.getElementById('userSearch').addEventListener('input', () => {
