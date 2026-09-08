@@ -184,17 +184,6 @@ def delta_bubbles():
     return render_template("dashboard/delta_bubbles.html", requires_tier=2)
 
 
-@views_bp.route("/backtesting")
-def backtesting():
-    return render_template("dashboard/backtesting.html")
-
-
-@views_bp.route("/backtesting/strategy-sweep")
-@page_admin_required
-def strategy_sweep():
-    return render_template("dashboard/strategy_sweep.html", requires_admin=True)
-
-
 @views_bp.route("/portfolio")
 def portfolio():
     return render_template("dashboard/portfolio.html")

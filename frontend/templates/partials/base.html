@@ -247,14 +247,6 @@
           <i class="bi bi-file-earmark-bar-graph nav-icon-amber"></i><span class="nav-text">Reporting Center</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
-        {% if '/backtesting' not in disabled_nav_items %}
-        <a href="/backtesting" data-tooltip="Backtesting Lab — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history nav-icon-amber"></i><span class="nav-text">Backtesting Lab</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
-        </a>
-        {% endif %}
-        <a href="/backtesting/strategy-sweep" data-tooltip="Strategy Sweep — admin research report" class="nav-item {% if active == 'backtest_sweep' %}active{% endif %}">
-          <i class="bi bi-grid-3x3-gap nav-icon-amber"></i><span class="nav-text">Strategy Sweep</span><span class="badge-pro" title="Admin research report">ADMIN</span>
-        </a>
         {% if '/analytics' not in disabled_nav_items %}
         <a href="/analytics" data-tooltip="Signal Analytics — requires Premium or higher" class="nav-item {% if active == 'analytics' %}active{% endif %}">
           <i class="bi bi-graph-up nav-icon-amber"></i><span class="nav-text">Signal Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
