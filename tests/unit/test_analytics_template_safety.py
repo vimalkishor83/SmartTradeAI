@@ -21,9 +21,11 @@ def test_analytics_bounds_and_escapes_provider_values():
     assert "function analyticsNumber(value, fallback = 0)" in source
     assert "function analyticsCount(value)" in source
     assert "function safeRate(value)" in source
-    assert "escapeHtml(String(a.symbol" in source
+    assert "STSafe.html(String(a.symbol" in source
     assert "analyticsCount(r.total)" in source
     assert "Math.min(total, analyticsCount(a.wins))" in source
+    assert "escapeHtml(" not in source
+    assert "STSafe.html(String(d.market" in source
 
 
 def test_analytics_serializes_refresh_and_chart_lifecycle():

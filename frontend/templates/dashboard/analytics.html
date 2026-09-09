@@ -196,7 +196,7 @@ function buildMarketChart(data) {
   const ctx = canvas.getContext('2d');
   if (_marketChart) _marketChart.destroy();
   const rows = (Array.isArray(data) ? data : []).filter(d => d && typeof d === 'object');
-  const labels = rows.map(d => escapeHtml(String(d.market ?? 'Unknown')));
+  const labels = rows.map(d => STSafe.html(String(d.market ?? 'Unknown')));
   const rates  = rows.map(d => safeRate(d.win_rate));
   const mutedClr = _themeColor('--text-secondary', '#95a2b8');
   const gridClr  = _themeColor('--border', 'rgba(255,255,255,0.08)');
@@ -228,7 +228,7 @@ function buildTypeChart(data) {
   const ctx = canvas.getContext('2d');
   if (_typeChart) _typeChart.destroy();
   const rows = (Array.isArray(data) ? data : []).filter(d => d && typeof d === 'object');
-  const labels = rows.map(d => escapeHtml(String(d.signal_type ?? 'Unknown')));
+  const labels = rows.map(d => STSafe.html(String(d.signal_type ?? 'Unknown')));
   const totals = rows.map(d => analyticsCount(d.total));
   const mutedClr = _themeColor('--text-secondary', '#95a2b8');
   _typeChart = new Chart(ctx, {
@@ -257,7 +257,7 @@ function renderTfTable(data) {
   tbody.innerHTML = rows.map(r => {
     const rate = safeRate(r.win_rate);
     return `<tr>
-    <td><span class="badge-tag">${escapeHtml(String(r.timeframe ?? 'Unknown'))}</span></td>
+    <td><span class="badge-tag">${STSafe.html(String(r.timeframe ?? 'Unknown'))}</span></td>
     <td>${analyticsCount(r.total)}</td>
     <td class="text-green">${Math.min(analyticsCount(r.total), analyticsCount(r.wins))}</td>
     <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
@@ -272,7 +272,7 @@ function renderConfTable(data) {
   tbody.innerHTML = rows.map(r => {
     const rate = safeRate(r.win_rate);
     return `<tr>
-    <td><span class="badge-tag">${escapeHtml(String(r.range ?? 'Unknown'))}</span></td>
+    <td><span class="badge-tag">${STSafe.html(String(r.range ?? 'Unknown'))}</span></td>
     <td>${analyticsCount(r.total)}</td>
     <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
   </tr>`;
@@ -289,8 +289,8 @@ function renderTopAssets(data) {
     const rate = safeRate(a.win_rate);
     return `<tr>
     <td class="text-muted">${idx + 1}</td>
-    <td><strong>${escapeHtml(String(a.symbol ?? 'Unknown'))}</strong></td>
-    <td><span class="badge-tag">${escapeHtml(String(a.market ?? '').replace('_',' '))}</span></td>
+    <td><strong>${STSafe.html(String(a.symbol ?? 'Unknown'))}</strong></td>
+    <td><span class="badge-tag">${STSafe.html(String(a.market ?? '').replace('_',' '))}</span></td>
     <td>${total}</td>
     <td class="text-green">${wins}</td>
     <td style="color:${winRateColor(rate)};font-weight:700">${rate.toFixed(1)}%</td>
