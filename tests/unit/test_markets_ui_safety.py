@@ -17,6 +17,7 @@ def test_markets_page_exposes_live_context_and_accessible_filter_controls():
     assert 'id="marketTabAll" role="tab"' in source
     assert 'id="marketsUpdatedAt"' in source
     assert '<label class="visually-hidden" for="tfFilter">' in source
+    assert '<option value="5m">5 Min</option>' in source
     assert '<label class="visually-hidden" for="typeFilter">' in source
     assert '<label class="visually-hidden" for="assetSearch">' in source
     assert 'class="search-bar-clear" aria-label="Clear asset search"' in source
@@ -60,3 +61,4 @@ def test_markets_heatmap_uses_selected_timeframe_and_blends_price_momentum():
     assert "const blended = (mnum(score, 50) * 0.55) + (momentum * 0.45);" in source
     assert "const heatTimeframes = ['5m', '15m', '30m', '1h', '4h', '1d'];" in source
     assert "This is a confluence average, not a latest-row or highest-confidence pick." in source
+    assert "selectedTf === '5m' ? 26" in source

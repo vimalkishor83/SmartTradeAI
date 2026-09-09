@@ -267,7 +267,7 @@ async function loadAiHeat() {
     // the selected timeframe's price move so a strong old BUY cannot label
     // a currently falling market STRONG BUY. Longer frames use a smaller
     // multiplier because their normal candle moves are wider.
-    const scale = selectedTf === '15m' ? 22 : selectedTf === '30m' ? 18 : selectedTf === '1h' ? 14 : selectedTf === '4h' ? 10 : selectedTf === '1d' ? 8 : 8;
+    const scale = selectedTf === '5m' ? 26 : selectedTf === '15m' ? 22 : selectedTf === '30m' ? 18 : selectedTf === '1h' ? 14 : selectedTf === '4h' ? 10 : selectedTf === '1d' ? 8 : 8;
     const momentum = change === null ? 50 : Math.max(5, Math.min(95, 50 + change * scale));
     const blended = (mnum(score, 50) * 0.55) + (momentum * 0.45);
     return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, blended))), change };
