@@ -7,6 +7,7 @@ ROOT = Path(__file__).parents[2]
 AUTH = ROOT / "frontend" / "templates" / "auth"
 BASE = ROOT / "frontend" / "templates" / "partials" / "base.html"
 SHARED = ROOT / "frontend" / "static" / "js" / "auth_public.js"
+AUTH_CSS = ROOT / "frontend" / "static" / "css" / "auth.css"
 
 
 def test_auth_pages_use_explicit_form_labels_and_feedback_regions():
@@ -77,3 +78,14 @@ def test_auth_submit_and_state_transitions_recover_cleanly():
     assert "clearTimeout(timeout);" in forgot
     assert "data.message || 'Password updated successfully.'" in reset
     assert "wirePasswordToggle('newPassword', 'toggleNewPassword')" in reset
+
+
+def test_auth_styles_keep_light_theme_readable_across_all_auth_surfaces():
+    styles = AUTH_CSS.read_text(encoding="utf-8")
+
+    assert 'html[data-theme="light"] .auth-shell' in styles
+    assert 'html[data-theme="light"] .auth-shell .auth-card' in styles
+    assert 'html[data-theme="light"] .auth-shell .form-control' in styles
+    assert 'html[data-theme="light"] .auth-shell .auth-side' in styles
+    assert "background: #ffffff !important" in styles
+    assert "color: #0b1220 !important" in styles

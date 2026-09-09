@@ -264,3 +264,132 @@
     background: linear-gradient(180deg, rgba(139, 124, 255, 0.035), transparent 35%);
   }
 }
+
+/* Keep the shared auth polish readable when the application uses its light theme. */
+html[data-theme="light"] .auth-shell {
+  color: #0b1220;
+  background:
+    radial-gradient(circle at 16% 12%, rgba(245, 166, 35, 0.10), transparent 28rem),
+    radial-gradient(circle at 88% 82%, rgba(102, 93, 184, 0.08), transparent 24rem),
+    #f4f7fb;
+}
+
+html[data-theme="light"] .auth-shell .auth-container::before,
+html[data-theme="light"] .auth-shell .auth-container::after {
+  border-color: rgba(102, 93, 184, 0.16);
+  box-shadow: none;
+}
+
+html[data-theme="light"] .auth-shell .auth-side {
+  color: #334155;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(247, 250, 253, 0.96));
+  border-right-color: #d8e0eb;
+}
+
+html[data-theme="light"] .auth-shell .auth-form-panel {
+  background:
+    radial-gradient(ellipse at 75% 20%, rgba(245, 166, 35, 0.10), transparent 50%),
+    #f4f7fb;
+}
+
+html[data-theme="light"] .auth-shell .auth-card,
+html[data-theme="light"] .auth-shell .auth-simple-card {
+  color: #0b1220 !important;
+  border-color: #cbd5e1 !important;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(247, 250, 253, 0.98)) !important;
+  box-shadow: 0 22px 56px rgba(15, 23, 42, 0.14), 0 0 0 1px rgba(102, 93, 184, 0.08) !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-card::before,
+html[data-theme="light"] .auth-shell .auth-simple-card::before {
+  background: linear-gradient(90deg, transparent, #c87508, #665db8, transparent);
+}
+
+html[data-theme="light"] .auth-shell .auth-card h1,
+html[data-theme="light"] .auth-shell .auth-card h2,
+html[data-theme="light"] .auth-shell .auth-card h3,
+html[data-theme="light"] .auth-shell .auth-simple-card h1,
+html[data-theme="light"] .auth-shell .auth-simple-card h2,
+html[data-theme="light"] .auth-shell .auth-simple-card h3 {
+  color: #0b1220 !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-card .text-muted,
+html[data-theme="light"] .auth-shell .auth-simple-card .text-muted,
+html[data-theme="light"] .auth-shell .auth-trust-item,
+html[data-theme="light"] .auth-shell .auth-side-proof {
+  color: #475569 !important;
+}
+
+html[data-theme="light"] .auth-shell .form-label {
+  color: #334155 !important;
+}
+
+html[data-theme="light"] .auth-shell .form-control,
+html[data-theme="light"] .auth-shell .form-select {
+  border-color: #cbd5e1 !important;
+  background: #ffffff !important;
+  color: #0b1220 !important;
+}
+
+html[data-theme="light"] .auth-shell .form-control::placeholder {
+  color: #64748b !important;
+}
+
+html[data-theme="light"] .auth-shell .form-control:hover,
+html[data-theme="light"] .auth-shell .form-select:hover {
+  border-color: #94a3b8 !important;
+}
+
+html[data-theme="light"] .auth-shell .form-control:focus,
+html[data-theme="light"] .auth-shell .form-select:focus {
+  border-color: #c87508 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(200, 117, 8, 0.16), 0 0 20px rgba(200, 117, 8, 0.08) !important;
+}
+
+html[data-theme="light"] .auth-shell .input-group > .btn.btn-outline-light {
+  color: #334155 !important;
+  border-color: #cbd5e1 !important;
+  background: #f8fafc !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-side-stat,
+html[data-theme="light"] .auth-shell .auth-ticker {
+  border-color: #d7dfeb !important;
+  background: rgba(255, 255, 255, 0.82) !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-side-stat-num,
+html[data-theme="light"] .auth-shell .auth-ticker-sym,
+html[data-theme="light"] .auth-shell .auth-side-feature strong {
+  color: #0b1220 !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-side-badge {
+  color: #9a5a00 !important;
+  border-color: rgba(200, 117, 8, 0.28) !important;
+  background: rgba(245, 166, 35, 0.10) !important;
+}
+
+html[data-theme="light"] .auth-shell .auth-trust-row {
+  border-top-color: #d7dfeb !important;
+}
+
+html[data-theme="light"] .auth-shell .referral-box {
+  border-color: rgba(200, 117, 8, 0.42) !important;
+  background: rgba(245, 166, 35, 0.08) !important;
+}
+
+html[data-theme="light"] .auth-shell .referral-box-label {
+  color: #9a5a00 !important;
+}
+
+html[data-theme="light"] .auth-shell .form-control:-webkit-autofill,
+html[data-theme="light"] .auth-shell .form-control:-webkit-autofill:hover,
+html[data-theme="light"] .auth-shell .form-control:-webkit-autofill:focus {
+  -webkit-text-fill-color: #0b1220 !important;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  box-shadow: 0 0 0 1000px #ffffff inset !important;
+  caret-color: #0b1220;
+}
