@@ -16,6 +16,9 @@ def test_public_landing_has_skip_navigation_and_mobile_menu_contracts():
     assert 'id="publicNavLinks"' in source
     assert 'id="publicNavToggle"' in source
     assert 'aria-controls="publicNavLinks"' in source
+    assert 'href="/static/css/public-nav.css"' in source
+    assert ".nav-cta" in (ROOT / "frontend" / "static" / "css" / "public-nav.css").read_text(encoding="utf-8")
+    assert "flex-wrap: nowrap" in (ROOT / "frontend" / "static" / "css" / "public-nav.css").read_text(encoding="utf-8")
     assert "nav.classList.toggle('menu-open')" in source
     assert "links.querySelectorAll('a').forEach(link => link.addEventListener('click', close))" in source
     assert 'type="button" id="backToTop"' in source
@@ -31,6 +34,19 @@ def test_public_landing_centers_desktop_menu_and_uses_decorative_hero_asset():
     assert "url('/static/img/hero-market-atmosphere.png')" in source
     assert hero_asset.is_file()
     assert hero_asset.stat().st_size > 0
+
+
+def test_shared_public_nav_is_loaded_across_public_pages():
+    templates = [LANDING, *sorted((ROOT / "frontend" / "templates" / "legal").glob("*.html"))]
+    css = ROOT / "frontend" / "static" / "css" / "public-nav.css"
+
+    assert css.is_file()
+    css_source = css.read_text(encoding="utf-8")
+    assert ".navbar .nav-cta" in css_source
+    assert "flex-wrap: nowrap" in css_source
+    assert "flex-basis: 100%" in css_source
+    for template in templates:
+        assert 'href="/static/css/public-nav.css"' in template.read_text(encoding="utf-8")
 
 
 def test_public_live_data_is_bounded_escaped_and_does_not_overlap_polling():
