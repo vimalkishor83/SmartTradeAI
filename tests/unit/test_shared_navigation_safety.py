@@ -13,12 +13,12 @@ def test_shared_shell_uses_bound_controls_instead_of_inline_click_handlers():
 
     assert "onclick=" not in source
     assert source.count('class="nav-group-header" data-nav-group-toggle') == 8
-    assert '<span class="nav-section-label">Signals &amp; Discovery</span>' in source
-    assert '<span class="nav-section-label">AI &amp; Analysis</span>' in source
-    assert '<span class="nav-section-label">Research</span>' in source
-    assert '<span class="nav-section-label">Account</span>' in source
+    assert '<span class="nav-section-label"><i class="bi bi-lightning-charge nav-section-icon" aria-hidden="true"></i>Signals &amp; Discovery</span>' in source
+    assert '<span class="nav-section-label"><i class="bi bi-cpu nav-section-icon" aria-hidden="true"></i>AI &amp; Analysis</span>' in source
+    assert '<span class="nav-section-label"><i class="bi bi-flask nav-section-icon" aria-hidden="true"></i>Research</span>' in source
+    assert '<span class="nav-section-label"><i class="bi bi-person-gear nav-section-icon" aria-hidden="true"></i>Account</span>' in source
     assert 'id="navGroupBodyResearch"' in source
-    assert "active in ['backtesting','analytics','reports']" in source
+    assert "active in ['analytics','reports']" in source
     assert 'href="/reports"' in source
     assert 'id="navGroupBodyAccount"' in source
     assert 'id="navAutoGenerate"' in source
