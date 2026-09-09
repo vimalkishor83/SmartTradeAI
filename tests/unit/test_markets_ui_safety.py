@@ -47,3 +47,15 @@ def test_markets_controller_reports_partial_provider_failures():
     assert "News impact is temporarily unavailable." in source
     assert "Economic events are temporarily unavailable." in source
     assert "data is partially available" in source
+
+
+def test_markets_heatmap_uses_selected_timeframe_and_blends_price_momentum():
+    source = SCRIPT.read_text(encoding="utf-8")
+
+    assert "const selectedTf = document.getElementById('tfFilter')?.value || '';" in source
+    assert "API.get('/market-data/heatmap', heatParams)" in source
+    assert "if (selectedTf) params.timeframe = selectedTf" in source
+    assert "a.tf?.[selectedTf]" in source
+    assert "selectedTf ?" in source
+    assert "const blended = (mnum(score, 50) * 0.55) + (momentum * 0.45);" in source
+    assert "The old highest-confidence-across-all-" in source

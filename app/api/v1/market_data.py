@@ -638,7 +638,13 @@ def get_heatmap():
     # payload is global (identical for every user), so one shared key serves
     # everyone. Refreshed every ~3 min by prewarm_heatmap; this cold-path
     # rebuild is a safety net for the window before the first prewarm runs.
-    cached = cache.get("market_heatmap")
+    timeframe = (request.args.get("timeframe") or "").strip()
+    if timeframe:
+        from app.services.platform_config import FETCHABLE_TIMEFRAMES
+        if timeframe not in FETCHABLE_TIMEFRAMES:
+            return jsonify({"error": "Unsupported heatmap timeframe"}), 400
+    cache_key = f"market_heatmap_{timeframe}" if timeframe else "market_heatmap"
+    cached = cache.get(cache_key)
     if cached is not None:
         return jsonify(cached), 200
     # The scheduler normally keeps this warm, but several dashboard surfaces
@@ -646,23 +652,22 @@ def get_heatmap():
     # only the cold rebuild, then re-check the cache so waiting requests reuse
     # the first completed universe fetch.
     with _HEATMAP_BUILD_LOCK:
-        cached = cache.get("market_heatmap")
+        cached = cache.get(cache_key)
         if cached is not None:
             return jsonify(cached), 200
-        payload = {"heatmap": build_heatmap()}
-        cache.set("market_heatmap", payload, timeout=210)
+        payload = {"heatmap": build_heatmap(timeframe or None), "timeframe": timeframe or "24h"}
+        cache.set(cache_key, payload, timeout=210)
         return jsonify(payload), 200
 
 
-def build_heatmap() -> list:
-    """Build the price/24h-change tiles for every active, non-paused asset.
+def build_heatmap(timeframe=None) -> list:
+    """Build price-change tiles for every active, non-paused asset.
 
     Crypto prices are read straight from the Delta WebSocket in-memory cache
-    (continuously updated, sub-second, ZERO network) instead of a per-request
-    candle fetch — this is what turned the heatmap from a ~20-30s cold load
-    into an instant one. Only assets the WS hasn't populated yet (e.g. right
-    after boot, or any active non-crypto market) fall back to one batched
-    fetch_many() for the daily bar. Paused-feed markets are skipped entirely.
+    (continuously updated, sub-second, ZERO network) for the default 24-hour
+    view. When a timeframe is selected, two candles are fetched from the
+    shared OHLCV cache/provider so the tile reflects that timeframe's move.
+    Paused-feed markets are skipped entirely.
     """
     from app.services.data.delta_stream import get_all_live_prices
 
@@ -684,12 +689,37 @@ def build_heatmap() -> list:
 
     tiles = {}
     need_fetch = []
-    for asset in assets:
-        lp = live.get(asset.symbol.upper())
-        if lp and lp.get("price"):
-            tiles[asset.id] = _tile(asset, lp["price"], lp.get("change_pct") or 0)
-        else:
-            need_fetch.append(asset)
+    if timeframe:
+        # A selected timeframe must use its own previous candle, not the
+        # 24-hour ticker change. Keep the live websocket price when available
+        # so a tile reflects the current move from that candle close.
+        all_data = market_fetcher.fetch_many(assets, [timeframe], limit=2)
+        for asset in assets:
+            lp = live.get(asset.symbol.upper()) or {}
+            try:
+                df = all_data.get(asset.symbol, {}).get(timeframe)
+                if df is not None and len(df) >= 2:
+                    previous = float(df["close"].iloc[-2])
+                    price = float(lp.get("price") or df["close"].iloc[-1])
+                    tiles[asset.id] = _tile(
+                        asset, price,
+                        (price - previous) / previous * 100 if previous else 0,
+                    )
+                elif lp.get("price"):
+                    # Provider fallback keeps the tile visible, but callers
+                    # can see that it is a live fallback rather than a
+                    # fabricated timeframe result.
+                    tiles[asset.id] = _tile(asset, lp["price"], lp.get("change_pct") or 0)
+            except Exception:
+                if lp.get("price"):
+                    tiles[asset.id] = _tile(asset, lp["price"], lp.get("change_pct") or 0)
+    else:
+        for asset in assets:
+            lp = live.get(asset.symbol.upper())
+            if lp and lp.get("price"):
+                tiles[asset.id] = _tile(asset, lp["price"], lp.get("change_pct") or 0)
+            else:
+                need_fetch.append(asset)
 
     # Fallback only for whatever the WS cache didn't cover.
     if need_fetch:

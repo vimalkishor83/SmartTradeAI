@@ -40,9 +40,11 @@ function _setMarketUnavailable(id, message) {
 /* ── KPIs + sentiment + volatility from heatmap/signals ── */
 async function loadKPIs() {
   const sequence = _marketsSelectionSequence;
+  const selectedTf = document.getElementById('tfFilter')?.value || '';
+  const heatParams = selectedTf ? { timeframe: selectedTf } : {};
   const [summary, perf, pnl, heat] = await Promise.all([
     API.get('/signals/summary'), API.get('/signals/performance'),
-    API.get('/signals/open-pnl'), API.get('/market-data/heatmap'),
+    API.get('/signals/open-pnl'), API.get('/market-data/heatmap', heatParams),
   ]);
   if (!_marketIsCurrent(sequence)) return null;
   const ov = perf?.overall || {};
@@ -207,18 +209,21 @@ function loadTopOpps(signals) {
 async function loadAiHeat() {
   const grid = document.getElementById('aiHeatGrid'); if (!grid) return;
   const sequence = _marketsSelectionSequence;
-  const params = { per_page: 40 }; if (_filter) params.market = _filter;
+  const selectedTf = document.getElementById('tfFilter')?.value || '';
+  const params = { per_page: 40 }; if (_filter) params.market = _filter; if (selectedTf) params.timeframe = selectedTf;
+  const heatParams = selectedTf ? { timeframe: selectedTf } : {};
   const [sig, ai, heat] = await Promise.all([
-    API.get('/signals/', params), API.get('/market-data/ai-summary'), API.get('/market-data/heatmap'),
+    API.get('/signals/', params), API.get('/market-data/ai-summary'), API.get('/market-data/heatmap', heatParams),
   ]);
   if (!_marketIsCurrent(sequence)) return null;
   if (!sig && !ai && !heat) {
     _setMarketUnavailable('aiHeatGrid', 'AI scores are temporarily unavailable.');
     return false;
   }
-  // best (highest-confidence) active signal per symbol
+  // Use only the selected timeframe. The old highest-confidence-across-all-
+  // timeframes lookup made a 1d BUY mask a falling 15m market.
   const bySym = {};
-  (Array.isArray(sig?.signals) ? sig.signals : []).forEach(s => { const k = String(s.asset || ''); const confidence = mpercent(s.confidence_score); if (!bySym[k] || confidence > mpercent(bySym[k].confidence_score)) bySym[k] = s; });
+  (Array.isArray(sig?.signals) ? sig.signals : []).forEach(s => { bySym[String(s.asset || '')] = s; });
   // AI-model prediction per symbol
   const aiMap = {}; (Array.isArray(ai?.assets) ? ai.assets : []).forEach(a => { aiMap[String(a.symbol || '')] = a; });
   // universe = every asset in the market (from the live heatmap feed)
@@ -231,7 +236,9 @@ async function loadAiHeat() {
       score = s.signal_type === 'BUY' ? c : s.signal_type === 'SELL' ? 100 - c : 50;
     } else {                                                  // 2) AI prediction
       const a = aiMap[String(r.symbol || '')];
-      const tf = a && (a.tf?.['1h'] || Object.values(a.tf || {})[0]);
+      const tf = a && (selectedTf
+        ? a.tf?.[selectedTf]
+        : (a.tf?.['1h'] || Object.values(a.tf || {})[0]));
       if (tf && tf.confidence != null) {
         const confidence = mpercent(tf.confidence, 50);
         score = tf.direction === 'bullish' ? confidence : tf.direction === 'bearish' ? 100 - confidence : 50;
@@ -239,7 +246,15 @@ async function loadAiHeat() {
         score = 50 + mnum(r.change_pct, 0) * 8;
       }
     }
-    return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, mnum(score, 50)))) };
+    const change = mnum(r.change_pct, null);
+    // AI conviction alone is not a market direction score. Blend it with
+    // the selected timeframe's price move so a strong old BUY cannot label
+    // a currently falling market STRONG BUY. Longer frames use a smaller
+    // multiplier because their normal candle moves are wider.
+    const scale = selectedTf === '15m' ? 22 : selectedTf === '30m' ? 18 : selectedTf === '1h' ? 14 : selectedTf === '4h' ? 10 : selectedTf === '1d' ? 8 : 8;
+    const momentum = change === null ? 50 : Math.max(5, Math.min(95, 50 + change * scale));
+    const blended = (mnum(score, 50) * 0.55) + (momentum * 0.45);
+    return { symbol: r.symbol, id: r.asset_id, score: Math.round(Math.max(1, Math.min(99, blended))), change };
   });
   if (!items.length) { // last-resort fallback to ai-summary universe
     let assets = Array.isArray(ai?.assets) ? ai.assets : []; if (_filter) assets = assets.filter(a => a.market === _filter);
@@ -254,8 +269,9 @@ async function loadAiHeat() {
     const label = score >= 80 ? 'STRONG BUY' : score >= 60 ? 'BUY' : score >= 40 ? 'HOLD' : score >= 20 ? 'SELL' : 'STRONG SELL';
     const bg = score >= 80 ? 'rgba(16,185,129,.22)' : score >= 60 ? 'rgba(74,222,128,.16)' : score >= 40 ? 'rgba(245,158,11,.16)' : score >= 20 ? 'rgba(248,113,113,.16)' : 'rgba(239,68,68,.22)';
     const bd = score >= 60 ? 'var(--green)' : score >= 40 ? 'var(--yellow)' : 'var(--red)';
-    return `<a class="ai-heat-cell" href="${STSafe.assetHref(it.id)}" style="background:${bg};border-color:${bd}33;text-decoration:none;color:inherit">
-      <div class="ahc-sym">${STSafe.html(it.symbol)}</div><div class="ahc-score" style="color:${bd}">${score}</div><div class="ahc-lbl">${label}</div></a>`;
+    const move = it.change === null ? '' : ` · ${it.change >= 0 ? '+' : ''}${it.change.toFixed(2)}%`;
+    return `<a class="ai-heat-cell" href="${STSafe.assetHref(it.id)}" title="${STSafe.html(selectedTf || '24h')} move${STSafe.html(move)}" style="background:${bg};border-color:${bd}33;text-decoration:none;color:inherit">
+      <div class="ahc-sym">${STSafe.html(it.symbol)}</div><div class="ahc-score" style="color:${bd}">${score}</div><div class="ahc-lbl">${label}${STSafe.html(move)}</div></a>`;
   }).join('');
   return true;
 }

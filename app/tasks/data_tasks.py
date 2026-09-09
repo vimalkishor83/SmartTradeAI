@@ -447,7 +447,7 @@ def prewarm_heatmap(app):
         from app.api.v1.market_data import build_heatmap
         from app.extensions import cache
         try:
-            cache.set("market_heatmap", {"heatmap": build_heatmap()}, timeout=210)
+            cache.set("market_heatmap", {"heatmap": build_heatmap(), "timeframe": "24h"}, timeout=210)
             logger.info("Market heatmap cache pre-warmed")
         except Exception as e:
             logger.debug(f"Heatmap prewarm failed: {e}")
