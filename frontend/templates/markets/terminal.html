@@ -5,6 +5,85 @@
 
 {% block extra_css %}
 <style>
+.terminal-page {
+  --terminal-card-radius: 16px;
+}
+
+.terminal-page .dash-header {
+  position: relative;
+  min-height: 0;
+  padding: 22px 24px;
+  margin-bottom: 16px;
+  border: 1px solid color-mix(in srgb, var(--accent-violet) 36%, var(--border));
+  border-radius: var(--terminal-card-radius);
+  background:
+    radial-gradient(circle at 96% 0%, color-mix(in srgb, var(--accent-cyan) 10%, transparent), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-violet) 8%, var(--bg-card)), var(--bg-card) 58%);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, .07);
+  overflow: hidden;
+}
+.terminal-page .dash-header::before {
+  content: '';
+  position: absolute;
+  right: -42px;
+  bottom: -58px;
+  width: 260px;
+  height: 120px;
+  border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
+  border-radius: 50%;
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+.terminal-page .dash-header::after {
+  left: 24px;
+  bottom: 9px;
+  width: 94px;
+  border-top-color: color-mix(in srgb, var(--accent-cyan) 62%, transparent);
+  z-index: 1;
+}
+.terminal-page .dash-header-greet,
+.terminal-page .dash-header-actions { position: relative; z-index: 2; }
+.terminal-page .dash-header-greet { max-width: 820px; }
+.terminal-page .page-title { letter-spacing: -.025em; }
+.terminal-page .page-subtitle { max-width: 760px; line-height: 1.55; }
+.terminal-page .dash-header-actions { align-self: center; }
+
+.terminal-toolbar {
+  border-radius: var(--terminal-card-radius);
+  border-color: color-mix(in srgb, var(--accent-violet) 28%, var(--border));
+  background: linear-gradient(105deg, color-mix(in srgb, var(--accent-violet) 7%, transparent), transparent 58%), var(--glass);
+}
+.terminal-toolbar .section-card-body { padding: 13px 16px; }
+.terminal-control-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.terminal-control-label {
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.terminal-market-tabs { flex: 1 1 auto; }
+.terminal-market-tabs .terminal-tab { min-height: 39px; }
+.terminal-timeframe-group {
+  padding-left: 14px;
+  border-left: 1px solid var(--border);
+}
+.terminal-search-block {
+  flex: 0 1 220px;
+  min-width: 170px;
+}
+.terminal-search-block .terminal-control-label {
+  display: block;
+  margin: 0 0 5px 2px;
+}
+
 .terminal-tabs { display:flex; flex-wrap:wrap; gap:8px; }
 .terminal-tab {
   display:flex; align-items:center; gap:6px;
@@ -21,15 +100,38 @@
   display:flex; flex-direction:column; gap:7px;
   height:100%;
 }
-.signal-card .section-card-body { padding:14px; }
+.terminal-page .term-signal-card .section-card-body { padding: 16px; }
+.term-signal-card { border-radius: var(--terminal-card-radius); overflow: hidden; }
+.term-signal-card::before {
+  content: '';
+  display: block;
+  height: 3px;
+  background: var(--accent-violet);
+}
+.term-signal-card.term-card-buy::before { background: var(--green); }
+.term-signal-card.term-card-sell::before { background: var(--red); }
+.term-signal-card.term-card-hold::before { background: var(--yellow); }
+.term-signal-card.term-card-unavailable::before { background: var(--text-muted); }
+.term-signal-card .signal-card-status { align-items: center; }
 .signal-card-top { display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
 .signal-card-asset { font-weight:800; font-size:14.5px; color:var(--text-primary); }
 .signal-card-mkt { font-size:10.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.4px; }
-.signal-card-price { font-size:12px; color:var(--text-secondary); }
+.signal-card-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0 2px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.signal-card-price .signal-price-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.signal-card-price .signal-price-value { font-size: 15px; }
 
 .sc-band {
   border-radius:var(--radius-sm,8px);
-  background:var(--glass); border:1px solid var(--border);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent-violet) 5%, var(--glass)), var(--glass));
+  border:1px solid color-mix(in srgb, var(--accent-violet) 18%, var(--border));
   overflow:hidden;
 }
 .sc-row {
@@ -42,6 +144,9 @@
   display:flex; flex-direction:column; gap:1px;
   padding:7px 10px; background:var(--glass);
 }
+.sc-cell-entry { background: color-mix(in srgb, var(--accent-cyan) 7%, var(--glass)); }
+.sc-cell-stop { background: color-mix(in srgb, var(--red) 6%, var(--glass)); }
+.sc-cell-target { background: color-mix(in srgb, var(--green) 5%, var(--glass)); }
 .sc-grid-label { font-size:9.5px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
 .sc-grid-val { font-size:12.5px; font-weight:700; white-space:nowrap; }
 
@@ -49,6 +154,15 @@
 
 .sc-generated { display:block; font-size:10.5px; color:var(--text-muted); cursor:default; }
 .sc-generated .bi { margin-right:3px; }
+.sc-risk-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 1px;
+}
+.sc-risk-row .sc-risk-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
+.sc-risk-row .sc-risk-value { color: var(--text-secondary); font-size: 12px; }
 
 .sc-why { border-top:1px solid var(--border); padding-top:6px; margin-top:0; }
 .sc-why summary {
@@ -63,6 +177,9 @@
 
 .terminal-empty { text-align:center; padding:64px 16px; color:var(--text-muted); }
 .terminal-empty .bi { font-size:32px; display:block; margin-bottom:10px; }
+
+.terminal-grid-meta { gap: 12px; }
+.terminal-pin-note { display: inline-flex; align-items: center; gap: 4px; }
 
 .terminal-search { position:relative; width:220px; max-width:100%; }
 .terminal-search .bi-search {
@@ -90,10 +207,77 @@
 .term-pin-btn:hover { color:var(--text-secondary); }
 .term-pin-btn.pinned { color:var(--accent); }
 .section-card.term-card-pinned { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset; }
+
+html[data-theme="light"] .terminal-page .dash-header {
+  background:
+    radial-gradient(circle at 96% 0%, rgba(8, 127, 159, .09), transparent 28%),
+    linear-gradient(135deg, rgba(102, 93, 184, .09), #fff 62%);
+  border-color: #bdc8dc;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, .1);
+}
+html[data-theme="light"] .terminal-toolbar {
+  background: linear-gradient(105deg, rgba(102, 93, 184, .07), transparent 60%), #fff;
+  border-color: #c5d0df;
+}
+html[data-theme="light"] .terminal-page .terminal-tab {
+  background: #f6f8fb;
+  border-color: #ccd6e3;
+  color: #465570;
+}
+html[data-theme="light"] .terminal-page .terminal-tab:hover {
+  background: #eef2f7;
+  border-color: #a9b8ce;
+  color: #15233a;
+}
+html[data-theme="light"] .terminal-page .terminal-tab.active {
+  color: #fff;
+  background: #bd6d05;
+  border-color: #bd6d05;
+  box-shadow: 0 5px 12px rgba(189, 109, 5, .2);
+}
+html[data-theme="light"] .terminal-page .term-signal-card {
+  border-color: #ccd6e3;
+  background: linear-gradient(145deg, #fff, #f7f9fc);
+}
+html[data-theme="light"] .terminal-page .sc-band {
+  border-color: #cbd6e3;
+  background: #eef2f6;
+}
+html[data-theme="light"] .terminal-page .sc-cell { background: #f8fafc; }
+html[data-theme="light"] .terminal-page .sc-cell-entry { background: #edf9fa; }
+html[data-theme="light"] .terminal-page .sc-cell-stop { background: #fff2f3; }
+html[data-theme="light"] .terminal-page .sc-cell-target { background: #eefaf5; }
+
+@media (max-width: 1199.98px) {
+  .terminal-timeframe-group { padding-left: 0; border-left: 0; }
+  .terminal-search-block { flex-basis: 100%; }
+  .terminal-search-block .terminal-control-label { display: none; }
+}
+@media (max-width: 767.98px) {
+  .terminal-page .dash-header { padding: 18px; }
+  .terminal-page .dash-header-actions { width: 100%; }
+  .terminal-page .dash-header-actions .btn { width: 100%; }
+  .terminal-toolbar .section-card-body { padding: 12px; }
+  .terminal-control-group { width: 100%; align-items: flex-start; flex-direction: column; }
+  .terminal-tabs { width: 100%; }
+  .terminal-tabs .terminal-tab { flex: 1 1 auto; justify-content: center; padding: 8px 10px; }
+  .terminal-timeframe-group { gap: 6px; }
+  .terminal-search-block { width: 100%; }
+  .terminal-search { width: 100%; }
+  .terminal-grid-meta { align-items: flex-start !important; flex-direction: column; }
+  .terminal-pin-note { font-size: 10px; }
+  .terminal-page .term-signal-card .section-card-body { padding: 14px; }
+}
+@media (max-width: 420px) {
+  .terminal-page .page-title { font-size: 1.6rem; }
+  .terminal-market-tabs .terminal-tab { font-size: 11px; }
+  .terminal-market-tabs .terminal-tab i { display: none; }
+}
 </style>
 {% endblock %}
 
 {% block content %}
+<div class="terminal-page">
 <div class="dash-header">
   <div class="dash-header-greet">
     <span class="page-eyebrow">Markets</span>
@@ -105,46 +289,53 @@
   </div>
 </div>
 
-<div class="section-card mb-3">
+<div class="section-card terminal-toolbar mb-3">
   <div class="section-card-body py-3">
     <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
-      <div class="terminal-tabs" id="terminalMarketTabs" role="tablist" aria-label="Terminal market">
+      <div class="terminal-control-group terminal-market-tabs">
+        <span class="terminal-control-label">Market</span>
+        <div class="terminal-tabs" id="terminalMarketTabs" role="tablist" aria-label="Terminal market">
         <button type="button" class="terminal-tab active" id="terminalMarketCrypto" role="tab" aria-selected="true" aria-controls="terminalGrid" data-market="crypto"><i class="bi bi-currency-bitcoin" aria-hidden="true"></i>Crypto</button>
         <button type="button" class="terminal-tab" id="terminalMarketForex" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="forex" tabindex="-1"><i class="bi bi-currency-exchange" aria-hidden="true"></i>Forex</button>
         <button type="button" class="terminal-tab" id="terminalMarketCommodity" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="commodity" tabindex="-1"><i class="bi bi-gem" aria-hidden="true"></i>Commodities</button>
         <button type="button" class="terminal-tab" id="terminalMarketIndianStock" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="indian_stock" tabindex="-1"><i class="bi bi-building" aria-hidden="true"></i>Indian Stocks</button>
         <button type="button" class="terminal-tab" id="terminalMarketIndex" role="tab" aria-selected="false" aria-controls="terminalGrid" data-market="index" tabindex="-1"><i class="bi bi-activity" aria-hidden="true"></i>Indices</button>
+        </div>
       </div>
-      <div class="d-flex align-items-center gap-2 flex-wrap">
-        <span class="text-muted fs-xs" id="terminalTfLabel">Timeframe</span>
+      <div class="terminal-control-group terminal-timeframe-group">
+        <span class="terminal-control-label" id="terminalTfLabel">Timeframe</span>
         <div class="terminal-tabs" id="terminalTfTabs" role="tablist" aria-labelledby="terminalTfLabel">
           {% for tf in display_timeframes %}
           <button type="button" class="terminal-tab {% if tf == terminal_default_timeframe %}active{% endif %}" id="terminalTf-{{ tf|e }}" role="tab" aria-selected="{% if tf == terminal_default_timeframe %}true{% else %}false{% endif %}" aria-controls="terminalGrid" data-tf="{{ tf|e }}"{% if tf != terminal_default_timeframe %} tabindex="-1"{% endif %}>{{ tf|e }}</button>
           {% endfor %}
         </div>
       </div>
-      <div class="terminal-search" id="terminalSearchWrap">
-        <i class="bi bi-search" aria-hidden="true"></i>
-        <label class="visually-hidden" for="terminalSearch">Search terminal assets</label>
-        <input type="text" id="terminalSearch" placeholder="Search asset…" autocomplete="off">
-        <button type="button" class="term-search-clear" id="terminalSearchClear" aria-label="Clear terminal asset search"><i class="bi bi-x-circle-fill" aria-hidden="true"></i></button>
+      <div class="terminal-search-block">
+        <span class="terminal-control-label">Find an asset</span>
+        <div class="terminal-search" id="terminalSearchWrap">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <label class="visually-hidden" for="terminalSearch">Search terminal assets</label>
+          <input type="text" id="terminalSearch" placeholder="Search asset..." autocomplete="off">
+          <button type="button" class="term-search-clear" id="terminalSearchClear" aria-label="Clear terminal asset search"><i class="bi bi-x-circle-fill" aria-hidden="true"></i></button>
+        </div>
       </div>
     </div>
   </div>
 </div>
 
-<div class="d-flex justify-content-between align-items-center mb-2">
+<div class="d-flex justify-content-between align-items-center mb-2 terminal-grid-meta">
   <span class="text-muted fs-xs" id="terminalCount" role="status" aria-live="polite"></span>
-  <span class="text-muted fs-xs"><i class="bi bi-pin-angle-fill me-1" style="color:var(--accent)"></i>Pin up to <span id="terminalPinMaxLabel">5</span> assets to keep them pinned to the top</span>
+  <span class="text-muted fs-xs terminal-pin-note"><i class="bi bi-pin-angle-fill" style="color:var(--accent)" aria-hidden="true"></i>Pin up to <span id="terminalPinMaxLabel">4</span> assets to keep them pinned to the top</span>
 </div>
 
-<div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-5" id="terminalGrid" role="tabpanel" tabindex="0" aria-labelledby="terminalMarketCrypto" aria-live="polite" aria-busy="true">
+<div class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-4" id="terminalGrid" role="tabpanel" tabindex="0" aria-labelledby="terminalMarketCrypto" aria-live="polite" aria-busy="true">
   <div class="col-12" style="flex:0 0 100%;max-width:100%">
     <div class="terminal-empty">
       <i class="bi bi-hourglass-split"></i>
       Loading signals…
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 
@@ -399,14 +590,14 @@ function renderTerminalCard(s) {
   if (s.available === false) {
     return `
       <div class="col">
-        <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
+        <div class="section-card term-signal-card term-card-unavailable h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
                 <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
                 <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
               </div>
-              <div class="d-flex align-items-center gap-1">
+              <div class="d-flex gap-1 signal-card-status">
                 ${pinBtn}
                 <span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border)">N/A</span>
               </div>
@@ -427,20 +618,20 @@ function renderTerminalCard(s) {
       : '';
     return `
       <div class="col">
-        <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
+        <div class="section-card term-signal-card term-card-hold h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
               <div>
                 <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
                 <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
               </div>
-              <div class="d-flex align-items-center gap-1">
+              <div class="d-flex gap-1 signal-card-status">
                 ${pinBtn}
                 ${signalBadge('HOLD')}
               </div>
             </div>
             <div class="signal-card-price">
-              Current: <span class="tabular fw-700" style="color:var(--text-primary)">${_termPrice(s.current_price, mkt)}</span>
+              <span class="signal-price-label">Current</span><span class="signal-price-value tabular fw-700" style="color:var(--text-primary)">${_termPrice(s.current_price, mkt)}</span>
             </div>
             <div class="text-muted fs-xs">${_termHtml(s.no_signal_message || 'No qualifying setup on this timeframe right now — sitting out.')}</div>
             ${_timeAgo(s.generated_at, s.persisted)}
@@ -459,7 +650,7 @@ function renderTerminalCard(s) {
     ['Target 2', _termNumber(s.target2)],
     ['Target 3', _termNumber(s.target3)],
   ].map(([label, v]) => `
-    <div class="sc-cell">
+    <div class="sc-cell sc-cell-target">
       <span class="sc-grid-label">${_termHtml(label)}</span>
       <span class="sc-grid-val tabular" style="color:${v !== null ? 'var(--green)' : 'var(--text-muted)'}">${_termPrice(v, mkt)}</span>
     </div>`).join('');
@@ -474,14 +665,14 @@ function renderTerminalCard(s) {
 
   return `
     <div class="col">
-      <div class="section-card h-100${pinned ? ' term-card-pinned' : ''}">
+      <div class="section-card term-signal-card term-card-${String(s.signal_type || '').toLowerCase() === 'buy' ? 'buy' : 'sell'} h-100${pinned ? ' term-card-pinned' : ''}">
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
             <div>
               <a href="${_termAssetHref(assetId)}" class="signal-card-asset" style="text-decoration:none">${assetName}</a>
               <div class="signal-card-mkt">${marketLabel} · ${timeframe}</div>
             </div>
-            <div class="d-flex align-items-center gap-1">
+            <div class="d-flex gap-1 signal-card-status">
               ${pinBtn}
               ${signalBadge(s.signal_type)}
               ${s.persisted === false ? '<span class="badge" style="background:var(--glass);color:var(--text-muted);border:1px solid var(--border);font-size:9px" title="A live indicator read, not a tracked signal — it recalculates every visit and won\'t wait for TP/SL the way a generated signal does">LIVE</span>' : ''}
@@ -489,7 +680,7 @@ function renderTerminalCard(s) {
           </div>
 
           <div class="signal-card-price">
-            Current: <span class="tabular fw-700" style="color:var(--text-primary)">${_termPrice(cur, mkt)}</span>
+            <span class="signal-price-label">Current</span><span class="signal-price-value tabular fw-700" style="color:var(--text-primary)">${_termPrice(cur, mkt)}</span>
           </div>
 
           <div class="sc-conf-row">
@@ -500,11 +691,11 @@ function renderTerminalCard(s) {
 
           <div class="sc-band">
             <div class="sc-row sc-row-2">
-              <div class="sc-cell">
+              <div class="sc-cell sc-cell-entry">
                 <span class="sc-grid-label">Entry</span>
                 <span class="sc-grid-val tabular">${_termPrice(s.entry_price, mkt)}</span>
               </div>
-              <div class="sc-cell">
+              <div class="sc-cell sc-cell-stop">
                 <span class="sc-grid-label">Stop Loss</span>
                 <span class="sc-grid-val tabular" style="color:var(--red)">${_termPrice(s.stop_loss, mkt)}</span>
               </div>
@@ -514,7 +705,7 @@ function renderTerminalCard(s) {
             </div>
           </div>
 
-          ${_termNumber(s.risk_reward) !== null ? `<div class="fs-xs text-muted">R:R <span class="tabular fw-700" style="color:var(--text-secondary)">1:${_termNumber(s.risk_reward).toFixed(1)}</span></div>` : ''}
+          ${_termNumber(s.risk_reward) !== null ? `<div class="sc-risk-row"><span class="sc-risk-label">Risk / reward</span><span class="sc-risk-value tabular fw-700">1:${_termNumber(s.risk_reward).toFixed(1)}</span></div>` : ''}
 
           ${_timeAgo(s.generated_at, s.persisted)}
           ${whyHtml}
