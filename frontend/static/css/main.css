@@ -1798,6 +1798,55 @@ body[data-active="reports"] .page-content::before {
   padding: 18px;
 }
 
+.admin-tool-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.admin-tool-link > i {
+  width: 26px;
+  flex: 0 0 26px;
+  color: var(--accent);
+  font-size: 16px;
+  text-align: center;
+}
+
+.admin-tool-link span {
+  min-width: 0;
+}
+
+.admin-tool-link strong,
+.admin-tool-link small {
+  display: block;
+}
+
+.admin-tool-link strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-tool-link small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.admin-tool-link:hover {
+  border-color: var(--accent-violet, var(--accent));
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
 .glass-card {
   background: var(--glass);
   border: 1px solid var(--glass-border);

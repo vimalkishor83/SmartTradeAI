@@ -337,12 +337,6 @@
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
             <i class="bi bi-speedometer2 nav-icon-red"></i><span class="nav-text">Admin Panel</span>
           </a>
-          <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
-            <i class="bi bi-people-fill nav-icon-red"></i><span class="nav-text">Users</span>
-          </a>
-          <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
-            <i class="bi bi-plug-fill nav-icon-red"></i><span class="nav-text">API Configs</span>
-          </a>
           <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
             <i class="bi bi-layers-fill nav-icon-red"></i><span class="nav-text">Assets</span>
           </a>
@@ -360,12 +354,6 @@
           </a>
           <a href="/admin/sessions" data-tooltip="Login Sessions" class="nav-item {% if active == 'admin_sessions' %}active{% endif %}">
             <i class="bi bi-clock-history nav-icon-red"></i><span class="nav-text">Login Sessions</span>
-          </a>
-          <a href="/admin/audit-log" data-tooltip="Audit Log" class="nav-item {% if active == 'admin_audit_log' %}active{% endif %}">
-            <i class="bi bi-journal-check nav-icon-red"></i><span class="nav-text">Audit Log</span>
-          </a>
-          <a href="/admin/daily-compound-calculator" data-tooltip="Daily Compound Calculator — super admin only" class="nav-item {% if active == 'admin_daily_compound_calculator' %}active{% endif %}">
-            <i class="bi bi-calculator-fill nav-icon-red"></i><span class="nav-text">Compound Calculator</span>
           </a>
           {% if '/auto-generate' not in disabled_nav_items %}
           <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
