@@ -11,6 +11,7 @@
 
 .terminal-page .dash-header {
   position: relative;
+  isolation: isolate;
   min-height: 0;
   padding: 22px 24px;
   margin-bottom: 12px;
@@ -25,6 +26,7 @@
 .terminal-page .dash-header::before {
   content: '';
   position: absolute;
+  left: auto;
   right: -42px;
   bottom: -58px;
   width: 260px;
@@ -32,14 +34,12 @@
   border: 1px solid color-mix(in srgb, var(--accent) 42%, transparent);
   border-radius: 50%;
   transform: rotate(-9deg);
+  opacity: .45;
+  z-index: 0;
   pointer-events: none;
 }
 .terminal-page .dash-header::after {
-  left: 24px;
-  bottom: 9px;
-  width: 94px;
-  border-top-color: color-mix(in srgb, var(--accent-cyan) 62%, transparent);
-  z-index: 1;
+  content: none;
 }
 .terminal-page .dash-header-greet,
 .terminal-page .dash-header-actions { position: relative; z-index: 2; }
