@@ -272,6 +272,115 @@
   .app-shell .ai-hero-pill { justify-content:center; }
   .app-shell .ai-header-note { display:none; }
 }
+
+/* The dark prediction-desk overlays need a separate paper treatment in the
+   light theme. Keep the same visual hierarchy, but preserve edge contrast
+   and let the market artwork sit behind the content instead of turning into
+   a black block. */
+html[data-theme="light"] .app-shell .ai-page-header {
+  border-color: #cbd5e3;
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.78) 48%, rgba(255, 255, 255, 0.2) 82%),
+    url('/static/img/markets-atmosphere.png') right center / auto 220px no-repeat,
+    #ffffff;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1);
+}
+
+html[data-theme="light"] .app-shell .ai-page-header::before {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0 40%, rgba(255, 255, 255, 0.42) 70%, rgba(255, 255, 255, 0.96) 100%);
+}
+
+html[data-theme="light"] .app-shell .ai-title-icon {
+  border-color: rgba(102, 93, 184, 0.35);
+  color: var(--accent-violet);
+  background: rgba(102, 93, 184, 0.1);
+  box-shadow: 0 8px 18px rgba(102, 93, 184, 0.12);
+}
+
+html[data-theme="light"] .app-shell .ai-hero-pill {
+  border-color: #c8d3e2;
+  color: #53627a;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+html[data-theme="light"] .app-shell .ai-hero-core {
+  color: var(--accent-light);
+  background: rgba(200, 117, 8, 0.1);
+  box-shadow: 0 0 22px rgba(200, 117, 8, 0.14);
+}
+
+html[data-theme="light"] .app-shell .ai-guidance {
+  border-color: rgba(200, 117, 8, 0.28) !important;
+  background: linear-gradient(135deg, rgba(200, 117, 8, 0.1), rgba(200, 117, 8, 0.035)) !important;
+}
+
+html[data-theme="light"] .app-shell .ai-empty-state {
+  background:
+    linear-gradient(135deg, rgba(102, 93, 184, 0.08), transparent 50%),
+    radial-gradient(circle at 50% 30%, rgba(8, 127, 159, 0.08), transparent 48%),
+    #ffffff;
+}
+
+html[data-theme="light"] .app-shell .ai-empty-state::before {
+  opacity: 0.32;
+  background-image: linear-gradient(rgba(102, 93, 184, 0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(102, 93, 184, 0.1) 1px, transparent 1px);
+}
+
+html[data-theme="light"] .app-shell .ai-empty-art {
+  border-color: rgba(102, 93, 184, 0.3);
+  color: var(--accent-violet);
+  background: radial-gradient(circle, rgba(200, 117, 8, 0.12), rgba(102, 93, 184, 0.08) 48%, transparent 70%);
+  box-shadow: 0 0 0 12px rgba(102, 93, 184, 0.035), 0 8px 24px rgba(102, 93, 184, 0.12);
+}
+
+html[data-theme="light"] .app-shell .ai-confluence-kpi,
+html[data-theme="light"] .app-shell .ai-probability-card,
+html[data-theme="light"] .app-shell .ai-verdict {
+  background: rgba(15, 23, 42, 0.025);
+}
+
+html[data-theme="light"] .app-shell .ai-confluence-kpi.bullish,
+html[data-theme="light"] .app-shell .ai-level-card.bullish {
+  border-color: rgba(15, 157, 110, 0.28);
+  background: rgba(15, 157, 110, 0.08);
+}
+
+html[data-theme="light"] .app-shell .ai-confluence-kpi.bearish,
+html[data-theme="light"] .app-shell .ai-level-card.bearish {
+  border-color: rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.07);
+}
+
+html[data-theme="light"] .app-shell .ai-confluence-kpi.neutral {
+  border-color: rgba(180, 83, 9, 0.28);
+  background: rgba(180, 83, 9, 0.08);
+}
+
+html[data-theme="light"] .app-shell .ai-trade-map {
+  border-color: rgba(8, 127, 159, 0.25);
+  background: linear-gradient(135deg, rgba(8, 127, 159, 0.07), rgba(102, 93, 184, 0.025));
+}
+
+html[data-theme="light"] .app-shell .ai-level-card.entry {
+  background: linear-gradient(135deg, rgba(8, 127, 159, 0.12), rgba(8, 127, 159, 0.04));
+  border-color: rgba(8, 127, 159, 0.34);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 6px 16px rgba(8, 127, 159, 0.06);
+}
+
+html[data-theme="light"] .app-shell .pred-card.bullish {
+  border-color: rgba(15, 157, 110, 0.34);
+  background: rgba(15, 157, 110, 0.045);
+}
+
+html[data-theme="light"] .app-shell .pred-card.bearish {
+  border-color: rgba(220, 38, 38, 0.3);
+  background: rgba(220, 38, 38, 0.04);
+}
+
+html[data-theme="light"] .app-shell .pred-card.neutral {
+  border-color: rgba(180, 83, 9, 0.3);
+  background: rgba(180, 83, 9, 0.04);
+}
 </style>
 {% endblock %}
 

@@ -69,3 +69,14 @@ def test_shared_shell_exposes_editorial_module_labels_and_wave_accent():
     assert "02 / SIGNAL DISCOVERY" in css
     assert "05 / CAPITAL CONTROL" in css
     assert ".dash-header::after" in css
+
+
+def test_light_theme_has_a_complete_shell_finish():
+    css = CSS.read_text(encoding="utf-8")
+
+    assert 'html[data-theme="light"] .app-shell .top-navbar' in css
+    assert 'html[data-theme="light"] .app-shell .ticker-strip' in css
+    assert 'html[data-theme="light"] .app-shell .sidebar' in css
+    assert 'html[data-theme="light"] .app-shell .section-card' in css
+    assert 'html[data-theme="light"] .app-shell .form-control' in css
+    assert 'html[data-theme="light"] select option' in css

@@ -7088,3 +7088,146 @@ html[data-theme="light"] .app-shell {
 
   .app-shell table[data-mobile-cards] td[colspan]::before { content: none; }
 }
+
+/* Light theme finish: keep the terminal hierarchy, but replace dark-mode
+   overlays with cool paper surfaces and ink-readable accents. This sits at
+   the end of the shell stylesheet so legacy module rules inherit the same
+   treatment without page-by-page overrides. */
+html[data-theme="light"] {
+  --accent: #c87508;
+  --accent-light: #9a5b00;
+  --accent-dark: #a95f00;
+  --accent-violet: #665db8;
+  --accent-cyan: #087f9f;
+  --surface-glow: rgba(102, 93, 184, 0.1);
+  --shadow-card: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+html[data-theme="light"] .app-shell {
+  background:
+    radial-gradient(circle at 92% -8%, rgba(8, 127, 159, 0.055), transparent 28rem),
+    radial-gradient(circle at 18% 0%, rgba(102, 93, 184, 0.05), transparent 32rem),
+    var(--bg-primary);
+}
+
+html[data-theme="light"] .app-shell .top-navbar {
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.06), transparent 42%), rgba(255, 255, 255, 0.92);
+  border-bottom-color: #d8e0eb;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.045);
+}
+
+html[data-theme="light"] .app-shell .top-navbar::after {
+  background: linear-gradient(90deg, transparent, rgba(102, 93, 184, 0.38), rgba(8, 127, 159, 0.28), transparent);
+}
+
+html[data-theme="light"] .app-shell .ticker-strip {
+  background: linear-gradient(90deg, rgba(200, 117, 8, 0.045), rgba(102, 93, 184, 0.04), rgba(8, 127, 159, 0.035)), #edf2f7;
+  border-bottom-color: #d3dce8;
+}
+
+html[data-theme="light"] .app-shell .sidebar {
+  background: linear-gradient(180deg, rgba(102, 93, 184, 0.045), transparent 22%), #fbfcfe;
+  border-right-color: #d8e0eb;
+  box-shadow: 4px 0 20px rgba(15, 23, 42, 0.035);
+}
+
+html[data-theme="light"] .app-shell .sidebar-footer {
+  background: linear-gradient(180deg, rgba(251, 252, 254, 0), rgba(238, 242, 247, 0.98) 30%);
+}
+
+html[data-theme="light"] .app-shell .nav-group-header:hover,
+html[data-theme="light"] .app-shell .nav-group.active-group > .nav-group-header {
+  border-color: rgba(102, 93, 184, 0.18);
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.08), transparent);
+}
+
+html[data-theme="light"] .app-shell .nav-item:hover {
+  border-color: rgba(102, 93, 184, 0.18);
+  background: rgba(102, 93, 184, 0.07);
+}
+
+html[data-theme="light"] .app-shell .nav-item.active {
+  border-color: rgba(200, 117, 8, 0.28);
+  background: linear-gradient(90deg, rgba(200, 117, 8, 0.12), rgba(102, 93, 184, 0.07));
+  box-shadow: inset 3px 0 0 var(--accent), 0 5px 16px rgba(200, 117, 8, 0.07);
+}
+
+html[data-theme="light"] .app-shell .section-card,
+html[data-theme="light"] .app-shell .glass-card {
+  border-color: #d7dfeb;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 253, 0.98));
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="light"] .app-shell .section-card:hover {
+  border-color: #b8c4d6;
+}
+
+html[data-theme="light"] .app-shell .section-card-header {
+  background: linear-gradient(105deg, rgba(102, 93, 184, 0.065), transparent 58%);
+}
+
+html[data-theme="light"] .app-shell .kpi-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card-accent, var(--accent)) 6%, transparent), transparent 48%),
+    linear-gradient(165deg, #ffffff, #f4f7fb);
+}
+
+html[data-theme="light"] .app-shell .kpi-card:hover {
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12), 0 0 0 1px color-mix(in srgb, var(--card-accent, var(--accent)) 22%, transparent);
+}
+
+html[data-theme="light"] .app-shell .filter-bar,
+html[data-theme="light"] .app-shell .ui-toolbar {
+  border-color: #d2dce9;
+  background: linear-gradient(105deg, rgba(102, 93, 184, 0.045), transparent 60%), #ffffff;
+}
+
+html[data-theme="light"] .app-shell .form-control,
+html[data-theme="light"] .app-shell .form-select,
+html[data-theme="light"] .app-shell textarea,
+html[data-theme="light"] .app-shell input[type="date"],
+html[data-theme="light"] .app-shell input[type="number"] {
+  background: #ffffff;
+  border-color: #cbd6e4;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+html[data-theme="light"] .app-shell .form-control:focus,
+html[data-theme="light"] .app-shell .form-select:focus,
+html[data-theme="light"] .app-shell textarea:focus {
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 3px rgba(102, 93, 184, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme="light"] .app-shell .smart-table thead th {
+  background: #eef2f7;
+}
+
+html[data-theme="light"] .app-shell .smart-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.065), rgba(8, 127, 159, 0.025));
+}
+
+html[data-theme="light"] select option {
+  background: #ffffff;
+  color: #0b1220;
+}
+
+html[data-theme="light"] .app-shell .btn-outline-light,
+html[data-theme="light"] .app-shell .btn-outline-secondary {
+  border-color: #c4cfdd;
+  color: #43516a;
+}
+
+html[data-theme="light"] .app-shell .btn-outline-light:hover,
+html[data-theme="light"] .app-shell .btn-outline-secondary:hover {
+  border-color: var(--accent-violet);
+  background: rgba(102, 93, 184, 0.08);
+  color: var(--text-primary);
+}
+
+html[data-theme="light"] .app-shell .sidebar-footer .nav-item:hover {
+  color: #b4233e;
+  border-color: rgba(180, 35, 62, 0.18);
+  background: rgba(180, 35, 62, 0.06);
+}
