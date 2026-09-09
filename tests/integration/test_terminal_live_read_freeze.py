@@ -13,6 +13,8 @@ candle closes once entry/stop/targets stopped moving in lockstep with it.
 import pandas as pd
 from unittest.mock import patch
 
+from app.extensions import cache
+
 
 class FakeAsset:
     symbol = "TESTUSD"
@@ -137,3 +139,68 @@ class TestFrozenLiveRead:
                  patch("app.api.v1.signals.market_fetcher.fetch_ticker", return_value=None):
                 result = _frozen_live_read(asset, "1h", _df(100.0))
             assert result["current_price"] == 100.0
+
+    def test_cache_eviction_restores_same_setup_from_database(self, app):
+        from app.api.v1.signals import _frozen_live_read
+
+        buy_result = {
+            "available": True, "signal_type": "BUY", "confidence_score": 72.0,
+            "confidence_label": "Moderate", "reasoning": "Trend aligns.",
+            "entry_price": 100.0, "stop_loss": 95.0,
+            "target1": 105.0, "target2": 110.0, "target3": 115.0,
+            "risk_reward": 2.0,
+        }
+        asset = FakeAsset(1005)
+        cache_key = "terminal_live_read:1005:1h"
+        with app.app_context():
+            with patch("app.api.v1.signals.signal_engine.analyze", return_value=dict(buy_result)), \
+                 _ticker(100.0):
+                first = _frozen_live_read(asset, "1h", _df(100.0))
+            cache.delete(cache_key)
+
+            with patch("app.api.v1.signals.signal_engine.analyze") as mock_analyze, \
+                 _ticker(102.0):
+                restored = _frozen_live_read(asset, "1h", _df(102.0))
+
+            mock_analyze.assert_not_called()
+            assert restored["entry_price"] == first["entry_price"] == 100.0
+            assert restored["stop_loss"] == first["stop_loss"] == 95.0
+            assert restored["target1"] == first["target1"] == 105.0
+            assert restored["target3"] == first["target3"] == 115.0
+            assert restored["current_price"] == 102.0
+
+    def test_trailing_stop_tightens_after_target_milestones(self, app):
+        from app.api.v1.signals import _frozen_live_read
+
+        buy_result = {
+            "available": True, "signal_type": "BUY", "confidence_score": 72.0,
+            "entry_price": 100.0, "stop_loss": 95.0,
+            "target1": 105.0, "target2": 110.0, "target3": 115.0,
+            "risk_reward": 2.0,
+        }
+        asset = FakeAsset(1006)
+        with app.app_context():
+            with patch("app.api.v1.signals.signal_engine.analyze", return_value=dict(buy_result)), \
+                 _ticker(100.0):
+                initial = _frozen_live_read(asset, "1h", _df(100.0))
+            assert initial["stop_loss"] == 95.0
+            assert initial["trail_stage"] == 0
+
+            with patch("app.api.v1.signals.signal_engine.analyze") as mock_analyze, \
+                 _ticker(106.0):
+                after_target1 = _frozen_live_read(asset, "1h", _df(100.0))
+            mock_analyze.assert_not_called()
+            assert after_target1["trail_stage"] == 1
+            assert after_target1["stop_loss"] == 101.0
+            assert after_target1["entry_price"] == 100.0
+            assert after_target1["target3"] == 115.0
+
+            with _ticker(111.0):
+                after_target2 = _frozen_live_read(asset, "1h", _df(100.0))
+            assert after_target2["trail_stage"] == 2
+            assert after_target2["stop_loss"] == 106.0
+
+            with patch("app.api.v1.signals.signal_engine.analyze", return_value=dict(buy_result)) as mock_analyze, \
+                 _ticker(115.0):
+                _frozen_live_read(asset, "1h", _df(100.0))
+            mock_analyze.assert_called_once()

@@ -163,6 +163,13 @@
 }
 .sc-risk-row .sc-risk-label { color: var(--text-muted); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; }
 .sc-risk-row .sc-risk-value { color: var(--text-secondary); font-size: 12px; }
+.sc-trail-note {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent-cyan);
+  font-size: 10.5px;
+}
 
 .sc-why { border-top:1px solid var(--border); padding-top:6px; margin-top:0; }
 .sc-why summary {
@@ -644,6 +651,7 @@ function renderTerminalCard(s) {
   const conf  = _termPercent(s.confidence_score);
   const confC = _termConfColor(conf);
   const cur   = _termNumber(s.current_price);
+  const trailStage = Math.max(0, Math.min(2, Math.trunc(_termNumber(s.trail_stage, 0) || 0)));
 
   const targetsHtml = [
     ['Target 1', _termNumber(s.target1)],
@@ -706,6 +714,7 @@ function renderTerminalCard(s) {
           </div>
 
           ${_termNumber(s.risk_reward) !== null ? `<div class="sc-risk-row"><span class="sc-risk-label">Risk / reward</span><span class="sc-risk-value tabular fw-700">1:${_termNumber(s.risk_reward).toFixed(1)}</span></div>` : ''}
+          ${trailStage ? `<div class="sc-trail-note"><i class="bi bi-signpost-2" aria-hidden="true"></i>Trailing stop active after Target ${trailStage}</div>` : ''}
 
           ${_timeAgo(s.generated_at, s.persisted)}
           ${whyHtml}

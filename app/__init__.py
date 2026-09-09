@@ -515,6 +515,10 @@ def _migrate_columns(app):
         ("api_configs","last_latency_ms",      "INTEGER"),
         ("live_read_logs", "data_quality",     "TEXT"),
         ("live_read_logs", "expires_at",        "DATETIME"),
+        ("live_read_logs", "trailing_stop",     "REAL"),
+        ("live_read_logs", "high_water_mark",   "REAL"),
+        ("live_read_logs", "trail_stage",       "INTEGER DEFAULT 0"),
+        ("live_read_logs", "snapshot",          "TEXT"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)

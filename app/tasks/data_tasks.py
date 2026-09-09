@@ -5,6 +5,7 @@ import logging
 from app.websocket.events import broadcast_ticker
 
 logger = logging.getLogger(__name__)
+_LIVE_READ_RETENTION_DAYS = 30
 
 
 # ── Active-signal symbol gate ────────────────────────────────────────────────
@@ -1199,24 +1200,25 @@ def nightly_cleanup(app):
 def expire_live_read_logs(app):
     """Close stale Terminal preview reads as neutral outcomes.
 
-    Live-read cards are intentionally measured against target3, so a read can
-    remain open after reaching target1. Once its timeframe window ends it must
-    become an explicit neutral result instead of disappearing from the win-rate
-    denominator when the Redis card cache expires.
+    Live-read cards remain open until their effective stop or final target is
+    reached. The old timeframe-based expiry caused the Terminal to silently
+    replace Entry/Stop/Target levels while the setup was still active. Keep a
+    long retention guard only for abandoned records, so analytics storage
+    cannot grow forever when a feed never reports a boundary.
     """
     with app.app_context():
         from app.models.live_read_log import LiveReadLog
         from app.extensions import cache, db
-        from datetime import datetime
+        from datetime import datetime, timedelta
 
         now = datetime.utcnow()
+        retention_cutoff = now - timedelta(days=_LIVE_READ_RETENTION_DAYS)
         try:
             expired = (
                 LiveReadLog.query
                 .filter(
                     LiveReadLog.outcome.is_(None),
-                    LiveReadLog.expires_at.isnot(None),
-                    LiveReadLog.expires_at <= now,
+                    LiveReadLog.generated_at <= retention_cutoff,
                 )
                 .update(
                     {

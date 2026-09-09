@@ -21,6 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
 import csv
 import io
+import math
 
 logger = logging.getLogger(__name__)
 
@@ -1333,6 +1334,153 @@ def position_analysis(asset_id):
     return jsonify(result), 200
 
 
+_LIVE_READ_CACHE_TTL = 86400
+_LIVE_READ_SNAPSHOT_KEYS = (
+    "available", "analysis_state", "signal_type", "confidence_score",
+    "confidence_label", "qualifies_as_signal", "no_signal_reason",
+    "no_signal_message", "trend_score", "momentum_score", "volume_score",
+    "pattern_score", "ai_score", "lane_technical", "lane_flow", "reasoning",
+    "reasoning_detail", "volatility_regime", "higher_tf_bias", "regime",
+    "entry_price", "stop_loss", "target1", "target2", "target3",
+    "risk_reward", "invalidation_conditions", "target_allocations",
+)
+
+
+def _live_read_snapshot(result):
+    """Keep only JSON-safe, deterministic analysis fields in the DB snapshot."""
+    return {key: result.get(key) for key in _LIVE_READ_SNAPSHOT_KEYS if key in result}
+
+
+def _live_read_number(value):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _open_live_read_for(asset, timeframe):
+    """Return the newest still-open preview, including after Redis restarts."""
+    try:
+        from app.models.live_read_log import LiveReadLog
+        return (LiveReadLog.query
+                .filter_by(asset_id=asset.id, timeframe=timeframe)
+                .filter(LiveReadLog.outcome.is_(None))
+                .order_by(LiveReadLog.generated_at.desc())
+                .first())
+    except Exception:
+        return None
+
+
+def _live_read_from_log(row):
+    """Rebuild a Terminal card from its durable open setup snapshot."""
+    state = dict(row.snapshot or {})
+    state.setdefault("available", True)
+    state.setdefault("analysis_state", "SIGNAL")
+    state.setdefault("signal_type", row.signal_type)
+    state.setdefault("confidence_score", row.confidence_score)
+    state.setdefault("entry_price", row.entry_price)
+    state.setdefault("target1", row.target1)
+    state.setdefault("target2", row.target2)
+    state.setdefault("target3", row.target3)
+    state.setdefault("reasoning", row.reasoning)
+    state.setdefault("reasoning_detail", row.reasoning_detail)
+    state.setdefault("regime", row.regime)
+    state.setdefault("data_quality", row.data_quality)
+    state["initial_stop_loss"] = row.stop_loss
+    state["trailing_stop"] = row.trailing_stop
+    state["high_water_mark"] = row.high_water_mark or row.entry_price
+    state["trail_stage"] = row.trail_stage or 0
+    state["stop_loss"] = row.trailing_stop or row.stop_loss
+    state["live_read_log_id"] = row.id
+    state["generated_at"] = row.generated_at.isoformat() if row.generated_at else None
+    return state
+
+
+def _advance_live_read_trailing(state, live_price):
+    """Tighten a live preview stop only after a profit milestone is reached.
+
+    Entry and all three targets are immutable. Before Target 1 the original
+    stop is used. Once Target 1 is touched, the stop can move to breakeven
+    and then follows the best price by one initial-risk unit; Target 2 also
+    guarantees the stop is at least Target 1. The stop never loosens.
+    """
+    direction = state.get("signal_type")
+    entry = _live_read_number(state.get("entry_price"))
+    initial_stop = _live_read_number(state.get("initial_stop_loss"))
+    if initial_stop is None:
+        initial_stop = _live_read_number(state.get("stop_loss"))
+    t1 = _live_read_number(state.get("target1"))
+    t2 = _live_read_number(state.get("target2"))
+    t3 = _live_read_number(state.get("target3"))
+    price = _live_read_number(live_price)
+    if direction not in ("BUY", "SELL") or entry is None or initial_stop is None or price is None:
+        return state, False, False
+
+    previous_hwm = _live_read_number(state.get("high_water_mark")) or entry
+    previous_trailing = _live_read_number(state.get("trailing_stop"))
+    previous_stage = max(0, int(state.get("trail_stage") or 0))
+    if direction == "BUY":
+        high_water = max(previous_hwm, price)
+        stage = max(previous_stage, 2 if t2 is not None and price >= t2 else 1 if t1 is not None and price >= t1 else 0)
+    else:
+        high_water = min(previous_hwm, price)
+        stage = max(previous_stage, 2 if t2 is not None and price <= t2 else 1 if t1 is not None and price <= t1 else 0)
+
+    effective_stop = initial_stop
+    trailing_stop = None
+    risk = abs(entry - initial_stop)
+    if stage >= 1 and risk > 0:
+        milestone = entry
+        if stage >= 2 and t1 is not None:
+            milestone = t1
+        dynamic_stop = high_water - risk if direction == "BUY" else high_water + risk
+        if direction == "BUY":
+            effective_stop = max(initial_stop, milestone, dynamic_stop)
+        else:
+            effective_stop = min(initial_stop, milestone, dynamic_stop)
+        trailing_stop = effective_stop
+        if previous_trailing is not None:
+            effective_stop = max(previous_trailing, effective_stop) if direction == "BUY" else min(previous_trailing, effective_stop)
+            trailing_stop = effective_stop
+
+    changed = (
+        previous_hwm != high_water
+        or previous_trailing != trailing_stop
+        or previous_stage != stage
+    )
+    state["initial_stop_loss"] = initial_stop
+    state["high_water_mark"] = high_water
+    state["trail_stage"] = stage
+    state["trailing_stop"] = trailing_stop
+    state["stop_loss"] = effective_stop
+    state["current_price"] = price
+
+    resolved = (
+        (direction == "BUY" and (price <= effective_stop or (t3 is not None and price >= t3)))
+        or (direction == "SELL" and (price >= effective_stop or (t3 is not None and price <= t3)))
+    )
+    return state, resolved, changed
+
+
+def _persist_live_read_trailing(state):
+    """Persist only trailing-state changes; cached reads remain fast."""
+    log_id = state.get("live_read_log_id")
+    if not log_id:
+        return
+    try:
+        from app.models.live_read_log import LiveReadLog
+        row = LiveReadLog.query.get(log_id)
+        if not row or row.outcome is not None:
+            return
+        row.high_water_mark = state.get("high_water_mark")
+        row.trailing_stop = state.get("trailing_stop")
+        row.trail_stage = int(state.get("trail_stage") or 0)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def _frozen_live_read(asset, timeframe, df):
     """A live-preview card (market_board() falls back to this when there's
     no persisted Signal for this asset+timeframe) still needs entry/stop/
@@ -1347,11 +1495,10 @@ def _frozen_live_read(asset, timeframe, df):
 
     Freezes analyze()'s BUY/SELL output the first time it's computed for
     this asset+timeframe and keeps serving that exact snapshot — only
-    current_price stays live — until either the hypothetical trade would
-    have actually resolved (price reaches the frozen stop-loss or FINAL
-    target/target3) or the cache entry's own TTL (matched to the
-    timeframe's signal-validity window) expires and a fresh read replaces
-    it. NOTE: this is a deliberately stricter bar than a real persisted
+    current_price and a post-Target-1 trailing stop can move — until the
+    hypothetical trade resolves at the effective stop or FINAL target.
+    The open snapshot is restored from LiveReadLog when Redis is evicted or
+    the app restarts. NOTE: this is a deliberately stricter bar than a real persisted
     Signal, which closes as soon as target1 is hit (see
     app/tasks/data_tasks.py::_check_outcome) — a card that reaches
     target1 but not target3 keeps showing that same frozen setup rather
@@ -1363,16 +1510,11 @@ def _frozen_live_read(asset, timeframe, df):
     docstring. HOLD reads have no entry/stop/target numbers to freeze, so
     they're always computed fresh.
     """
-    close = float(df["close"].iloc[-1])
-    # The OHLCV candle's own close only moves when a candle actually
-    # closes (once an hour for "1h", etc.) — using it as "current price"
-    # made the price look frozen too between candle closes, which wasn't
-    # noticeable before (entry/stop/targets moved in lockstep with it,
-    # so *something* visibly changed) but became obvious once those were
-    # frozen on their own schedule. fetch_ticker() is the same continuously-
-    # updated live quote (WS stream for crypto, short-TTL cache otherwise)
-    # the price ticker strip and open-P&L elsewhere in the app already use.
-    live_price = close
+    # fetch_ticker() is the same continuously-updated live quote (WS stream
+    # for crypto, short-TTL cache otherwise) the ticker strip and open-P&L
+    # surfaces already use. An existing frozen setup does not need a fresh
+    # OHLCV download just to update this number.
+    live_price = None
     try:
         ticker = market_fetcher.fetch_ticker(asset)
         if ticker and ticker.get("price"):
@@ -1382,24 +1524,46 @@ def _frozen_live_read(asset, timeframe, df):
 
     cache_key = f"terminal_live_read:{asset.id}:{timeframe}"
     cached = cache.get(cache_key)
+    if not cached:
+        row = _open_live_read_for(asset, timeframe)
+        cached = _live_read_from_log(row) if row else None
     if cached:
-        sl, t3, direction = cached.get("stop_loss"), cached.get("target3"), cached.get("signal_type")
-        resolved = (
-            (direction == "BUY"  and sl is not None and t3 is not None and (live_price <= sl or live_price >= t3)) or
-            (direction == "SELL" and sl is not None and t3 is not None and (live_price >= sl or live_price <= t3))
-        )
-        if not resolved:
-            cached["current_price"] = live_price
+        live_price = live_price or _live_read_number(cached.get("current_price")) or _live_read_number(cached.get("entry_price"))
+        cached, resolved, changed = _advance_live_read_trailing(cached, live_price)
+        direction = cached.get("signal_type")
+        if resolved:
+            _close_live_read_log(cached.get("live_read_log_id"), live_price, direction, cached.get("stop_loss"))
+            cache.delete(cache_key)
+        else:
+            if changed:
+                _persist_live_read_trailing(cached)
+            try:
+                cache.set(cache_key, dict(cached), timeout=_LIVE_READ_CACHE_TTL)
+            except Exception:
+                pass
             return cached
-        _close_live_read_log(cached.get("live_read_log_id"), live_price, direction, sl)
+
+    if df is None or df.empty:
+        return {
+            "available": False,
+            "analysis_state": "UNAVAILABLE",
+            "reason": "market_data_unavailable",
+        }
+
+    close = float(df["close"].iloc[-1])
+    live_price = live_price or close
 
     result = signal_engine.analyze(df, asset, timeframe)
     if result.get("available") and result.get("signal_type") in ("BUY", "SELL"):
         result["current_price"] = live_price
         result["generated_at"] = datetime.utcnow().isoformat()
+        result["initial_stop_loss"] = result.get("stop_loss")
+        result["trailing_stop"] = None
+        result["high_water_mark"] = result.get("entry_price")
+        result["trail_stage"] = 0
         result["live_read_log_id"] = _open_live_read_log(asset, timeframe, result)
         try:
-            cache.set(cache_key, dict(result), timeout=_SIGNAL_EXPIRY.get(timeframe, 240) * 60)
+            cache.set(cache_key, dict(result), timeout=_LIVE_READ_CACHE_TTL)
         except Exception:
             pass
     elif result.get("available"):
@@ -1411,18 +1575,15 @@ def _frozen_live_read(asset, timeframe, df):
 def _open_live_read_log(asset, timeframe, result):
     """Records a fresh (not cache-hit) BUY/SELL live-preview read so its
     hypothetical performance can be measured — see LiveReadLog's own
-    docstring for why this is tracked separately from real signals."""
+    docstring for why this is tracked separately from real signals.
+
+    This request path deliberately stores the deterministic engine reasoning
+    only. Calling a remote LLM here made a Terminal refresh wait once per
+    uncached asset; generated alerts can still use the richer narrative path
+    in signal_tasks.py without blocking this live board."""
     try:
         from app.models.live_read_log import LiveReadLog
-        try:
-            from app.services.ai.llm_reasoning import generate_reasoning
-            llm_text = generate_reasoning(
-                result["signal_type"], asset.symbol, timeframe,
-                result.get("confidence_score") or 0, result.get("regime"), result.get("reasoning_detail"),
-            )
-            reasoning_text = llm_text or result.get("reasoning")
-        except Exception:
-            reasoning_text = result.get("reasoning")
+        reasoning_text = result.get("reasoning")
 
         generated_at = datetime.utcnow()
         row = LiveReadLog(
@@ -1430,6 +1591,8 @@ def _open_live_read_log(asset, timeframe, result):
             confidence_score=result.get("confidence_score"), entry_price=result.get("entry_price"),
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
+            high_water_mark=result.get("entry_price"), trail_stage=0,
+            snapshot=_live_read_snapshot(result),
             generated_at=generated_at,
             expires_at=generated_at + timedelta(minutes=_SIGNAL_EXPIRY.get(timeframe, 240)),
             reasoning=reasoning_text, reasoning_detail=result.get("reasoning_detail"),
@@ -1509,7 +1672,19 @@ def market_board():
     }
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    from app.models.live_read_log import LiveReadLog
     need_fetch = [a for a in assets if a.id not in active_by_asset]
+    # An open live-preview setup has all of its immutable analysis inputs in
+    # LiveReadLog. Skip the expensive OHLCV fetch for those cards; the frozen
+    # reader only needs the live ticker until the setup resolves.
+    open_live_read_ids = {
+        row.asset_id for row in LiveReadLog.query.filter(
+            LiveReadLog.asset_id.in_([a.id for a in need_fetch]),
+            LiveReadLog.timeframe == timeframe,
+            LiveReadLog.outcome.is_(None),
+        ).order_by(LiveReadLog.generated_at.desc()).all()
+    } if need_fetch else {}
+    need_fetch = [a for a in need_fetch if a.id not in open_live_read_ids]
     df_by_asset = {}
     if need_fetch:
         with ThreadPoolExecutor(max_workers=min(15, len(need_fetch))) as pool:

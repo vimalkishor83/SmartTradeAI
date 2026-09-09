@@ -70,7 +70,7 @@ def test_expire_live_read_logs_records_neutral_outcome(app):
             timeframe="1h",
             signal_type="BUY",
             entry_price=100.0,
-            generated_at=datetime.utcnow() - timedelta(hours=5),
+            generated_at=datetime.utcnow() - timedelta(days=31),
             expires_at=datetime.utcnow() - timedelta(minutes=1),
         )
         current = LiveReadLog(

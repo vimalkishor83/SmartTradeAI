@@ -14,11 +14,10 @@ class LiveReadLog(db.Model):
 
     One row per frozen live-read snapshot. `outcome` stays None while the
     hypothetical trade is still open (current price hasn't reached the
-    frozen stop-loss or final target yet); _frozen_live_read closes it out
-    the moment a fresh read replaces it, using the same win/loss condition
-    that would close a real signal. A read that reaches neither boundary
-    before its timeframe window ends is marked `expired` (neutral) by the
-    scheduled cleanup job.
+    effective stop-loss or final target yet); _frozen_live_read closes it out
+    at a boundary using the same win/loss condition that would close a real
+    signal. A long retention guard handles abandoned records, but normal
+    timeframe expiry never reshapes an open setup.
     """
     __tablename__ = "live_read_logs"
 
@@ -32,6 +31,15 @@ class LiveReadLog(db.Model):
     target1 = db.Column(db.Float)
     target2 = db.Column(db.Float)
     target3 = db.Column(db.Float)
+    # The original stop remains immutable for audit/performance purposes.
+    # trailing_stop is the effective protective level shown after the setup
+    # reaches its first profit milestone.
+    trailing_stop = db.Column(db.Float)
+    high_water_mark = db.Column(db.Float)
+    trail_stage = db.Column(db.Integer, nullable=False, default=0)
+    # Full deterministic analysis snapshot so an open Terminal setup can be
+    # restored after Redis eviction or an application restart.
+    snapshot = db.Column(db.JSON, default=dict)
     outcome = db.Column(db.String(10))       # None (open), "win", "loss", or "expired"
     exit_price = db.Column(db.Float)
     generated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -62,6 +70,10 @@ class LiveReadLog(db.Model):
             "confidence_score": self.confidence_score,
             "entry_price": self.entry_price,
             "stop_loss": self.stop_loss,
+            "trailing_stop": self.trailing_stop,
+            "high_water_mark": self.high_water_mark,
+            "trail_stage": self.trail_stage,
+            "snapshot": self.snapshot,
             "outcome": self.outcome,
             "exit_price": self.exit_price,
             "generated_at": self.generated_at.isoformat() if self.generated_at else None,
