@@ -90,7 +90,13 @@ def update_platform_config_route():
     if "disabled_nav_items" in data:
         if not isinstance(data["disabled_nav_items"], list):
             return jsonify({"error": "disabled_nav_items must be a list"}), 400
-        row.disabled_nav_items = data["disabled_nav_items"]
+        if not all(isinstance(item, str) and item.startswith("/") for item in data["disabled_nav_items"]):
+            return jsonify({"error": "disabled_nav_items must contain route strings"}), 400
+        # The dashboard route is the recovery path for every admin tool; it
+        # is intentionally never hideable, even through a crafted API call.
+        row.disabled_nav_items = [
+            item for item in data["disabled_nav_items"] if item != "/admin"
+        ]
 
     if "timeframes" in data:
         tfs = data["timeframes"]

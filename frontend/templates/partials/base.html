@@ -337,24 +337,46 @@
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
             <i class="bi bi-speedometer2 nav-icon-red"></i><span class="nav-text">Admin Panel</span>
           </a>
+          {% if '/admin/assets' not in disabled_nav_items %}
           <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
             <i class="bi bi-layers-fill nav-icon-red"></i><span class="nav-text">Assets</span>
           </a>
+          {% endif %}
+          {% if '/admin/logs' not in disabled_nav_items %}
           <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
             <i class="bi bi-list-ul nav-icon-red"></i><span class="nav-text">System Logs</span>
           </a>
+          {% endif %}
+          {% if '/admin/platform-config' not in disabled_nav_items %}
           <a href="/admin/platform-config" data-tooltip="Platform Configuration" class="nav-item {% if active == 'admin_platform_config' %}active{% endif %}">
             <i class="bi bi-sliders nav-icon-red"></i><span class="nav-text">Platform Config</span>
           </a>
+          {% endif %}
+          {% if '/admin/telegram-alerts' not in disabled_nav_items %}
           <a href="/admin/telegram-alerts" data-tooltip="Telegram Alerts" class="nav-item {% if active == 'admin_telegram_alerts' %}active{% endif %}">
             <i class="bi bi-telegram nav-icon-red"></i><span class="nav-text">Telegram Alerts</span>
           </a>
+          {% endif %}
+          {% if '/admin/security' not in disabled_nav_items %}
           <a href="/admin/security" data-tooltip="Security" class="nav-item {% if active == 'admin_security' %}active{% endif %}">
             <i class="bi bi-shield-lock nav-icon-red"></i><span class="nav-text">Security</span>
           </a>
+          {% endif %}
+          {% if '/admin/sessions' not in disabled_nav_items %}
           <a href="/admin/sessions" data-tooltip="Login Sessions" class="nav-item {% if active == 'admin_sessions' %}active{% endif %}">
             <i class="bi bi-clock-history nav-icon-red"></i><span class="nav-text">Login Sessions</span>
           </a>
+          {% endif %}
+          {% if '/admin/audit-log' not in disabled_nav_items %}
+          <a href="/admin/audit-log" data-tooltip="Audit Log" class="nav-item {% if active == 'admin_audit_log' %}active{% endif %}">
+            <i class="bi bi-journal-check nav-icon-red"></i><span class="nav-text">Audit Log</span>
+          </a>
+          {% endif %}
+          {% if '/admin/daily-compound-calculator' not in disabled_nav_items %}
+          <a href="/admin/daily-compound-calculator" data-tooltip="Daily Compound Calculator — super admin only" class="nav-item {% if active == 'admin_daily_compound_calculator' %}active{% endif %}">
+            <i class="bi bi-calculator-fill nav-icon-red"></i><span class="nav-text">Compound Calculator</span>
+          </a>
+          {% endif %}
           {% if '/auto-generate' not in disabled_nav_items %}
           <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
             <i class="bi bi-robot nav-icon-red"></i><span class="nav-text">Auto Generate</span>
