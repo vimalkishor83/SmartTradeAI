@@ -1668,6 +1668,9 @@ def market_board():
             Signal.timeframe == timeframe,
             Signal.status == "active",
             Signal.signal_type.in_(["BUY", "SELL"]),
+            # The expiry worker normally closes these rows, but the read path
+            # must not display an expired setup if that worker is delayed.
+            or_(Signal.expires_at.is_(None), Signal.expires_at > datetime.utcnow()),
         ).order_by(Signal.generated_at.desc()).all()
     }
 

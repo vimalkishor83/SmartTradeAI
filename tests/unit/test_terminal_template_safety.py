@@ -66,4 +66,5 @@ def test_terminal_layout_keeps_signal_details_scanable_at_desktop_and_mobile_wid
     assert 'class="sc-cell sc-cell-stop"' in source
     assert 'sc-cell sc-cell-target' in source
     assert 'Trailing stop active after Target' in source
+    assert 'Tracked setup · ${rel} · live quote' in source
     assert '@media (max-width: 767.98px)' in source
