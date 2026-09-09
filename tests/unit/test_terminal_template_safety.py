@@ -59,6 +59,7 @@ def test_terminal_layout_keeps_signal_details_scanable_at_desktop_and_mobile_wid
     source = TEMPLATE.read_text(encoding="utf-8")
 
     assert '<div class="terminal-page">' in source
+    assert "margin-bottom: 12px" in source
     assert 'class="section-card terminal-toolbar mb-3"' in source
     assert 'class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-4"' in source
     assert 'term-signal-card term-card-${String(s.signal_type ||' in source

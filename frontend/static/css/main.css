@@ -6438,14 +6438,27 @@ html[data-theme="light"] .app-shell {
 }
 
 .app-shell .page-content {
+  isolation: isolate;
   padding-top: clamp(22px, 3vw, 34px);
   padding-inline: clamp(16px, 2.6vw, 34px);
+}
+
+/* Keep route artwork atmospheric, never above page content. The pseudo
+   element is positioned for visual coverage, so content needs an explicit
+   stacking layer to remain readable in every theme and viewport. */
+.app-shell .page-content > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell .page-content::before {
+  z-index: 0;
 }
 
 .app-shell .page-header {
   position: relative;
   padding-bottom: 17px;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
 .app-shell .page-header::after {
@@ -6663,6 +6676,7 @@ html[data-theme="light"] .app-shell {
 }
 
 .app-shell .dash-header {
+  margin-bottom: 12px;
   padding: 18px 20px 20px;
   border: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent-violet));
   border-radius: var(--radius-card);

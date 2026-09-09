@@ -57,6 +57,8 @@ def test_shared_shell_exposes_route_aware_visual_atmosphere():
 
     assert 'data-active="{{ active|default(\'dashboard\') }}"' in base
     assert ".page-content::before" in css
+    assert ".app-shell .page-content > *" in css
+    assert "isolation: isolate" in css
     assert "markets-atmosphere.png" in css
     assert "legal-center-atmosphere.png" in css
 
