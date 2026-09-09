@@ -7621,3 +7621,94 @@ html[data-theme="light"] .app-shell .sidebar-footer .nav-item:hover {
   .admin-channel-list .channel-row { grid-template-columns: 1fr; }
   .admin-channel-list .channel-row > div { grid-column: 1 / -1 !important; }
 }
+
+/* Final viewport guardrails. These rules address controls that are rendered
+   by many legacy modules, including inline-sized dropdowns and modal forms.
+   Keep them shared so a new route inherits the same small-screen behavior. */
+html.sidebar-mobile-open,
+html.sidebar-mobile-open body {
+  overflow-x: hidden;
+}
+
+@media (max-width: 680px) {
+  html.sidebar-mobile-open,
+  html.sidebar-mobile-open body {
+    overflow-y: hidden;
+  }
+
+  .app-shell :where(.btn, .btn-icon, .notification-bell, .sidebar-toggle) {
+    min-height: 40px;
+  }
+
+  .app-shell :where(.btn-icon, .notification-bell) {
+    width: 40px;
+    height: 40px;
+  }
+
+  .app-shell .sidebar-toggle {
+    min-width: 40px;
+  }
+
+  .app-shell .sidebar-nav .nav-item {
+    min-height: 40px;
+  }
+
+  .app-shell .filter-bar .search-bar,
+  .app-shell .section-card-header .search-bar {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .app-shell .dropdown-menu {
+    width: min(320px, calc(100vw - 24px));
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-shell .modal-dialog {
+    width: auto;
+    max-width: calc(100% - 1rem);
+    margin: .5rem auto;
+  }
+
+  .app-shell .modal-content {
+    display: flex;
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .app-shell .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .app-shell .modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .modal-footer > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-shell .page-content {
+    padding-inline: 10px;
+  }
+
+  .app-shell .top-navbar {
+    padding-inline: 7px;
+  }
+
+  .app-shell .breadcrumb-nav {
+    max-width: 27vw;
+    font-size: 12px;
+  }
+
+  .app-shell .section-card-header {
+    padding-inline: 14px;
+  }
+}

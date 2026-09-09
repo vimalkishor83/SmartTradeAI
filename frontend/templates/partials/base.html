@@ -630,6 +630,7 @@ if ('serviceWorker' in navigator) {
 
   function openMobile() {
     sidebar.classList.add('mobile-open');
+    document.documentElement.classList.add('sidebar-mobile-open');
     backdrop && (backdrop.style.display = 'block');
     backdrop?.setAttribute('aria-hidden', 'false');
     mobileBtn?.setAttribute('aria-expanded', 'true');
@@ -637,6 +638,7 @@ if ('serviceWorker' in navigator) {
   }
   function closeMobile() {
     sidebar.classList.remove('mobile-open');
+    document.documentElement.classList.remove('sidebar-mobile-open');
     backdrop && (backdrop.style.display = 'none');
     backdrop?.setAttribute('aria-hidden', 'true');
     mobileBtn?.setAttribute('aria-expanded', 'false');
