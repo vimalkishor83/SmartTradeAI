@@ -55,7 +55,8 @@ def test_markets_heatmap_uses_selected_timeframe_and_blends_price_momentum():
     assert "const selectedTf = document.getElementById('tfFilter')?.value || '';" in source
     assert "API.get('/market-data/heatmap', heatParams)" in source
     assert "if (selectedTf) params.timeframe = selectedTf" in source
-    assert "a.tf?.[selectedTf]" in source
+    assert "a?.tf?.[selectedTf]" in source
     assert "selectedTf ?" in source
     assert "const blended = (mnum(score, 50) * 0.55) + (momentum * 0.45);" in source
-    assert "The old highest-confidence-across-all-" in source
+    assert "const heatTimeframes = ['5m', '15m', '30m', '1h', '4h', '1d'];" in source
+    assert "This is a confluence average, not a latest-row or highest-confidence pick." in source
