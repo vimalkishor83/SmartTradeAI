@@ -15,6 +15,8 @@ def test_platform_controls_do_not_use_inline_handlers():
     assert 'id="platformConfigStatus"' in source
     assert "let configLoading = false;" in source
     assert "id=\"addTimeframeBtn\"" in source
+    assert 'id="livePriceRefreshInterval"' in source
+    assert "saveLivePriceRefresh" in source
     assert "data-timeframe-action=\"move\"" in source
     assert "data-timeframe-action=\"remove\"" in source
     assert "document.getElementById('tfChips').addEventListener('click'" in source

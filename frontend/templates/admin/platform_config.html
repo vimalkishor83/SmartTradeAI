@@ -97,6 +97,34 @@
   </div>
 </div>
 
+<!-- Live prices -->
+<div class="section-card mb-4">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-broadcast text-accent"></i> Live Prices</span>
+    <button class="btn btn-sm btn-primary" id="saveLivePriceRefreshBtn" type="button"><i class="bi bi-check2 me-1"></i>Save</button>
+  </div>
+  <div class="section-card-body p-3">
+    <p class="text-muted small mb-3">
+      Crypto prices use the server's Delta WebSocket and normally update instantly. This setting controls how often
+      the browser revalidates its live-price cache as a fallback when the stream is delayed or reconnecting. It does
+      not force upstream providers to accept one request every second, and it does not change signal-generation timing.
+    </p>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <label class="form-label small text-muted mb-0" for="livePriceRefreshInterval">Browser fallback refresh</label>
+      <select class="form-select form-select-sm" id="livePriceRefreshInterval" style="width:150px">
+        <option value="1">Every 1 second</option>
+        <option value="2">Every 2 seconds</option>
+        <option value="5">Every 5 seconds</option>
+        <option value="10">Every 10 seconds</option>
+        <option value="15">Every 15 seconds</option>
+        <option value="30">Every 30 seconds</option>
+        <option value="60">Every 60 seconds</option>
+      </select>
+      <span class="text-muted small" id="livePriceRefreshHint">Default: 5 seconds</span>
+    </div>
+  </div>
+</div>
+
 <!-- Signal Generation (Experimental) -->
 <div class="section-card mb-4">
   <div class="section-card-header">
@@ -334,6 +362,8 @@ async function loadPlatformConfig() {
     document.getElementById('smcGateToggle').checked = !!_cfg.smc_order_block_gate_enabled;
     document.getElementById('smcLiquidityToggle').checked = !!_cfg.smc_liquidity_sweep_gate_enabled;
     document.getElementById('smcSrToggle').checked = !!_cfg.smc_support_resistance_gate_enabled;
+    document.getElementById('livePriceRefreshInterval').value = String(_cfg.live_price_refresh_interval_seconds || 5);
+    document.getElementById('livePriceRefreshHint').textContent = `Current: every ${_cfg.live_price_refresh_interval_seconds || 5} seconds`;
 
     document.getElementById('socialFacebook').value = _cfg.social_facebook || '';
     document.getElementById('socialInstagram').value = _cfg.social_instagram || '';
@@ -366,6 +396,18 @@ async function saveSocialLinks() {
     _cfg = res;
   } else {
     Toast.show(res?.error || 'Failed to save', 'error');
+  }
+}
+
+async function saveLivePriceRefresh() {
+  const seconds = Number(document.getElementById('livePriceRefreshInterval').value);
+  const res = await API.put('/admin/platform-config', { live_price_refresh_interval_seconds: seconds });
+  if (res && !res.error) {
+    _cfg = res;
+    document.getElementById('livePriceRefreshHint').textContent = `Current: every ${seconds} seconds`;
+    Toast.show('Live-price browser refresh saved. Reload open pages to apply it.', 'success');
+  } else {
+    Toast.show(res?.error || 'Failed to save live-price refresh', 'error');
   }
 }
 
@@ -547,6 +589,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('saveTimeframesBtn').addEventListener('click', saveTimeframes);
   document.getElementById('addTimeframeBtn').addEventListener('click', addTimeframe);
   document.getElementById('saveTerminalDefaultTfBtn').addEventListener('click', saveTerminalDefaultTf);
+  document.getElementById('saveLivePriceRefreshBtn').addEventListener('click', saveLivePriceRefresh);
   document.getElementById('saveSocialBtn').addEventListener('click', saveSocialLinks);
   document.getElementById('smcGateToggle').addEventListener('change', e => toggleSmcGate(e.currentTarget.checked));
   document.getElementById('smcLiquidityToggle').addEventListener('change', e => toggleSmcLiquidity(e.currentTarget.checked));
@@ -565,6 +608,8 @@ document.addEventListener('app:ready', () => {
   document.getElementById('tfAddRow').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('terminalDefaultTf').disabled = !isSuperAdmin;
   document.getElementById('saveTerminalDefaultTfBtn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('livePriceRefreshInterval').disabled = !isSuperAdmin;
+  document.getElementById('saveLivePriceRefreshBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('smcGateToggle').disabled = !isSuperAdmin;
   document.getElementById('smcLiquidityToggle').disabled = !isSuperAdmin;
   document.getElementById('smcSrToggle').disabled = !isSuperAdmin;

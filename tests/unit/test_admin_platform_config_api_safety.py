@@ -11,3 +11,4 @@ def test_admin_dashboard_cannot_be_hidden_by_platform_config_api():
 
     assert 'item != "/admin"' in source
     assert "disabled_nav_items must contain route strings" in source
+    assert "live_price_refresh_interval_seconds must be between 1 and 60" in source

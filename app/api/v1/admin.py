@@ -112,6 +112,15 @@ def update_platform_config_route():
             return jsonify({"error": "invalid timeframe token"}), 400
         row.terminal_default_timeframe = tf
 
+    if "live_price_refresh_interval_seconds" in data:
+        try:
+            seconds = int(data["live_price_refresh_interval_seconds"])
+        except (TypeError, ValueError):
+            return jsonify({"error": "live_price_refresh_interval_seconds must be a number"}), 400
+        if not (1 <= seconds <= 60):
+            return jsonify({"error": "live_price_refresh_interval_seconds must be between 1 and 60"}), 400
+        row.live_price_refresh_interval_seconds = seconds
+
     for field in ["telegram_signal_individual_markets", "telegram_signal_group_markets",
                   "telegram_signal_closed_individual_markets", "telegram_signal_closed_group_markets",
                   "telegram_rating_change_individual_markets", "telegram_rating_change_group_markets",

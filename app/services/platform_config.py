@@ -20,6 +20,9 @@ FETCHABLE_TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"]
 # kept out of the live display list so other pages do not trigger an extra
 # provider fetch or imply that the exchange exposes a native 3h interval.
 BACKTEST_DERIVED_TIMEFRAMES = ["3h"]
+DEFAULT_LIVE_PRICE_REFRESH_SECONDS = 5
+MIN_LIVE_PRICE_REFRESH_SECONDS = 1
+MAX_LIVE_PRICE_REFRESH_SECONDS = 60
 
 
 def get_platform_config() -> dict:
@@ -56,6 +59,16 @@ def get_terminal_default_timeframe() -> str:
     if configured in available:
         return configured
     return "1h" if "1h" in available else (available[0] if available else "1h")
+
+
+def get_live_price_refresh_interval_seconds() -> int:
+    """Return the bounded browser live-price revalidation interval."""
+    configured = get_platform_config().get("live_price_refresh_interval_seconds")
+    try:
+        configured = int(configured)
+    except (TypeError, ValueError):
+        configured = DEFAULT_LIVE_PRICE_REFRESH_SECONDS
+    return max(MIN_LIVE_PRICE_REFRESH_SECONDS, min(MAX_LIVE_PRICE_REFRESH_SECONDS, configured))
 
 
 def is_smc_order_block_enabled() -> bool:

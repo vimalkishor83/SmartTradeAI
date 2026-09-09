@@ -232,12 +232,14 @@ def _register_platform_config(app):
     def _inject_platform_config():
         from app.services.platform_config import (
             get_platform_config, get_display_timeframes, get_terminal_default_timeframe,
+            get_live_price_refresh_interval_seconds,
         )
         cfg = get_platform_config()
         return {
             "disabled_nav_items": set(cfg.get("disabled_nav_items") or []),
             "display_timeframes": get_display_timeframes(),
             "terminal_default_timeframe": get_terminal_default_timeframe(),
+            "live_price_refresh_interval_seconds": get_live_price_refresh_interval_seconds(),
         }
 
 
@@ -511,6 +513,7 @@ def _migrate_columns(app):
         ("api_configs","connection_status",    "TEXT    DEFAULT 'unknown'"),
         ("api_configs","priority",             "INTEGER DEFAULT 0"),
         ("api_configs","refresh_interval",     "INTEGER DEFAULT 60"),
+        ("platform_config", "live_price_refresh_interval_seconds", "INTEGER DEFAULT 5"),
         ("api_configs","last_sync",            "DATETIME"),
         ("api_configs","last_latency_ms",      "INTEGER"),
         ("live_read_logs", "data_quality",     "TEXT"),

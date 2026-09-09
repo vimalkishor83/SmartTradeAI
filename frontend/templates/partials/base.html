@@ -567,6 +567,12 @@
 <!-- Scripts -->
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/socket.io.min.js"></script>
+<script>
+  // Safe, non-secret display setting used by the shared live-price client.
+  window.PLATFORM_CONFIG = {
+    live_price_refresh_interval_seconds: {{ live_price_refresh_interval_seconds|int }}
+  };
+</script>
 <script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
 {% if hide_sidebar %}
 <script src="/static/js/auth_public.js?v={{ asset_version('js/auth_public.js') }}"></script>

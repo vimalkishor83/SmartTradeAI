@@ -21,6 +21,11 @@ class PlatformConfig(db.Model):
     # without touching this field.
     terminal_default_timeframe = db.Column(db.String(10), default="1h", nullable=False)
 
+    # Browser-side live-price revalidation interval. Crypto prices normally
+    # arrive through the Delta WebSocket instantly; this controls the REST
+    # fallback/cache refresh when that stream is delayed or reconnecting.
+    live_price_refresh_interval_seconds = db.Column(db.Integer, default=5, nullable=False)
+
     # Per-category, per-delivery-level market lists — replaces a single
     # global market gate + a flat on/off toggle per category. Each field
     # is the list of Asset.MARKETS this category/level fires for; an empty
@@ -142,6 +147,7 @@ class PlatformConfig(db.Model):
             "disabled_nav_items": self.disabled_nav_items or [],
             "timeframes": self.timeframes or list(DEFAULT_TIMEFRAMES),
             "terminal_default_timeframe": self.terminal_default_timeframe or "1h",
+            "live_price_refresh_interval_seconds": self.live_price_refresh_interval_seconds or 5,
             "telegram_signal_individual_markets": self.telegram_signal_individual_markets or [],
             "telegram_signal_group_markets": self.telegram_signal_group_markets or [],
             "telegram_signal_closed_individual_markets": self.telegram_signal_closed_individual_markets or [],
