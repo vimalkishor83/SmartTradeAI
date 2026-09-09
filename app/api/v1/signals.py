@@ -1705,7 +1705,16 @@ def market_board():
             payload["persisted"] = True
         else:
             df = df_by_asset.get(a.id)
-            if df is None:
+            if df is None and a.id in open_live_read_ids:
+                # The OHLCV fetch is intentionally skipped for an open
+                # frozen setup. Rehydrate it from the durable snapshot and
+                # use the live ticker; treating the skipped fetch as an
+                # unavailable feed would blank every restored card.
+                result = _frozen_live_read(a, timeframe, None)
+                if result.get("available"):
+                    result["persisted"] = False
+                payload = result
+            elif df is None:
                 payload = {
                     "available": False,
                     "analysis_state": "UNAVAILABLE",

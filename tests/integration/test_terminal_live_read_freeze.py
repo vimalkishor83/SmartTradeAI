@@ -160,7 +160,10 @@ class TestFrozenLiveRead:
 
             with patch("app.api.v1.signals.signal_engine.analyze") as mock_analyze, \
                  _ticker(102.0):
-                restored = _frozen_live_read(asset, "1h", _df(102.0))
+                # The market-board optimization skips OHLCV for an open
+                # setup, so the durable restore path must also work with no
+                # dataframe available.
+                restored = _frozen_live_read(asset, "1h", None)
 
             mock_analyze.assert_not_called()
             assert restored["entry_price"] == first["entry_price"] == 100.0
