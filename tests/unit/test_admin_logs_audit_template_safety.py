@@ -39,3 +39,19 @@ def test_audit_log_escapes_values_and_uses_event_bindings():
     assert "let auditLoading = false;" in source
     assert "Unable to load audit entries. Try Refresh." in source
     assert "button.setAttribute('aria-busy', 'false')" in source
+
+
+def test_audit_page_uses_shared_operations_layout():
+    source = (ROOT / "audit_log.html").read_text(encoding="utf-8")
+
+    for marker in (
+        'class="admin-ops-page admin-audit-page"',
+        'class="admin-page-hero"',
+        'class="admin-meta-strip"',
+        'class="admin-filter-toolbar"',
+        'id="clearAuditFilterBtn"',
+        'id="auditLoadedCount"',
+        'id="auditPageSummary"',
+        'class="admin-table-shell admin-audit-table"',
+    ):
+        assert marker in source

@@ -5,36 +5,58 @@
 {% block breadcrumb %}<i class="bi bi-journal-check me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Audit Log{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div><span class="page-eyebrow">Admin</span>
-  <h1 class="page-title">Audit Log</h1>
-  <p class="page-subtitle">Who did what, from where, and when — logins, logouts, admin actions, broker credential changes</p></div>
-  <button type="button" class="btn btn-outline-light btn-sm" id="refreshAuditBtn" aria-busy="false"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
+<div class="admin-ops-page admin-audit-page">
+<div class="admin-page-hero">
+  <div class="admin-page-hero-copy">
+    <span class="page-eyebrow">Operations / Security</span>
+    <h1 class="admin-page-hero-title"><span class="admin-page-icon"><i class="bi bi-journal-check" aria-hidden="true"></i></span>Audit Log</h1>
+    <p class="page-subtitle">Review account activity, administrative changes, access events, and security-sensitive actions in one chronological record.</p>
+  </div>
+  <div class="admin-page-hero-actions">
+    <span class="admin-page-badge"><i class="bi bi-shield-check" aria-hidden="true"></i> Evidence trail</span>
+    <button type="button" class="btn btn-primary btn-sm" id="refreshAuditBtn" aria-busy="false"><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Refresh log</button>
+  </div>
+</div>
+
+<div class="admin-meta-strip" aria-label="Audit log overview">
+  <div class="admin-meta-item"><span class="admin-meta-label">Loaded entries</span><strong class="admin-meta-value" id="auditLoadedCount">—</strong></div>
+  <div class="admin-meta-item"><span class="admin-meta-label">Current page</span><strong class="admin-meta-value" id="auditPageSummary">—</strong></div>
+  <div class="admin-meta-item"><span class="admin-meta-label">Retention control</span><strong class="admin-meta-value">Super admin only</strong></div>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
   <i class="bi bi-eye me-1"></i> You have view-only access to the Audit Log. Only a super admin can delete entries.
 </div>
 
-<p class="text-muted small mb-3">Whether super admins' own activity appears here is controlled from <a href="/admin/security">Security</a>, alongside the rest of the security settings.</p>
+<div class="admin-section-intro mb-3"><i class="bi bi-info-circle text-accent me-1" aria-hidden="true"></i>Whether super admins' own activity appears here is controlled from <a href="/admin/security">Security</a>, alongside the rest of the security settings.</div>
 
-<div class="section-card">
+<div class="section-card admin-section-card">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-journal-check text-accent"></i> Entries</span>
+    <span class="section-card-title admin-section-heading"><i class="bi bi-list-check text-accent" aria-hidden="true"></i><span>Activity Entries<small>Search and review the current page of events</small></span></span>
     <div class="d-flex gap-2">
       <button type="button" class="btn btn-sm btn-outline-danger" id="deleteSelectedBtn" disabled><i class="bi bi-trash3 me-1"></i>Delete Selected</button>
       <button type="button" class="btn btn-sm btn-outline-danger" id="clearAllBtn"><i class="bi bi-trash3-fill me-1"></i>Clear All</button>
     </div>
   </div>
   <div class="section-card-body p-3">
-    <input type="text" class="form-control mb-3" id="usernameFilter" placeholder="Filter by username…" style="max-width:220px">
-    <div id="auditStatus" class="text-muted small mb-2" role="status" aria-live="polite"></div>
-    <div class="table-responsive">
+    <div class="admin-filter-toolbar">
+      <div class="admin-filter-heading"><i class="bi bi-funnel" aria-hidden="true"></i><div><strong>Filter activity</strong><span>Search the loaded page by username</span></div></div>
+      <div class="admin-filter-control">
+        <div class="admin-filter-input-wrap">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <label class="visually-hidden" for="usernameFilter">Filter audit entries by username</label>
+          <input type="text" class="form-control" id="usernameFilter" placeholder="Search username…" autocomplete="off">
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-light admin-filter-clear" id="clearAuditFilterBtn">Clear</button>
+      </div>
+    </div>
+    <div id="auditStatus" class="admin-status-line" role="status" aria-live="polite"></div>
+    <div class="admin-table-shell admin-audit-table">
       <table class="table table-sm align-middle mb-0" id="auditTable" data-mobile-cards style="font-size:13px">
         <thead>
           <tr>
-          <th style="width:30px"><input type="checkbox" id="selectAllCheckbox"></th>
-            <th>User</th><th>Action</th><th>Resource</th><th>IP</th><th>Status</th><th>Time</th>
+          <th style="width:30px"><input type="checkbox" id="selectAllCheckbox" aria-label="Select all visible audit entries"></th>
+            <th>User</th><th>Action</th><th>Resource</th><th>IP address</th><th>Status</th><th>Timestamp</th>
           </tr>
         </thead>
         <tbody id="auditTbody">
@@ -48,6 +70,7 @@
       <button type="button" class="btn btn-sm btn-outline-light" id="nextPageBtn"><i class="bi bi-chevron-right"></i></button>
     </div>
   </div>
+</div>
 </div>
 {% endblock %}
 
@@ -81,6 +104,8 @@ async function loadAuditLog() {
     }
     allLogs = Array.isArray(data.logs) ? data.logs : [];
     totalPages = data.pages || 1;
+    document.getElementById('auditLoadedCount').textContent = String(allLogs.length);
+    document.getElementById('auditPageSummary').textContent = `${currentPage} of ${totalPages}`;
     selectedIds.clear();
     document.getElementById('selectAllCheckbox').checked = false;
     renderTable();
@@ -101,6 +126,8 @@ function renderTable() {
   const filter = document.getElementById('usernameFilter').value.trim().toLowerCase();
   const rows = allLogs.filter(l => !filter || String(l.user || '').toLowerCase().includes(filter));
   const tbody = document.getElementById('auditTbody');
+  const status = document.getElementById('auditStatus');
+  if (status && allLogs.length) status.textContent = `${rows.length} of ${allLogs.length} entries shown`;
 
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4">No entries found.</td></tr>`;
@@ -210,6 +237,11 @@ document.addEventListener('app:ready', () => {
   document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelected);
   document.getElementById('clearAllBtn').addEventListener('click', clearAll);
   document.getElementById('usernameFilter').addEventListener('input', renderTable);
+  document.getElementById('clearAuditFilterBtn').addEventListener('click', () => {
+    document.getElementById('usernameFilter').value = '';
+    renderTable();
+    document.getElementById('usernameFilter').focus();
+  });
   document.getElementById('selectAllCheckbox').addEventListener('change', toggleSelectAll);
   document.getElementById('prevPageBtn').addEventListener('click', () => changePage(-1));
   document.getElementById('nextPageBtn').addEventListener('click', () => changePage(1));

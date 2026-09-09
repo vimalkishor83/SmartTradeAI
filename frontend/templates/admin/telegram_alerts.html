@@ -5,10 +5,23 @@
 {% block breadcrumb %}<i class="bi bi-telegram me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Telegram Alerts{% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div><span class="page-eyebrow">Admin</span>
-<h1 class="page-title">Telegram Alerts</h1>
-  <p class="page-subtitle">Two independent delivery levels — each subscriber's own personal chat, and one or more shared group channels mapped to specific markets</p></div>
+<div class="admin-ops-page admin-telegram-page">
+<div class="admin-page-hero">
+  <div class="admin-page-hero-copy">
+    <span class="page-eyebrow">Operations / Messaging</span>
+    <h1 class="admin-page-hero-title"><span class="admin-page-icon"><i class="bi bi-telegram" aria-hidden="true"></i></span>Telegram Alerts</h1>
+    <p class="page-subtitle">Control personal and shared Telegram delivery from one place, with market and timeframe routing kept explicit.</p>
+  </div>
+  <div class="admin-page-hero-actions">
+    <span class="admin-page-badge"><i class="bi bi-sliders2" aria-hidden="true"></i> Platform-wide controls</span>
+    <span class="admin-page-hero-note">Changes affect future alerts only</span>
+  </div>
+</div>
+
+<div class="admin-meta-strip" aria-label="Telegram alert overview">
+  <div class="admin-meta-item"><span class="admin-meta-label">Delivery model</span><strong class="admin-meta-value">Individual + group</strong></div>
+  <div class="admin-meta-item"><span class="admin-meta-label">Routing scope</span><strong class="admin-meta-value">Market and timeframe</strong></div>
+  <div class="admin-meta-item"><span class="admin-meta-label">Managed channels</span><strong class="admin-meta-value" id="channelCountSummary">Loading…</strong></div>
 </div>
 
 <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
@@ -20,11 +33,11 @@
 </div>
 
 <!-- Setup guide -->
-<div class="section-card mb-4">
+<div class="section-card admin-section-card admin-setup-card mb-4">
   <div class="section-card-body p-3">
     <details id="setupGuide">
-      <summary style="cursor:pointer"><i class="bi bi-question-circle me-1 text-accent"></i><strong>How this works</strong></summary>
-      <div class="fs-sm mt-3">
+      <summary><i class="bi bi-question-circle text-accent" aria-hidden="true"></i><span>How this works</span><small class="text-muted fw-normal">Read before connecting a shared group</small></summary>
+      <div class="fs-sm admin-setup-content">
         <p class="mb-2"><strong>Individual alerts</strong> go to each subscriber's own Telegram chat (they connect it themselves in Settings → Notifications). The toggles below are the master on/off switch per category — turning one off stops it for every subscriber, even those who've connected their own chat.</p>
         <p class="mb-2"><strong>Group channels</strong> are separate shared destinations you create below — e.g. a "Crypto Signals" group and a "Forex & Gold" group can exist side by side, each getting a different mix of alerts for different markets. To add one:</p>
         <ol class="mb-0 ps-3">
@@ -41,17 +54,17 @@
 </div>
 
 <!-- Alert categories -->
-<div class="section-card mb-4">
+<div class="section-card admin-section-card mb-4">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-bell text-accent"></i> Alert Categories</span>
+    <span class="section-card-title admin-section-heading"><i class="bi bi-bell text-accent" aria-hidden="true"></i><span>Alert Categories<small>Choose where each category is delivered</small></span></span>
     <button class="btn btn-sm btn-primary" id="saveIndividualBtn"><i class="bi bi-check2 me-1"></i>Save Changes</button>
   </div>
   <div class="section-card-body p-3">
-    <p class="text-muted small mb-2">Per category, pick which markets go to <strong>Individual</strong> subscribers (each subscriber's own Telegram chat, Settings → Notifications) and which go to <strong>Group</strong> channels (any matching channel below) — independently. E.g. crypto signal alerts can go to both, forex signal alerts to the group only, gold to neither. Leave a market unchecked in a column to turn it off for that column only.</p>
-    <div class="table-responsive mb-3">
+    <p class="admin-section-intro">Per category, choose markets for <strong>Individual</strong> subscriber chats and <strong>Group</strong> channels independently. An unchecked market is intentionally disabled for that delivery level.</p>
+    <div class="admin-table-shell table-responsive mb-3">
       <table class="table table-sm mb-0" data-mobile-cards style="font-size:13px">
         <thead>
-          <tr><th style="width:20%">Page</th><th style="width:16%">Category</th><th>Individual</th><th>Group</th></tr>
+          <tr><th style="width:20%">Page coverage</th><th style="width:16%">Alert type</th><th>Individual chats</th><th>Shared groups</th></tr>
         </thead>
         <tbody id="categoryMatrixBody"></tbody>
       </table>
@@ -69,29 +82,30 @@
 </div>
 
 <!-- Group channels -->
-<div class="section-card mb-4">
+<div class="section-card admin-section-card mb-4">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-people-fill text-accent"></i> Group Channels <span class="text-muted fw-normal fs-xs ms-1">— shared destinations mapped to specific markets</span></span>
+    <span class="section-card-title admin-section-heading"><i class="bi bi-people-fill text-accent" aria-hidden="true"></i><span>Group Channels<small>Shared destinations mapped to selected markets and timeframes</small></span></span>
     <button class="btn btn-sm btn-primary" id="addChannelBtn"><i class="bi bi-plus-lg me-1"></i>Add Channel</button>
   </div>
-  <div class="section-card-body p-0" id="channelsTableWrap">
+  <div class="section-card-body p-0 admin-channel-list" id="channelsTableWrap">
     <div class="p-4 text-center text-muted">Loading channels…</div>
   </div>
 </div>
 
 <!-- Test (arbitrary, ad-hoc) -->
-<div class="section-card">
+<div class="section-card admin-section-card admin-quick-test">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-send text-accent"></i> Quick Test</span>
+    <span class="section-card-title admin-section-heading"><i class="bi bi-send text-accent" aria-hidden="true"></i><span>Quick Test<small>Verify one configured channel without changing routing</small></span></span>
   </div>
   <div class="section-card-body p-3">
-    <div class="d-flex gap-2 flex-wrap">
+    <div class="d-flex gap-2 flex-wrap admin-test-form">
       <select class="form-select" id="tgTestChannelSelect" style="max-width:260px"></select>
       <input type="text" class="form-control" id="tgBroadcastMsg" placeholder="Type a message to send right away…" style="min-width:220px;flex:1">
       <button class="btn btn-outline-light text-nowrap" id="tgBroadcastBtn"><i class="bi bi-send me-1"></i>Send</button>
     </div>
     <div class="fs-xs text-muted mt-2">Confirms one channel's setup actually works, or for one-off announcements — doesn't affect the automatic alerts above.</div>
   </div>
+</div>
 </div>
 
 <!-- Channel Add/Edit modal -->
@@ -307,6 +321,8 @@ async function saveIndividualSettings() {
 async function loadChannels() {
   const data = await API.get('/admin/telegram/channels');
   allChannels = data?.channels || [];
+  const summary = document.getElementById('channelCountSummary');
+  if (summary) summary.textContent = `${allChannels.length} configured`;
   renderChannelsTable();
   renderTestChannelSelect();
 }
