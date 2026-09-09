@@ -21,5 +21,8 @@ def test_shared_auth_styles_cover_keyboard_focus_and_mobile_layout():
     assert ".auth-shell a:focus-visible" in source
     assert ".auth-shell .auth-container.has-auth-side" in source
     assert ".auth-shell .auth-simple-card::after" in source
+    assert "overflow-y: auto" in source
+    assert "height: auto" in source
+    assert "overflow: visible" in source
     assert "prefers-reduced-motion" in source
     assert "min-height: 46px" in source

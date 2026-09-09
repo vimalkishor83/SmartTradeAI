@@ -393,3 +393,35 @@ html[data-theme="light"] .auth-shell .form-control:-webkit-autofill:focus {
   box-shadow: 0 0 0 1000px #ffffff inset !important;
   caret-color: #0b1220;
 }
+
+/* Long auth forms must scroll with the document. A fixed 100vh grid plus a
+   second scroll box made the submit controls unreachable at normal zoom. */
+.auth-shell {
+  min-height: 100dvh;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.auth-shell .auth-container.has-auth-side {
+  height: auto;
+  min-height: 100dvh;
+  align-items: stretch;
+}
+
+.auth-shell .auth-container.has-auth-side .auth-side,
+.auth-shell .auth-container.has-auth-side .auth-form-panel {
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+.auth-shell .auth-container.has-auth-side .auth-form-panel {
+  align-items: flex-start;
+  padding-block: clamp(32px, 7vh, 72px);
+}
+
+@media (max-width: 900px) {
+  .auth-shell .auth-container.has-auth-side .auth-form-panel {
+    min-height: 0;
+    padding-block: 32px 40px;
+  }
+}
