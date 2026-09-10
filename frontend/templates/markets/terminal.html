@@ -1021,7 +1021,10 @@ async function loadTerminal(options = {}) {
   }
 
   const request = (async () => {
-    const data = await API.get('/signals/market-board', { market, timeframe: tf });
+    const data = await Promise.race([
+      API.get('/signals/market-board', { market, timeframe: tf }),
+      new Promise(resolve => setTimeout(() => resolve({ error: 'timeout' }), 12000)),
+    ]);
     if (requestId !== _termRequestSequence) return;
 
     if (!data || data.error) {
@@ -1044,7 +1047,14 @@ async function loadTerminal(options = {}) {
     _termTf = tf;
     applyTerminalFilters({ preserveDom: silent, previousCards });
     if (!silent) _setTerminalBusy(false);
-  })();
+  })().catch(error => {
+    console.error('Terminal load error:', error);
+    if (!silent && requestId === _termRequestSequence) {
+      grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Terminal data is taking too long. Try refreshing.</div></div>`;
+      countEl.textContent = '';
+      _setTerminalBusy(false);
+    }
+  });
   _termLoading.set(requestKey, request);
   try {
     return await request;

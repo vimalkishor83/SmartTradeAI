@@ -75,7 +75,7 @@
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index','terminal','dhan_indices'] %}
     {% set grp_signals   = active in ['signals','scanner','heatmap','dhan_indices','delta_scanner','delta_bubbles','signal_history','signal_journal'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','ai','news','advanced_analysis','economic_calendar'] %}
-    {% set grp_research  = active in ['analytics','reports'] %}
+    {% set grp_research  = active in ['analytics','reports','terminal_performance'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading','algo_trading'] %}
     {% set grp_account   = active in ['settings','help'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_telegram_signal_limits','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
@@ -250,6 +250,11 @@
         {% if '/analytics' not in disabled_nav_items %}
         <a href="/analytics" data-tooltip="Signal Analytics — requires Premium or higher" class="nav-item {% if active == 'analytics' %}active{% endif %}">
           <i class="bi bi-graph-up nav-icon-amber"></i><span class="nav-text">Signal Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+        </a>
+        {% endif %}
+        {% if '/terminal-performance' not in disabled_nav_items %}
+        <a href="/terminal-performance" data-tooltip="Terminal Performance — separate live-read outcomes" class="nav-item {% if active == 'terminal_performance' %}active{% endif %}">
+          <i class="bi bi-broadcast nav-icon-amber"></i><span class="nav-text">Terminal Performance</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
         </a>
         {% endif %}
       </div>

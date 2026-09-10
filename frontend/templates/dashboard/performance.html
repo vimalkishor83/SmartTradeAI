@@ -161,8 +161,8 @@
   <div class="col-12">
     <div class="section-card">
       <div class="section-card-header">
-        <span class="section-card-title">Terminal Live Reads <span class="badge-tag ms-1">separate source</span></span>
-        <span class="text-muted fs-xs">Frozen Terminal setups are not ordinary generated signals. Closed outcomes are shown separately; open reads are operational only and never inflate win rate. Terminal wins require the final target, while expired reads are visible but excluded from the decisive rate.</span>
+        <span class="section-card-title">Terminal Live Reads</span>
+        <span class="text-muted fs-xs">Cards shown when no real signal exists yet for that asset+timeframe — tracked separately from real signals above. Win Rate here uses a stricter bar (must reach the final target) than real signals (which count a win at the first target), so the two percentages are not directly comparable. Completed includes target3 wins, stop losses and neutral expiries; "Still Open" covers reads inside their timeframe window.</span>
       </div>
       <div class="section-card-body">
         <div class="row g-3 mb-3">
@@ -171,19 +171,15 @@
             <div class="fw-800" id="lrTotal" style="font-size:20px">—</div>
           </div>
           <div class="col-6 col-md">
-            <div class="fs-xs text-muted">Closed Records</div>
+            <div class="fs-xs text-muted">Completed</div>
             <div class="fw-800" id="lrResolved" style="font-size:20px">—</div>
-          </div>
-          <div class="col-6 col-md">
-            <div class="fs-xs text-muted">Decisive</div>
-            <div class="fw-800" id="lrDecisive" style="font-size:20px">—</div>
           </div>
           <div class="col-6 col-md">
             <div class="fs-xs text-muted">Still Open</div>
             <div class="fw-800" id="lrOpen" style="font-size:20px">—</div>
           </div>
           <div class="col-6 col-md">
-            <div class="fs-xs text-muted">Decisive Win Rate</div>
+            <div class="fs-xs text-muted">Win Rate</div>
             <div class="fw-800 text-green" id="lrWinRate" style="font-size:20px">—</div>
           </div>
           <div class="col-6 col-md">
@@ -191,15 +187,14 @@
             <div class="fw-800" id="lrExpired" style="font-size:20px">—</div>
           </div>
         </div>
-        <div class="data-context-bar mb-3" id="lrOpenMeta" role="status">Open snapshot: —</div>
         <div class="table-responsive">
           <table class="smart-table" data-mobile-cards>
             <caption class="visually-hidden">Terminal live-read performance by timeframe</caption>
             <thead>
-              <tr><th>Timeframe</th><th>Total</th><th>Open</th><th>Decisive</th><th>Expired</th><th>Win Rate</th></tr>
+              <tr><th>Timeframe</th><th>Total</th><th>Completed</th><th>Expired Neutral</th><th>Win Rate</th></tr>
             </thead>
             <tbody id="lrTfTable">
-              <tr><td colspan="6" class="text-center text-muted py-4">Loading…</td></tr>
+              <tr><td colspan="5" class="text-center text-muted py-4">Loading…</td></tr>
             </tbody>
           </table>
         </div>
@@ -476,29 +471,20 @@ async function loadLiveReadPerformance() {
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v ?? '—'; };
   set('lrTotal', performanceCount(data.total_logged));
   set('lrResolved', performanceCount(data.resolved));
-  set('lrDecisive', performanceCount(data.decisive));
   set('lrOpen', performanceCount(data.open));
   set('lrExpired', performanceCount(data.expired));
   set('lrWinRate', data.win_rate != null ? performanceRate(data.win_rate).toFixed(1) + '%' : '—');
-  const open = data.open_stats || {};
-  const openPnl = open.avg_unrealized_pnl_pct;
-  const openPnlText = openPnl == null ? 'live P&L pending quote' : `${openPnl >= 0 ? '+' : ''}${Number(openPnl).toFixed(2)}% avg unrealized`;
-  const openAge = open.avg_age_minutes == null ? 'age unavailable' : `${Number(open.avg_age_minutes).toFixed(0)}m avg age`;
-  const stages = Array.isArray(open.by_stage) ? open.by_stage.map(stage => `${stage.label}: ${performanceCount(stage.count)}`).join(' · ') : '';
-  const openMeta = document.getElementById('lrOpenMeta');
-  if (openMeta) openMeta.textContent = `Open snapshot: ${performanceCount(data.open)} reads · ${openPnlText} · ${openAge}${stages ? ` · ${stages}` : ''}`;
 
   const body = document.getElementById('lrTfTable');
   const rows = performanceRows(data.by_timeframe);
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No live reads logged yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No live reads logged yet.</td></tr>';
     return;
   }
   body.innerHTML = rows.map(r => `<tr>
     <td><span class="badge-tag">${escapeHtml(String(r.timeframe ?? 'Unknown'))}</span></td>
     <td>${performanceCount(r.total)}</td>
-    <td>${performanceCount(r.open)}</td>
-    <td>${performanceCount(r.decisive)}</td>
+    <td>${performanceCount(r.resolved)}</td>
     <td>${performanceCount(r.expired)}</td>
     <td>${r.win_rate != null ? performanceRate(r.win_rate).toFixed(1) + '%' : '—'}</td>
   </tr>`).join('');
