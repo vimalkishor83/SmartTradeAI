@@ -391,6 +391,7 @@ def check_rating_changes(app):
         from app.models.rating_snapshot import RatingSnapshot
         from app.models.user import User
         from app.services.platform_config import get_platform_config
+        from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
 
         cfg = get_platform_config()
         # Fast bail-out only when NO market is enabled for EITHER delivery
@@ -416,6 +417,7 @@ def check_rating_changes(app):
                 if not cell or not cell.get("rating"):
                     continue
                 new_rating = cell["rating"]
+                individual_limit_allowed = individual_signal_allowed(row["id"], tf) if individual_on else False
                 snap = existing.get((row["id"], tf))
                 old_rating = snap.rating if snap else None
 
@@ -431,7 +433,7 @@ def check_rating_changes(app):
                     )
                     if group_on:
                         _send_to_channels(text, market, "rating_change", tf)
-                    if individual_on:
+                    if individual_on and individual_limit_allowed:
                         if users is None:
                             users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                         for user in users:
@@ -521,6 +523,7 @@ def fire_signal_alerts(app):
         from datetime import datetime, timedelta
 
         from app.services.platform_config import get_platform_config
+        from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
         cfg = get_platform_config()
 
         cutoff = datetime.utcnow() - timedelta(minutes=6)
@@ -570,6 +573,7 @@ def fire_signal_alerts(app):
             )
             tg_msg = _format_signal_telegram(sig, asset)
             tg_individual_allowed = _market_enabled(cfg, "telegram_signal_individual_markets", asset.market)
+            tg_individual_signal_limit_allowed = individual_signal_allowed(sig.asset_id, sig.timeframe)
             tg_group_allowed = _market_enabled(cfg, "telegram_signal_group_markets", asset.market)
             # Once per signal, not once per user — this is a shared group,
             # not an inbox each user gets their own copy of. Guarded the
@@ -597,7 +601,8 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if (tg_individual_allowed and tg_individual_signal_limit_allowed
+                        and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
@@ -635,6 +640,7 @@ def fire_signal_alerts(app):
                 f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
             ) + _TELEGRAM_DISCLAIMER
             tg_close_individual_allowed = _market_enabled(cfg, "telegram_signal_closed_individual_markets", asset.market)
+            tg_close_signal_limit_allowed = individual_signal_allowed(h.asset_id, h.timeframe)
             tg_close_group_allowed = _market_enabled(cfg, "telegram_signal_closed_group_markets", asset.market)
             if tg_close_group_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
@@ -655,7 +661,8 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_close_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if (tg_close_individual_allowed and tg_close_signal_limit_allowed
+                        and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
                     try:

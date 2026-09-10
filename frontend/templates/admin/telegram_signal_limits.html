@@ -1,0 +1,272 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Telegram Signal Limits - SmartTrade AI{% endblock %}
+{% set active = 'admin_telegram_signal_limits' %}
+{% block breadcrumb %}<i class="bi bi-filter-circle me-1"></i> <a href="/admin" class="text-muted text-decoration-none">Admin</a> <i class="bi bi-chevron-right mx-1" style="font-size:10px"></i> Signal Limits{% endblock %}
+
+{% block content %}
+<div class="admin-ops-page telegram-limit-page">
+  <div class="admin-page-hero">
+    <div class="admin-page-hero-copy">
+      <span class="page-eyebrow">Operations / Messaging</span>
+      <h1 class="admin-page-hero-title"><span class="admin-page-icon"><i class="bi bi-filter-circle" aria-hidden="true"></i></span>Telegram Signal Limits</h1>
+      <p class="page-subtitle">Reduce personal Telegram signal noise by choosing the assets and timeframes that may reach individual chats.</p>
+    </div>
+    <div class="admin-page-hero-actions">
+      <span class="admin-page-badge"><i class="bi bi-person-fill" aria-hidden="true"></i> Individual chats only</span>
+      <span class="admin-page-hero-note">Group channels are not changed here</span>
+    </div>
+  </div>
+
+  <div class="alert alert-warning py-2 small mb-3" id="viewOnlyNotice" style="display:none">
+    <i class="bi bi-eye me-1" aria-hidden="true"></i>You have view-only access. Only a super admin can change these limits.
+  </div>
+
+  <div class="section-card limit-policy-card mb-4">
+    <div class="section-card-header">
+      <span class="section-card-title admin-section-heading"><i class="bi bi-toggles text-accent" aria-hidden="true"></i><span>Personal Signal Delivery<small>One platform-wide allow-list for individual Telegram chats</small></span></span>
+      <button class="btn btn-sm btn-primary" id="saveLimitsBtn" type="button"><i class="bi bi-check2 me-1" aria-hidden="true"></i>Save Limits</button>
+    </div>
+    <div class="section-card-body p-3">
+      <div class="limit-switch-row">
+        <div>
+          <strong>Allow signal notifications to individual users</strong>
+          <p class="text-muted small mb-0">This controls new signals, target/stop lifecycle updates, closed-signal alerts, and timeframe rating-change alerts.</p>
+        </div>
+        <div class="form-check form-switch mb-0">
+          <input class="form-check-input" type="checkbox" id="limitsEnabled" checked>
+          <label class="form-check-label" for="limitsEnabled">Enabled</label>
+        </div>
+      </div>
+      <div class="limit-context-note mt-3">
+        <i class="bi bi-info-circle text-accent" aria-hidden="true"></i>
+        <span>Defaults are permissive: all active assets and supported timeframes are allowed. Leaving every asset or timeframe selected stores “all”; selecting none stores “none”. Changes affect future delivery only. Watchlist price alerts, protective-order alerts, security alerts, and group channels remain independent.</span>
+      </div>
+      <div class="limit-summary-grid mt-3" aria-live="polite">
+        <div><span>Delivery state</span><strong id="limitStateSummary">Loading...</strong></div>
+        <div><span>Assets</span><strong id="assetSummary">Loading...</strong></div>
+        <div><span>Timeframes</span><strong id="timeframeSummary">Loading...</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-4">
+      <div class="section-card h-100">
+        <div class="section-card-header">
+          <span class="section-card-title admin-section-heading"><i class="bi bi-clock-history text-accent" aria-hidden="true"></i><span>Allowed Timeframes<small>Signal and rating-change intervals</small></span></span>
+        </div>
+        <div class="section-card-body p-3">
+          <div class="limit-actions mb-2">
+            <button type="button" class="btn btn-sm btn-outline-light" id="selectAllTimeframes">Select all</button>
+            <button type="button" class="btn btn-sm btn-outline-light" id="clearAllTimeframes">Select none</button>
+          </div>
+          <div id="timeframeChoices" class="limit-choice-list" aria-label="Allowed Telegram signal timeframes"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+      <div class="section-card h-100">
+        <div class="section-card-header">
+          <span class="section-card-title admin-section-heading"><i class="bi bi-layers text-accent" aria-hidden="true"></i><span>Allowed Assets<small>Only selected active assets can trigger personal signal alerts</small></span></span>
+          <span class="text-muted small" id="assetChoiceCount">Loading...</span>
+        </div>
+        <div class="section-card-body p-3">
+          <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+            <div class="limit-actions">
+              <button type="button" class="btn btn-sm btn-outline-light" id="selectAllAssets">Select all</button>
+              <button type="button" class="btn btn-sm btn-outline-light" id="clearAllAssets">Select none</button>
+            </div>
+            <div class="limit-search">
+              <i class="bi bi-search" aria-hidden="true"></i>
+              <label class="visually-hidden" for="assetSearch">Search assets</label>
+              <input type="search" id="assetSearch" class="form-control form-control-sm" placeholder="Search symbol or name..." autocomplete="off">
+            </div>
+          </div>
+          <div id="assetChoices" class="limit-asset-groups" aria-label="Allowed Telegram signal assets"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const LIMIT_MARKET_LABELS = {
+  crypto: 'Crypto', forex: 'Forex', commodity: 'Commodity',
+  indian_stock: 'Indian Stocks', us_stock: 'US Stocks', index: 'Indices',
+};
+let limitIsSuperAdmin = false;
+let limitAssets = [];
+let limitTimeframes = [];
+let selectedAssetIds = new Set();
+let selectedTimeframes = new Set();
+
+function limitControlsDisabled() {
+  return !limitIsSuperAdmin;
+}
+
+function renderTimeframeChoices() {
+  const wrap = document.getElementById('timeframeChoices');
+  wrap.innerHTML = limitTimeframes.map(tf => `
+    <label class="limit-choice">
+      <input type="checkbox" class="limit-timeframe-toggle" data-timeframe="${STSafe.html(tf)}" ${selectedTimeframes.has(tf) ? 'checked' : ''}>
+      <span>${STSafe.html(tf)}</span>
+    </label>`).join('') || '<span class="text-muted small">No supported timeframes configured.</span>';
+  wrap.querySelectorAll('.limit-timeframe-toggle').forEach(input => input.addEventListener('change', () => {
+    if (input.checked) selectedTimeframes.add(input.dataset.timeframe);
+    else selectedTimeframes.delete(input.dataset.timeframe);
+    updateLimitSummary();
+  }));
+}
+
+function renderAssetChoices() {
+  const query = document.getElementById('assetSearch').value.trim().toLowerCase();
+  const visible = limitAssets.filter(asset => {
+    const haystack = `${asset.symbol} ${asset.name} ${asset.market}`.toLowerCase();
+    return !query || haystack.includes(query);
+  });
+  const groups = new Map();
+  visible.forEach(asset => {
+    if (!groups.has(asset.market)) groups.set(asset.market, []);
+    groups.get(asset.market).push(asset);
+  });
+  const wrap = document.getElementById('assetChoices');
+  wrap.innerHTML = [...groups.entries()].map(([market, assets]) => `
+    <section class="limit-asset-group">
+      <h3>${STSafe.html(LIMIT_MARKET_LABELS[market] || market)} <small>${assets.length}</small></h3>
+      <div class="limit-asset-grid">
+        ${assets.map(asset => `
+          <label class="limit-asset-choice">
+            <input type="checkbox" class="limit-asset-toggle" data-asset-id="${STSafe.html(String(asset.id))}" ${selectedAssetIds.has(asset.id) ? 'checked' : ''}>
+            <span><strong>${STSafe.html(asset.symbol)}</strong><small>${STSafe.html(asset.name)}</small></span>
+          </label>`).join('')}
+      </div>
+    </section>`).join('') || '<div class="text-muted small py-3">No assets match this search.</div>';
+  wrap.querySelectorAll('.limit-asset-toggle').forEach(input => input.addEventListener('change', () => {
+    const id = Number(input.dataset.assetId);
+    if (input.checked) selectedAssetIds.add(id);
+    else selectedAssetIds.delete(id);
+    updateLimitSummary();
+  }));
+  syncLimitDisabledState();
+}
+
+function updateLimitSummary() {
+  const enabled = document.getElementById('limitsEnabled').checked;
+  document.getElementById('limitStateSummary').textContent = enabled ? 'Enabled' : 'Paused';
+  document.getElementById('assetSummary').textContent = selectedAssetIds.size === limitAssets.length
+    ? 'All active assets' : `${selectedAssetIds.size} selected`;
+  document.getElementById('timeframeSummary').textContent = selectedTimeframes.size === limitTimeframes.length
+    ? 'All supported' : `${selectedTimeframes.size} selected`;
+  document.getElementById('assetChoiceCount').textContent = `${selectedAssetIds.size} of ${limitAssets.length} selected`;
+}
+
+function syncLimitDisabledState() {
+  const disabled = limitControlsDisabled() || !document.getElementById('limitsEnabled').checked;
+  document.querySelectorAll('.telegram-limit-page input, .telegram-limit-page button').forEach(control => {
+    if (control.id === 'saveLimitsBtn') return;
+    control.disabled = disabled;
+  });
+}
+
+function setAllAssets(selected) {
+  selectedAssetIds = selected ? new Set(limitAssets.map(asset => asset.id)) : new Set();
+  renderAssetChoices();
+  updateLimitSummary();
+}
+
+function setAllTimeframes(selected) {
+  selectedTimeframes = selected ? new Set(limitTimeframes) : new Set();
+  renderTimeframeChoices();
+  syncLimitDisabledState();
+  updateLimitSummary();
+}
+
+async function loadTelegramSignalLimits() {
+  const data = await API.get('/admin/telegram-signal-limits');
+  if (!data || data.error) {
+    Toast.show(data?.error || 'Failed to load Telegram signal limits', 'error');
+    return;
+  }
+  limitAssets = (data.assets || []).map(asset => ({ ...asset, id: Number(asset.id) }));
+  limitTimeframes = Array.isArray(data.timeframes) ? data.timeframes : [];
+  const settings = data.settings || {};
+  selectedAssetIds = settings.asset_ids === null
+    ? new Set(limitAssets.map(asset => asset.id))
+    : new Set((settings.asset_ids || []).map(Number));
+  selectedTimeframes = settings.timeframes === null
+    ? new Set(limitTimeframes)
+    : new Set(settings.timeframes || []);
+  document.getElementById('limitsEnabled').checked = settings.enabled !== false;
+  renderTimeframeChoices();
+  renderAssetChoices();
+  syncLimitDisabledState();
+  updateLimitSummary();
+}
+
+async function saveTelegramSignalLimits() {
+  const payload = {
+    enabled: document.getElementById('limitsEnabled').checked,
+    asset_ids: selectedAssetIds.size === limitAssets.length ? null : [...selectedAssetIds],
+    timeframes: selectedTimeframes.size === limitTimeframes.length ? null : [...selectedTimeframes],
+  };
+  const data = await API.put('/admin/telegram-signal-limits', payload);
+  if (!data || data.error) {
+    Toast.show(data?.error || 'Failed to save Telegram signal limits', 'error');
+    return;
+  }
+  Toast.show('Telegram signal limits saved', 'success');
+}
+
+document.addEventListener('app:ready', () => {
+  limitIsSuperAdmin = !!Auth.user?.is_super_admin;
+  document.getElementById('viewOnlyNotice').style.display = limitIsSuperAdmin ? 'none' : '';
+  document.getElementById('saveLimitsBtn').style.display = limitIsSuperAdmin ? '' : 'none';
+  document.getElementById('limitsEnabled').addEventListener('change', () => {
+    syncLimitDisabledState();
+    updateLimitSummary();
+  });
+  document.getElementById('selectAllAssets').addEventListener('click', () => setAllAssets(true));
+  document.getElementById('clearAllAssets').addEventListener('click', () => setAllAssets(false));
+  document.getElementById('selectAllTimeframes').addEventListener('click', () => setAllTimeframes(true));
+  document.getElementById('clearAllTimeframes').addEventListener('click', () => setAllTimeframes(false));
+  document.getElementById('assetSearch').addEventListener('input', renderAssetChoices);
+  document.getElementById('saveLimitsBtn').addEventListener('click', saveTelegramSignalLimits);
+  loadTelegramSignalLimits();
+});
+</script>
+<style>
+.telegram-limit-page { max-width: 1440px; margin: 0 auto; }
+.limit-switch-row { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--glass); }
+.limit-context-note { display:flex; align-items:flex-start; gap:9px; padding:11px 13px; border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius:9px; color:var(--text-secondary); font-size:12px; line-height:1.5; }
+.limit-summary-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.limit-summary-grid > div { padding:10px 12px; border:1px solid var(--border); border-radius:9px; background:var(--bg-secondary); }
+.limit-summary-grid span { display:block; color:var(--text-muted); font-size:10px; text-transform:uppercase; letter-spacing:.08em; }
+.limit-summary-grid strong { display:block; margin-top:4px; color:var(--text-primary); font-size:14px; }
+.limit-actions { display:flex; flex-wrap:wrap; gap:6px; }
+.limit-search { position:relative; width:min(100%,260px); }
+.limit-search i { position:absolute; left:10px; top:8px; color:var(--text-muted); z-index:1; }
+.limit-search input { padding-left:29px; }
+.limit-choice-list { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.limit-choice, .limit-asset-choice { display:flex; align-items:center; gap:8px; min-width:0; padding:9px 10px; border:1px solid var(--border); border-radius:8px; background:var(--glass); cursor:pointer; }
+.limit-choice:hover, .limit-asset-choice:hover { border-color:var(--accent); }
+.limit-asset-groups { display:flex; flex-direction:column; gap:16px; }
+.limit-asset-group h3 { margin:0 0 8px; color:var(--text-secondary); font-size:11px; text-transform:uppercase; letter-spacing:.08em; }
+.limit-asset-group h3 small { color:var(--text-muted); font-weight:400; }
+.limit-asset-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.limit-asset-choice span { display:flex; flex-direction:column; min-width:0; }
+.limit-asset-choice strong { color:var(--text-primary); font-size:12px; }
+.limit-asset-choice small { overflow:hidden; color:var(--text-muted); font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width: 767.98px) {
+  .limit-switch-row { align-items:flex-start; flex-direction:column; }
+  .limit-summary-grid { grid-template-columns:1fr; }
+  .limit-choice-list, .limit-asset-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 420px) {
+  .limit-choice-list, .limit-asset-grid { grid-template-columns:1fr; }
+}
+</style>
+{% endblock %}

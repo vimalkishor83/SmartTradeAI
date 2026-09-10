@@ -380,6 +380,7 @@ def _register_blueprints(app):
     from app.api.v1.news import news_bp
     from app.api.v1.scanner import scanner_bp
     from app.api.v1.admin import admin_bp
+    from app.api.v1.admin_telegram_limits import admin_telegram_limits_bp
     from app.api.v1.notifications import notifications_bp
     from app.api.v1.predictions import predictions_bp
     from app.api.v1.risk import risk_bp
@@ -409,6 +410,7 @@ def _register_blueprints(app):
     app.register_blueprint(news_bp, url_prefix="/api/v1/news")
     app.register_blueprint(scanner_bp, url_prefix="/api/v1/scanner")
     app.register_blueprint(admin_bp, url_prefix="/api/v1/admin")
+    app.register_blueprint(admin_telegram_limits_bp, url_prefix="/api/v1/admin")
     app.register_blueprint(notifications_bp, url_prefix="/api/v1/notifications")
     app.register_blueprint(predictions_bp, url_prefix="/api/v1/predictions")
     app.register_blueprint(risk_bp, url_prefix="/api/v1/risk")
@@ -436,6 +438,7 @@ def _init_db(app):
         from app.models.api_config import UserBrokerCredential  # ensure table is created
         from app.models.platform_config import PlatformConfig  # ensure table is created
         from app.models.live_read_log import LiveReadLog        # ensure table is created
+        from app.models.telegram_individual_signal_limit import TelegramIndividualSignalLimit  # ensure table is created
 
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):

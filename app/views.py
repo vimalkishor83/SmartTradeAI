@@ -342,6 +342,12 @@ def admin_telegram_alerts():
     return render_template("admin/telegram_alerts.html")
 
 
+@views_bp.route("/admin/telegram-signal-limits")
+@page_admin_required
+def admin_telegram_signal_limits():
+    return render_template("admin/telegram_signal_limits.html")
+
+
 @views_bp.route("/admin/sessions")
 @page_admin_required
 def admin_sessions():

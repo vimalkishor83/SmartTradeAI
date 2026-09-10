@@ -78,7 +78,7 @@
     {% set grp_research  = active in ['analytics','reports'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading','algo_trading'] %}
     {% set grp_account   = active in ['settings','help'] %}
-    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
+    {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_telegram_signal_limits','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
 
     <!-- Overview -->
     <div class="nav-group {% if grp_overview %}open active-group{% endif %}" data-group="overview">
@@ -356,6 +356,11 @@
           <a href="/admin/telegram-alerts" data-tooltip="Telegram Alerts" class="nav-item {% if active == 'admin_telegram_alerts' %}active{% endif %}">
             <i class="bi bi-telegram nav-icon-red"></i><span class="nav-text">Telegram Alerts</span>
           </a>
+          {% if '/admin/telegram-signal-limits' not in disabled_nav_items %}
+          <a href="/admin/telegram-signal-limits" data-tooltip="Telegram Signal Limits" class="nav-item {% if active == 'admin_telegram_signal_limits' %}active{% endif %}">
+            <i class="bi bi-filter-circle nav-icon-red"></i><span class="nav-text">Signal Limits</span>
+          </a>
+          {% endif %}
           {% endif %}
           {% if '/admin/security' not in disabled_nav_items %}
           <a href="/admin/security" data-tooltip="Security" class="nav-item {% if active == 'admin_security' %}active{% endif %}">

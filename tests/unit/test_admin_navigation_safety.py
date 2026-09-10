@@ -19,6 +19,7 @@ def test_dashboard_duplicate_admin_destinations_are_not_persistent_submenus():
         "/admin/logs",
         "/admin/platform-config",
         "/admin/telegram-alerts",
+        "/admin/telegram-signal-limits",
         "/admin/security",
         "/admin/sessions",
         "/admin/audit-log",
@@ -51,3 +52,4 @@ def test_platform_config_exposes_admin_visibility_controls():
     assert 'id="adminPages"' in config
     assert "Admin Panel is always visible" in config
     assert "...ADMIN_NAV_ITEMS.map(([href]) => href)" in config
+    assert "['/admin/telegram-signal-limits', 'Signal Limits']" in config

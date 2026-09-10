@@ -152,8 +152,10 @@ def enqueue_live_read_event_notifications(row, events, previous_events):
     from app.models.notification import Notification
     from app.models.user import User
     from app.services.platform_config import get_platform_config
+    from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
 
-    if not _market_enabled(get_platform_config(), asset.market):
+    if (not _market_enabled(get_platform_config(), asset.market)
+            or not individual_signal_allowed(asset.id, row.timeframe)):
         return 0
 
     new_events = _new_events(events, previous_events)
