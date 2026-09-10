@@ -6,6 +6,14 @@ from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 
 
+def _telegram_disclaimer():
+    # Keep Terminal lifecycle alerts consistent with regular signal alerts:
+    # two newlines separate the context footer and the link remains clickable.
+    from app.tasks.notification_tasks import _TELEGRAM_DISCLAIMER
+
+    return _TELEGRAM_DISCLAIMER
+
+
 def _event_identity(event):
     event_type = str(event.get("type") or "")
     stage = event.get("stage") if event_type == "trailing_stop" else ""
@@ -65,8 +73,6 @@ def format_live_read_event(row, event):
     event_type = event.get("type")
     stage = int(event.get("stage") or row.trail_stage or 0)
     price = event.get("price")
-    suffix = ""
-
     if event_type == "generated":
         title = f"{'🟢' if direction == 'BUY' else '🔴'} *LIVE {direction} SIGNAL — {symbol}*"
         lines = [
@@ -128,9 +134,7 @@ def format_live_read_event(row, event):
     else:
         return ""
 
-    lines.append(suffix)
-    lines.append("⚠️ _Informational market analysis only — not financial advice._")
-    return "\n".join(line for line in lines if line != "")
+    return "\n".join(line for line in lines if line != "") + _telegram_disclaimer()
 
 
 def enqueue_live_read_event_notifications(row, events, previous_events):

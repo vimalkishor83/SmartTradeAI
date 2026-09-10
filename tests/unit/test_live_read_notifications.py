@@ -73,6 +73,23 @@ def test_live_read_event_queue_is_user_scoped_and_idempotent(app):
         assert all("TARGET 1 HIT" not in item.message for item in notifications)
 
 
+def test_live_read_telegram_footer_has_disclaimer_link_and_context_gap(app):
+    from app.services.signals.live_read_notifications import format_live_read_event
+
+    with app.app_context():
+        asset = Asset(
+            symbol="FOOTERTEST", name="Footer Test", market="crypto", is_active=True,
+        )
+        db.session.add(asset)
+        db.session.flush()
+        row = _live_row(asset)
+
+        text = format_live_read_event(row, {"type": "target1", "price": 105})
+
+        assert "\n\n⚠️ _Disclaimer:" in text
+        assert "[Read full disclaimer](https://smarttradeai.online/disclaimer)" in text
+
+
 def test_live_read_worker_advances_existing_setup_without_terminal_request(app):
     from unittest.mock import patch
 
