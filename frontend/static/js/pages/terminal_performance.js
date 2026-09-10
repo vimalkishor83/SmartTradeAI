@@ -11,8 +11,12 @@
 
   function render(data) {
     const assetBody = document.getElementById('tpAssetBody');
+    if (!assetBody) return;
     const assetRows = Array.isArray(data?.by_asset) ? data.by_asset : [];
-    assetBody.innerHTML = assetRows.length ? assetRows.map(row => `<tr><td><strong>${esc(row.name)}</strong></td><td>${count(row.total)}</td><td>${count(row.open)}</td><td>${count(row.decisive)}</td><td class="tp-positive">${count(row.wins)}</td><td class="tp-negative">${count(row.losses)}</td><td>${rate(row.win_rate)}</td></tr>`).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">No Terminal reads logged yet.</td></tr>';
+    assetBody.innerHTML = assetRows.length ? assetRows.map(row => {
+      const name = row && (row.name || row.symbol) ? (row.name || row.symbol) : 'Unknown asset';
+      return `<tr><td><strong>${esc(name)}</strong></td><td>${count(row.total)}</td><td>${count(row.open)}</td><td>${count(row.decisive)}</td><td class="tp-positive">${count(row.wins)}</td><td class="tp-negative">${count(row.losses)}</td><td>${rate(row.win_rate)}</td></tr>`;
+    }).join('') : '<tr><td colspan="7" class="text-center text-muted py-4">No Terminal reads logged yet.</td></tr>';
   }
 
   async function load() {

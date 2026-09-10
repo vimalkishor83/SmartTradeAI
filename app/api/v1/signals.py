@@ -689,17 +689,24 @@ def ag_status():
 def ag_watchlist():
     """Return all active assets grouped by market — used to build the asset picker."""
     assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
-    selected = set(_AG_STATE["asset_ids"])
+    # The picker is served by the web tier, while the scheduler owns the
+    # running configuration. Read the same shared snapshot as /status so a
+    # different web worker cannot reset saved timeframes to its local default.
+    snap = _ag_status_snapshot()
+    selected_asset_ids = snap.get("asset_ids") or []
+    selected_markets = snap.get("markets") or []
+    selected_timeframes = snap.get("timeframes") or ["1h"]
+    selected = set(selected_asset_ids)
     return jsonify({
         "assets": [
             {**a.to_dict(), "selected": a.id in selected}
             for a in assets
         ],
         "markets": Asset.MARKETS,
-        "selected_asset_ids": _AG_STATE["asset_ids"],
-        "selected_markets": _AG_STATE.get("markets") or [],
-        "selected_timeframes": _AG_STATE["timeframes"],
-        "running": _AG_STATE["running"],
+        "selected_asset_ids": selected_asset_ids,
+        "selected_markets": selected_markets,
+        "selected_timeframes": selected_timeframes,
+        "running": bool(snap.get("running")),
     }), 200
 
 

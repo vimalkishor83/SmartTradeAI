@@ -167,3 +167,26 @@ class TestAutoGenerateInputValidation:
         assert body["max_per_run"] == 1000
         assert body["interval_minutes"] == 0
         assert body["telegram_on_signal"] is False
+
+
+def test_watchlist_reads_shared_saved_configuration(app, client, super_admin_headers, monkeypatch):
+    """The picker must not read a stale web-worker copy of the config."""
+    from app.api.v1 import signals
+
+    monkeypatch.setattr(signals, "_ag_status_snapshot", lambda: {
+        "asset_ids": [],
+        "markets": ["crypto"],
+        "timeframes": ["1m", "5m", "15m", "30m", "1h", "4h", "1d"],
+        "running": True,
+    })
+
+    response = client.get(
+        "/api/v1/signals/auto-generate/watchlist",
+        headers=super_admin_headers,
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["selected_markets"] == ["crypto"]
+    assert payload["selected_timeframes"] == ["1m", "5m", "15m", "30m", "1h", "4h", "1d"]
+    assert payload["running"] is True
