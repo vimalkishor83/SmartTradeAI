@@ -38,6 +38,7 @@ def test_admin_dashboard_keeps_removed_submenus_discoverable():
         "/admin/api-configs",
         "/admin/audit-log",
         "/admin/daily-compound-calculator",
+        "/admin/telegram-signal-limits",
     ):
         assert f'href="{href}"' in admin
 
