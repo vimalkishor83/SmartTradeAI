@@ -26,6 +26,31 @@
   Historical signal outcomes only. Loading analytics…
 </div>
 
+<section class="section-card mb-4" aria-labelledby="terminalAnalyticsTitle">
+  <div class="section-card-header">
+    <span class="section-card-title" id="terminalAnalyticsTitle"><i class="bi bi-broadcast text-accent me-1"></i>Terminal Live-Read Performance <span class="badge-tag ms-1">separate source</span></span>
+    <span class="text-muted fs-xs">Open reads are excluded from win rate; expired reads are visible but not decisive.</span>
+  </div>
+  <div class="section-card-body">
+    <div class="row g-3 mb-3" aria-label="Terminal live-read summary">
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Logged</div><strong id="taTotal">—</strong></div>
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Open now</div><strong id="taOpen">—</strong></div>
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Decisive</div><strong id="taDecisive">—</strong></div>
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Wins / Losses</div><strong id="taWL">—</strong></div>
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Decisive win rate</div><strong id="taWinRate" class="text-green">—</strong></div>
+      <div class="col-6 col-md"><div class="fs-xs text-muted">Avg open P&amp;L</div><strong id="taOpenPnl">—</strong></div>
+    </div>
+    <div class="data-context-bar" id="taOpenMeta">Open snapshot: —</div>
+    <div class="table-responsive mt-3">
+      <table class="smart-table" data-mobile-cards>
+        <caption class="visually-hidden">Terminal live-read performance by asset</caption>
+        <thead><tr><th>Asset</th><th>Total</th><th>Open</th><th>Decisive</th><th>Wins</th><th>Losses</th><th>Win Rate</th></tr></thead>
+        <tbody id="terminalAnalyticsBody"><tr><td colspan="7" class="text-center text-muted py-3">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
 <!-- Row 1: KPI Cards -->
 <div class="row g-3 mb-4" id="analyticsKpi">
   <div class="col-6 col-md-3">
@@ -302,6 +327,36 @@ function safeRate(value) {
   return Math.max(0, Math.min(100, analyticsNumber(value)));
 }
 
+function renderTerminalAnalytics(data) {
+  const terminal = analyticsStats(data?.terminal);
+  const closed = analyticsStats(terminal.closed);
+  const open = analyticsStats(terminal.open_stats);
+  const set = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  const count = value => analyticsCount(value).toLocaleString();
+  set('taTotal', count(terminal.total_logged));
+  set('taOpen', count(terminal.open));
+  set('taDecisive', count(terminal.decisive));
+  set('taWL', `${count(closed.wins)} / ${count(closed.losses)}`);
+  set('taWinRate', closed.win_rate == null ? '—' : `${safeRate(closed.win_rate).toFixed(1)}%`);
+  const avgPnl = Number(open.avg_unrealized_pnl_pct);
+  set('taOpenPnl', Number.isFinite(avgPnl) ? `${avgPnl >= 0 ? '+' : ''}${avgPnl.toFixed(2)}%` : '—');
+  const stageText = Array.isArray(open.by_stage) ? open.by_stage.map(s => `${s.label}: ${count(s.count)}`).join(' · ') : '';
+  set('taOpenMeta', `Open snapshot: ${count(terminal.open)} reads · ${open.avg_age_minutes == null ? 'age unavailable' : `${Number(open.avg_age_minutes).toFixed(0)}m avg age`}${stageText ? ` · ${stageText}` : ''}`);
+
+  const body = document.getElementById('terminalAnalyticsBody');
+  const rows = Array.isArray(terminal.by_asset) ? terminal.by_asset : [];
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">No Terminal reads logged yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map(row => `<tr>
+    <td><strong>${STSafe.html(String(row.name ?? 'Unknown'))}</strong></td>
+    <td>${count(row.total)}</td><td>${count(row.open)}</td><td>${count(row.decisive)}</td>
+    <td class="text-green">${count(row.wins)}</td><td class="text-red">${count(row.losses)}</td>
+    <td style="color:${winRateColor(row.win_rate)};font-weight:700">${row.win_rate == null ? '—' : safeRate(row.win_rate).toFixed(1) + '%'}</td>
+  </tr>`).join('');
+}
+
 async function loadAnalytics() {
   if (_analyticsRequestInFlight) return;
   _analyticsRequestInFlight = true;
@@ -314,6 +369,7 @@ async function loadAnalytics() {
     const response = await API.get('/signals/analytics');
     if (sequence !== _analyticsLoadSequence) return;
     const data = analyticsStats(response);
+    renderTerminalAnalytics(data);
     const o = analyticsStats(data.overall);
     const total = analyticsCount(o.total_signals);
     const closed = Math.min(total, analyticsCount(o.closed));

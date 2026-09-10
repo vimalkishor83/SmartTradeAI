@@ -1293,6 +1293,8 @@ def track_live_read_events(app):
         prices = {}
         advanced = 0
         resolved = 0
+        observed = 0
+        now = datetime.utcnow()
         for row in rows:
             if not row.asset:
                 continue
@@ -1314,6 +1316,9 @@ def track_live_read_events(app):
                 _live_read_from_log(row), price,
             )
             next_events = state.get("event_history") or previous_events
+            row.current_price = price
+            row.last_observed_at = now
+            observed += 1
             if not changed and not is_resolved and next_events == previous_events:
                 continue
 
@@ -1330,19 +1335,20 @@ def track_live_read_events(app):
                 )
                 row.outcome = "win" if final_target else "loss"
                 row.exit_price = price
-                row.resolved_at = datetime.utcnow()
+                row.resolved_at = now
                 resolved += 1
 
             enqueue_live_read_event_notifications(row, next_events, previous_events)
-            db.session.commit()
             advanced += 1
             if is_resolved:
                 cache.delete(f"terminal_live_read:{row.asset.id}:{row.timeframe}")
 
+        if observed:
+            db.session.commit()
         if advanced:
             logger.info(
-                "Advanced %d Terminal live reads (%d resolved) and queued lifecycle alerts.",
-                advanced, resolved,
+                "Observed %d and advanced %d Terminal live reads (%d resolved).",
+                observed, advanced, resolved,
             )
 
 

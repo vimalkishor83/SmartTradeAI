@@ -157,6 +157,7 @@ async function loadKPIs() {
   const conf = percentOr(summary?.avg_confidence);
   set('msConf', conf == null ? '—' : conf.toFixed(1) + '%');
   loadTodaySummary(summary, perf);
+  loadTerminalSummary(summary?.terminal);
   loadCalibration(perf);
   return { summary, perf, hasData: Boolean(summary || perf || openRows.length) };
 }
@@ -189,6 +190,22 @@ function loadTodaySummary(summary, perf) {
       el.className = 'ts-value';
     }
   }
+}
+
+function loadTerminalSummary(terminal) {
+  terminal = terminal && typeof terminal === 'object' ? terminal : {};
+  const closed = terminal.closed && typeof terminal.closed === 'object' ? terminal.closed : {};
+  const open = terminal.open_stats && typeof terminal.open_stats === 'object' ? terminal.open_stats : {};
+  const setTerminal = (id, value) => { const el = document.getElementById(id); if (el) el.textContent = value; };
+  const count = value => countOr(value).toLocaleString();
+  setTerminal('terminalSummaryTotal', count(terminal.total_logged));
+  setTerminal('terminalSummaryOpen', count(terminal.open));
+  setTerminal('terminalSummaryDecisive', count(terminal.decisive));
+  setTerminal('terminalSummaryWinRate', closed.win_rate == null ? '—' : percentOr(closed.win_rate).toFixed(1) + '%');
+  const pnl = numberOr(open.avg_unrealized_pnl_pct);
+  setTerminal('terminalSummaryPnl', pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`);
+  const stages = Array.isArray(open.by_stage) ? open.by_stage.map(stage => `${stage.label}: ${count(stage.count)}`).join(' · ') : '';
+  setTerminal('terminalSummaryMeta', `Open snapshot: ${count(terminal.open)} reads · ${open.avg_age_minutes == null ? 'age unavailable' : `${Number(open.avg_age_minutes).toFixed(0)}m avg age`}${stages ? ` · ${stages}` : ''}`);
 }
 
 /* ── Market-state (regime / volatility / risk) from heatmap ───── */

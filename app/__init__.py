@@ -525,6 +525,8 @@ def _migrate_columns(app):
         ("live_read_logs", "trailing_stop",     "REAL"),
         ("live_read_logs", "high_water_mark",   "REAL"),
         ("live_read_logs", "trail_stage",       "INTEGER DEFAULT 0"),
+        ("live_read_logs", "current_price",     "REAL"),
+        ("live_read_logs", "last_observed_at",  "DATETIME"),
         ("live_read_logs", "snapshot",          "TEXT"),
         ("live_read_logs", "event_history",     "TEXT"),
         ("signal_history", "target2",           "REAL"),

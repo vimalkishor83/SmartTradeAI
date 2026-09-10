@@ -1419,6 +1419,7 @@ def _live_read_from_log(row):
     state["trailing_stop"] = row.trailing_stop
     state["high_water_mark"] = row.high_water_mark or row.entry_price
     state["trail_stage"] = row.trail_stage or 0
+    state["current_price"] = row.current_price or state.get("current_price")
     state["event_history"] = row.event_history or initial_event_history(
         row.generated_at, row.entry_price,
     )
@@ -1515,7 +1516,7 @@ def _advance_live_read_trailing(state, live_price):
 
 
 def _persist_live_read_trailing(state):
-    """Persist only trailing-state changes; cached reads remain fast."""
+    """Persist trailing state and the latest quote without reshaping the plan."""
     log_id = state.get("live_read_log_id")
     if not log_id:
         return
@@ -1527,6 +1528,8 @@ def _persist_live_read_trailing(state):
         row.high_water_mark = state.get("high_water_mark")
         row.trailing_stop = state.get("trailing_stop")
         row.trail_stage = int(state.get("trail_stage") or 0)
+        row.current_price = _live_read_number(state.get("current_price"))
+        row.last_observed_at = datetime.utcnow()
         previous_events = row.event_history or []
         next_events = state.get("event_history") or previous_events
         row.event_history = next_events
@@ -1656,6 +1659,8 @@ def _open_live_read_log(asset, timeframe, result):
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
             high_water_mark=result.get("entry_price"), trail_stage=0,
+            current_price=_live_read_number(result.get("current_price")),
+            last_observed_at=generated_at,
             snapshot=_live_read_snapshot(result),
             generated_at=generated_at,
             expires_at=generated_at + timedelta(minutes=_SIGNAL_EXPIRY.get(timeframe, 240)),
@@ -2164,6 +2169,8 @@ def get_summary():
 
     # Open alerts (active signals)
     open_alerts = Signal.query.filter_by(status="active").count()
+    from app.services.signals.live_read_performance import build_live_read_performance
+    terminal_performance = build_live_read_performance()
 
     return jsonify({
         "buy_today":       summary.get("BUY",  0),
@@ -2180,6 +2187,7 @@ def get_summary():
         "avg_confidence":  avg_confidence,
         "open_alerts":     open_alerts,
         "top_signal":      top_signal,
+        "terminal":        terminal_performance,
     }), 200
 
 
@@ -2301,6 +2309,9 @@ def signal_report():
         func.date(SignalHistory.closed_at)
     ).all()
 
+    from app.services.signals.live_read_performance import build_live_read_performance
+    terminal = build_live_read_performance(start_at=start_at, end_at=end_at)
+
     return jsonify({
         "range": {
             "from": start.isoformat(),
@@ -2325,6 +2336,7 @@ def signal_report():
             dict(serialize_bucket(row), date=str(row[0]))
             for row in daily_rows
         ],
+        "terminal": terminal,
     }), 200
 
 
@@ -2502,6 +2514,8 @@ def get_analytics():
     } for sym, mkt, total, w in asset_rows]
     top_assets.sort(key=lambda x: x["win_rate"], reverse=True)
 
+    from app.services.signals.live_read_performance import build_live_read_performance
+
     return jsonify({
         "overall": {
             "total_signals": total_signals,
@@ -2518,6 +2532,7 @@ def get_analytics():
         "confidence_buckets": confidence_buckets,
         "recent_performance": recent_performance,
         "top_assets": top_assets,
+        "terminal": build_live_read_performance(),
     }), 200
 
 
@@ -2692,6 +2707,7 @@ def get_performance():
     # ever reachable, and the dashboard's Confidence Calibration chart
     # (dashboard.js `perf?.calibration`) always rendered empty.
     calibration = _confidence_calibration_bands()
+    from app.services.signals.live_read_performance import build_live_read_performance
 
     return jsonify({
         "overall": {
@@ -2712,6 +2728,7 @@ def get_performance():
         "calibration": calibration,
         "daily_pnl": daily_pnl,
         "hourly_win_rate": hourly_win_rate,
+        "terminal": build_live_read_performance(),
     }), 200
 
 
@@ -2773,42 +2790,14 @@ def live_read_performance():
     hardest target, whereas a real Signal is marked a win at target1 (see
     _frozen_live_read's docstring). A read that reaches target1 or target2
     and then reverses counts as neither a win nor a loss here — it just
-    sits in `open` only until its timeframe window ends, then resolves as
-    an explicit neutral `expired` outcome. Expired reads are included in
-    the resolved denominator and exposed separately, rather than silently
-    disappearing when the cache entry ages out. Do not use this number to claim
-    an overall platform accuracy figure without this caveat attached.
+    sits in `open` until it resolves as an explicit neutral `expired` outcome.
+    Expired reads remain visible, but the decisive win rate is calculated only
+    from wins and losses. Open reads are reported separately with the latest
+    server-observed price, trail stage, and age.
     """
-    from app.models.live_read_log import LiveReadLog
+    from app.services.signals.live_read_performance import build_live_read_performance
 
-    total = LiveReadLog.query.count()
-    resolved_q = LiveReadLog.query.filter(LiveReadLog.outcome.isnot(None))
-    resolved = resolved_q.count()
-    wins = resolved_q.filter(LiveReadLog.outcome == "win").count()
-    expired = resolved_q.filter(LiveReadLog.outcome == "expired").count()
-    win_rate = round(wins / resolved * 100, 1) if resolved else None
-
-    tf_rows = (
-        db.session.query(
-            LiveReadLog.timeframe, func.count(LiveReadLog.id),
-            func.sum(case((LiveReadLog.outcome == "win", 1), else_=0)),
-            func.sum(case((LiveReadLog.outcome.isnot(None), 1), else_=0)),
-            func.sum(case((LiveReadLog.outcome == "expired", 1), else_=0)),
-        ).group_by(LiveReadLog.timeframe).all()
-    )
-    by_timeframe = [{
-        "timeframe": tf, "total": total_n, "resolved": res_n, "expired": expired_n,
-        "win_rate": round(w / res_n * 100, 1) if res_n else None,
-    } for tf, total_n, w, res_n, expired_n in tf_rows]
-
-    return jsonify({
-        "total_logged": total,
-        "resolved": resolved,
-        "expired": expired,
-        "open": total - resolved,
-        "win_rate": win_rate,
-        "by_timeframe": by_timeframe,
-    }), 200
+    return jsonify(build_live_read_performance()), 200
 
 
 def _signal_outcome_label(status: str) -> str | None:

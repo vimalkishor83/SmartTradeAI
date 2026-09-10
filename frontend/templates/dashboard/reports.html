@@ -95,6 +95,28 @@
     <div class="section-card-header"><h2 class="section-card-title" id="reportDailyTitle"><i class="bi bi-calendar3 text-accent me-1"></i>Daily P&amp;L</h2><span class="text-muted fs-xs">Closed trades, UTC</span></div>
     <div class="section-card-body"><div class="report-chart-wrap"><canvas id="reportDailyChart" role="img" aria-label="Daily closed-trade P and L chart"></canvas></div><div class="report-chart-empty" id="reportDailyEmpty" hidden>No closed trades in this range.</div></div>
   </section>
+
+  <section class="section-card mb-3" aria-labelledby="terminalReportTitle">
+    <div class="section-card-header">
+      <h2 class="section-card-title" id="terminalReportTitle"><i class="bi bi-broadcast text-accent me-1"></i>Terminal Live-Read Report <span class="ui-chip ui-chip--neutral ms-1">separate source</span></h2>
+      <span class="text-muted fs-xs">Closed rows use the selected range; open rows show the current operational snapshot.</span>
+    </div>
+    <div class="section-card-body">
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md"><span class="report-outcome-label">Logged</span><strong id="terminalReportTotal">-</strong></div>
+        <div class="col-6 col-md"><span class="report-outcome-label">Open now</span><strong id="terminalReportOpen">-</strong></div>
+        <div class="col-6 col-md"><span class="report-outcome-label">Decisive</span><strong id="terminalReportDecisive">-</strong></div>
+        <div class="col-6 col-md"><span class="report-outcome-label">Wins / losses</span><strong id="terminalReportWL">-</strong></div>
+        <div class="col-6 col-md"><span class="report-outcome-label">Win rate</span><strong id="terminalReportWinRate">-</strong></div>
+      </div>
+      <div class="data-context-bar" id="terminalReportMeta">Open snapshot: -</div>
+      <div class="table-responsive mt-3"><table class="smart-table" data-mobile-cards>
+        <caption class="ui-visually-hidden">Terminal live-read report by timeframe</caption>
+        <thead><tr><th>Timeframe</th><th>Total</th><th>Open</th><th>Decisive</th><th>Expired</th><th>Win Rate</th></tr></thead>
+        <tbody id="terminalReportBody"><tr><td colspan="6" class="text-center text-muted py-3">Choose a range to load the report</td></tr></tbody>
+      </table></div>
+    </div>
+  </section>
 </div>
 {% endblock %}
 

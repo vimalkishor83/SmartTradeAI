@@ -168,6 +168,30 @@ function renderDailyChart(rows) {
   });
 }
 
+function renderTerminalReport(data) {
+  const terminal = data?.terminal || {};
+  const closed = terminal.closed || {};
+  const open = terminal.open_stats || {};
+  const set = (id, value) => { const element = document.getElementById(id); if (element) element.textContent = value; };
+  const count = value => reportCount(value).toLocaleString();
+  set('terminalReportTotal', count(terminal.total_logged));
+  set('terminalReportOpen', count(terminal.open));
+  set('terminalReportDecisive', count(terminal.decisive));
+  set('terminalReportWL', `${count(closed.wins)} / ${count(closed.losses)}`);
+  set('terminalReportWinRate', closed.win_rate == null ? '-' : reportRate(closed.win_rate).toFixed(1) + '%');
+  const stageText = Array.isArray(open.by_stage) ? open.by_stage.map(s => `${s.label}: ${count(s.count)}`).join(' · ') : '';
+  set('terminalReportMeta', `Open snapshot: ${count(terminal.open)} reads · ${open.avg_age_minutes == null ? 'age unavailable' : `${Number(open.avg_age_minutes).toFixed(0)}m avg age`}${stageText ? ` · ${stageText}` : ''}`);
+
+  const body = document.getElementById('terminalReportBody');
+  const rows = Array.isArray(terminal.by_timeframe) ? terminal.by_timeframe : [];
+  if (!rows.length) { setReportTableState(body, 6, 'No Terminal reads in this range.'); return; }
+  body.innerHTML = rows.map(row => `<tr>
+    <td><span class="ui-chip ui-chip--neutral">${reportEsc(row?.name || 'Unknown')}</span></td>
+    <td class="num">${count(row?.total)}</td><td class="num">${count(row?.open)}</td><td class="num">${count(row?.decisive)}</td>
+    <td class="num">${count(row?.expired)}</td><td class="num" style="font-weight:700">${row?.win_rate == null ? '-' : reportRate(row.win_rate).toFixed(1) + '%'}</td>
+  </tr>`).join('');
+}
+
 async function loadReport() {
   if (_reportInFlight) return;
   const range = validateReportRange();
@@ -191,6 +215,7 @@ async function loadReport() {
     renderMarketTable(data.by_market);
     renderTimeframeTable(data.by_timeframe);
     renderDailyChart(data.daily);
+    renderTerminalReport(data);
     setReportState('ready', 'Report ready');
   } catch (_) {
     setReportState('error', 'Report data unavailable');
