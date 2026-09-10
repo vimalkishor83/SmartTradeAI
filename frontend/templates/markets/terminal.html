@@ -767,7 +767,7 @@ function renderTerminalCard(s) {
 
   return `
     <div class="col">
-      <div class="section-card term-signal-card term-card-${String(s.signal_type || '').toLowerCase() === 'buy' ? 'buy' : 'sell'} h-100${pinned ? ' term-card-pinned' : ''}">
+        <div class="section-card term-signal-card term-card-${String(s.signal_type || '').toLowerCase() === 'buy' ? 'buy' : 'sell'} h-100${pinned ? ' term-card-pinned' : ''}" data-terminal-symbol="${assetName}" data-terminal-market="${mkt}">
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
             <div>
@@ -895,6 +895,30 @@ function toggleTerminalPin(assetId, market) {
 
 const _termLoading = new Map();
 let _termRequestSequence = 0;
+let _terminalRefreshTimer = null;
+
+function _terminalRefreshSeconds() {
+  const configured = Number(window.PLATFORM_CONFIG?.live_price_refresh_interval_seconds);
+  return Number.isFinite(configured) ? Math.min(60, Math.max(1, configured)) : 5;
+}
+
+function _patchTerminalLivePrice(tick) {
+  const symbol = String(tick?.symbol || '').toUpperCase();
+  const price = _termNumber(tick?.price);
+  if (!symbol || price === null) return;
+  document.querySelectorAll('#terminalGrid [data-terminal-symbol]').forEach(card => {
+    if (String(card.dataset.terminalSymbol || '').toUpperCase() !== symbol) return;
+    const priceEl = card.querySelector('.signal-price-value');
+    if (priceEl) priceEl.textContent = formatPrice(price, card.dataset.terminalMarket || '');
+  });
+}
+
+function _startTerminalAutoRefresh() {
+  clearInterval(_terminalRefreshTimer);
+  _terminalRefreshTimer = setInterval(() => {
+    if (document.visibilityState !== 'hidden') loadTerminal();
+  }, _terminalRefreshSeconds() * 1000);
+}
 
 async function loadTerminal() {
   const grid = document.getElementById('terminalGrid');
@@ -947,6 +971,11 @@ document.addEventListener('app:ready', () => {
   _wireTerminalTabKeyboard('#terminalMarketTabs');
   _wireTerminalTabKeyboard('#terminalTfTabs');
   loadTerminal();
+  _startTerminalAutoRefresh();
+  document.addEventListener('price:update', event => _patchTerminalLivePrice(event.detail));
+  if (typeof LivePrices !== 'undefined' && typeof LivePrices.onUpdate === 'function') {
+    LivePrices.onUpdate(_patchTerminalLivePrice);
+  }
 
   document.getElementById('terminalMarketTabs').addEventListener('click', (e) => {
     const tab = e.target.closest('.terminal-tab');

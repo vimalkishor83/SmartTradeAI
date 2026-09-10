@@ -73,3 +73,15 @@ def test_terminal_layout_keeps_signal_details_scanable_at_desktop_and_mobile_wid
     assert 'Trailing stop active after Target' in source
     assert 'Tracked setup · ${rel} · live quote' in source
     assert '@media (max-width: 767.98px)' in source
+
+
+def test_terminal_uses_configured_refresh_and_live_price_updates():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function _terminalRefreshSeconds()" in source
+    assert "_terminalRefreshSeconds() * 1000" in source
+    assert "document.visibilityState !== 'hidden'" in source
+    assert "function _patchTerminalLivePrice(tick)" in source
+    assert "data-terminal-symbol=\"${assetName}\"" in source
+    assert "LivePrices.onUpdate(_patchTerminalLivePrice)" in source
+    assert "document.addEventListener('price:update'" in source
