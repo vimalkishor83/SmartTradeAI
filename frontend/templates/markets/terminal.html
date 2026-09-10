@@ -481,7 +481,7 @@ function _renderSignalHistory(s, market) {
       <span class="sc-history-label">${_termHtml(label)}${price !== null && price !== undefined ? ` · ${_termPrice(price, market)}` : ''}</span>
       <span class="sc-history-value">${_termHtml(status)}</span>
     </div>`;
-  }).join('');
+  });
   const hasUnknownTime = events.some(event => event.time_unknown);
   const note = hasUnknownTime
     ? 'Target progress was restored from the saved trailing stage; exact historical hit times were not stored.'
