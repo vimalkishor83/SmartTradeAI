@@ -53,3 +53,50 @@ def test_terminal_controls_are_keyboard_accessible_and_expose_busy_state():
     assert "function _setTerminalBusy(busy)" in source
     assert "function _wireTerminalTabKeyboard(selector)" in source
     assert "document.body.dataset.terminalBooted === 'true'" in source
+
+
+def test_terminal_layout_keeps_signal_details_scanable_at_desktop_and_mobile_widths():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert '<div class="terminal-page">' in source
+    assert "isolation: isolate" in source
+    assert "left: auto" in source
+    assert "content: none" in source
+    assert "z-index: 0" in source
+    assert "margin-bottom: 12px" in source
+    assert 'class="section-card terminal-toolbar mb-3"' in source
+    assert 'class="row g-3 row-cols-1 row-cols-md-2 row-cols-lg-4"' in source
+    assert 'term-signal-card term-card-${String(s.signal_type ||' in source
+    assert 'class="sc-cell sc-cell-entry"' in source
+    assert 'class="sc-cell sc-cell-stop"' in source
+    assert 'sc-cell sc-cell-target' in source
+    assert 'Trailing stop active after Target' in source
+    assert 'const trailingRows = events' in source
+    assert 'Trailing stop after Target ${_termHtml(stage)}' in source
+    assert 'Tracked setup · ${rel} · live quote' in source
+    assert '@media (max-width: 767.98px)' in source
+
+
+def test_terminal_uses_configured_refresh_and_live_price_updates():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function _terminalRefreshSeconds()" in source
+    assert "_terminalRefreshSeconds() * 1000" in source
+    assert "document.visibilityState !== 'hidden'" in source
+    assert "function _patchTerminalLivePrice(tick)" in source
+    assert "data-terminal-symbol=\"${assetName}\"" in source
+    assert "LivePrices.onUpdate(_patchTerminalLivePrice)" in source
+    assert "document.addEventListener('price:update'" in source
+
+
+def test_terminal_scheduled_refresh_reconciles_cards_without_a_loading_flash():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function _terminalCardKey(s)" in source
+    assert "function _terminalCardFingerprint(s)" in source
+    assert 'data-terminal-card-key="${cardKey}"' in source
+    assert "loadTerminal({ silent: true })" in source
+    assert "applyTerminalFilters({ preserveDom: silent, previousCards });" in source
+    assert "grid.replaceChildren(fragment);" in source
+    assert "if (!silent) {" in source
+    assert "_setTerminalBusy(true);" in source

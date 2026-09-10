@@ -4,10 +4,10 @@ from __future__ import annotations
 from math import isfinite
 
 from app.services.markets import MARKET_KEYS
-from app.services.platform_config import FETCHABLE_TIMEFRAMES
+from app.services.platform_config import BACKTEST_DERIVED_TIMEFRAMES, FETCHABLE_TIMEFRAMES
 
 
-BACKTEST_TIMEFRAMES = frozenset(FETCHABLE_TIMEFRAMES)
+BACKTEST_TIMEFRAMES = frozenset((*FETCHABLE_TIMEFRAMES, *BACKTEST_DERIVED_TIMEFRAMES))
 MAX_BACKTEST_DAYS = 3650
 MAX_INITIAL_CAPITAL = 1_000_000_000.0
 MAX_PORTFOLIO_ASSETS = 50
@@ -50,7 +50,7 @@ def _number(value, field: str, *, default: float, minimum: float, maximum: float
 def parse_timeframe(value: object = None, *, default: str = "1h") -> str:
     timeframe = default if value is None else value
     if not isinstance(timeframe, str) or timeframe not in BACKTEST_TIMEFRAMES:
-        allowed = ", ".join(FETCHABLE_TIMEFRAMES)
+        allowed = ", ".join((*FETCHABLE_TIMEFRAMES, *BACKTEST_DERIVED_TIMEFRAMES))
         raise ValueError(f"timeframe must be one of {allowed}")
     return timeframe
 

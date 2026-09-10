@@ -25,3 +25,19 @@ def test_telegram_controls_use_event_bindings():
     assert "addChannelBtn').addEventListener" in source
     assert "saveChannelBtn').addEventListener" in source
     assert "button.addEventListener('click'" in source
+
+
+def test_telegram_page_uses_shared_operations_layout():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    for marker in (
+        'class="admin-ops-page admin-telegram-page"',
+        'class="admin-page-hero"',
+        'class="admin-meta-strip"',
+        'class="admin-table-shell',
+        'admin-channel-list',
+        'admin-setup-card',
+        'id="channelCountSummary"',
+        "allChannels.length",
+    ):
+        assert marker in source

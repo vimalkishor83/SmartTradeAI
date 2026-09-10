@@ -13,6 +13,9 @@ class Notification(db.Model):
     channel = db.Column(db.String(20))  # email, telegram, push, web
     asset_symbol = db.Column(db.String(30))
     signal_id = db.Column(db.Integer, db.ForeignKey("signals.id"))
+    # Stable source/event idempotency key for queued lifecycle notifications.
+    # Null keeps older notification producers backward compatible.
+    notification_key = db.Column(db.String(180), nullable=True)
     is_read = db.Column(db.Boolean, default=False)
     is_sent = db.Column(db.Boolean, default=False)
     sent_at = db.Column(db.DateTime)
@@ -23,6 +26,7 @@ class Notification(db.Model):
         db.Index("idx_notif_user_read",  "user_id", "is_read"),
         db.Index("idx_notif_created",    "created_at"),
         db.Index("idx_notif_delivery_queue", "is_sent", "created_at", "id"),
+        db.Index("uq_notif_user_key", "user_id", "notification_key", unique=True),
     )
 
     def to_dict(self):

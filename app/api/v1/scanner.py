@@ -49,6 +49,11 @@ SCAN_FILTERS = [
 ]
 
 
+def _normalize_scan_market(value):
+    """Treat the UI's empty All Markets option as no market filter."""
+    return None if value is None or value == "" else value
+
+
 @scanner_bp.route("/filters", methods=["GET"])
 @login_required
 def get_filters():
@@ -62,7 +67,7 @@ def run_scan():
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 422
     filters = data.get("filters", ["strong_buy"])
-    market = data.get("market")
+    market = _normalize_scan_market(data.get("market"))
     timeframe = data.get("timeframe", "1d")
     if not isinstance(filters, list) or not all(isinstance(f, str) for f in filters):
         return jsonify({"error": "filters must be a list of strings"}), 422

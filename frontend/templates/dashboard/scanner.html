@@ -1,14 +1,14 @@
 {% extends "partials/base.html" %}
-{% block title %}Market Scanner — SmartTrade AI{% endblock %}
+{% block title %}Market Discovery Scanner — SmartTrade AI{% endblock %}
 {% set active = 'scanner' %}
-{% block breadcrumb %}<i class="bi bi-search me-2"></i> Signals & Tools / Market Scanner{% endblock %}
+{% block breadcrumb %}<i class="bi bi-search me-2"></i> Signals & Tools / Market Discovery{% endblock %}
 
 {% block content %}
 <!-- Header -->
 <div class="dash-header">
   <div class="dash-header-greet">
-    <h1 class="page-title mb-1"><i class="bi bi-bullseye text-accent me-2"></i>Market Scanner</h1>
-    <p class="page-subtitle mb-0">Screen all markets with technical filters in real-time</p>
+    <h1 class="page-title mb-1"><i class="bi bi-bullseye text-accent me-2"></i>Market Discovery Scanner</h1>
+    <p class="page-subtitle mb-0">Explore filter matches across markets before validating an actionable signal</p>
   </div>
   <div class="dash-header-actions">
     <button type="button" class="btn btn-sm btn-outline-secondary px-3" id="savePreset"><i class="bi bi-bookmark me-1"></i>Save Scan Preset</button>
@@ -23,7 +23,7 @@
 
 <!-- KPI cards -->
 <div class="kpi-grid-auto mb-3">
-  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Scan Results</div><div class="kpi-value" id="kpiResults">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-sliders"></i></div></div><div class="kpi-change" id="kpiResultsSub">matches</div></div>
+  <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Matches Found</div><div class="kpi-value" id="kpiResults">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-sliders"></i></div></div><div class="kpi-change" id="kpiResultsSub">screening matches</div></div>
   <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Strong Signals</div><div class="kpi-value text-green" id="kpiStrong">—</div></div><div class="kpi-icon text-green"><i class="bi bi-diamond-fill"></i></div></div><div class="kpi-change">high conviction</div></div>
   <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Win Rate</div><div class="kpi-value text-green" id="kpiWin">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-trophy-fill"></i></div></div><div class="kpi-change" id="kpiWinSub">n = —</div></div>
   <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Avg R:R</div><div class="kpi-value text-yellow" id="kpiRR">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-arrows-expand"></i></div></div><div class="kpi-change">reward per risk</div></div>
@@ -84,9 +84,10 @@
 <!-- Scan Results -->
 <div class="section-card">
   <div class="section-card-header">
-    <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Scan Results <span class="badge-tag ms-1" id="resultCount">0 results</span></span>
+    <span class="section-card-title"><i class="bi bi-table text-accent me-1"></i>Screening Matches <span class="badge-tag ms-1" id="resultCount">0 results</span></span>
     <button type="button" class="btn btn-xs btn-outline-secondary" id="dlResults" title="Download CSV" aria-label="Download scan results as CSV"><i class="bi bi-download"></i></button>
   </div>
+  <div class="scanner-discovery-note"><i class="bi bi-info-circle me-1"></i>Discovery matches are exploratory filter results, not persisted actionable signals. Validate a match in <a href="/signals">Signal Center</a> before trading.</div>
   <div class="table-responsive">
     <table class="smart-table signals-table-adv" data-mobile-cards>
       <caption class="visually-hidden">Market scanner results</caption>

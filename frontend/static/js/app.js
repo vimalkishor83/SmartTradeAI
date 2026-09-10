@@ -180,6 +180,7 @@ const API = {
       return false;
     }
   },
+
 };
 
 // ─── Markets registry ─────────────────────────
@@ -493,6 +494,8 @@ const Notifications = {
 const LivePrices = {
   _cache: {},   // { symbol: { price, change_pct, change, high, low, volume } }
   _listeners: [],  // callbacks registered by page components
+  _seedInFlight: null,
+  _refreshTimer: null,
 
   update(tick) {
     this._cache[tick.symbol] = tick;
@@ -505,10 +508,29 @@ const LivePrices = {
 
   // Seed from REST endpoint (fast initial paint before WS connects)
   async seed() {
-    const data = await API.get('/market-data/live-prices');
-    if (data?.prices) {
-      Object.values(data.prices).forEach(t => { this._cache[t.symbol] = t; });
-    }
+    if (this._seedInFlight) return this._seedInFlight;
+    this._seedInFlight = (async () => {
+      const data = await API.get('/market-data/live-prices');
+      if (data?.prices) {
+        Object.values(data.prices).forEach(t => {
+          if (!t?.symbol) return;
+          this.update(t);
+          if (typeof Ticker !== 'undefined') Ticker.patchItem(t);
+        });
+      }
+    })().finally(() => { this._seedInFlight = null; });
+    return this._seedInFlight;
+  },
+
+  startRefresh() {
+    const configured = Number(window.PLATFORM_CONFIG?.live_price_refresh_interval_seconds);
+    const seconds = Number.isFinite(configured)
+      ? Math.min(60, Math.max(1, configured))
+      : 5;
+    clearInterval(this._refreshTimer);
+    this._refreshTimer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') this.seed();
+    }, seconds * 1000);
   },
 };
 
@@ -789,6 +811,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Notifications.load();
   Ticker.load();
   LivePrices.seed();  // bootstrap price cache before WS connects
+  LivePrices.startRefresh();
   setInterval(() => Notifications.load(), 60000);
 
   // Fire ready event for page-specific scripts — skipped entirely on a

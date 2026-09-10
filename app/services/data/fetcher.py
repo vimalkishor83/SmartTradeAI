@@ -918,6 +918,20 @@ class MarketDataFetcher:
     def fetch(self, asset, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if asset.market in blocked_data_markets():
             return None  # feed paused in APIConfig — skip the network call
+        if timeframe == "3h":
+            # Delta/Binance do not expose 3h in the configured provider maps.
+            # Aggregate hourly candles so callers never silently receive 1h
+            # data while believing they requested 3h.
+            base = self.fetch(asset, "1h", max(limit * 3 + 12, 180))
+            if base is None or base.empty:
+                return None
+            frame = base.copy()
+            if not isinstance(frame.index, pd.DatetimeIndex):
+                frame.index = pd.to_datetime(frame.index)
+            frame = frame[~frame.index.duplicated(keep="last")].sort_index()
+            return frame.resample("3h", origin="epoch", label="right", closed="right").agg({
+                "open": "first", "high": "max", "low": "min", "close": "last", "volume": "sum",
+            }).dropna(subset=["open", "high", "low", "close"]).tail(limit)
         if asset.market == "crypto":
             df = self.delta.fetch_ohlcv(asset.symbol, timeframe, limit)
             if df is not None:

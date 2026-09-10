@@ -1,0 +1,59 @@
+/* Shared public navigation contract. Keep the two authentication actions as
+   one intentional row instead of letting flex-wrap split the CTA group. */
+.navbar .nav-cta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.navbar .nav-cta > .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .navbar {
+    min-width: 0;
+    height: auto;
+    min-height: 64px;
+    padding-block: 8px;
+    row-gap: 0;
+  }
+
+  .navbar .nav-brand {
+    min-width: 0;
+    flex: 0 1 auto;
+    white-space: nowrap;
+  }
+
+  .navbar .nav-brand .brand-icon {
+    flex: 0 0 auto;
+  }
+
+  .navbar .nav-cta {
+    flex-basis: 100%;
+    order: 3;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 0 2px;
+  }
+
+  .navbar .nav-cta .btn {
+    padding: 7px 12px;
+    font-size: 12.5px;
+  }
+
+  .navbar .nav-links {
+    flex-basis: 100%;
+    order: 4;
+  }
+}
+
+@media (max-width: 360px) {
+  .navbar .nav-cta .btn {
+    padding-inline: 9px;
+    font-size: 12px;
+  }
+}

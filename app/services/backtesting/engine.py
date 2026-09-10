@@ -36,7 +36,7 @@ DEFAULT_SPREAD      = 0.0     # full bid/ask spread; half applied on each fill
 # Max candles a trade can stay open before force-closing
 MAX_HOLD_BARS: dict[str, int] = {
     "1m": 30, "5m": 24, "15m": 16, "30m": 12,
-    "1h": 10,  "2h": 8,  "4h": 6,  "1d": 5,
+    "1h": 10,  "2h": 8, "3h": 7, "4h": 6,  "1d": 5,
 }
 
 # Minimum confidence to enter a multi_factor trade (matches live pipeline)

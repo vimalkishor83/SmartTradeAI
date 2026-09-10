@@ -15,6 +15,8 @@ def test_platform_controls_do_not_use_inline_handlers():
     assert 'id="platformConfigStatus"' in source
     assert "let configLoading = false;" in source
     assert "id=\"addTimeframeBtn\"" in source
+    assert 'id="livePriceRefreshInterval"' in source
+    assert "saveLivePriceRefresh" in source
     assert "data-timeframe-action=\"move\"" in source
     assert "data-timeframe-action=\"remove\"" in source
     assert "document.getElementById('tfChips').addEventListener('click'" in source
@@ -42,3 +44,26 @@ def test_platform_save_paths_treat_api_errors_as_failures():
     assert "if (!tf) { Toast.show('Add at least one timeframe first'" in source
     assert "Unable to load configuration. Try Refresh." in source
     assert "refresh.setAttribute('aria-busy', 'false')" in source
+
+
+def test_page_catalog_matches_current_sidebar_modules_and_renames():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    for path, label in (
+        ("/dhan-indices", "Indices & Options"),
+        ("/delta-scanner", "Delta Scanner"),
+        ("/delta-bubbles", "Delta Bubbles"),
+        ("/signal-journal", "Signal Journal"),
+        ("/ta-summary", "Technical Ratings"),
+        ("/mtf-analysis", "Timeframe Confluence"),
+        ("/ai-insights", "AI Insights"),
+        ("/algo-trading", "Algo Trading"),
+        ("/news", "Market News"),
+        ("/economic-calendar", "Economic Calendar"),
+        ("/reports", "Reporting Center"),
+    ):
+        assert path in source
+        assert label in source
+
+    assert "['/backtesting', 'Backtesting']" not in source
+    assert "Admin modules" in source

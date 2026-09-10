@@ -50,6 +50,9 @@ class Signal(db.Model):
     lane_verdicts = db.Column(db.JSON, default=dict)            # {technical, flow, narrative, macro, lanes_agreeing}
     invalidation_conditions = db.Column(db.JSON, default=list)  # plain-language thesis-invalidation bullets
     target_allocations = db.Column(db.JSON, default=list)       # [{level, price, pct}, ...] partial-profit split
+    # Append-only lifecycle events: generated, target1/2/3, stop_loss.
+    # Nullable for legacy rows; readers show those milestones as unrecorded.
+    event_history = db.Column(db.JSON, default=list)
 
     # Reproducibility provenance. Nullable so signals created before this
     # contract was introduced remain readable and are visibly legacy rows.
@@ -138,6 +141,12 @@ class Signal(db.Model):
             "lane_verdicts": self.lane_verdicts,
             "invalidation_conditions": self.invalidation_conditions,
             "target_allocations": self.target_allocations,
+            "event_history": self.event_history or [],
+            # Persisted signals do not trail, so their displayed stop is also
+            # the immutable initial protective stop.
+            "initial_stop_loss": self.stop_loss,
+            "trailing_stop": None,
+            "trail_stage": 0,
             "reproducibility": {
                 "generation_source": self.generation_source,
                 "engine_version": self.engine_version,
@@ -165,12 +174,15 @@ class SignalHistory(db.Model):
     exit_price = db.Column(db.Float)
     stop_loss = db.Column(db.Float)
     target1 = db.Column(db.Float)
+    target2 = db.Column(db.Float)
+    target3 = db.Column(db.Float)
     confidence_score = db.Column(db.Float)
     outcome = db.Column(db.String(20))  # win, loss, neutral
     pnl_pct = db.Column(db.Float)
     duration_minutes = db.Column(db.Integer)
     generated_at = db.Column(db.DateTime)
     closed_at = db.Column(db.DateTime, default=datetime.utcnow)
+    event_history = db.Column(db.JSON, default=list)
 
     __table_args__ = (
         db.Index("idx_sh_asset_outcome",  "asset_id", "outcome"),

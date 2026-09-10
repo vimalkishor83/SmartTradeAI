@@ -3,6 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy import and_
+from app.services.signals.lifecycle import initial_event_history, validate_trade_levels
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,20 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 regime            = result.get("regime"),
                 data_quality      = result.get("data_quality"),
                 expires_at        = result["expires_at"],
+                event_history     = initial_event_history(
+                    entry_price=result["entry_price"],
+                ),
             )
+            level_check = validate_trade_levels(
+                signal.signal_type, signal.entry_price, signal.stop_loss,
+                signal.target1, signal.target2, signal.target3,
+            )
+            if not level_check["valid"]:
+                logger.warning(
+                    "Rejected invalid %s levels for %s/%s: %s",
+                    signal.signal_type, asset.symbol, timeframe, level_check["reason"],
+                )
+                continue
             db.session.add(signal)
             try:
                 db.session.commit()

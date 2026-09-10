@@ -80,3 +80,35 @@ def test_scan_body_contract_rejects_invalid_filters(app):
 
     assert status == 422
     assert response.get_json()["error"] == "filters must be a list of strings"
+
+
+def test_scan_market_normalizes_empty_all_markets_value():
+    from app.api.v1.scanner import _normalize_scan_market
+
+    assert _normalize_scan_market("") is None
+    assert _normalize_scan_market(None) is None
+    assert _normalize_scan_market("crypto") == "crypto"
+
+
+def test_scan_endpoint_accepts_empty_all_markets_value(app, monkeypatch):
+    from app.api.v1 import scanner
+
+    class EmptyQuery:
+        def filter_by(self, **kwargs):
+            return self
+
+        def all(self):
+            return []
+
+    with app.app_context():
+        monkeypatch.setattr(scanner.Asset, "query", EmptyQuery())
+
+        with app.test_request_context(
+            "/api/v1/scanner/run",
+            method="POST",
+            json={"filters": ["strong_buy"], "market": "", "timeframe": "1h"},
+        ):
+            response, status = scanner.run_scan.__wrapped__()
+
+    assert status == 200
+    assert response.get_json() == {"results": [], "count": 0, "scanned": 0}

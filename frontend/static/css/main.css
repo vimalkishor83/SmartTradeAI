@@ -1798,6 +1798,55 @@ body[data-active="reports"] .page-content::before {
   padding: 18px;
 }
 
+.admin-tool-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 58px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color var(--transition), background var(--transition), transform var(--transition);
+}
+
+.admin-tool-link > i {
+  width: 26px;
+  flex: 0 0 26px;
+  color: var(--accent);
+  font-size: 16px;
+  text-align: center;
+}
+
+.admin-tool-link span {
+  min-width: 0;
+}
+
+.admin-tool-link strong,
+.admin-tool-link small {
+  display: block;
+}
+
+.admin-tool-link strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.admin-tool-link small {
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.admin-tool-link:hover {
+  border-color: var(--accent-violet, var(--accent));
+  background: var(--bg-card-hover);
+  color: var(--text-primary);
+  transform: translateY(-1px);
+}
+
 .glass-card {
   background: var(--glass);
   border: 1px solid var(--glass-border);
@@ -2992,6 +3041,27 @@ select option {
 .analysis-kpi-row .kpi-card { height: 100%; min-height: 112px; }
 .analysis-kpi-row .kpi-change { color: var(--text-muted); }
 .ta-insight-strip + .nav-tabs { margin-top: 2px; }
+.signal-workflow-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: -2px 0 16px;
+  padding: 8px 12px;
+  border: 1px solid rgba(53, 201, 232, .22);
+  border-radius: 9px;
+  background: linear-gradient(90deg, rgba(53,201,232,.06), rgba(139,124,255,.04), transparent);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.signal-workflow-label { color: var(--text-secondary); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; margin-right: 4px; }
+.signal-workflow-bar a { color: var(--text-secondary); text-decoration: none; padding: 4px 7px; border-radius: 6px; }
+.signal-workflow-bar a:hover, .signal-workflow-bar a.active { color: var(--accent-cyan); background: rgba(53,201,232,.1); }
+.signal-workflow-arrow { color: var(--text-muted); font-size: 9px; }
+.scanner-discovery-note { padding: 8px 14px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); background: rgba(245,166,35,.045); color: var(--text-muted); font-size: 11px; line-height: 1.45; }
+.scanner-discovery-note i { color: var(--accent); }
+.scanner-discovery-note a { color: var(--accent-light); text-decoration: none; font-weight: 700; }
+.scanner-discovery-note a:hover { text-decoration: underline; }
 #ratingsWrap, #aiRatingsWrap, #emaRatingsWrap, #matrixWrap { position: relative; }
 #ratingsWrap .smart-table, #aiRatingsWrap .smart-table, #emaRatingsWrap .smart-table, #matrixWrap .smart-table { width: 100%; }
 #ratingsWrap::after, #aiRatingsWrap::after, #emaRatingsWrap::after, #matrixWrap::after { content: 'Scroll horizontally to explore all timeframes'; display: block; padding: 7px 12px; color: var(--text-muted); font-size: 10px; text-align: right; background: linear-gradient(90deg, transparent, rgba(34,211,238,.05)); }
@@ -6368,14 +6438,27 @@ html[data-theme="light"] .app-shell {
 }
 
 .app-shell .page-content {
+  isolation: isolate;
   padding-top: clamp(22px, 3vw, 34px);
   padding-inline: clamp(16px, 2.6vw, 34px);
+}
+
+/* Keep route artwork atmospheric, never above page content. The pseudo
+   element is positioned for visual coverage, so content needs an explicit
+   stacking layer to remain readable in every theme and viewport. */
+.app-shell .page-content > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-shell .page-content::before {
+  z-index: 0;
 }
 
 .app-shell .page-header {
   position: relative;
   padding-bottom: 17px;
-  margin-bottom: 24px;
+  margin-bottom: 14px;
 }
 
 .app-shell .page-header::after {
@@ -6593,6 +6676,7 @@ html[data-theme="light"] .app-shell {
 }
 
 .app-shell .dash-header {
+  margin-bottom: 12px;
   padding: 18px 20px 20px;
   border: 1px solid color-mix(in srgb, var(--border) 75%, var(--accent-violet));
   border-radius: var(--radius-card);
@@ -6820,6 +6904,19 @@ html[data-theme="light"] .app-shell {
   }
 }
 
+/* The compact command trigger must win over the wider tablet minimum above.
+   Keeping it icon-only at phone widths prevents the toolbar from creating a
+   horizontal scroll area that can push page content off-screen. */
+@media (max-width: 768px) {
+  .app-shell .cmd-trigger {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    margin-inline: 0;
+    padding-inline: 9px;
+  }
+}
+
 @media (max-width: 520px) {
   .app-shell .kpi-grid-8 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -6831,6 +6928,151 @@ html[data-theme="light"] .app-shell {
 
   .app-shell #hourHeatmap {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+/* Sidebar hierarchy: section markers and active destinations make the long
+   authenticated menu scannable without changing its existing routes. */
+.app-shell .sidebar-nav {
+  padding: 8px 0 10px;
+  scroll-behavior: smooth;
+}
+
+.app-shell .nav-group {
+  position: relative;
+  padding-bottom: 3px;
+}
+
+.app-shell .nav-group + .nav-group {
+  margin-top: 5px;
+}
+
+.app-shell .nav-group-header {
+  min-height: 28px;
+  margin: 5px 8px 2px;
+  padding: 6px 10px 5px 11px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.app-shell .nav-group-header:hover,
+.app-shell .nav-group.active-group > .nav-group-header {
+  border-color: rgba(139, 124, 255, 0.18);
+  background: linear-gradient(90deg, rgba(139, 124, 255, 0.09), transparent);
+}
+
+.app-shell .nav-group.active-group > .nav-group-header {
+  color: var(--text-primary);
+}
+
+.app-shell .nav-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-secondary);
+  letter-spacing: 1.35px;
+}
+
+.app-shell .nav-group.active-group .nav-section-label {
+  color: var(--accent-light);
+}
+
+.app-shell .nav-section-icon {
+  width: 14px;
+  color: var(--accent-violet);
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.app-shell .nav-group.active-group .nav-section-icon {
+  color: var(--accent);
+  filter: drop-shadow(0 0 5px rgba(245, 166, 35, 0.35));
+}
+
+.app-shell .nav-group-body {
+  padding: 1px 0 4px;
+}
+
+.app-shell .nav-item {
+  min-height: 35px;
+  padding-top: 7px;
+  padding-bottom: 7px;
+  border: 1px solid transparent;
+}
+
+.app-shell .nav-item:hover {
+  border-color: rgba(139, 124, 255, 0.2);
+  transform: translateX(2px);
+}
+
+.app-shell .nav-item.active {
+  border-color: rgba(245, 166, 35, 0.25);
+  box-shadow: inset 3px 0 0 var(--accent), 0 5px 18px rgba(245, 166, 35, 0.08);
+}
+
+.app-shell .nav-item.active::before {
+  display: none;
+}
+
+.app-shell .nav-item:focus-visible,
+.app-shell .nav-group-header:focus-visible,
+.app-shell .sidebar-toggle:focus-visible {
+  outline: 2px solid var(--accent-cyan);
+  outline-offset: 2px;
+}
+
+.app-shell .sidebar-footer {
+  padding: 7px 0 6px;
+  background: linear-gradient(180deg, rgba(15, 18, 27, 0), rgba(15, 18, 27, 0.95) 30%);
+}
+
+.app-shell .sidebar-footer .nav-item {
+  color: var(--text-muted);
+}
+
+.app-shell .sidebar-footer .nav-item:hover {
+  color: var(--red-light, #ff718b);
+  border-color: rgba(255, 88, 112, 0.2);
+  background: rgba(255, 88, 112, 0.07);
+}
+
+.app-shell .sidebar.collapsed .nav-group-header {
+  justify-content: center;
+  min-height: 24px;
+  margin: 3px 4px 0;
+  padding: 4px 0 3px;
+  border-color: transparent;
+}
+
+.app-shell .sidebar.collapsed .nav-section-label {
+  display: inline-flex;
+  justify-content: center;
+  width: 14px;
+  font-size: 0;
+  letter-spacing: 0;
+  gap: 0;
+}
+
+.app-shell .sidebar.collapsed .nav-section-icon {
+  display: inline-block;
+  font-size: 11px;
+}
+
+.app-shell .sidebar.collapsed .nav-group-header:hover,
+.app-shell .sidebar.collapsed .nav-group.active-group > .nav-group-header {
+  background: transparent;
+  border-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell .nav-item:hover {
+    transform: none;
+  }
+}
+
+@media (max-width: 992px) {
+  .app-shell .sidebar {
+    border-right-color: color-mix(in srgb, var(--border) 78%, var(--accent));
   }
 }
 
@@ -6908,4 +7150,606 @@ html[data-theme="light"] .app-shell {
   }
 
   .app-shell table[data-mobile-cards] td[colspan]::before { content: none; }
+}
+
+/* Light theme finish: keep the terminal hierarchy, but replace dark-mode
+   overlays with cool paper surfaces and ink-readable accents. This sits at
+   the end of the shell stylesheet so legacy module rules inherit the same
+   treatment without page-by-page overrides. */
+html[data-theme="light"] {
+  --accent: #c87508;
+  --accent-light: #9a5b00;
+  --accent-dark: #a95f00;
+  --accent-violet: #665db8;
+  --accent-cyan: #087f9f;
+  --surface-glow: rgba(102, 93, 184, 0.1);
+  --shadow-card: 0 10px 28px rgba(15, 23, 42, 0.09);
+}
+
+html[data-theme="light"] .app-shell {
+  background:
+    radial-gradient(circle at 92% -8%, rgba(8, 127, 159, 0.055), transparent 28rem),
+    radial-gradient(circle at 18% 0%, rgba(102, 93, 184, 0.05), transparent 32rem),
+    var(--bg-primary);
+}
+
+html[data-theme="light"] .app-shell .top-navbar {
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.06), transparent 42%), rgba(255, 255, 255, 0.92);
+  border-bottom-color: #d8e0eb;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.045);
+}
+
+html[data-theme="light"] .app-shell .top-navbar::after {
+  background: linear-gradient(90deg, transparent, rgba(102, 93, 184, 0.38), rgba(8, 127, 159, 0.28), transparent);
+}
+
+html[data-theme="light"] .app-shell .ticker-strip {
+  background: linear-gradient(90deg, rgba(200, 117, 8, 0.045), rgba(102, 93, 184, 0.04), rgba(8, 127, 159, 0.035)), #edf2f7;
+  border-bottom-color: #d3dce8;
+}
+
+html[data-theme="light"] .app-shell .sidebar {
+  background: linear-gradient(180deg, rgba(102, 93, 184, 0.045), transparent 22%), #fbfcfe;
+  border-right-color: #d8e0eb;
+  box-shadow: 4px 0 20px rgba(15, 23, 42, 0.035);
+}
+
+html[data-theme="light"] .app-shell .sidebar-footer {
+  background: linear-gradient(180deg, rgba(251, 252, 254, 0), rgba(238, 242, 247, 0.98) 30%);
+}
+
+html[data-theme="light"] .app-shell .nav-group-header:hover,
+html[data-theme="light"] .app-shell .nav-group.active-group > .nav-group-header {
+  border-color: rgba(102, 93, 184, 0.18);
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.08), transparent);
+}
+
+html[data-theme="light"] .app-shell .nav-item:hover {
+  border-color: rgba(102, 93, 184, 0.18);
+  background: rgba(102, 93, 184, 0.07);
+}
+
+html[data-theme="light"] .app-shell .nav-item.active {
+  border-color: rgba(200, 117, 8, 0.28);
+  background: linear-gradient(90deg, rgba(200, 117, 8, 0.12), rgba(102, 93, 184, 0.07));
+  box-shadow: inset 3px 0 0 var(--accent), 0 5px 16px rgba(200, 117, 8, 0.07);
+}
+
+html[data-theme="light"] .app-shell .section-card,
+html[data-theme="light"] .app-shell .glass-card {
+  border-color: #d7dfeb;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 253, 0.98));
+  box-shadow: var(--shadow-card);
+}
+
+html[data-theme="light"] .app-shell .section-card:hover {
+  border-color: #b8c4d6;
+}
+
+html[data-theme="light"] .app-shell .section-card-header {
+  background: linear-gradient(105deg, rgba(102, 93, 184, 0.065), transparent 58%);
+}
+
+html[data-theme="light"] .app-shell .kpi-card {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card-accent, var(--accent)) 6%, transparent), transparent 48%),
+    linear-gradient(165deg, #ffffff, #f4f7fb);
+}
+
+html[data-theme="light"] .app-shell .kpi-card:hover {
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12), 0 0 0 1px color-mix(in srgb, var(--card-accent, var(--accent)) 22%, transparent);
+}
+
+html[data-theme="light"] .app-shell .filter-bar,
+html[data-theme="light"] .app-shell .ui-toolbar {
+  border-color: #d2dce9;
+  background: linear-gradient(105deg, rgba(102, 93, 184, 0.045), transparent 60%), #ffffff;
+}
+
+html[data-theme="light"] .app-shell .form-control,
+html[data-theme="light"] .app-shell .form-select,
+html[data-theme="light"] .app-shell textarea,
+html[data-theme="light"] .app-shell input[type="date"],
+html[data-theme="light"] .app-shell input[type="number"] {
+  background: #ffffff;
+  border-color: #cbd6e4;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.025);
+}
+
+html[data-theme="light"] .app-shell .form-control:focus,
+html[data-theme="light"] .app-shell .form-select:focus,
+html[data-theme="light"] .app-shell textarea:focus {
+  border-color: var(--accent-violet);
+  box-shadow: 0 0 0 3px rgba(102, 93, 184, 0.14), 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+html[data-theme="light"] .app-shell .smart-table thead th {
+  background: #eef2f7;
+}
+
+html[data-theme="light"] .app-shell .smart-table tbody tr:hover {
+  background: linear-gradient(90deg, rgba(102, 93, 184, 0.065), rgba(8, 127, 159, 0.025));
+}
+
+html[data-theme="light"] select option {
+  background: #ffffff;
+  color: #0b1220;
+}
+
+html[data-theme="light"] .app-shell .btn-outline-light,
+html[data-theme="light"] .app-shell .btn-outline-secondary {
+  border-color: #c4cfdd;
+  color: #43516a;
+}
+
+html[data-theme="light"] .app-shell .btn-outline-light:hover,
+html[data-theme="light"] .app-shell .btn-outline-secondary:hover {
+  border-color: var(--accent-violet);
+  background: rgba(102, 93, 184, 0.08);
+  color: var(--text-primary);
+}
+
+html[data-theme="light"] .app-shell .sidebar-footer .nav-item:hover {
+  color: #b4233e;
+  border-color: rgba(180, 35, 62, 0.18);
+  background: rgba(180, 35, 62, 0.06);
+}
+
+/* Shared admin operations surfaces. These classes keep high-impact controls,
+   summaries, and dense tables legible without changing their data contracts. */
+.admin-ops-page {
+  --admin-accent: var(--accent);
+  --admin-violet: var(--accent-violet);
+}
+
+.admin-page-hero {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  padding: 20px 22px;
+  border: 1px solid color-mix(in srgb, var(--admin-violet) 38%, var(--border));
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-cyan) 9%, transparent), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--admin-violet) 9%, var(--bg-card)), var(--bg-card) 62%);
+  box-shadow: var(--shadow-card);
+}
+
+.admin-page-hero::after {
+  content: '';
+  position: absolute;
+  right: -80px;
+  bottom: -52px;
+  width: 260px;
+  height: 100px;
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 24%, transparent);
+  border-radius: 50%;
+  transform: rotate(-9deg);
+  pointer-events: none;
+}
+
+.admin-page-hero-copy,
+.admin-page-hero-actions {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-page-hero-copy { min-width: 0; }
+
+.admin-page-hero-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--text-primary);
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 850;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+}
+
+.admin-page-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 46%, var(--border));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--admin-accent) 12%, var(--glass));
+  color: var(--admin-accent);
+  font-size: 17px;
+}
+
+.admin-page-hero .page-subtitle {
+  max-width: 760px;
+  margin-bottom: 0;
+  line-height: 1.55;
+}
+
+.admin-page-hero-actions {
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.admin-page-badge,
+.admin-page-hero-note {
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.admin-page-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 38%, var(--border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--admin-accent) 8%, var(--glass));
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.admin-page-badge i { color: var(--admin-accent); }
+
+.admin-meta-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.admin-meta-item {
+  min-width: 0;
+  padding: 11px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--admin-violet) 6%, var(--bg-card)), var(--bg-card));
+}
+
+.admin-meta-label {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.admin-meta-value {
+  display: block;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-section-card { margin-bottom: 14px; }
+
+.admin-section-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.admin-section-heading > span { min-width: 0; }
+
+.admin-section-heading small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.admin-section-intro {
+  max-width: 980px;
+  margin-bottom: 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.admin-table-shell {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--glass) 70%, transparent);
+}
+
+.admin-table-shell > table { min-width: 680px; }
+
+.admin-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(105deg, color-mix(in srgb, var(--admin-violet) 6%, var(--glass)), var(--glass));
+}
+
+.admin-filter-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 150px;
+}
+
+.admin-filter-heading i { color: var(--admin-accent); font-size: 16px; }
+
+.admin-filter-heading strong,
+.admin-filter-heading span { display: block; }
+
+.admin-filter-heading strong { color: var(--text-primary); font-size: 12px; }
+.admin-filter-heading span { color: var(--text-muted); font-size: 10px; }
+
+.admin-filter-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: min(100%, 300px);
+  margin-left: auto;
+}
+
+.admin-filter-input-wrap { position: relative; flex: 1 1 220px; }
+.admin-filter-input-wrap > i {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.admin-filter-input-wrap .form-control { padding-left: 30px; }
+.admin-filter-clear { white-space: nowrap; }
+
+.admin-status-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  margin-bottom: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.admin-status-line::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--admin-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 13%, transparent);
+  content: '';
+}
+
+.admin-setup-card summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.admin-setup-card summary::after {
+  margin-left: auto;
+  color: var(--text-muted);
+  content: '\f282';
+  font-family: 'bootstrap-icons';
+  font-size: 11px;
+  transition: transform .15s ease;
+}
+
+.admin-setup-card details[open] summary::after { transform: rotate(180deg); }
+
+.admin-setup-card .admin-setup-content {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.admin-quick-test {
+  background: linear-gradient(110deg, color-mix(in srgb, var(--accent-cyan) 5%, var(--bg-card)), var(--bg-card));
+}
+
+.admin-channel-list .channel-row {
+  display: grid !important;
+  grid-template-columns: minmax(150px, 1.2fr) minmax(120px, 1fr) minmax(130px, 1fr) minmax(140px, 1fr) auto;
+  align-items: center;
+  gap: 14px !important;
+}
+
+.admin-channel-list .channel-row > div { min-width: 0 !important; }
+
+.admin-channel-list .channel-row code {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.admin-audit-table > table { min-width: 760px; }
+.admin-audit-table tbody tr { transition: background-color .15s ease; }
+.admin-audit-table tbody tr:hover { background: color-mix(in srgb, var(--admin-violet) 7%, transparent); }
+.admin-audit-table td:first-child,
+.admin-audit-table th:first-child { text-align: center; }
+.admin-audit-table td:nth-child(2) strong { color: var(--text-primary); }
+.admin-audit-table td:nth-child(3) { font-weight: 650; }
+.admin-audit-table td:nth-child(7) { color: var(--text-muted); font-size: 11px; }
+
+@media (max-width: 760px) {
+  .admin-page-hero { padding: 17px; }
+  .admin-page-hero-actions { align-items: flex-start; }
+  .admin-page-hero-note { white-space: normal; }
+  .admin-meta-strip { grid-template-columns: 1fr; gap: 7px; }
+  .admin-filter-control { width: 100%; margin-left: 0; }
+  .admin-channel-list .channel-row { grid-template-columns: 1fr 1fr; gap: 10px !important; }
+  .admin-channel-list .channel-row > div:first-child,
+  .admin-channel-list .channel-row > div:last-child { grid-column: 1 / -1; }
+}
+
+@media (max-width: 480px) {
+  .admin-page-hero { display: block; }
+  .admin-page-hero-actions { margin-top: 14px; }
+  .admin-page-badge { white-space: normal; }
+  .admin-filter-toolbar { align-items: stretch; }
+  .admin-filter-control { display: block; }
+  .admin-filter-clear { width: 100%; margin-top: 7px; }
+  .admin-channel-list .channel-row { grid-template-columns: 1fr; }
+  .admin-channel-list .channel-row > div { grid-column: 1 / -1 !important; }
+}
+
+/* Final viewport guardrails. These rules address controls that are rendered
+   by many legacy modules, including inline-sized dropdowns and modal forms.
+   Keep them shared so a new route inherits the same small-screen behavior. */
+html.sidebar-mobile-open,
+html.sidebar-mobile-open body {
+  overflow-x: hidden;
+}
+
+@media (max-width: 680px) {
+  html.sidebar-mobile-open,
+  html.sidebar-mobile-open body {
+    overflow-y: hidden;
+  }
+
+  .app-shell :where(.btn, .btn-icon, .notification-bell, .sidebar-toggle) {
+    min-height: 40px;
+  }
+
+  .app-shell :where(.btn-icon, .notification-bell) {
+    width: 40px;
+    height: 40px;
+  }
+
+  .app-shell .sidebar-toggle {
+    min-width: 40px;
+  }
+
+  .app-shell .sidebar-nav .nav-item {
+    min-height: 40px;
+  }
+
+  .app-shell .filter-bar .search-bar,
+  .app-shell .section-card-header .search-bar {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  .app-shell .dropdown-menu {
+    width: min(320px, calc(100vw - 24px));
+    min-width: 0 !important;
+    max-width: calc(100vw - 24px);
+    max-height: calc(100dvh - 96px);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .app-shell .modal-dialog {
+    width: auto;
+    max-width: calc(100% - 1rem);
+    margin: .5rem auto;
+  }
+
+  .app-shell .modal-content {
+    display: flex;
+    max-height: calc(100dvh - 1rem);
+  }
+
+  .app-shell .modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .app-shell .modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .app-shell .modal-footer > * {
+    flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 380px) {
+  .app-shell .page-content {
+    padding-inline: 10px;
+  }
+
+  .app-shell .top-navbar {
+    padding-inline: 7px;
+  }
+
+  .app-shell .breadcrumb-nav {
+    max-width: 27vw;
+    font-size: 12px;
+  }
+
+  .app-shell .section-card-header {
+    padding-inline: 14px;
+  }
+}
+
+/* Keep shared analysis guidance readable when the light theme is active. */
+[data-theme="light"] .app-shell .analysis-insight-strip {
+  border-color: #b7d4dc;
+  background:
+    linear-gradient(110deg, rgba(8, 127, 159, .10), rgba(102, 93, 184, .07)),
+    #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .9), 0 10px 24px rgba(15, 23, 42, .08);
+}
+
+[data-theme="light"] .app-shell .analysis-insight-icon {
+  color: #087f9f;
+  background: rgba(8, 127, 159, .10);
+  border-color: rgba(8, 127, 159, .28);
+}
+
+[data-theme="light"] .app-shell .analysis-insight-kicker,
+[data-theme="light"] .app-shell .analysis-insight-item i {
+  color: #087f9f;
+}
+
+[data-theme="light"] .app-shell .analysis-insight-lead strong,
+[data-theme="light"] .app-shell .analysis-insight-item b {
+  color: #0b1220;
+}
+
+[data-theme="light"] .app-shell .analysis-insight-lead p,
+[data-theme="light"] .app-shell .analysis-insight-item {
+  color: #40516a;
+}
+
+[data-theme="light"] .app-shell .analysis-insight-item {
+  border-left-color: #d2dde7;
+}
+
+@media (max-width: 900px) {
+  [data-theme="light"] .app-shell .analysis-insight-item {
+    border-left-color: transparent;
+    border-top-color: #d2dde7;
+  }
 }

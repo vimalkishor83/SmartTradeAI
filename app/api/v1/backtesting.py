@@ -2,8 +2,9 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from app.extensions import db
 from app.models.backtest import Backtest
+from app.models.backtest_sweep import BacktestSweep
 from app.models.asset import Asset
-from app.auth.decorators import login_required, premium_required, subscription_feature_required
+from app.auth.decorators import admin_required, login_required, premium_required, subscription_feature_required
 from app.services.backtesting.engine import backtest_engine
 from app.services.backtesting.walk_forward import run_walk_forward
 from app.services.data.fetcher import market_fetcher
@@ -212,3 +213,27 @@ def get_backtest(bt_id):
     result["equity_curve"] = bt.equity_curve
     result["trades_data"] = bt.trades_data
     return jsonify(result), 200
+
+
+@backtesting_bp.route("/sweeps", methods=["GET"])
+@admin_required
+def list_sweeps():
+    user_id = get_jwt_identity()
+    sweeps = BacktestSweep.query.filter_by(user_id=user_id).order_by(
+        BacktestSweep.created_at.desc()
+    ).limit(20).all()
+    return jsonify({"sweeps": [sweep.to_dict() for sweep in sweeps]}), 200
+
+
+@backtesting_bp.route("/sweeps/latest", methods=["GET"])
+@admin_required
+def get_latest_sweep():
+    user_id = get_jwt_identity()
+    sweep_id = request.args.get("run", type=int)
+    query = BacktestSweep.query.filter_by(user_id=user_id)
+    sweep = query.filter_by(id=sweep_id).first() if sweep_id else query.order_by(
+        BacktestSweep.created_at.desc()
+    ).first()
+    if not sweep:
+        return jsonify({"error": "No strategy sweep report found"}), 404
+    return jsonify(sweep.to_dict(include_results=True)), 200

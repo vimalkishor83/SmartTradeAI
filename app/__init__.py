@@ -232,12 +232,14 @@ def _register_platform_config(app):
     def _inject_platform_config():
         from app.services.platform_config import (
             get_platform_config, get_display_timeframes, get_terminal_default_timeframe,
+            get_live_price_refresh_interval_seconds,
         )
         cfg = get_platform_config()
         return {
             "disabled_nav_items": set(cfg.get("disabled_nav_items") or []),
             "display_timeframes": get_display_timeframes(),
             "terminal_default_timeframe": get_terminal_default_timeframe(),
+            "live_price_refresh_interval_seconds": get_live_price_refresh_interval_seconds(),
         }
 
 
@@ -495,6 +497,7 @@ def _migrate_columns(app):
         ("signals",    "data_candles",         "INTEGER"),
         ("signals",    "data_start",            "DATETIME"),
         ("signals",    "data_end",              "DATETIME"),
+        ("signals",    "event_history",         "TEXT"),
         # 2FA columns
         ("users",      "totp_secret",          "TEXT"),
         ("users",      "totp_enabled",         "INTEGER DEFAULT 0"),
@@ -511,10 +514,19 @@ def _migrate_columns(app):
         ("api_configs","connection_status",    "TEXT    DEFAULT 'unknown'"),
         ("api_configs","priority",             "INTEGER DEFAULT 0"),
         ("api_configs","refresh_interval",     "INTEGER DEFAULT 60"),
+        ("platform_config", "live_price_refresh_interval_seconds", "INTEGER DEFAULT 5"),
         ("api_configs","last_sync",            "DATETIME"),
         ("api_configs","last_latency_ms",      "INTEGER"),
         ("live_read_logs", "data_quality",     "TEXT"),
         ("live_read_logs", "expires_at",        "DATETIME"),
+        ("live_read_logs", "trailing_stop",     "REAL"),
+        ("live_read_logs", "high_water_mark",   "REAL"),
+        ("live_read_logs", "trail_stage",       "INTEGER DEFAULT 0"),
+        ("live_read_logs", "snapshot",          "TEXT"),
+        ("live_read_logs", "event_history",     "TEXT"),
+        ("signal_history", "target2",           "REAL"),
+        ("signal_history", "target3",           "REAL"),
+        ("signal_history", "event_history",     "TEXT"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)
@@ -527,6 +539,7 @@ def _migrate_columns(app):
         ("notifications",  "idx_notif_user_read",       "user_id, is_read"),
         ("notifications",  "idx_notif_created",         "created_at"),
         ("notifications",  "idx_notif_delivery_queue",  "is_sent, created_at, id"),
+        ("notifications",  "uq_notif_user_key",          "user_id, notification_key"),
         ("protective_orders", "idx_protective_order_active_queue", "status, asset_id, id"),
         ("audit_logs",     "idx_audit_logs_created",    "created_at"),
         ("audit_logs",     "idx_audit_logs_created_id", "created_at, id"),

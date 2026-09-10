@@ -75,15 +75,15 @@
     {% set grp_markets   = active in ['crypto','forex','commodities','gold','silver','stocks','indian_stock','indices','index','terminal','dhan_indices'] %}
     {% set grp_signals   = active in ['signals','scanner','heatmap','dhan_indices','delta_scanner','delta_bubbles','signal_history','signal_journal'] %}
     {% set grp_analysis  = active in ['ta_summary','mtf','model_perf','ai','news','advanced_analysis','economic_calendar'] %}
-    {% set grp_research  = active in ['backtesting','analytics','reports'] %}
+    {% set grp_research  = active in ['analytics','reports'] %}
     {% set grp_portfolio = active in ['portfolio','watchlist','risk','performance','journal','trading','algo_trading'] %}
     {% set grp_account   = active in ['settings','help'] %}
     {% set grp_admin     = active in ['admin','admin_users','admin_api_configs','admin_assets','admin_logs','admin_platform_config','admin_telegram_alerts','admin_security','admin_sessions','admin_audit_log','auto_generate'] %}
 
     <!-- Overview -->
-    <div class="nav-group {% if grp_overview %}open{% endif %}" data-group="overview">
+    <div class="nav-group {% if grp_overview %}open active-group{% endif %}" data-group="overview">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_overview else 'false' }}" aria-controls="navGroupBodyOverview">
-        <span class="nav-section-label">Overview</span>
+        <span class="nav-section-label"><i class="bi bi-grid-1x2 nav-section-icon" aria-hidden="true"></i>Overview</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyOverview">
@@ -101,9 +101,9 @@
     </div>
 
     <!-- Markets -->
-    <div class="nav-group {% if grp_markets %}open{% endif %}" data-group="markets">
+    <div class="nav-group {% if grp_markets %}open active-group{% endif %}" data-group="markets">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_markets else 'false' }}" aria-controls="navGroupBodyMarkets">
-        <span class="nav-section-label">Markets</span>
+        <span class="nav-section-label"><i class="bi bi-bar-chart-line nav-section-icon" aria-hidden="true"></i>Markets</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyMarkets">
@@ -146,15 +146,15 @@
     </div>
 
     <!-- Signals & Discovery -->
-    <div class="nav-group {% if grp_signals %}open{% endif %}" data-group="signals">
+    <div class="nav-group {% if grp_signals %}open active-group{% endif %}" data-group="signals">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_signals else 'false' }}" aria-controls="navGroupBodySignals">
-        <span class="nav-section-label">Signals &amp; Discovery</span>
+        <span class="nav-section-label"><i class="bi bi-lightning-charge nav-section-icon" aria-hidden="true"></i>Signals &amp; Discovery</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodySignals">
         {% if '/signals' not in disabled_nav_items %}
-        <a href="/signals" data-tooltip="All Signals" class="nav-item {% if active == 'signals' %}active{% endif %}">
-          <i class="bi bi-lightning-charge-fill nav-icon-green"></i><span class="nav-text">All Signals</span>
+        <a href="/signals" data-tooltip="Signal Center — live actionable signals and history" class="nav-item {% if active == 'signals' %}active{% endif %}">
+          <i class="bi bi-lightning-charge-fill nav-icon-green"></i><span class="nav-text">Signal Center</span>
         </a>
         {% endif %}
         {% if '/scanner' not in disabled_nav_items %}
@@ -191,20 +191,20 @@
     </div>
 
     <!-- AI & Analysis -->
-    <div class="nav-group {% if grp_analysis %}open{% endif %}" data-group="analysis">
+    <div class="nav-group {% if grp_analysis %}open active-group{% endif %}" data-group="analysis">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_analysis else 'false' }}" aria-controls="navGroupBodyAnalysis">
-        <span class="nav-section-label">AI &amp; Analysis</span>
+        <span class="nav-section-label"><i class="bi bi-cpu nav-section-icon" aria-hidden="true"></i>AI &amp; Analysis</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyAnalysis">
         {% if '/ta-summary' not in disabled_nav_items %}
-        <a href="/ta-summary" data-tooltip="TA Summary — requires Premium or higher" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
-          <i class="bi bi-speedometer2 nav-icon-cyan"></i><span class="nav-text">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+        <a href="/ta-summary" data-tooltip="Technical Ratings — indicator consensus, quotes, and EMA confirmation" class="nav-item {% if active == 'ta_summary' %}active{% endif %}">
+          <i class="bi bi-speedometer2 nav-icon-cyan"></i><span class="nav-text">Technical Ratings</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/mtf-analysis' not in disabled_nav_items %}
-        <a href="/mtf-analysis" data-tooltip="MTF Analysis — requires Premium or higher" class="nav-item {% if active == 'mtf' %}active{% endif %}">
-          <i class="bi bi-table nav-icon-cyan"></i><span class="nav-text">MTF Analysis</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
+        <a href="/mtf-analysis" data-tooltip="Timeframe Confluence — compare direction across timeframes" class="nav-item {% if active == 'mtf' %}active{% endif %}">
+          <i class="bi bi-table nav-icon-cyan"></i><span class="nav-text">Timeframe Confluence</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/model-performance' not in disabled_nav_items %}
@@ -236,20 +236,15 @@
     </div>
 
     <!-- Research -->
-    <div class="nav-group {% if grp_research %}open{% endif %}" data-group="research">
+    <div class="nav-group {% if grp_research %}open active-group{% endif %}" data-group="research">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_research else 'false' }}" aria-controls="navGroupBodyResearch">
-        <span class="nav-section-label">Research</span>
+        <span class="nav-section-label"><i class="bi bi-flask nav-section-icon" aria-hidden="true"></i>Research</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyResearch">
         {% if '/reports' not in disabled_nav_items %}
         <a href="/reports" data-tooltip="Reporting Center — requires Basic or higher" class="nav-item {% if active == 'reports' %}active{% endif %}">
           <i class="bi bi-file-earmark-bar-graph nav-icon-amber"></i><span class="nav-text">Reporting Center</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span>
-        </a>
-        {% endif %}
-        {% if '/backtesting' not in disabled_nav_items %}
-        <a href="/backtesting" data-tooltip="Backtesting Lab — requires Premium or higher" class="nav-item {% if active == 'backtesting' %}active{% endif %}">
-          <i class="bi bi-clock-history nav-icon-amber"></i><span class="nav-text">Backtesting Lab</span><span class="badge-pro" id="navBacktestingGate" title="Requires Premium or higher">PREMIUM</span>
         </a>
         {% endif %}
         {% if '/analytics' not in disabled_nav_items %}
@@ -261,9 +256,9 @@
     </div>
 
     <!-- Portfolio -->
-    <div class="nav-group {% if grp_portfolio %}open{% endif %}" data-group="portfolio">
+    <div class="nav-group {% if grp_portfolio %}open active-group{% endif %}" data-group="portfolio">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_portfolio else 'false' }}" aria-controls="navGroupBodyPortfolio">
-        <span class="nav-section-label">Portfolio</span>
+        <span class="nav-section-label"><i class="bi bi-briefcase nav-section-icon" aria-hidden="true"></i>Portfolio</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyPortfolio">
@@ -307,9 +302,9 @@
     </div>
 
     <!-- Account -->
-    <div class="nav-group {% if grp_account %}open{% endif %}" data-group="account">
+    <div class="nav-group {% if grp_account %}open active-group{% endif %}" data-group="account">
       <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_account else 'false' }}" aria-controls="navGroupBodyAccount">
-        <span class="nav-section-label">Account</span>
+        <span class="nav-section-label"><i class="bi bi-person-gear nav-section-icon" aria-hidden="true"></i>Account</span>
         <i class="bi bi-chevron-down nav-group-arrow"></i>
       </button>
       <div class="nav-group-body" id="navGroupBodyAccount">
@@ -333,45 +328,55 @@
 
     <!-- Admin (hidden until role check) -->
     <div id="adminNav" style="display:none">
-      <div class="nav-group {% if grp_admin %}open{% endif %}" data-group="admin">
+      <div class="nav-group {% if grp_admin %}open active-group{% endif %}" data-group="admin">
         <button type="button" class="nav-group-header" data-nav-group-toggle aria-expanded="{{ 'true' if grp_admin else 'false' }}" aria-controls="navGroupBodyAdmin">
-          <span class="nav-section-label">Admin</span>
+          <span class="nav-section-label"><i class="bi bi-shield-lock nav-section-icon" aria-hidden="true"></i>Admin</span>
           <i class="bi bi-chevron-down nav-group-arrow"></i>
         </button>
         <div class="nav-group-body" id="navGroupBodyAdmin">
           <a href="/admin" data-tooltip="Admin Panel" class="nav-item {% if active == 'admin' %}active{% endif %}">
             <i class="bi bi-speedometer2 nav-icon-red"></i><span class="nav-text">Admin Panel</span>
           </a>
-          <a href="/admin/users" data-tooltip="Users" class="nav-item {% if active == 'admin_users' %}active{% endif %}">
-            <i class="bi bi-people-fill nav-icon-red"></i><span class="nav-text">Users</span>
-          </a>
-          <a href="/admin/api-configs" data-tooltip="API Configs" class="nav-item {% if active == 'admin_api_configs' %}active{% endif %}">
-            <i class="bi bi-plug-fill nav-icon-red"></i><span class="nav-text">API Configs</span>
-          </a>
+          {% if '/admin/assets' not in disabled_nav_items %}
           <a href="/admin/assets" data-tooltip="Manage Assets" class="nav-item {% if active == 'admin_assets' %}active{% endif %}">
             <i class="bi bi-layers-fill nav-icon-red"></i><span class="nav-text">Assets</span>
           </a>
+          {% endif %}
+          {% if '/admin/logs' not in disabled_nav_items %}
           <a href="/admin/logs" data-tooltip="System Logs" class="nav-item {% if active == 'admin_logs' %}active{% endif %}">
             <i class="bi bi-list-ul nav-icon-red"></i><span class="nav-text">System Logs</span>
           </a>
+          {% endif %}
+          {% if '/admin/platform-config' not in disabled_nav_items %}
           <a href="/admin/platform-config" data-tooltip="Platform Configuration" class="nav-item {% if active == 'admin_platform_config' %}active{% endif %}">
             <i class="bi bi-sliders nav-icon-red"></i><span class="nav-text">Platform Config</span>
           </a>
+          {% endif %}
+          {% if '/admin/telegram-alerts' not in disabled_nav_items %}
           <a href="/admin/telegram-alerts" data-tooltip="Telegram Alerts" class="nav-item {% if active == 'admin_telegram_alerts' %}active{% endif %}">
             <i class="bi bi-telegram nav-icon-red"></i><span class="nav-text">Telegram Alerts</span>
           </a>
+          {% endif %}
+          {% if '/admin/security' not in disabled_nav_items %}
           <a href="/admin/security" data-tooltip="Security" class="nav-item {% if active == 'admin_security' %}active{% endif %}">
             <i class="bi bi-shield-lock nav-icon-red"></i><span class="nav-text">Security</span>
           </a>
+          {% endif %}
+          {% if '/admin/sessions' not in disabled_nav_items %}
           <a href="/admin/sessions" data-tooltip="Login Sessions" class="nav-item {% if active == 'admin_sessions' %}active{% endif %}">
             <i class="bi bi-clock-history nav-icon-red"></i><span class="nav-text">Login Sessions</span>
           </a>
+          {% endif %}
+          {% if '/admin/audit-log' not in disabled_nav_items %}
           <a href="/admin/audit-log" data-tooltip="Audit Log" class="nav-item {% if active == 'admin_audit_log' %}active{% endif %}">
             <i class="bi bi-journal-check nav-icon-red"></i><span class="nav-text">Audit Log</span>
           </a>
+          {% endif %}
+          {% if '/admin/daily-compound-calculator' not in disabled_nav_items %}
           <a href="/admin/daily-compound-calculator" data-tooltip="Daily Compound Calculator — super admin only" class="nav-item {% if active == 'admin_daily_compound_calculator' %}active{% endif %}">
             <i class="bi bi-calculator-fill nav-icon-red"></i><span class="nav-text">Compound Calculator</span>
           </a>
+          {% endif %}
           {% if '/auto-generate' not in disabled_nav_items %}
           <a href="/auto-generate" data-tooltip="Auto Generate — admin only" id="navAutoGenerate" class="nav-item {% if active == 'auto_generate' %}active{% endif %}" style="display:none">
             <i class="bi bi-robot nav-icon-red"></i><span class="nav-text">Auto Generate</span>
@@ -506,7 +511,7 @@
     <div class="cmd-results" id="cmdResults">
       <div class="cmd-group-label">Quick Navigation</div>
       {% if '/dashboard' not in disabled_nav_items %}<a href="/dashboard"        class="cmd-item"><i class="bi bi-grid-1x2-fill"></i><span class="cmd-item-label">Dashboard</span></a>{% endif %}
-      {% if '/signals' not in disabled_nav_items %}<a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">All Signals</span></a>{% endif %}
+      {% if '/signals' not in disabled_nav_items %}<a href="/signals"          class="cmd-item"><i class="bi bi-lightning-charge-fill"></i><span class="cmd-item-label">Signal Center</span></a>{% endif %}
       {% if '/briefing' not in disabled_nav_items %}<a href="/briefing"         class="cmd-item"><i class="bi bi-sunrise"></i><span class="cmd-item-label">Morning Briefing</span></a>{% endif %}
       {% if '/markets/crypto' not in disabled_nav_items %}<a href="/markets/crypto"   class="cmd-item"><i class="bi bi-currency-bitcoin"></i><span class="cmd-item-label">Crypto Markets</span></a>{% endif %}
       {% if '/markets/forex' not in disabled_nav_items %}<a href="/markets/forex"    class="cmd-item"><i class="bi bi-currency-exchange"></i><span class="cmd-item-label">Forex Markets</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
@@ -519,7 +524,7 @@
       {% if '/watchlist' not in disabled_nav_items %}<a href="/watchlist"        class="cmd-item"><i class="bi bi-star-fill"></i><span class="cmd-item-label">Watchlist</span></a>{% endif %}
       {% if '/analytics' not in disabled_nav_items %}<a href="/analytics"        class="cmd-item"><i class="bi bi-graph-up"></i><span class="cmd-item-label">Analytics</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
       {% if '/reports' not in disabled_nav_items %}<a href="/reports"          class="cmd-item"><i class="bi bi-file-earmark-bar-graph"></i><span class="cmd-item-label">Reporting Center</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
-      {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">TA Summary</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
+      {% if '/ta-summary' not in disabled_nav_items %}<a href="/ta-summary"       class="cmd-item"><i class="bi bi-speedometer2"></i><span class="cmd-item-label">Technical Ratings</span><span class="badge-pro nav-tier-gate" data-min-tier="2">PREMIUM</span></a>{% endif %}
       {% if '/journal' not in disabled_nav_items %}<a href="/journal"          class="cmd-item"><i class="bi bi-journal-bookmark-fill"></i><span class="cmd-item-label">Trade Journal</span><span class="badge-pro nav-tier-gate" data-min-tier="1">BASIC</span></a>{% endif %}
       {% if '/settings' not in disabled_nav_items %}<a href="/settings"         class="cmd-item"><i class="bi bi-gear-fill"></i><span class="cmd-item-label">Settings</span></a>{% endif %}
       <div class="cmd-group-label cmd-group-label-assets" id="cmdAssetsGroupLabel" style="display:none">Assets</div>
@@ -562,6 +567,12 @@
 <!-- Scripts -->
 <script src="/static/vendor/bootstrap.bundle.min.js"></script>
 <script src="/static/vendor/socket.io.min.js"></script>
+<script>
+  // Safe, non-secret display setting used by the shared live-price client.
+  window.PLATFORM_CONFIG = {
+    live_price_refresh_interval_seconds: {{ live_price_refresh_interval_seconds|int }}
+  };
+</script>
 <script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
 {% if hide_sidebar %}
 <script src="/static/js/auth_public.js?v={{ asset_version('js/auth_public.js') }}"></script>
@@ -619,6 +630,7 @@ if ('serviceWorker' in navigator) {
 
   function openMobile() {
     sidebar.classList.add('mobile-open');
+    document.documentElement.classList.add('sidebar-mobile-open');
     backdrop && (backdrop.style.display = 'block');
     backdrop?.setAttribute('aria-hidden', 'false');
     mobileBtn?.setAttribute('aria-expanded', 'true');
@@ -626,6 +638,7 @@ if ('serviceWorker' in navigator) {
   }
   function closeMobile() {
     sidebar.classList.remove('mobile-open');
+    document.documentElement.classList.remove('sidebar-mobile-open');
     backdrop && (backdrop.style.display = 'none');
     backdrop?.setAttribute('aria-hidden', 'true');
     mobileBtn?.setAttribute('aria-expanded', 'false');

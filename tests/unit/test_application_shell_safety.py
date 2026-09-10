@@ -45,3 +45,20 @@ def test_shell_state_changes_are_keyboard_and_storage_safe():
     assert "fab.setAttribute('aria-expanded', 'true')" in ask_ai
     assert "fab.setAttribute('aria-expanded', 'false')" in ask_ai
     assert "if (lastFocus && typeof lastFocus.focus === 'function') lastFocus.focus();" in ask_ai
+
+
+def test_shell_mobile_guardrails_lock_drawer_scroll_and_contain_overlays():
+    source = BASE.read_text(encoding="utf-8")
+    css = (ROOT / "frontend" / "static" / "css" / "main.css").read_text(encoding="utf-8")
+
+    assert "document.documentElement.classList.add('sidebar-mobile-open')" in source
+    assert "document.documentElement.classList.remove('sidebar-mobile-open')" in source
+    for marker in (
+        "html.sidebar-mobile-open",
+        ".app-shell .dropdown-menu",
+        ".app-shell .modal-content",
+        ".app-shell .modal-body",
+        ".app-shell .sidebar-nav .nav-item",
+        "max-width: calc(100vw - 24px)",
+    ):
+        assert marker in css
