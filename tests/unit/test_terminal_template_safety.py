@@ -87,3 +87,16 @@ def test_terminal_uses_configured_refresh_and_live_price_updates():
     assert "data-terminal-symbol=\"${assetName}\"" in source
     assert "LivePrices.onUpdate(_patchTerminalLivePrice)" in source
     assert "document.addEventListener('price:update'" in source
+
+
+def test_terminal_scheduled_refresh_reconciles_cards_without_a_loading_flash():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "function _terminalCardKey(s)" in source
+    assert "function _terminalCardFingerprint(s)" in source
+    assert 'data-terminal-card-key="${cardKey}"' in source
+    assert "loadTerminal({ silent: true })" in source
+    assert "applyTerminalFilters({ preserveDom: silent, previousCards });" in source
+    assert "grid.replaceChildren(fragment);" in source
+    assert "if (!silent) {" in source
+    assert "_setTerminalBusy(true);" in source

@@ -682,6 +682,29 @@ function _timeAgo(iso, persisted) {
   return `<span class="sc-generated" title="${_termHtml(date.toLocaleString())}"><i class="bi bi-clock-history"></i> Tracked setup · ${rel} · live quote</span>`;
 }
 
+// The asset/timeframe identity stays stable across refreshes. It lets the
+// silent refresh path move existing card nodes instead of rebuilding them.
+function _terminalCardKey(s) {
+  const market = _termMarketKey(s?.market || _termMarket);
+  const asset = _termAssetId(s?.asset_id) || String(s?.asset || '').trim().toUpperCase();
+  const timeframe = _termTimeframe(s?.timeframe || _termTf);
+  return `${market}|${asset}|${timeframe}`;
+}
+
+// Live quotes are patched from the price stream. Excluding current_price here
+// prevents the scheduled reconciliation from disrupting the card on every
+// quote while still replacing it when signal or lifecycle state changes.
+function _terminalCardFingerprint(s) {
+  return JSON.stringify([
+    s?.asset_id, s?.asset, s?.market, s?.timeframe, s?.available,
+    s?.signal_type, s?.persisted, s?.message, s?.no_signal_message,
+    s?.confidence_score, s?.confidence_label, s?.entry_price,
+    s?.initial_stop_loss, s?.stop_loss, s?.target1, s?.target2, s?.target3,
+    s?.risk_reward, s?.trail_stage, s?.reasoning, s?.reasoning_detail,
+    s?.event_history, s?.generated_at,
+  ]);
+}
+
 function renderTerminalCard(s) {
   s = s && typeof s === 'object' ? s : {};
   const mkt = _termMarketKey(s.market);
@@ -689,6 +712,7 @@ function renderTerminalCard(s) {
   const assetName = _termHtml(s.asset || '—');
   const timeframe = _termHtml(_termTimeframe(s.timeframe));
   const marketLabel = _termHtml(MARKET_LABEL[mkt]);
+  const cardKey = _termHtml(_terminalCardKey(s));
 
   const pinned = assetId ? _pinnedAssets.has(Number(assetId)) : false;
   const pinBtn = assetId
@@ -697,7 +721,7 @@ function renderTerminalCard(s) {
 
   if (s.available === false) {
     return `
-      <div class="col">
+      <div class="col" data-terminal-card-key="${cardKey}">
         <div class="section-card term-signal-card term-card-unavailable h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
@@ -725,7 +749,7 @@ function renderTerminalCard(s) {
          </details>`
       : '';
     return `
-      <div class="col">
+      <div class="col" data-terminal-card-key="${cardKey}">
         <div class="section-card term-signal-card term-card-hold h-100${pinned ? ' term-card-pinned' : ''}">
           <div class="section-card-body signal-card">
             <div class="signal-card-top">
@@ -779,7 +803,7 @@ function renderTerminalCard(s) {
     : '';
 
   return `
-    <div class="col">
+    <div class="col" data-terminal-card-key="${cardKey}">
         <div class="section-card term-signal-card term-card-${String(s.signal_type || '').toLowerCase() === 'buy' ? 'buy' : 'sell'} h-100${pinned ? ' term-card-pinned' : ''}" data-terminal-symbol="${assetName}" data-terminal-market="${mkt}">
         <div class="section-card-body signal-card">
           <div class="signal-card-top">
@@ -858,7 +882,51 @@ function _terminalCardSort(a, b) {
 // Re-renders the grid from the already-fetched _lastCards, applying the
 // current search text and pinned-first sort — no network call, so typing
 // in the search box and pinning/unpinning both feel instant.
-function applyTerminalFilters() {
+function _renderTerminalGrid(cards, preserveDom = false, previousCards = []) {
+  const grid = document.getElementById('terminalGrid');
+  if (!grid) return;
+
+  if (!preserveDom) {
+    grid.innerHTML = cards.map(renderTerminalCard).join('');
+    return;
+  }
+
+  // Move unchanged columns into the new order. Moving a node preserves open
+  // <details>, focus, and the user's scroll position; only changed cards are
+  // parsed from HTML again.
+  const existing = new Map([...grid.children]
+    .map(column => [column.dataset.terminalCardKey, column])
+    .filter(([key]) => key));
+  const previousByKey = new Map((Array.isArray(previousCards) ? previousCards : [])
+    .map(card => [_terminalCardKey(card), card]));
+  const fragment = document.createDocumentFragment();
+
+  cards.forEach(card => {
+    const key = _terminalCardKey(card);
+    const oldColumn = existing.get(key);
+    const previous = previousByKey.get(key);
+    if (oldColumn && previous
+        && _terminalCardFingerprint(previous) === _terminalCardFingerprint(card)) {
+      fragment.appendChild(oldColumn);
+      return;
+    }
+    const template = document.createElement('template');
+    template.innerHTML = renderTerminalCard(card).trim();
+    const column = template.content.firstElementChild;
+    if (column) {
+      column.dataset.terminalCardKey = key;
+      fragment.appendChild(column);
+    }
+  });
+  grid.replaceChildren(fragment);
+}
+
+// Re-renders the grid from the already-fetched _lastCards, applying the
+// current search text and pinned-first sort — no network call, so typing
+// in the search box and pinning/unpinning both feel instant.
+function applyTerminalFilters(options = {}) {
+  const preserveDom = options.preserveDom === true;
+  const previousCards = options.previousCards || [];
   const grid = document.getElementById('terminalGrid');
   const countEl = document.getElementById('terminalCount');
   const q = _termSearch.trim().toLowerCase();
@@ -873,7 +941,9 @@ function applyTerminalFilters() {
     : '';
 
   if (!cards.length) {
-    grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%">
+    if (preserveDom && grid.children.length === 1
+        && grid.firstElementChild?.classList.contains('terminal-empty-column')) return;
+    grid.innerHTML = `<div class="col-12 terminal-empty-column" style="flex:0 0 100%;max-width:100%">
       <div class="terminal-empty">
         <i class="bi ${q ? 'bi-search' : 'bi-inbox'}"></i>
         ${q ? `No asset matching "${_escHtmlLocal(_termSearch)}"` : `No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.`}
@@ -882,7 +952,7 @@ function applyTerminalFilters() {
     return;
   }
 
-  grid.innerHTML = cards.map(renderTerminalCard).join('');
+  _renderTerminalGrid(cards, preserveDom, previousCards);
 }
 
 function toggleTerminalPin(assetId, market) {
@@ -929,11 +999,12 @@ function _patchTerminalLivePrice(tick) {
 function _startTerminalAutoRefresh() {
   clearInterval(_terminalRefreshTimer);
   _terminalRefreshTimer = setInterval(() => {
-    if (document.visibilityState !== 'hidden') loadTerminal();
+    if (document.visibilityState !== 'hidden') loadTerminal({ silent: true });
   }, _terminalRefreshSeconds() * 1000);
 }
 
-async function loadTerminal() {
+async function loadTerminal(options = {}) {
+  const silent = options?.silent === true;
   const grid = document.getElementById('terminalGrid');
   const countEl = document.getElementById('terminalCount');
   if (!grid || !countEl) return;
@@ -944,28 +1015,35 @@ async function loadTerminal() {
   if (existing) return existing;
   const requestId = ++_termRequestSequence;
 
-  _setTerminalBusy(true);
-  grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
+  if (!silent) {
+    _setTerminalBusy(true);
+    grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-hourglass-split"></i>Loading signals…</div></div>`;
+  }
 
   const request = (async () => {
     const data = await API.get('/signals/market-board', { market, timeframe: tf });
     if (requestId !== _termRequestSequence) return;
 
     if (!data || data.error) {
-      grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
-      countEl.textContent = '';
-      _setTerminalBusy(false);
+      // A background refresh must never blank a working board because of a
+      // transient API failure. The next scheduled cycle will retry silently.
+      if (!silent) {
+        grid.innerHTML = `<div class="col-12" style="flex:0 0 100%;max-width:100%"><div class="terminal-empty"><i class="bi bi-exclamation-triangle"></i>Failed to load signals. Try refreshing.</div></div>`;
+        countEl.textContent = '';
+        _setTerminalBusy(false);
+      }
       return;
     }
 
+    const previousCards = _lastCards;
     _lastCards = Array.isArray(data.cards)
       ? data.cards.filter(card => card && typeof card === 'object')
       : [];
     _prunePinnedForMarket(market, _lastCards);
     _termMarket = market;
     _termTf = tf;
-    applyTerminalFilters();
-    _setTerminalBusy(false);
+    applyTerminalFilters({ preserveDom: silent, previousCards });
+    if (!silent) _setTerminalBusy(false);
   })();
   _termLoading.set(requestKey, request);
   try {
