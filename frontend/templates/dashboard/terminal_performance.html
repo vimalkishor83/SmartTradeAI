@@ -7,16 +7,12 @@
 <style>
 .terminal-performance-page .page-header { margin-bottom: 14px; }
 .terminal-performance-page .page-title { letter-spacing: -.025em; }
-.tp-definition { line-height: 1.55; }
-.tp-metric { min-height: 92px; }
-.tp-metric strong { display: block; margin-top: 5px; font-size: 24px; }
 .tp-positive { color: var(--green); }
 .tp-negative { color: var(--red); }
 .tp-muted { color: var(--text-muted); }
 @media (max-width: 767.98px) {
   .terminal-performance-page .page-header { align-items: flex-start; }
   .terminal-performance-page .page-header .btn { width: 100%; }
-  .tp-metric strong { font-size: 21px; }
 }
 </style>
 {% endblock %}
@@ -38,63 +34,20 @@
     Closed statistics use only resolved Terminal outcomes. Open reads are shown separately.
   </div>
 
-  <section class="section-card mb-4" aria-labelledby="tpSummaryTitle">
+  <section class="section-card mb-4" aria-labelledby="tpAssetTitle">
     <div class="section-card-header">
-      <span class="section-card-title" id="tpSummaryTitle"><i class="bi bi-broadcast text-accent me-1"></i>Terminal live-read snapshot</span>
-      <span class="text-muted fs-xs" id="tpUpdated">Not loaded</span>
+      <span class="section-card-title" id="tpAssetTitle"><i class="bi bi-grid text-accent me-1"></i>By asset</span>
+      <span class="text-muted fs-xs">Top 50 assets</span>
     </div>
-    <div class="section-card-body">
-      <div class="row g-3">
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Total logged</span><strong id="tpTotal">-</strong></div>
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Open now</span><strong id="tpOpen">-</strong></div>
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Decisive closed</span><strong id="tpDecisive">-</strong></div>
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Wins / losses</span><strong id="tpWinsLosses">-</strong></div>
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Decisive win rate</span><strong id="tpWinRate" class="tp-positive">-</strong></div>
-        <div class="col-6 col-md tp-metric"><span class="fs-xs tp-muted">Expired neutral</span><strong id="tpExpired">-</strong></div>
-      </div>
-      <div class="data-context-bar mt-3 tp-definition" id="tpOpenMeta">Open snapshot: -</div>
+    <div class="table-responsive">
+      <table class="smart-table" data-mobile-cards>
+        <caption class="visually-hidden">Terminal performance by asset</caption>
+        <thead><tr><th>Asset</th><th>Total</th><th>Open</th><th>Decisive</th><th>Wins</th><th>Losses</th><th>Win rate</th></tr></thead>
+        <tbody id="tpAssetBody"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
+      </table>
     </div>
   </section>
 
-  <div class="row g-4 mb-4">
-    <div class="col-xl-6">
-      <section class="section-card h-100" aria-labelledby="tpTimeframeTitle">
-        <div class="section-card-header">
-          <span class="section-card-title" id="tpTimeframeTitle"><i class="bi bi-clock text-accent me-1"></i>By timeframe</span>
-          <span class="text-muted fs-xs">Open and closed kept separate</span>
-        </div>
-        <div class="table-responsive">
-          <table class="smart-table" data-mobile-cards>
-            <caption class="visually-hidden">Terminal performance by timeframe</caption>
-            <thead><tr><th>Timeframe</th><th>Total</th><th>Open</th><th>Decisive</th><th>Expired</th><th>Win rate</th></tr></thead>
-            <tbody id="tpTimeframeBody"><tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-    <div class="col-xl-6">
-      <section class="section-card h-100" aria-labelledby="tpAssetTitle">
-        <div class="section-card-header">
-          <span class="section-card-title" id="tpAssetTitle"><i class="bi bi-grid text-accent me-1"></i>By asset</span>
-          <span class="text-muted fs-xs">Top 50 assets</span>
-        </div>
-        <div class="table-responsive">
-          <table class="smart-table" data-mobile-cards>
-            <caption class="visually-hidden">Terminal performance by asset</caption>
-            <thead><tr><th>Asset</th><th>Total</th><th>Open</th><th>Decisive</th><th>Wins</th><th>Losses</th><th>Win rate</th></tr></thead>
-            <tbody id="tpAssetBody"><tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <section class="section-card mb-4">
-    <div class="section-card-header"><span class="section-card-title"><i class="bi bi-info-circle text-accent me-1"></i>How to read this page</span></div>
-    <div class="section-card-body tp-definition text-muted">
-      A win is counted only when a Terminal read reaches its final target. A loss is counted only when the active stop or trailing stop is reached. Expired reads remain visible as neutral, and open reads never enter the win-rate denominator.
-    </div>
-  </section>
 </div>
 {% endblock %}
 
