@@ -82,3 +82,17 @@ def test_light_theme_has_a_complete_shell_finish():
     assert 'html[data-theme="light"] .app-shell .section-card' in css
     assert 'html[data-theme="light"] .app-shell .form-control' in css
     assert 'html[data-theme="light"] select option' in css
+
+
+def test_light_theme_keeps_analysis_insight_strips_readable():
+    css = CSS.read_text(encoding="utf-8")
+
+    for selector in (
+        '[data-theme="light"] .app-shell .analysis-insight-strip',
+        '[data-theme="light"] .app-shell .analysis-insight-lead strong',
+        '[data-theme="light"] .app-shell .analysis-insight-item',
+    ):
+        assert selector in css
+
+    assert "#0b1220" in css
+    assert "#40516a" in css
