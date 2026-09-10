@@ -497,6 +497,7 @@ def _migrate_columns(app):
         ("signals",    "data_candles",         "INTEGER"),
         ("signals",    "data_start",            "DATETIME"),
         ("signals",    "data_end",              "DATETIME"),
+        ("signals",    "event_history",         "TEXT"),
         # 2FA columns
         ("users",      "totp_secret",          "TEXT"),
         ("users",      "totp_enabled",         "INTEGER DEFAULT 0"),
@@ -522,6 +523,10 @@ def _migrate_columns(app):
         ("live_read_logs", "high_water_mark",   "REAL"),
         ("live_read_logs", "trail_stage",       "INTEGER DEFAULT 0"),
         ("live_read_logs", "snapshot",          "TEXT"),
+        ("live_read_logs", "event_history",     "TEXT"),
+        ("signal_history", "target2",           "REAL"),
+        ("signal_history", "target3",           "REAL"),
+        ("signal_history", "event_history",     "TEXT"),
     ]
     index_migrations = [
         # table, index name, columns (raw SQL fragment)

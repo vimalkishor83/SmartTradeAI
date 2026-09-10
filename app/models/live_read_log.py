@@ -40,6 +40,8 @@ class LiveReadLog(db.Model):
     # Full deterministic analysis snapshot so an open Terminal setup can be
     # restored after Redis eviction or an application restart.
     snapshot = db.Column(db.JSON, default=dict)
+    # Append-only lifecycle events for the frozen setup.
+    event_history = db.Column(db.JSON, default=list)
     outcome = db.Column(db.String(10))       # None (open), "win", "loss", or "expired"
     exit_price = db.Column(db.Float)
     generated_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
@@ -70,9 +72,14 @@ class LiveReadLog(db.Model):
             "confidence_score": self.confidence_score,
             "entry_price": self.entry_price,
             "stop_loss": self.stop_loss,
+            "initial_stop_loss": self.stop_loss,
+            "target1": self.target1,
+            "target2": self.target2,
+            "target3": self.target3,
             "trailing_stop": self.trailing_stop,
             "high_water_mark": self.high_water_mark,
             "trail_stage": self.trail_stage,
+            "event_history": self.event_history or [],
             "snapshot": self.snapshot,
             "outcome": self.outcome,
             "exit_price": self.exit_price,

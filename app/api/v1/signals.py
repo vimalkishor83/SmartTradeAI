@@ -6,6 +6,11 @@ from app.models.user import User
 from app.extensions import db, cache, limiter
 from app.auth.decorators import login_required, admin_required, super_admin_required, premium_required, subscription_feature_required
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
+from app.services.signals.lifecycle import (
+    initial_event_history,
+    record_milestones,
+    validate_trade_levels,
+)
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
 from app.services.signals.provenance import build_signal_provenance
 from app.services.data.fetcher import market_fetcher
@@ -276,6 +281,17 @@ def _run_auto_generate(app):
                                     "indicators","patterns","reasoning","reasoning_detail","regime","data_quality","expires_at",
                                     "lane_verdicts","invalidation_conditions","target_allocations"]},
                     )
+                    sig.event_history = initial_event_history(entry_price=sig.entry_price)
+                    level_check = validate_trade_levels(
+                        sig.signal_type, sig.entry_price, sig.stop_loss,
+                        sig.target1, sig.target2, sig.target3,
+                    )
+                    if not level_check["valid"]:
+                        _ag_log(
+                            f"  ! {symbol}/{timeframe} rejected invalid levels: "
+                            f"{level_check['reason']}"
+                        )
+                        continue
                     db.session.add(sig)
                     db.session.flush()
 
@@ -1221,6 +1237,16 @@ def generate_signal():
                     "indicators", "patterns", "reasoning", "reasoning_detail", "regime", "data_quality", "expires_at",
                     "lane_verdicts", "invalidation_conditions", "target_allocations"]},
     )
+    signal.event_history = initial_event_history(entry_price=signal.entry_price)
+    level_check = validate_trade_levels(
+        signal.signal_type, signal.entry_price, signal.stop_loss,
+        signal.target1, signal.target2, signal.target3,
+    )
+    if not level_check["valid"]:
+        return jsonify({
+            "error": "The generated trade levels do not match the signal direction.",
+            "reason": level_check["reason"],
+        }), 422
     signal.set_confidence_label()
     db.session.add(signal)
     db.session.commit()
@@ -1391,6 +1417,9 @@ def _live_read_from_log(row):
     state["trailing_stop"] = row.trailing_stop
     state["high_water_mark"] = row.high_water_mark or row.entry_price
     state["trail_stage"] = row.trail_stage or 0
+    state["event_history"] = row.event_history or initial_event_history(
+        row.generated_at, row.entry_price,
+    )
     state["stop_loss"] = row.trailing_stop or row.stop_loss
     state["live_read_log_id"] = row.id
     state["generated_at"] = row.generated_at.isoformat() if row.generated_at else None
@@ -1456,11 +1485,22 @@ def _advance_live_read_trailing(state, live_price):
     state["stop_loss"] = effective_stop
     state["current_price"] = price
 
-    resolved = (
-        (direction == "BUY" and (price <= effective_stop or (t3 is not None and price >= t3)))
-        or (direction == "SELL" and (price >= effective_stop or (t3 is not None and price <= t3)))
+    hit_final_target = (
+        (direction == "BUY" and t3 is not None and price >= t3)
+        or (direction == "SELL" and t3 is not None and price <= t3)
     )
-    return state, resolved, changed
+    hit_stop = (
+        (direction == "BUY" and price <= effective_stop)
+        or (direction == "SELL" and price >= effective_stop)
+    )
+    events, events_changed = record_milestones(
+        state.get("event_history"), direction, price, entry, effective_stop,
+        t1, t2, t3, generated_at=state.get("generated_at"),
+        include_stop=hit_stop and not hit_final_target,
+    )
+    state["event_history"] = events
+    resolved = hit_stop or hit_final_target
+    return state, resolved, changed or events_changed
 
 
 def _persist_live_read_trailing(state):
@@ -1476,6 +1516,7 @@ def _persist_live_read_trailing(state):
         row.high_water_mark = state.get("high_water_mark")
         row.trailing_stop = state.get("trailing_stop")
         row.trail_stage = int(state.get("trail_stage") or 0)
+        row.event_history = state.get("event_history") or row.event_history
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -1532,7 +1573,10 @@ def _frozen_live_read(asset, timeframe, df):
         cached, resolved, changed = _advance_live_read_trailing(cached, live_price)
         direction = cached.get("signal_type")
         if resolved:
-            _close_live_read_log(cached.get("live_read_log_id"), live_price, direction, cached.get("stop_loss"))
+            _close_live_read_log(
+                cached.get("live_read_log_id"), live_price, direction,
+                cached.get("stop_loss"), cached.get("event_history"),
+            )
             cache.delete(cache_key)
         else:
             if changed:
@@ -1561,6 +1605,10 @@ def _frozen_live_read(asset, timeframe, df):
         result["trailing_stop"] = None
         result["high_water_mark"] = result.get("entry_price")
         result["trail_stage"] = 0
+        result["event_history"] = initial_event_history(
+            generated_at=datetime.fromisoformat(result["generated_at"]),
+            entry_price=result.get("entry_price"),
+        )
         result["live_read_log_id"] = _open_live_read_log(asset, timeframe, result)
         try:
             cache.set(cache_key, dict(result), timeout=_LIVE_READ_CACHE_TTL)
@@ -1598,6 +1646,9 @@ def _open_live_read_log(asset, timeframe, result):
             reasoning=reasoning_text, reasoning_detail=result.get("reasoning_detail"),
             regime=result.get("regime"),
             data_quality=result.get("data_quality"),
+            event_history=initial_event_history(
+                generated_at=generated_at, entry_price=result.get("entry_price"),
+            ),
         )
         db.session.add(row)
         db.session.commit()
@@ -1607,7 +1658,7 @@ def _open_live_read_log(asset, timeframe, result):
         return None
 
 
-def _close_live_read_log(log_id, exit_price, direction, stop_loss):
+def _close_live_read_log(log_id, exit_price, direction, stop_loss, event_history=None):
     """Marks a still-open LiveReadLog resolved once price actually reaches
     its frozen stop-loss or final target (target3 — see _frozen_live_read's
     docstring for why this is a stricter, non-comparable bar than the
@@ -1625,6 +1676,8 @@ def _close_live_read_log(log_id, exit_price, direction, stop_loss):
             row.outcome = "loss" if hit_stop else "win"
             row.exit_price = exit_price
             row.resolved_at = datetime.utcnow()
+            if event_history:
+                row.event_history = event_history
             db.session.commit()
     except Exception:
         db.session.rollback()
@@ -2280,6 +2333,11 @@ def signal_history():
             "signal_type": h.signal_type,
             "entry":       h.entry_price,
             "exit":        h.exit_price,
+            "stop_loss":   h.stop_loss,
+            "target1":     h.target1,
+            "target2":     h.target2,
+            "target3":     h.target3,
+            "event_history": h.event_history or [],
             "pnl_pct":     h.pnl_pct,
             "outcome":     h.outcome,
             "confidence":  h.confidence_score,

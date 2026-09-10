@@ -170,6 +170,33 @@
   color: var(--accent-cyan);
   font-size: 10.5px;
 }
+.sc-stop-meta {
+  display: block;
+  margin-top: 2px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 500;
+}
+.sc-history { border-top: 1px solid var(--border); padding-top: 6px; margin-top: 0; }
+.sc-history summary {
+  cursor: pointer; font-size: 11.5px; font-weight: 700; color: var(--accent-light);
+  list-style: none; display: flex; align-items: center; gap: 6px;
+}
+.sc-history summary::-webkit-details-marker { display: none; }
+.sc-history summary .bi { transition: transform .15s; }
+.sc-history[open] summary .bi { transform: rotate(90deg); }
+.sc-history-body { margin-top: 7px; }
+.sc-history-note { color: var(--text-muted); font-size: 10px; line-height: 1.4; margin-bottom: 5px; }
+.sc-history-list { display: grid; gap: 4px; }
+.sc-history-item {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 5px;
+  font-size: 10.5px; line-height: 1.25;
+}
+.sc-history-item .bi { color: var(--text-muted); font-size: 10px; }
+.sc-history-item.is-hit .bi { color: var(--green); }
+.sc-history-item.is-stop .bi { color: var(--red); }
+.sc-history-label { color: var(--text-secondary); }
+.sc-history-value { color: var(--text-muted); text-align: right; white-space: nowrap; }
 
 .sc-why { border-top:1px solid var(--border); padding-top:6px; margin-top:0; }
 .sc-why summary {
@@ -414,6 +441,61 @@ function _termPrice(value, market) {
   return number === null ? '—' : _termHtml(formatPrice(number, market));
 }
 
+function _termEventTime(iso) {
+  if (!iso) return '';
+  const value = /[Zz]|[+-]\d{2}:?\d{2}$/.test(String(iso)) ? iso : `${iso}Z`;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return _termHtml(date.toLocaleString([], {
+    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+  }));
+}
+
+function _renderSignalHistory(s, market) {
+  const events = Array.isArray(s?.event_history)
+    ? s.event_history.filter(event => event && typeof event === 'object')
+    : [];
+  const byType = new Map(events.map(event => [String(event.type || ''), event]));
+  const levels = [
+    ['target1', 'Target 1', s?.target1],
+    ['target2', 'Target 2', s?.target2],
+    ['target3', 'Target 3', s?.target3],
+    ['stop_loss', 'Stop loss', s?.stop_loss],
+  ];
+  const generated = byType.get('generated');
+  const generatedAt = generated?.at || s?.generated_at;
+  const generatedPrice = generated?.price ?? s?.entry_price;
+  const rows = [[
+    'generated', 'Generated', generatedPrice, generatedAt,
+  ], ...levels].map(([type, label, level, at]) => {
+    const event = byType.get(type);
+    const hit = !!event;
+    const price = event?.price ?? level;
+    const isStop = type === 'stop_loss';
+    const status = hit ? `Hit ${_termEventTime(event.at)}` : 'Pending';
+    return `<div class="sc-history-item${hit ? ' is-hit' : ''}${isStop && hit ? ' is-stop' : ''}">
+      <i class="bi ${hit ? (isStop ? 'bi-x-circle-fill' : 'bi-check-circle-fill') : 'bi-dash-circle'}" aria-hidden="true"></i>
+      <span class="sc-history-label">${_termHtml(label)}${price !== null && price !== undefined ? ` · ${_termPrice(price, market)}` : ''}</span>
+      <span class="sc-history-value">${_termHtml(status)}</span>
+    </div>`;
+  }).join('');
+  const note = s?.persisted === false
+    ? 'Frozen live preview: milestones are recorded while this setup remains open.'
+    : events.length
+      ? 'Milestones are recorded from the price tracker; pending levels have not been observed yet.'
+      : 'This older setup has no milestone events stored. New events will be recorded automatically.';
+  return `<details class="sc-history">
+    <summary><i class="bi bi-chevron-right"></i>Signal history</summary>
+    <div class="sc-history-body">
+      <div class="sc-history-note">${_termHtml(note)}</div>
+      <div class="sc-history-list">
+        <div class="sc-history-item is-hit"><i class="bi bi-broadcast" aria-hidden="true"></i><span class="sc-history-label">Generated · ${_termPrice(generatedPrice, market)}</span><span class="sc-history-value">${_termHtml(_termEventTime(generatedAt) || 'Recorded')}</span></div>
+        ${rows.slice(1)}
+      </div>
+    </div>
+  </details>`;
+}
+
 function _escHtmlLocal(value) { return _termHtml(value); }
 
 function _setTerminalBusy(busy) {
@@ -652,6 +734,12 @@ function renderTerminalCard(s) {
   const confC = _termConfColor(conf);
   const cur   = _termNumber(s.current_price);
   const trailStage = Math.max(0, Math.min(2, Math.trunc(_termNumber(s.trail_stage, 0) || 0)));
+  const activeStop = _termNumber(s.stop_loss);
+  const initialStop = _termNumber(s.initial_stop_loss, activeStop);
+  const stopLabel = trailStage > 0 ? 'Active Stop' : 'Stop Loss';
+  const initialStopHtml = trailStage > 0 && initialStop !== null && activeStop !== null && initialStop !== activeStop
+    ? `<span class="sc-stop-meta">Initial ${_termPrice(initialStop, mkt)}</span>`
+    : '';
 
   const targetsHtml = [
     ['Target 1', _termNumber(s.target1)],
@@ -704,8 +792,9 @@ function renderTerminalCard(s) {
                 <span class="sc-grid-val tabular">${_termPrice(s.entry_price, mkt)}</span>
               </div>
               <div class="sc-cell sc-cell-stop">
-                <span class="sc-grid-label">Stop Loss</span>
-                <span class="sc-grid-val tabular" style="color:var(--red)">${_termPrice(s.stop_loss, mkt)}</span>
+                <span class="sc-grid-label">${stopLabel}</span>
+                <span class="sc-grid-val tabular" style="color:var(--red)">${_termPrice(activeStop, mkt)}</span>
+                ${initialStopHtml}
               </div>
             </div>
             <div class="sc-row sc-row-3">
@@ -718,6 +807,7 @@ function renderTerminalCard(s) {
 
           ${_timeAgo(s.generated_at, s.persisted)}
           ${whyHtml}
+          ${_renderSignalHistory(s, mkt)}
         </div>
       </div>
     </div>`;

@@ -19,6 +19,7 @@ import pandas as pd
 from app.services.indicators.calculator import calculate_all_indicators
 from app.services.indicators.patterns import detect_patterns
 from app.services.data.quality import assess_data_quality
+from app.services.signals.lifecycle import validate_trade_levels
 
 logger = logging.getLogger(__name__)
 
@@ -176,6 +177,10 @@ class SignalEngine:
             sl       = self._structure_stop(df, raw_direction, close, atr)
             t1, t2, t3 = self._calculate_targets(raw_direction, close, atr)
             rr       = self._risk_reward(close, sl, t1)
+
+            if not validate_trade_levels(raw_direction, close, sl, t1, t2, t3)["valid"]:
+                logger.warning("Rejected invalid generated levels for %s/%s", getattr(asset, "symbol", "?"), timeframe)
+                return None
 
             expiry_min = _EXPIRY.get(timeframe, 60)
 
@@ -376,6 +381,14 @@ class SignalEngine:
             if raw_direction != "HOLD":
                 sl = self._structure_stop(df, raw_direction, close, atr)
                 t1, t2, t3 = self._calculate_targets(raw_direction, close, atr)
+                if not validate_trade_levels(raw_direction, close, sl, t1, t2, t3)["valid"]:
+                    return {
+                        **result,
+                        "available": False,
+                        "analysis_state": "UNAVAILABLE",
+                        "qualifies_as_signal": False,
+                        "reason": "invalid_trade_levels",
+                    }
                 structure_level = self._nearest_structure_level(df, raw_direction)
                 rsi = indicators.get("rsi") or 50
                 result.update({

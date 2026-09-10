@@ -3,6 +3,7 @@ import time
 import threading
 import logging
 from app.websocket.events import broadcast_ticker
+from app.services.signals.lifecycle import record_milestones
 
 logger = logging.getLogger(__name__)
 _LIVE_READ_RETENTION_DAYS = 30
@@ -153,6 +154,15 @@ def close_and_record_signals(app):
 
                 # Determine outcome
                 outcome = _check_outcome(signal, current_price)
+                events, events_changed = record_milestones(
+                    signal.event_history, signal.signal_type, current_price,
+                    signal.entry_price, signal.stop_loss, signal.target1,
+                    signal.target2, signal.target3,
+                    generated_at=signal.generated_at,
+                    include_stop=outcome == "hit_sl",
+                )
+                if events_changed:
+                    signal.event_history = events
                 if outcome:
                     # Atomically claim the close before writing history — if
                     # another job (the 15s real-time price checker, or a
@@ -183,12 +193,15 @@ def close_and_record_signals(app):
                         exit_price=current_price,
                         stop_loss=signal.stop_loss,
                         target1=signal.target1,
+                        target2=signal.target2,
+                        target3=signal.target3,
                         confidence_score=signal.confidence_score,
                         outcome=history_outcome,
                         pnl_pct=round(pnl_pct, 2),
                         duration_minutes=duration,
                         generated_at=signal.generated_at,
                         closed_at=now,
+                        event_history=signal.event_history,
                     )
                     db.session.add(hist)
                     closed += 1
@@ -695,6 +708,15 @@ def check_signals_for_price(symbol: str, price: float, app):
                     continue
 
                 outcome = _check_outcome(signal, price)
+                events, events_changed = record_milestones(
+                    signal.event_history, signal.signal_type, price,
+                    signal.entry_price, signal.stop_loss, signal.target1,
+                    signal.target2, signal.target3,
+                    generated_at=signal.generated_at,
+                    include_stop=outcome == "hit_sl",
+                )
+                if events_changed:
+                    signal.event_history = events
                 if not outcome:
                     signal.current_price = price
                     continue
@@ -728,12 +750,15 @@ def check_signals_for_price(symbol: str, price: float, app):
                     exit_price=price,
                     stop_loss=signal.stop_loss,
                     target1=signal.target1,
+                    target2=signal.target2,
+                    target3=signal.target3,
                     confidence_score=signal.confidence_score,
                     outcome=history_outcome,
                     pnl_pct=round(pnl_pct, 2),
                     duration_minutes=duration,
                     generated_at=signal.generated_at,
                     closed_at=now,
+                    event_history=signal.event_history,
                 ))
                 closed.append(signal)
 
