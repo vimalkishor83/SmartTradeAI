@@ -285,11 +285,6 @@ def performance():
     return render_template("dashboard/performance.html", requires_tier=1)
 
 
-@views_bp.route("/terminal-performance")
-def terminal_performance():
-    return render_template("dashboard/terminal_performance.html", requires_tier=1)
-
-
 @views_bp.route("/ta-summary")
 def ta_summary():
     return render_template("dashboard/ta_summary.html", requires_tier=2)
