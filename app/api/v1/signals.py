@@ -10,6 +10,7 @@ from app.services.signals.lifecycle import (
     initial_event_history,
     reconcile_trailing_milestones,
     record_milestones,
+    record_trailing_stop_event,
     validate_trade_levels,
 )
 from app.services.signals.context_lanes import fetch_context_data, build_lane_verdicts
@@ -1497,14 +1498,20 @@ def _advance_live_read_trailing(state, live_price):
     events, reconciled = reconcile_trailing_milestones(
         state.get("event_history"), previous_stage, t1, t2, t3,
     )
+    event_now = datetime.utcnow()
     events, events_changed = record_milestones(
         events, direction, price, entry, effective_stop,
         t1, t2, t3, generated_at=state.get("generated_at"),
         include_stop=hit_stop and not hit_final_target,
+        now=event_now,
+    )
+    events, trailing_event_changed = (
+        record_trailing_stop_event(events, stage, effective_stop, now=event_now)
+        if stage > previous_stage else (events, False)
     )
     state["event_history"] = events
     resolved = hit_stop or hit_final_target
-    return state, resolved, changed or reconciled or events_changed
+    return state, resolved, changed or reconciled or events_changed or trailing_event_changed
 
 
 def _persist_live_read_trailing(state):
@@ -1520,7 +1527,12 @@ def _persist_live_read_trailing(state):
         row.high_water_mark = state.get("high_water_mark")
         row.trailing_stop = state.get("trailing_stop")
         row.trail_stage = int(state.get("trail_stage") or 0)
-        row.event_history = state.get("event_history") or row.event_history
+        previous_events = row.event_history or []
+        next_events = state.get("event_history") or previous_events
+        row.event_history = next_events
+        if next_events != previous_events:
+            from app.services.signals.live_read_notifications import enqueue_live_read_event_notifications
+            enqueue_live_read_event_notifications(row, next_events, previous_events)
         db.session.commit()
     except Exception:
         db.session.rollback()
@@ -1655,6 +1667,9 @@ def _open_live_read_log(asset, timeframe, result):
             ),
         )
         db.session.add(row)
+        db.session.flush()
+        from app.services.signals.live_read_notifications import enqueue_live_read_event_notifications
+        enqueue_live_read_event_notifications(row, row.event_history or [], [])
         db.session.commit()
         return row.id
     except Exception:
@@ -1680,8 +1695,11 @@ def _close_live_read_log(log_id, exit_price, direction, stop_loss, event_history
             row.outcome = "loss" if hit_stop else "win"
             row.exit_price = exit_price
             row.resolved_at = datetime.utcnow()
+            previous_events = row.event_history or []
             if event_history:
                 row.event_history = event_history
+                from app.services.signals.live_read_notifications import enqueue_live_read_event_notifications
+                enqueue_live_read_event_notifications(row, event_history, previous_events)
             db.session.commit()
     except Exception:
         db.session.rollback()

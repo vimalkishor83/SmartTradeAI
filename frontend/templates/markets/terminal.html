@@ -465,9 +465,7 @@ function _renderSignalHistory(s, market) {
   const generated = byType.get('generated');
   const generatedAt = generated?.at || s?.generated_at;
   const generatedPrice = generated?.price ?? s?.entry_price;
-  const rows = [[
-    'generated', 'Generated', generatedPrice, generatedAt,
-  ], ...levels].map(([type, label, level, at]) => {
+  const renderLevelRow = ([type, label, level]) => {
     const event = byType.get(type);
     const hit = !!event;
     const price = event?.price ?? level;
@@ -481,7 +479,21 @@ function _renderSignalHistory(s, market) {
       <span class="sc-history-label">${_termHtml(label)}${price !== null && price !== undefined ? ` · ${_termPrice(price, market)}` : ''}</span>
       <span class="sc-history-value">${_termHtml(status)}</span>
     </div>`;
-  });
+  };
+  const trailingRows = events
+    .filter(event => event.type === 'trailing_stop')
+    .map(event => {
+      const stage = _termNumber(event.stage, 0);
+      const eventTime = _termEventTime(event.at);
+      const status = eventTime
+        ? `Activated ${eventTime}`
+        : event.time_unknown ? 'Activated (time unavailable)' : 'Activated';
+      return `<div class="sc-history-item is-hit">
+        <i class="bi bi-signpost-2-fill" aria-hidden="true"></i>
+        <span class="sc-history-label">Trailing stop after Target ${_termHtml(stage)} · ${_termPrice(event.price, market)}</span>
+        <span class="sc-history-value">${_termHtml(status)}</span>
+      </div>`;
+    });
   const hasUnknownTime = events.some(event => event.time_unknown);
   const note = hasUnknownTime
     ? 'Target progress was restored from the saved trailing stage; exact historical hit times were not stored.'
@@ -495,8 +507,9 @@ function _renderSignalHistory(s, market) {
     <div class="sc-history-body">
       <div class="sc-history-note">${_termHtml(note)}</div>
       <div class="sc-history-list">
-        <div class="sc-history-item is-hit"><i class="bi bi-broadcast" aria-hidden="true"></i><span class="sc-history-label">Generated · ${_termPrice(generatedPrice, market)}</span><span class="sc-history-value">${_termHtml(_termEventTime(generatedAt) || 'Recorded')}</span></div>
-        ${rows.slice(1).join('')}
+      <div class="sc-history-item is-hit"><i class="bi bi-broadcast" aria-hidden="true"></i><span class="sc-history-label">Generated · ${_termPrice(generatedPrice, market)}</span><span class="sc-history-value">${_termHtml(_termEventTime(generatedAt) || 'Recorded')}</span></div>
+        ${levels.map(renderLevelRow).join('')}
+        ${trailingRows.join('')}
       </div>
     </div>
   </details>`;

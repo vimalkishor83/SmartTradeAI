@@ -4,6 +4,7 @@ from app.services.signals.lifecycle import (
     initial_event_history,
     reconcile_trailing_milestones,
     record_milestones,
+    record_trailing_stop_event,
     validate_trade_levels,
 )
 
@@ -56,3 +57,22 @@ def test_reconcile_trailing_stage_restores_missing_target_without_fake_time():
     assert [event["type"] for event in events] == ["generated", "target1", "target2"]
     assert events[-1]["at"] is None
     assert events[-1]["time_unknown"] is True
+
+
+def test_trailing_stop_event_is_append_only_per_stage():
+    history = initial_event_history(datetime(2026, 9, 10, 10, 0), 100)
+    events, changed = record_trailing_stop_event(
+        history, 1, 101, now=datetime(2026, 9, 10, 10, 5),
+    )
+
+    assert changed is True
+    assert events[-1] == {
+        "type": "trailing_stop", "stage": 1,
+        "at": "2026-09-10T10:05:00", "price": 101.0,
+    }
+
+    again, changed_again = record_trailing_stop_event(
+        events, 1, 102, now=datetime(2026, 9, 10, 10, 6),
+    )
+    assert changed_again is False
+    assert again == events

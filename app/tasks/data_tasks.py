@@ -2,6 +2,7 @@
 import time
 import threading
 import logging
+from datetime import datetime
 from app.websocket.events import broadcast_ticker
 from app.services.signals.lifecycle import record_milestones
 
@@ -1264,6 +1265,87 @@ def expire_live_read_logs(app):
             logger.error(f"Live-read expiry cleanup failed: {e}")
 
 
+def track_live_read_events(app):
+    """Advance open Terminal previews and queue their lifecycle alerts.
+
+    Terminal cards are live previews rather than persisted Signal rows, so the
+    normal signal outcome worker cannot see them. This lightweight ticker-only
+    pass keeps their existing frozen setup and trailing calculation active on
+    the server even when the Terminal page is closed.
+    """
+    with app.app_context():
+        from app.api.v1.signals import _advance_live_read_trailing, _live_read_from_log
+        from app.models.live_read_log import LiveReadLog
+        from app.services.data.fetcher import market_fetcher
+        from app.services.signals.live_read_notifications import enqueue_live_read_event_notifications
+        from app.extensions import cache, db
+        from sqlalchemy.orm import joinedload
+
+        rows = (LiveReadLog.query
+                .options(joinedload(LiveReadLog.asset))
+                .filter(LiveReadLog.outcome.is_(None))
+                .order_by(LiveReadLog.generated_at.asc(), LiveReadLog.id.asc())
+                .limit(500)
+                .all())
+        if not rows:
+            return
+
+        prices = {}
+        advanced = 0
+        resolved = 0
+        for row in rows:
+            if not row.asset:
+                continue
+            if row.asset.id not in prices:
+                try:
+                    ticker = market_fetcher.fetch_ticker(row.asset)
+                    prices[row.asset.id] = ticker.get("price") if ticker else None
+                except Exception as exc:
+                    prices[row.asset.id] = None
+                    logger.debug("Live-read tracker price failed for %s: %s", row.asset.symbol, exc)
+
+            try:
+                price = float(prices[row.asset.id])
+            except (TypeError, ValueError):
+                continue
+
+            previous_events = list(row.event_history or [])
+            state, is_resolved, changed = _advance_live_read_trailing(
+                _live_read_from_log(row), price,
+            )
+            next_events = state.get("event_history") or previous_events
+            if not changed and not is_resolved and next_events == previous_events:
+                continue
+
+            row.high_water_mark = state.get("high_water_mark")
+            row.trailing_stop = state.get("trailing_stop")
+            row.trail_stage = int(state.get("trail_stage") or 0)
+            row.event_history = next_events
+            if is_resolved:
+                direction = state.get("signal_type")
+                final_target = (
+                    direction == "BUY" and row.target3 is not None and price >= row.target3
+                ) or (
+                    direction == "SELL" and row.target3 is not None and price <= row.target3
+                )
+                row.outcome = "win" if final_target else "loss"
+                row.exit_price = price
+                row.resolved_at = datetime.utcnow()
+                resolved += 1
+
+            enqueue_live_read_event_notifications(row, next_events, previous_events)
+            db.session.commit()
+            advanced += 1
+            if is_resolved:
+                cache.delete(f"terminal_live_read:{row.asset.id}:{row.timeframe}")
+
+        if advanced:
+            logger.info(
+                "Advanced %d Terminal live reads (%d resolved) and queued lifecycle alerts.",
+                advanced, resolved,
+            )
+
+
 def prewarm_delta_market_screener(app):
     """Pre-compute the flexible-condition screener's metric universe (price,
     24h change, volume, RSI(14), funding, open interest) for each asset type,
@@ -1320,6 +1402,11 @@ def register_data_jobs(scheduler, app):
     # Signal outcome tracking — every 5 minutes
     scheduler.add_job(close_and_record_signals, "interval", minutes=5,
                       args=[app], id="close_signals", replace_existing=True)
+    # Terminal live-read target/trailing/stop tracking — faster than the
+    # five-minute persisted-signal backstop because Telegram events should be
+    # timely while still using the same frozen setup calculation.
+    scheduler.add_job(track_live_read_events, "interval", seconds=30,
+                      args=[app], id="track_live_read_events", replace_existing=True)
     # TA/MTF cache pre-warm — every 5 minutes
     scheduler.add_job(prewarm_ta_cache, "interval", minutes=5,
                       args=[app], id="prewarm_ta", replace_existing=True)

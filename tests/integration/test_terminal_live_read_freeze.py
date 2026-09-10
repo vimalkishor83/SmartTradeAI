@@ -198,7 +198,7 @@ class TestFrozenLiveRead:
             assert after_target1["entry_price"] == 100.0
             assert after_target1["target3"] == 115.0
             assert [event["type"] for event in after_target1["event_history"]] == [
-                "generated", "target1",
+                "generated", "target1", "trailing_stop",
             ]
 
             with _ticker(111.0):
@@ -206,7 +206,7 @@ class TestFrozenLiveRead:
             assert after_target2["trail_stage"] == 2
             assert after_target2["stop_loss"] == 106.0
             assert [event["type"] for event in after_target2["event_history"]] == [
-                "generated", "target1", "target2",
+                "generated", "target1", "trailing_stop", "target2", "trailing_stop",
             ]
 
             with patch("app.api.v1.signals.signal_engine.analyze", return_value=dict(buy_result)) as mock_analyze, \

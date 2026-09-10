@@ -76,7 +76,8 @@ def send_pending_notifications(app):
                 # reasoning bullets — the duplicate/disclaimer-missing alerts
                 # reported in production were this second, unwanted send.
                 if user.telegram_enabled and user.telegram_chat_id and notif.channel in ("telegram", None):
-                    _send_telegram(user, f"*{notif.title}*\n{notif.message}")
+                    if not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
+                        raise RuntimeError("Telegram delivery was not accepted")
             except Exception as e:
                 # Release the claim so a later run retries rather than silently
                 # dropping the notification — claiming up front must not turn a
@@ -150,7 +151,7 @@ def _send_telegram(user, text: str):
                 f"Telegram alert skipped for user {user.id} ({user.username}): "
                 f"{'no bot token configured' if not token else 'no chat_id saved yet'}"
             )
-            return
+            return False
         resp = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
             json={"chat_id": user.telegram_chat_id, "text": text, "parse_mode": "Markdown"},
@@ -166,6 +167,8 @@ def _send_telegram(user, text: str):
                 f"Telegram alert rejected for user {user.id} ({user.username}): "
                 f"HTTP {resp.status_code} — {resp.text[:200]}"
             )
+            return False
+        return True
     except Exception as e:
         # user is sometimes not the User object the type hint promises (seen
         # live: "'str' object has no attribute 'get_telegram_bot_token'") —
@@ -174,6 +177,7 @@ def _send_telegram(user, text: str):
         # doesn't the next time this fires, rather than re-auditing every
         # call site by eye again.
         logger.error(f"Telegram send error: {e} (user was {type(user).__name__}: {user!r})")
+        return False
 
 
 def send_new_ip_login_alert(logged_in_user, ip: str, user_agent: str):

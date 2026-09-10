@@ -539,6 +539,7 @@ def _migrate_columns(app):
         ("notifications",  "idx_notif_user_read",       "user_id, is_read"),
         ("notifications",  "idx_notif_created",         "created_at"),
         ("notifications",  "idx_notif_delivery_queue",  "is_sent, created_at, id"),
+        ("notifications",  "uq_notif_user_key",          "user_id, notification_key"),
         ("protective_orders", "idx_protective_order_active_queue", "status, asset_id, id"),
         ("audit_logs",     "idx_audit_logs_created",    "created_at"),
         ("audit_logs",     "idx_audit_logs_created_id", "created_at, id"),

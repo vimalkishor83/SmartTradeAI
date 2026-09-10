@@ -71,6 +71,38 @@ def reconcile_trailing_milestones(history, trail_stage, target1, target2, target
     return events, changed
 
 
+def record_trailing_stop_event(history, stage, stop_loss, now=None):
+    """Record one trailing-stop activation for a newly reached stage.
+
+    The stop level is calculated by the caller. This helper only records the
+    lifecycle fact so the UI, Telegram alerts, and later review all describe
+    the same transition without recalculating it from a current price.
+    """
+    try:
+        stage = int(stage)
+        stop_loss = float(stop_loss)
+    except (TypeError, ValueError):
+        return list(history or []), False
+    if stage < 1 or not math.isfinite(stop_loss):
+        return list(history or []), False
+
+    events = [event for event in (history or []) if isinstance(event, dict) and event.get("type")]
+    if any(
+        event.get("type") == "trailing_stop" and int(event.get("stage") or 0) == stage
+        for event in events
+    ):
+        return events, False
+
+    at = now or datetime.utcnow()
+    events.append({
+        "type": "trailing_stop",
+        "stage": stage,
+        "at": at.isoformat() if hasattr(at, "isoformat") else str(at),
+        "price": stop_loss,
+    })
+    return events, True
+
+
 def record_milestones(
     history,
     direction,
