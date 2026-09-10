@@ -41,6 +41,36 @@ def initial_event_history(generated_at=None, entry_price=None):
     }]
 
 
+def reconcile_trailing_milestones(history, trail_stage, target1, target2, target3):
+    """Restore target events implied by a previously saved trailing stage.
+
+    Older live-read rows stored the trailing stage before event history was
+    introduced. We can restore which targets were reached, but not invent
+    their historical timestamps, so those events are explicitly marked with
+    ``time_unknown`` for the UI.
+    """
+    events = [event for event in (history or []) if isinstance(event, dict) and event.get("type")]
+    try:
+        stage = max(0, min(3, int(trail_stage or 0)))
+    except (TypeError, ValueError):
+        stage = 0
+
+    targets = (("target1", target1), ("target2", target2), ("target3", target3))
+    seen = {event.get("type") for event in events}
+    changed = False
+    for index, (event_type, level) in enumerate(targets, start=1):
+        if index > stage or event_type in seen or level is None:
+            continue
+        try:
+            level = float(level)
+        except (TypeError, ValueError):
+            continue
+        events.append({"type": event_type, "at": None, "price": level, "time_unknown": True})
+        seen.add(event_type)
+        changed = True
+    return events, changed
+
+
 def record_milestones(
     history,
     direction,

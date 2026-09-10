@@ -2,6 +2,7 @@ from datetime import datetime
 
 from app.services.signals.lifecycle import (
     initial_event_history,
+    reconcile_trailing_milestones,
     record_milestones,
     validate_trade_levels,
 )
@@ -43,3 +44,15 @@ def test_stop_event_uses_the_effective_trailing_stop():
     assert changed
     assert events[-1]["type"] == "stop_loss"
     assert events[-1]["price"] == 103
+
+
+def test_reconcile_trailing_stage_restores_missing_target_without_fake_time():
+    events, changed = reconcile_trailing_milestones(
+        [{"type": "generated", "at": "2026-09-09T00:00:00", "price": 103.0}],
+        2, 102.0, 101.0, 100.0,
+    )
+
+    assert changed is True
+    assert [event["type"] for event in events] == ["generated", "target1", "target2"]
+    assert events[-1]["at"] is None
+    assert events[-1]["time_unknown"] is True

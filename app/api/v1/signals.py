@@ -8,6 +8,7 @@ from app.auth.decorators import login_required, admin_required, super_admin_requ
 from app.services.signals.engine import signal_engine, _EXPIRY as _SIGNAL_EXPIRY
 from app.services.signals.lifecycle import (
     initial_event_history,
+    reconcile_trailing_milestones,
     record_milestones,
     validate_trade_levels,
 )
@@ -1493,14 +1494,17 @@ def _advance_live_read_trailing(state, live_price):
         (direction == "BUY" and price <= effective_stop)
         or (direction == "SELL" and price >= effective_stop)
     )
+    events, reconciled = reconcile_trailing_milestones(
+        state.get("event_history"), previous_stage, t1, t2, t3,
+    )
     events, events_changed = record_milestones(
-        state.get("event_history"), direction, price, entry, effective_stop,
+        events, direction, price, entry, effective_stop,
         t1, t2, t3, generated_at=state.get("generated_at"),
         include_stop=hit_stop and not hit_final_target,
     )
     state["event_history"] = events
     resolved = hit_stop or hit_final_target
-    return state, resolved, changed or events_changed
+    return state, resolved, changed or reconciled or events_changed
 
 
 def _persist_live_read_trailing(state):

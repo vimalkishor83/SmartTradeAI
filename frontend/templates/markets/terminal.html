@@ -460,7 +460,7 @@ function _renderSignalHistory(s, market) {
     ['target1', 'Target 1', s?.target1],
     ['target2', 'Target 2', s?.target2],
     ['target3', 'Target 3', s?.target3],
-    ['stop_loss', 'Stop loss', s?.stop_loss],
+    ['stop_loss', 'Stop / trailing stop', s?.initial_stop_loss ?? s?.stop_loss],
   ];
   const generated = byType.get('generated');
   const generatedAt = generated?.at || s?.generated_at;
@@ -472,14 +472,20 @@ function _renderSignalHistory(s, market) {
     const hit = !!event;
     const price = event?.price ?? level;
     const isStop = type === 'stop_loss';
-    const status = hit ? `Hit ${_termEventTime(event.at)}` : 'Pending';
+    const eventTime = _termEventTime(event?.at);
+    const status = hit
+      ? `Hit${eventTime ? ` ${eventTime}` : event?.time_unknown ? ' (time unavailable)' : ''}`
+      : 'Pending';
     return `<div class="sc-history-item${hit ? ' is-hit' : ''}${isStop && hit ? ' is-stop' : ''}">
       <i class="bi ${hit ? (isStop ? 'bi-x-circle-fill' : 'bi-check-circle-fill') : 'bi-dash-circle'}" aria-hidden="true"></i>
       <span class="sc-history-label">${_termHtml(label)}${price !== null && price !== undefined ? ` · ${_termPrice(price, market)}` : ''}</span>
       <span class="sc-history-value">${_termHtml(status)}</span>
     </div>`;
   }).join('');
-  const note = s?.persisted === false
+  const hasUnknownTime = events.some(event => event.time_unknown);
+  const note = hasUnknownTime
+    ? 'Target progress was restored from the saved trailing stage; exact historical hit times were not stored.'
+    : s?.persisted === false
     ? 'Frozen live preview: milestones are recorded while this setup remains open.'
     : events.length
       ? 'Milestones are recorded from the price tracker; pending levels have not been observed yet.'
@@ -490,7 +496,7 @@ function _renderSignalHistory(s, market) {
       <div class="sc-history-note">${_termHtml(note)}</div>
       <div class="sc-history-list">
         <div class="sc-history-item is-hit"><i class="bi bi-broadcast" aria-hidden="true"></i><span class="sc-history-label">Generated · ${_termPrice(generatedPrice, market)}</span><span class="sc-history-value">${_termHtml(_termEventTime(generatedAt) || 'Recorded')}</span></div>
-        ${rows.slice(1)}
+        ${rows.slice(1).join('')}
       </div>
     </div>
   </details>`;
