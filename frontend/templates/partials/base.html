@@ -38,7 +38,6 @@
   <meta name="apple-mobile-web-app-title" content="SmartTrade AI">
   {% block extra_css %}{% endblock %}
   {% if hide_sidebar %}<link rel="stylesheet" href="/static/css/auth.css?v={{ asset_version('css/auth.css') }}" />{% endif %}
-  <link rel="stylesheet" href="/static/css/ui-overhaul.css?v={{ asset_version('css/ui-overhaul.css') }}" />
 </head>
 <body class="app-shell{% if hide_sidebar %} auth-shell{% endif %}" data-active="{{ active|default('dashboard') }}"{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
@@ -580,7 +579,6 @@
   };
 </script>
 <script src="/static/js/app.js?v={{ asset_version('js/app.js') }}"></script>
-<script src="/static/js/ui_overhaul.js?v={{ asset_version('js/ui_overhaul.js') }}"></script>
 {% if hide_sidebar %}
 <script src="/static/js/auth_public.js?v={{ asset_version('js/auth_public.js') }}"></script>
 {% endif %}
