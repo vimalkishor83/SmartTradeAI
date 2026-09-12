@@ -116,8 +116,9 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-tab="yearly">Year-wise</button>
           </div>
         </div>
+        <div class="dcc-schedule-mobile-hint" role="note"><i class="bi bi-arrows-expand-horizontal me-1" aria-hidden="true"></i>Swipe horizontally to view all columns.</div>
         <div class="table-responsive dcc-schedule-wrap" style="max-height:520px">
-          <table class="smart-table" data-mobile-cards>
+          <table class="smart-table dcc-schedule-table">
             <thead id="tHead"></thead>
             <tbody id="tBody"></tbody>
           </table>
@@ -169,7 +170,10 @@
   .dcc-result-status { align-self:flex-start; padding:5px 8px; color:var(--green); border:1px solid rgba(16,185,129,.3); border-radius:999px; background:rgba(16,185,129,.08); font-size:10px; font-weight:700; white-space:nowrap; }
   .dcc-summary-chips { display:flex; flex-wrap:wrap; gap:8px; }
   .dcc-schedule-hint { margin-top:3px; color:var(--text-muted); font-size:11px; }
+  .dcc-schedule-mobile-hint { display:none; color:var(--text-muted); font-size:11px; padding:10px 14px 0; }
   .dcc-schedule-wrap { border-top:1px solid var(--border); }
+  .dcc-schedule-table { min-width:620px; }
+  .dcc-schedule-table th, .dcc-schedule-table td { white-space:nowrap; }
   .dcc-panel-backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,0.58); display: none; z-index: 1100; backdrop-filter: blur(3px);
   }
@@ -194,6 +198,13 @@
     .dcc-result-status { margin-left:auto; }
     .dcc-final-amount { font-size:24px; }
     .dcc-schedule-card .section-card-header { align-items:flex-start; flex-direction:column; gap:12px; }
+    .dcc-schedule-mobile-hint { display:block; }
+    .dcc-schedule-wrap { margin-top:8px; overflow-x:auto; }
+    .dcc-schedule-table { min-width:620px; }
+    .dcc-schedule-table th:first-child, .dcc-schedule-table td:first-child {
+      position:sticky; left:0; z-index:1; background:var(--bg-card);
+    }
+    .dcc-schedule-table thead th:first-child { z-index:2; background:var(--bg-secondary); }
     #scheduleTabs { width:100%; }
     #scheduleTabs .btn { flex:1; min-height:38px; padding-inline:6px; }
   }

@@ -21,6 +21,9 @@ def test_calculator_has_mobile_safe_input_and_results_regions():
     assert 'class="col-lg-8 dcc-results-column"' in source
     assert 'class="dcc-action-row"' in source
     assert "dcc-schedule-wrap" in source
+    assert 'class="smart-table dcc-schedule-table"' in source
+    assert "data-mobile-cards" not in source
+    assert "Swipe horizontally to view all columns." in source
     assert "grid-template-columns:1fr" in source
 
 
@@ -35,6 +38,7 @@ def test_calculator_result_panel_has_clear_empty_and_loaded_states():
     assert "grid-template-columns:42px minmax(0, 1fr)" in source
     assert "Growth schedule" in source
     assert "Switch views to inspect the projection" in source
+    assert "position:sticky; left:0" in source
 
 
 def test_mobile_toolbar_does_not_create_horizontal_overflow():
