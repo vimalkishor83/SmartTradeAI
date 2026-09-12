@@ -1,0 +1,209 @@
+/* Neutral public-page theme. Loaded after each page's inline styles so the
+   landing page keeps its existing content and links while sharing the same
+   grayscale visual language as the application shell. */
+:root {
+  --bg: #0b0b0b;
+  --bg2: #171717;
+  --bg3: #090909;
+  --card: #111111;
+  --card2: #232323;
+  --accent: #f2f2f2;
+  --accent2: #ffffff;
+  --accent-dim: #242424;
+  --green: #d8d8d8;
+  --red: #f0f0f0;
+  --text: #f7f7f7;
+  --text2: #c5c5c5;
+  --text3: #999999;
+  --border: #343434;
+  --border-hover: #666666;
+}
+
+html[data-theme="light"] {
+  --bg: #f3f3f3;
+  --bg2: #e8e8e8;
+  --bg3: #ffffff;
+  --card: #ffffff;
+  --card2: #ededed;
+  --accent: #111111;
+  --accent2: #2c2c2c;
+  --accent-dim: #e9e9e9;
+  --green: #222222;
+  --red: #222222;
+  --text: #111111;
+  --text2: #454545;
+  --text3: #696969;
+  --border: #d2d2d2;
+  --border-hover: #9a9a9a;
+}
+
+body {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.ticker-wrap,
+.ticker-track,
+.navbar,
+.footer,
+.stats-band {
+  background: var(--bg3) !important;
+  border-color: var(--border) !important;
+}
+
+.hero::before {
+  filter: grayscale(1);
+  opacity: .13;
+}
+
+:where(.nav-brand .brand-icon, .btn-accent, .featured-badge, .savings-badge) {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+  color: var(--bg) !important;
+  box-shadow: none !important;
+}
+
+:where(.nav-brand .ai-part, .hero-title .highlight, .section-label,
+  .section-title, .feature-icon, .step-num, .faq-chevron, .footer-brand .ai,
+  .referral-callout-icon, .referral-tag, .pricing-card .plan-name,
+  .pricing-card .plan-price, .financial-disclaimer strong) {
+  color: var(--accent2) !important;
+}
+
+:where(.nav-links a, .nav-cta-name, .hero-sub, .section-sub, .feature-desc,
+  .step-desc, .plan-features, .footer-tagline, .footer-copy, .footer-col a,
+  .financial-disclaimer, .ticker-price, .ticker-sym, .stat-label) {
+  color: var(--text2) !important;
+}
+
+:where(.nav-menu-toggle, .btn-ghost, .btn-outline) {
+  background: transparent !important;
+  border-color: var(--border) !important;
+  color: var(--text2) !important;
+  box-shadow: none !important;
+}
+
+:where(.nav-menu-toggle, .btn-ghost, .btn-outline):hover {
+  background: var(--card2) !important;
+  border-color: var(--border-hover) !important;
+  color: var(--text) !important;
+}
+
+:where(.hero-badge, .trial-banner, .sentiment-strip, .stat-card,
+  .snapshot-card, .feature-card, .step-card, .pricing-card, .faq-item,
+  .referral-callout, .financial-disclaimer) {
+  background: var(--card) !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+.hero-badge,
+.referral-callout,
+.featured-badge,
+.referral-tag {
+  color: var(--text) !important;
+}
+
+.live-dot,
+.ticker-chip,
+.sig-badge,
+.check,
+.cross {
+  background: var(--card2) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.sentiment-bar,
+.conf-bar-track {
+  background: var(--card2) !important;
+}
+
+.sentiment-marker,
+.conf-bar-fill {
+  background: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+.snapshot-table,
+.snapshot-table th,
+.snapshot-table td {
+  border-color: var(--border) !important;
+}
+
+.snapshot-table th {
+  background: var(--bg2) !important;
+  color: var(--text2) !important;
+}
+
+.snapshot-table td,
+.sig-asset,
+.sig-sub,
+.currency,
+.period,
+.faq-body,
+.plan-price .period {
+  color: var(--text2) !important;
+}
+
+.pricing-card.featured {
+  background: var(--card2) !important;
+  border-color: var(--text) !important;
+}
+
+.plan-divider {
+  border-top-color: var(--border) !important;
+}
+
+:where(.footer-social a, #backToTop) {
+  background: var(--card2) !important;
+  border-color: var(--border) !important;
+  color: var(--text2) !important;
+  box-shadow: none !important;
+}
+
+:where(.footer-social a, #backToTop):hover {
+  background: var(--card) !important;
+  border-color: var(--border-hover) !important;
+  color: var(--text) !important;
+}
+
+:where(a, button, details summary):focus-visible {
+  outline: 3px solid var(--accent2) !important;
+  outline-offset: 3px;
+}
+
+@media (max-width: 768px) {
+  .hero {
+    gap: 28px;
+    padding-top: 52px;
+  }
+
+  .hero-actions {
+    width: 100%;
+  }
+
+  .hero-actions .btn {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .stats-grid,
+  .features-grid,
+  .pricing-grid,
+  .steps-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .snapshot-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}

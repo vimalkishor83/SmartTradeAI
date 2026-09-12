@@ -7622,6 +7622,342 @@ html[data-theme="light"] .app-shell .sidebar-footer .nav-item:hover {
   .admin-channel-list .channel-row > div { grid-column: 1 / -1 !important; }
 }
 
+/* Neutral UI foundation
+   Keep the existing component contracts, but give every authenticated page a
+   single black, white, and gray visual language. Semantic states remain
+   distinguishable through labels, icons, borders, and weight rather than
+   color alone. This is intentionally the final layer so legacy page rules
+   inherit the same accessible presentation without changing behavior. */
+:root {
+  --bg-primary: #0b0b0b;
+  --bg-secondary: #171717;
+  --bg-card: #111111;
+  --bg-card-hover: #1d1d1d;
+  --bg-sidebar: #090909;
+  --surface-page: #0b0b0b;
+  --surface-raised: #171717;
+  --surface-card: #111111;
+  --surface-hover: #1d1d1d;
+  --surface-overlay: rgba(9, 9, 9, .96);
+  --card-bg: #111111;
+  --input-bg: #171717;
+  --surface-2: #171717;
+  --border: #343434;
+  --border-hover: #666666;
+  --border-accent: #777777;
+  --glass: rgba(255, 255, 255, .045);
+  --glass-border: #3a3a3a;
+  --text-primary: #f7f7f7;
+  --text-secondary: #c5c5c5;
+  --text-muted: #999999;
+  --text-disabled: #666666;
+  --accent: #f2f2f2;
+  --accent-light: #ffffff;
+  --accent-dark: #bdbdbd;
+  --green: #d8d8d8;
+  --green-bg: #242424;
+  --red: #f0f0f0;
+  --red-bg: #2d2d2d;
+  --yellow: #c8c8c8;
+  --yellow-bg: #292929;
+  --blue: #cfcfcf;
+  --blue-bg: #252525;
+  --purple: #bdbdbd;
+  --purple-bg: #242424;
+  --cyan: #dedede;
+  --cyan-bg: #282828;
+  --success: #d8d8d8;
+  --success-bg: #242424;
+  --danger: #f0f0f0;
+  --danger-bg: #2d2d2d;
+  --warning: #c8c8c8;
+  --warning-bg: #292929;
+  --info: #cfcfcf;
+  --info-bg: #252525;
+  --up: #d8d8d8;
+  --up-bg: #242424;
+  --down: #f0f0f0;
+  --down-bg: #2d2d2d;
+  --hold: #c8c8c8;
+  --hold-bg: #292929;
+  --exit: #bdbdbd;
+  --exit-bg: #242424;
+  --focus-ring: #ffffff;
+  --focus-ring-offset: #0b0b0b;
+  --accent-violet: #bdbdbd;
+  --accent-cyan: #dedede;
+  --surface-glow: rgba(255, 255, 255, .08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .28);
+  --shadow: 0 8px 26px rgba(0, 0, 0, .42);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, .30);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, .52);
+  --shadow-glow: 0 0 0 1px rgba(255, 255, 255, .12), 0 8px 28px rgba(0, 0, 0, .32);
+  --grad-brand: linear-gradient(135deg, #f2f2f2, #bdbdbd);
+  --grad-accent: linear-gradient(135deg, #f2f2f2, #bdbdbd);
+  --grad-bull: linear-gradient(135deg, #d8d8d8, #a8a8a8);
+  --grad-bear: linear-gradient(135deg, #f0f0f0, #bdbdbd);
+}
+
+html[data-theme="light"] {
+  --bg-primary: #f3f3f3;
+  --bg-secondary: #e8e8e8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f7f7f7;
+  --bg-sidebar: #ffffff;
+  --surface-page: #f3f3f3;
+  --surface-raised: #e8e8e8;
+  --surface-card: #ffffff;
+  --surface-hover: #f7f7f7;
+  --surface-overlay: rgba(255, 255, 255, .97);
+  --card-bg: #ffffff;
+  --input-bg: #f8f8f8;
+  --surface-2: #e8e8e8;
+  --border: #d2d2d2;
+  --border-hover: #9a9a9a;
+  --border-accent: #858585;
+  --glass: rgba(0, 0, 0, .025);
+  --glass-border: #d6d6d6;
+  --text-primary: #111111;
+  --text-secondary: #454545;
+  --text-muted: #696969;
+  --text-disabled: #9b9b9b;
+  --accent: #111111;
+  --accent-light: #2c2c2c;
+  --accent-dark: #000000;
+  --green: #222222;
+  --green-bg: #e7e7e7;
+  --red: #222222;
+  --red-bg: #e5e5e5;
+  --yellow: #3b3b3b;
+  --yellow-bg: #ececec;
+  --blue: #303030;
+  --blue-bg: #e9e9e9;
+  --purple: #454545;
+  --purple-bg: #ededed;
+  --cyan: #303030;
+  --cyan-bg: #e9e9e9;
+  --success: #222222;
+  --success-bg: #e7e7e7;
+  --danger: #222222;
+  --danger-bg: #e5e5e5;
+  --warning: #3b3b3b;
+  --warning-bg: #ececec;
+  --info: #303030;
+  --info-bg: #e9e9e9;
+  --up: #222222;
+  --up-bg: #e7e7e7;
+  --down: #222222;
+  --down-bg: #e5e5e5;
+  --hold: #3b3b3b;
+  --hold-bg: #ececec;
+  --exit: #454545;
+  --exit-bg: #ededed;
+  --focus-ring: #111111;
+  --focus-ring-offset: #f3f3f3;
+  --accent-violet: #454545;
+  --accent-cyan: #303030;
+  --surface-glow: rgba(0, 0, 0, .06);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, .06);
+  --shadow: 0 8px 24px rgba(0, 0, 0, .09);
+  --shadow-card: 0 12px 30px rgba(0, 0, 0, .08);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, .14);
+  --shadow-glow: 0 0 0 1px rgba(0, 0, 0, .08), 0 8px 28px rgba(0, 0, 0, .08);
+  --grad-brand: linear-gradient(135deg, #111111, #3f3f3f);
+  --grad-accent: linear-gradient(135deg, #111111, #3f3f3f);
+  --grad-bull: linear-gradient(135deg, #222222, #555555);
+  --grad-bear: linear-gradient(135deg, #222222, #555555);
+}
+
+.app-shell {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.app-shell .page-content::before,
+.app-shell .page-content::after {
+  opacity: 0;
+}
+
+.app-shell .page-header::after,
+.app-shell .dash-header::before {
+  background: var(--text-primary);
+  box-shadow: none;
+}
+
+.app-shell :where(.section-card, .kpi-card, .glass-card, .filter-bar,
+  .ui-toolbar, .dash-header, .admin-page-hero, .admin-meta-item) {
+  background: var(--surface-card);
+  border-color: var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.app-shell :where(.section-card-header, .modal-header, .modal-footer) {
+  background: var(--surface-raised);
+  border-color: var(--border);
+}
+
+.app-shell .section-card::after,
+.app-shell .admin-page-hero::after,
+.app-shell .kpi-card::after {
+  opacity: 0;
+}
+
+.app-shell .kpi-card::before {
+  background: var(--text-primary);
+  box-shadow: none;
+}
+
+.app-shell :where(.smart-table, .table) {
+  --bs-table-bg: var(--surface-card);
+  --bs-table-color: var(--text-primary);
+  --bs-table-border-color: var(--border);
+  --bs-table-striped-bg: var(--surface-raised);
+  --bs-table-hover-bg: var(--surface-hover);
+}
+
+.app-shell .smart-table thead th,
+.app-shell .table > thead {
+  background: var(--surface-raised);
+  color: var(--text-secondary) !important;
+}
+
+.app-shell .smart-table tbody tr:hover,
+.app-shell .table-hover > tbody > tr:hover {
+  background: var(--surface-hover);
+}
+
+.app-shell :where(.form-control, .form-select, textarea, input[type="date"],
+  input[type="number"], .search-bar) {
+  background: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none;
+}
+
+.app-shell :where(.form-control, .form-select, textarea, .search-bar):focus,
+.app-shell :where(input, select, textarea, button, a, summary):focus-visible {
+  border-color: var(--focus-ring) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus-ring) 18%, transparent) !important;
+  outline: none;
+}
+
+.app-shell :where(.form-control, .form-select, textarea)::placeholder,
+.app-shell .search-bar input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+.app-shell :where(.btn-primary, .btn-accent, .btn-generate) {
+  background: var(--grad-accent) !important;
+  border-color: var(--accent-dark) !important;
+  color: #ffffff !important;
+  box-shadow: var(--shadow-sm);
+}
+
+html[data-theme="dark"] .app-shell :where(.btn-primary, .btn-accent, .btn-generate) {
+  color: #111111 !important;
+}
+
+.app-shell :where(.btn-outline-light, .btn-outline-secondary, .btn-outline-danger) {
+  background: transparent !important;
+  border-color: var(--border-hover) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :where(.btn-outline-light, .btn-outline-secondary, .btn-outline-danger):hover {
+  background: var(--surface-hover) !important;
+  border-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-shell :where(.sidebar, .top-navbar, .ticker-strip, .sidebar-footer) {
+  background: var(--bg-sidebar);
+  border-color: var(--border);
+}
+
+.app-shell .nav-item:hover,
+.app-shell .nav-group-header:hover,
+.app-shell .nav-group.active-group > .nav-group-header {
+  background: var(--surface-hover);
+  border-color: var(--border);
+}
+
+.app-shell .nav-item.active {
+  background: var(--surface-raised);
+  border-color: var(--text-primary);
+  box-shadow: inset 3px 0 0 var(--text-primary);
+}
+
+.app-shell :where(.nav-item i, .nav-section-icon, .nav-group.active-group .nav-section-label,
+  .kpi-icon, .section-card-title i, .admin-page-icon, .page-eyebrow, .text-accent,
+  .text-green, .text-red, .text-yellow, .text-blue, .text-purple, .text-cyan,
+  .kpi-change.up, .kpi-change.down, .mover-up, .mover-down, .dot-live) {
+  color: var(--text-primary) !important;
+}
+
+.app-shell :where(.badge-live, .badge-pro, .badge-tag, .badge, .status-open,
+  .status-closed, .ui-chip, .admin-page-badge) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :where(.badge.bg-success, .badge.bg-danger, .badge.bg-warning,
+  .badge.bg-info, .badge.bg-primary, .badge.bg-secondary) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-shell :where(.alert, .scanner-info-bar, .data-context-bar, .financial-disclaimer-strip) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :where(.empty-state-box, .watchlist-empty, .ui-state) {
+  color: var(--text-muted);
+}
+
+.app-shell :where(.empty-state-box i, .ui-state__icon) {
+  background: none;
+  color: var(--text-secondary);
+  -webkit-text-fill-color: currentColor;
+}
+
+.app-shell code {
+  background: var(--surface-raised);
+  color: var(--text-primary) !important;
+}
+
+.app-shell .skeleton {
+  background: linear-gradient(90deg, var(--surface-raised) 25%, var(--surface-hover) 50%, var(--surface-raised) 75%);
+}
+
+@media (max-width: 680px) {
+  .app-shell .page-content {
+    padding-inline: 12px;
+  }
+
+  .app-shell :where(.page-header, .dash-header, .admin-page-hero) {
+    padding: 16px;
+  }
+
+  .app-shell :where(.section-card, .kpi-card, .glass-card) {
+    border-radius: var(--radius);
+  }
+
+  .app-shell .section-card-header {
+    padding: 13px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :where(*, *::before, *::after) {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}
+
 /* Final viewport guardrails. These rules address controls that are rendered
    by many legacy modules, including inline-sized dropdowns and modal forms.
    Keep them shared so a new route inherits the same small-screen behavior. */
@@ -7752,4 +8088,110 @@ html.sidebar-mobile-open body {
     border-left-color: transparent;
     border-top-color: #d2dde7;
   }
+}
+
+/* Final grayscale enforcement. The older refinement block above uses more
+   specific selectors in a few places; this last pass prevents those rules
+   from reintroducing colored gradients after the neutral foundation. */
+.app-shell :is(.section-card, .kpi-card, .glass-card, .filter-bar,
+  .ui-toolbar, .dash-header, .admin-page-hero, .admin-meta-item) {
+  background: var(--surface-card) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.app-shell :is(.section-card-header, .modal-header, .modal-footer) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+}
+
+.app-shell .section-card::after,
+.app-shell .admin-page-hero::after,
+.app-shell .kpi-card::after {
+  opacity: 0 !important;
+}
+
+.app-shell :is(.smart-table thead th, .table > thead) {
+  background: var(--surface-raised) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :is(.smart-table tbody tr:hover, .table-hover > tbody > tr:hover) {
+  background: var(--surface-hover) !important;
+}
+
+.app-shell :is(.form-control, .form-select, textarea, input[type="date"],
+  input[type="number"], .search-bar) {
+  background: var(--input-bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-shell :is(.btn-primary, .btn-accent, .btn-generate) {
+  background: var(--grad-accent) !important;
+  border-color: var(--accent-dark) !important;
+  color: #ffffff !important;
+  box-shadow: var(--shadow-sm) !important;
+}
+
+html[data-theme="dark"] .app-shell :is(.btn-primary, .btn-accent, .btn-generate) {
+  color: #111111 !important;
+}
+
+.app-shell :is(.btn-outline-light, .btn-outline-secondary, .btn-outline-danger) {
+  background: transparent !important;
+  border-color: var(--border-hover) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :is(.nav-item i, .nav-section-icon, .nav-group.active-group .nav-section-label,
+  .kpi-icon, .section-card-title i, .admin-page-icon, .page-eyebrow, .text-accent,
+  .text-green, .text-red, .text-yellow, .text-blue, .text-purple, .text-cyan,
+  .kpi-change.up, .kpi-change.down, .mover-up, .mover-down, .dot-live) {
+  color: var(--text-primary) !important;
+}
+
+.app-shell :is(.badge-live, .badge-pro, .badge-tag, .badge, .status-open,
+  .status-closed, .ui-chip, .admin-page-badge, .badge.bg-success,
+  .badge.bg-danger, .badge.bg-warning, .badge.bg-info, .badge.bg-primary,
+  .badge.bg-secondary) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :is(.alert, .scanner-info-bar, .data-context-bar, .financial-disclaimer-strip) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.app-shell :is(.empty-state-box i, .ui-state__icon) {
+  background: none !important;
+  color: var(--text-secondary) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+.app-shell .analysis-insight-strip {
+  background: var(--surface-card) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.app-shell :is(.analysis-insight-icon, .analysis-insight-kicker,
+  .analysis-insight-item i, .analysis-insight-lead strong,
+  .analysis-insight-item b) {
+  color: var(--text-primary) !important;
+}
+
+.app-shell :is(.analysis-insight-lead p, .analysis-insight-item) {
+  color: var(--text-secondary) !important;
+}
+
+.app-shell .analysis-insight-item {
+  border-color: var(--border) !important;
+}
+
+.app-shell #pageContentBody::before {
+  opacity: 0 !important;
 }
