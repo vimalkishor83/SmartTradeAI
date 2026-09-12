@@ -8195,3 +8195,56 @@ html[data-theme="dark"] .app-shell :is(.btn-primary, .btn-accent, .btn-generate)
 .app-shell #pageContentBody::before {
   opacity: 0 !important;
 }
+
+.app-shell :is(.btn-success, .btn-danger, .btn-warning, .btn-info, .btn-secondary) {
+  background: var(--surface-raised) !important;
+  border-color: var(--border-hover) !important;
+  color: var(--text-primary) !important;
+  box-shadow: none !important;
+}
+
+.app-shell :is(.btn-success, .btn-danger, .btn-warning, .btn-info, .btn-secondary):hover {
+  background: var(--surface-hover) !important;
+  border-color: var(--text-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-shell :is(.text-success, .text-danger, .text-warning, .text-info) {
+  color: var(--text-primary) !important;
+}
+
+.app-shell .text-primary {
+  color: var(--text-primary) !important;
+}
+
+.app-shell .text-secondary {
+  color: var(--text-secondary) !important;
+}
+
+.app-shell .text-muted {
+  color: var(--text-muted) !important;
+}
+
+.app-shell :is(.bg-success, .bg-danger, .bg-warning, .bg-info, .bg-primary,
+  .bg-secondary, .bg-light, .bg-dark) {
+  background: var(--surface-raised) !important;
+  color: var(--text-primary) !important;
+}
+
+.app-shell :is(.border-success, .border-danger, .border-warning, .border-info,
+  .border-primary, .border-secondary) {
+  border-color: var(--border) !important;
+}
+
+.app-shell :is(.progress, .progress-bar) {
+  background: var(--surface-raised) !important;
+}
+
+.app-shell .progress-bar {
+  background: var(--text-primary) !important;
+}
+
+.app-shell .form-switch .form-check-input:checked {
+  background-color: var(--text-primary) !important;
+  border-color: var(--text-primary) !important;
+}
