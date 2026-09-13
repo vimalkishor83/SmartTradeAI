@@ -6438,7 +6438,6 @@ html[data-theme="light"] .app-shell {
 }
 
 .app-shell .page-content {
-  isolation: isolate;
   padding-top: clamp(22px, 3vw, 34px);
   padding-inline: clamp(16px, 2.6vw, 34px);
 }
