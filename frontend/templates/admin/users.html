@@ -36,29 +36,29 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close create user dialog"></button>
       </div>
       <div class="modal-body">
-        <form id="createUserForm">
+        <form id="createUserForm" autocomplete="off" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">First Name</label>
-              <input type="text" class="form-control" id="cuFirstName" />
+              <input type="text" class="form-control" id="cuFirstName" autocomplete="off" />
             </div>
             <div class="col">
               <label class="form-label">Last Name</label>
-              <input type="text" class="form-control" id="cuLastName" />
+              <input type="text" class="form-control" id="cuLastName" autocomplete="off" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Username</label>
-            <input type="text" class="form-control" id="cuUsername" required />
+            <input type="text" class="form-control" id="cuUsername" autocomplete="off" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" class="form-control" id="cuEmail" required />
+            <input type="email" class="form-control" id="cuEmail" autocomplete="off" inputmode="email" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Password</label>
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="cuPassword" required />
+              <input type="password" class="form-control" id="cuPassword" name="new-password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" required />
               <button type="button" class="btn btn-outline-secondary text-nowrap" id="cuGenPwd">Generate</button>
             </div>
           </div>
@@ -102,30 +102,30 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close edit user dialog"></button>
       </div>
       <div class="modal-body">
-        <form id="editUserForm">
+        <form id="editUserForm" autocomplete="off" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
           <input type="hidden" id="euId" />
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">First Name</label>
-              <input type="text" class="form-control" id="euFirstName" />
+              <input type="text" class="form-control" id="euFirstName" autocomplete="off" />
             </div>
             <div class="col">
               <label class="form-label">Last Name</label>
-              <input type="text" class="form-control" id="euLastName" />
+              <input type="text" class="form-control" id="euLastName" autocomplete="off" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Username</label>
-            <input type="text" class="form-control" id="euUsername" required />
+            <input type="text" class="form-control" id="euUsername" autocomplete="off" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" class="form-control" id="euEmail" required />
+            <input type="email" class="form-control" id="euEmail" autocomplete="off" inputmode="email" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">New Password</label>
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="euPassword" placeholder="Leave blank to keep current password" />
+              <input type="password" class="form-control" id="euPassword" name="new-password" placeholder="Leave blank to keep current password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />
               <button type="button" class="btn btn-outline-secondary text-nowrap" id="euGenPwd">Generate</button>
             </div>
           </div>
