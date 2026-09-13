@@ -41,6 +41,10 @@ def _market_enabled(cfg, market):
 
 
 def _telegram_ready(user):
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        return False
+
     if not user.telegram_enabled or not user.telegram_chat_id:
         return False
     try:
@@ -145,6 +149,10 @@ def enqueue_live_read_event_notifications(row, events, previous_events):
     savepoint lets a concurrent duplicate lose cleanly without rolling back
     the live-read state update around it.
     """
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        return 0
+
     asset = row.asset
     if not asset:
         return 0

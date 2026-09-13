@@ -31,6 +31,7 @@ def send_pending_notifications(app):
         from app.models.user import User
         from app.extensions import db
         from datetime import datetime
+        from app.services.safety import telegram_notifications_enabled
 
         # Match the delivery-queue index and keep retries deterministic.
         pending = (Notification.query.filter_by(is_sent=False)
@@ -76,7 +77,14 @@ def send_pending_notifications(app):
                 # reasoning bullets — the duplicate/disclaimer-missing alerts
                 # reported in production were this second, unwanted send.
                 if user.telegram_enabled and user.telegram_chat_id and notif.channel in ("telegram", None):
-                    if not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
+                    if not telegram_notifications_enabled():
+                        # The queue has no separate skipped state; the claimed row
+                        # is a terminal skip while Telegram is disabled.
+                        logger.info(
+                            "Telegram notification %s skipped because Telegram delivery is disabled",
+                            notif.id,
+                        )
+                    elif not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
                         raise RuntimeError("Telegram delivery was not accepted")
             except Exception as e:
                 # Release the claim so a later run retries rather than silently
@@ -136,6 +144,11 @@ def _telegram_token_for(user) -> str | None:
 
 
 def _send_telegram(user, text: str):
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        logger.info("Telegram user delivery blocked by environment safety gate")
+        return False
+
     try:
         import requests
         token = _telegram_token_for(user)
@@ -256,6 +269,11 @@ def _send_to_chat(chat_id: str, text: str):
     bot token the way _send_telegram does. No-ops silently if the bot
     token isn't configured yet."""
     try:
+        from app.services.safety import telegram_notifications_enabled
+        if not telegram_notifications_enabled():
+            logger.info("Telegram group delivery blocked by environment safety gate")
+            return False
+
         from flask import current_app
         token = current_app.config.get("TELEGRAM_BOT_TOKEN")
         if not token or not chat_id:
@@ -303,6 +321,11 @@ def _send_to_channels(text: str, market: str, category: str, timeframe: str | No
     destination: different markets/timeframes legitimately want different
     audiences and different alert mixes."""
     try:
+        from app.services.safety import telegram_notifications_enabled
+        if not telegram_notifications_enabled():
+            logger.info("Telegram channel fan-out blocked by environment safety gate")
+            return 0
+
         from app.models.telegram_alert_channel import TelegramAlertChannel
         channels = TelegramAlertChannel.query.filter_by(is_active=True).all()
         for channel in channels:

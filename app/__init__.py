@@ -440,6 +440,14 @@ def _init_db(app):
         from app.models.live_read_log import LiveReadLog        # ensure table is created
         from app.models.telegram_individual_signal_limit import TelegramIndividualSignalLimit  # ensure table is created
 
+        from app.services.safety import migrations_on_startup
+        if not migrations_on_startup():
+            logging.getLogger(__name__).info(
+                "RUN_MIGRATIONS_ON_STARTUP=0 — skipping startup migrations, "
+                "fallback schema creation, and initial seeding."
+            )
+            return
+
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):
             # Flask-Migrate is initialised — run pending Alembic upgrades
