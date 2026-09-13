@@ -6447,7 +6447,6 @@ html[data-theme="light"] .app-shell {
    stacking layer to remain readable in every theme and viewport. */
 .app-shell .page-content > * {
   position: relative;
-  z-index: 1;
 }
 
 .app-shell .page-content::before {
