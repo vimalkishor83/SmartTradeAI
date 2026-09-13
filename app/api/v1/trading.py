@@ -24,6 +24,7 @@ from app.auth.decorators import login_required, approved_required, subscription_
 from app.services.data.fetcher import to_delta_symbol
 from app.services.trading.delta_trading import get_configured_client, DeltaTradingError
 from app.services.trading.broker_registry import get_broker, list_brokers, required_fields
+from app.services.safety import broker_trading_enabled, safety_disabled_payload
 
 trading_bp = Blueprint("trading", __name__)
 
@@ -369,6 +370,9 @@ def order_history():
 @trading_bp.route("/orders", methods=["POST"])
 @approved_required
 def place_order():
+    if not broker_trading_enabled():
+        return jsonify(safety_disabled_payload("broker_trading")), 403
+
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
@@ -456,6 +460,9 @@ def place_order():
 @trading_bp.route("/orders/<int:order_id>", methods=["DELETE"])
 @approved_required
 def cancel_order(order_id):
+    if not broker_trading_enabled():
+        return jsonify(safety_disabled_payload("broker_trading")), 403
+
     if order_id <= 0:
         return jsonify({"error": "order_id must be greater than zero"}), 400
     try:

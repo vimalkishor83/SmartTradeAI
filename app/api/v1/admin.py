@@ -324,6 +324,10 @@ def telegram_channel_broadcast(channel_id):
     """Manually send an arbitrary message to one specific channel's group
     right now — for verifying the setup actually works, and for one-off
     announcements, separate from the automatic alerts."""
+    from app.services.safety import telegram_notifications_enabled, safety_disabled_payload
+    if not telegram_notifications_enabled():
+        return jsonify(safety_disabled_payload("telegram")), 403
+
     from app.models.telegram_alert_channel import TelegramAlertChannel
     from app.tasks.notification_tasks import _send_to_chat
 
@@ -345,6 +349,10 @@ def telegram_security_test():
     chat right now, so an admin can confirm the bot is actually in that
     group and the chat id is correct before relying on it for real
     security events (see PlatformConfig.telegram_security_chat_id)."""
+    from app.services.safety import telegram_notifications_enabled, safety_disabled_payload
+    if not telegram_notifications_enabled():
+        return jsonify(safety_disabled_payload("telegram")), 403
+
     from app.services.platform_config import get_platform_config
     from app.tasks.notification_tasks import send_security_alert
 

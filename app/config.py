@@ -6,7 +6,21 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env_bool(name, default=False):
+    """Parse boolean environment values without truthiness surprises."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 class Config:
+    DEBUG = _env_bool("DEBUG", False)
+    BROKER_TRADING_ENABLED = _env_bool("BROKER_TRADING_ENABLED", False)
+    PROTECTIVE_ORDERS_ENABLED = _env_bool("PROTECTIVE_ORDERS_ENABLED", False)
+    TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
+    RUN_MIGRATIONS_ON_STARTUP = _env_bool("RUN_MIGRATIONS_ON_STARTUP", False)
+
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "jwt-secret-change-in-production")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=int(os.environ.get("JWT_ACCESS_EXPIRES_HOURS", 24)))
@@ -90,7 +104,12 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    DEBUG = True
+    # Public development deployments must not expose debug tooling.
+    DEBUG = False
+    BROKER_TRADING_ENABLED = False
+    PROTECTIVE_ORDERS_ENABLED = False
+    TELEGRAM_NOTIFICATIONS_ENABLED = False
+    RUN_MIGRATIONS_ON_STARTUP = False
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", "sqlite:///smarttrade_dev.db"
     )
@@ -128,6 +147,8 @@ class ProductionConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    # Tests explicitly own an in-memory schema; deployment profiles default off.
+    RUN_MIGRATIONS_ON_STARTUP = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=5)
     # In-memory SQLite uses SQLAlchemy's StaticPool internally, which
