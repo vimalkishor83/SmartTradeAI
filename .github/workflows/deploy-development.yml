@@ -1,0 +1,90 @@
+name: Deploy Development
+
+on:
+  push:
+    branches:
+      - development
+
+permissions:
+  contents: read
+
+concurrency:
+  group: smarttrade-development-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to smarttradeai.info
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DEPLOYMENT_URL: https://smarttradeai.info
+      SERVER_HOST: 140.238.247.245
+      SERVER_USER: ubuntu
+      REMOTE_COMMAND: /usr/local/sbin/smarttrade-deploy-development
+      # Pinned server host key. This is public host identity material, not a secret.
+      SERVER_HOST_KEY: 140.238.247.245 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIETGjq7bv3bnXPVw9+6hhli2nob5qD0AJGjU5JJRGt+9
+
+    steps:
+      - name: Confirm development-only target
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == "refs/heads/development" ]]
+          [[ "$GITHUB_EVENT_NAME" == "push" ]]
+          [[ "$REMOTE_COMMAND" == "/usr/local/sbin/smarttrade-deploy-development" ]]
+          [[ "$DEPLOYMENT_URL" == "https://smarttradeai.info" ]]
+          echo "Deploying commit $GITHUB_SHA to $DEPLOYMENT_URL"
+
+      - name: Configure pinned server host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SERVER_HOST_KEY" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F "$SERVER_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null
+
+      - name: Deploy development
+        shell: bash
+        env:
+          DEVELOPMENT_DEPLOY_KEY: ${{ secrets.DEVELOPMENT_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$DEVELOPMENT_DEPLOY_KEY" ]] || {
+            echo "::error::DEVELOPMENT_DEPLOY_KEY is not configured" >&2
+            exit 1
+          }
+
+          key_file="$RUNNER_TEMP/smarttradeai-development-deploy-key"
+          umask 077
+          printf '%s\n' "$DEVELOPMENT_DEPLOY_KEY" > "$key_file"
+          trap 'rm -f -- "$key_file"' EXIT
+
+          timeout --signal=TERM --kill-after=30s 10m \
+            ssh \
+              -i "$key_file" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o ConnectTimeout=15 \
+              -o ServerAliveInterval=30 \
+              -o ServerAliveCountMax=3 \
+              "$SERVER_USER@$SERVER_HOST" \
+              sudo -n -- "$REMOTE_COMMAND"
+
+      - name: Deployment failed
+        if: failure()
+        shell: bash
+        run: |
+          echo "::error::Development deployment failed or timed out for $GITHUB_SHA"
+          echo "Target: $DEPLOYMENT_URL"
+
+      - name: Deployment succeeded
+        if: success()
+        shell: bash
+        run: |
+          echo "Development deployment completed for $GITHUB_SHA"
+          echo "Target: $DEPLOYMENT_URL"
