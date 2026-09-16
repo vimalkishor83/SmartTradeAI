@@ -1,0 +1,132 @@
+{% extends "partials/base.html" %}
+{% set requires_admin = true %}
+{% block title %}Cleanup Monitor — SmartTrade AI{% endblock %}
+{% set active = 'admin_cleanup' %}
+{% block breadcrumb %}<i class="bi bi-recycle me-2"></i> Admin / Cleanup Monitor{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <span class="page-eyebrow">Admin / Operations</span>
+    <h1 class="page-title">Cleanup Monitor</h1>
+    <p class="page-subtitle">Read-only visibility into the development server's conservative temporary-file policy.</p>
+  </div>
+  <button class="btn btn-outline-light btn-sm" id="refreshCleanupBtn" type="button">
+    <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+  </button>
+</div>
+
+<div class="alert alert-info py-2 small mb-4" role="note">
+  <i class="bi bi-shield-check me-1"></i>
+  This page cannot delete files, run shell commands, or accept arbitrary paths. The scheduled system service is the only cleanup runner.
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card blue"><div class="kpi-top"><div><div class="kpi-label">Schedule</div><div class="kpi-value" id="cleanupFrequency">—</div></div><div class="kpi-icon text-blue"><i class="bi bi-calendar3"></i></div></div><div class="kpi-change" id="cleanupScheduleTime">—</div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card green"><div class="kpi-top"><div><div class="kpi-label">Last Run</div><div class="kpi-value" id="cleanupState">—</div></div><div class="kpi-icon text-green"><i class="bi bi-check2-circle"></i></div></div><div class="kpi-change" id="cleanupLastRun">—</div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card yellow"><div class="kpi-top"><div><div class="kpi-label">Candidates</div><div class="kpi-value" id="cleanupCandidates">—</div></div><div class="kpi-icon text-yellow"><i class="bi bi-file-earmark-text"></i></div></div><div class="kpi-change" id="cleanupBytes">—</div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="kpi-card purple"><div class="kpi-top"><div><div class="kpi-label">Mode</div><div class="kpi-value" id="cleanupMode">—</div></div><div class="kpi-icon text-purple"><i class="bi bi-shield-lock"></i></div></div><div class="kpi-change">No browser deletion</div></div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Active Policy</span><span class="badge-tag">Allowlisted</span></div>
+      <div class="section-card-body">
+        <div id="cleanupPolicyStatus" class="text-muted small mb-3" role="status" aria-live="polite">Loading cleanup policy…</div>
+        <div class="table-responsive">
+          <table class="smart-table" data-mobile-cards>
+            <thead><tr><th>Allowed root</th><th>Minimum age</th><th>Protection</th></tr></thead>
+            <tbody id="cleanupRootsBody"><tr><td colspan="3" class="text-muted">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div class="row g-3 mt-2">
+          <div class="col-sm-6"><div class="small text-muted">Maximum per run</div><strong id="cleanupMaxBytes">—</strong></div>
+          <div class="col-sm-6"><div class="small text-muted">File lock</div><strong id="cleanupLock">—</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="section-card h-100">
+      <div class="section-card-header"><span class="section-card-title"><i class="bi bi-eye text-accent"></i> Run Preview</span><span class="badge bg-secondary" id="cleanupSnapshotBadge">Not loaded</span></div>
+      <div class="section-card-body">
+        <p class="small text-muted">The host service records counts only. Individual filenames are intentionally not exposed in the web UI.</p>
+        <dl class="row mb-0 small">
+          <dt class="col-7 text-muted">Files considered</dt><dd class="col-5 text-end" id="cleanupPreviewCandidates">—</dd>
+          <dt class="col-7 text-muted">Files skipped</dt><dd class="col-5 text-end" id="cleanupPreviewSkipped">—</dd>
+          <dt class="col-7 text-muted">Bytes processed</dt><dd class="col-5 text-end" id="cleanupPreviewBytes">—</dd>
+          <dt class="col-7 text-muted">Snapshot time</dt><dd class="col-5 text-end" id="cleanupPreviewTime">—</dd>
+        </dl>
+        <div class="alert alert-secondary py-2 small mt-3 mb-0">To change the schedule, update the reviewed systemd timer on the server. This page remains read-only by design.</div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function cleanupBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function cleanupTime(value) {
+  if (!value) return 'Not recorded';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? 'Unavailable' : date.toLocaleString();
+}
+
+async function loadCleanupStatus() {
+  const button = document.getElementById('refreshCleanupBtn');
+  const status = document.getElementById('cleanupPolicyStatus');
+  if (button) { button.disabled = true; button.setAttribute('aria-busy', 'true'); }
+  try {
+    const data = await API.get('/admin/cleanup/status');
+    if (!data || data.available === false) {
+      if (status) status.textContent = 'Cleanup status is not available in this environment.';
+      return;
+    }
+    const policy = data.policy || {};
+    const snapshot = data.snapshot || {};
+    document.getElementById('cleanupFrequency').textContent = STSafe.html(policy.frequency || '—');
+    document.getElementById('cleanupScheduleTime').textContent = `${STSafe.html(policy.time_utc || '—')} UTC`;
+    document.getElementById('cleanupState').textContent = STSafe.html(snapshot.state || 'not run');
+    document.getElementById('cleanupLastRun').textContent = cleanupTime(snapshot.completed_at);
+    document.getElementById('cleanupCandidates').textContent = String(snapshot.candidate_count ?? 0);
+    document.getElementById('cleanupBytes').textContent = cleanupBytes(snapshot.bytes_processed);
+    document.getElementById('cleanupMode').textContent = STSafe.html(snapshot.mode || 'dry-run');
+    document.getElementById('cleanupMaxBytes').textContent = STSafe.html(policy.max_bytes_label || cleanupBytes(policy.max_bytes));
+    document.getElementById('cleanupLock').textContent = policy.lock_enabled ? 'Enabled' : 'Disabled';
+    document.getElementById('cleanupPreviewCandidates').textContent = String(snapshot.candidate_count ?? 0);
+    document.getElementById('cleanupPreviewSkipped').textContent = String(snapshot.skipped_count ?? 0);
+    document.getElementById('cleanupPreviewBytes').textContent = cleanupBytes(snapshot.bytes_processed);
+    document.getElementById('cleanupPreviewTime').textContent = cleanupTime(snapshot.completed_at);
+    document.getElementById('cleanupSnapshotBadge').textContent = data.snapshot_available ? 'Host snapshot' : 'Not run';
+    if (status) status.textContent = `Daily at ${policy.time_utc || '03:30'} UTC, with ${policy.randomized_delay || 'no'} randomized delay.`;
+    const roots = Array.isArray(policy.allowed_roots) ? policy.allowed_roots : [];
+    document.getElementById('cleanupRootsBody').innerHTML = roots.map(root => `
+      <tr><td><code>${STSafe.html(root.path || '—')}</code></td><td>${STSafe.html(root.max_age_days ?? '—')} days</td><td>Open/protected paths skipped</td></tr>`).join('') || '<tr><td colspan="3" class="text-muted">No allowlisted roots</td></tr>';
+  } catch (_) {
+    if (status) status.textContent = 'Unable to load cleanup status. Try Refresh.';
+  } finally {
+    if (button) { button.disabled = false; button.setAttribute('aria-busy', 'false'); }
+  }
+}
+
+document.getElementById('refreshCleanupBtn').addEventListener('click', loadCleanupStatus);
+document.addEventListener('app:ready', loadCleanupStatus);
+</script>
+{% endblock %}

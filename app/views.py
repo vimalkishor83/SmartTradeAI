@@ -306,6 +306,12 @@ def admin():
     return render_template("admin/index.html")
 
 
+@views_bp.route("/admin/cleanup")
+@page_admin_required
+def admin_cleanup():
+    return render_template("admin/cleanup.html")
+
+
 @views_bp.route("/admin/users")
 @page_admin_required
 def admin_users():

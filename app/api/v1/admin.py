@@ -68,6 +68,19 @@ def dashboard():
     }), 200
 
 
+@admin_bp.route("/cleanup/status", methods=["GET"])
+@admin_required
+def cleanup_status():
+    """Return sanitized development cleanup metadata only.
+
+    The endpoint never executes a host command and never accepts a path or
+    cleanup action from the browser.
+    """
+    from app.services.cleanup_status import get_cleanup_status
+
+    return jsonify(get_cleanup_status()), 200
+
+
 # ─── Platform Configuration ──────────────────────────────────────────────────
 
 @admin_bp.route("/platform-config", methods=["GET"])

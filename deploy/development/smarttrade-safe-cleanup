@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+PATH=/usr/sbin:/usr/bin:/sbin:/bin
+readonly MAX_BYTES=$((512 * 1024 * 1024))
+readonly LOG_FILE=/var/log/smarttrade-safe-cleanup.log
+readonly LOCK_FILE=/run/lock/smarttrade-safe-cleanup.lock
+readonly STATUS_FILE=/var/lib/smarttrade-safe-cleanup/status.json
+mode=dry-run
+
+usage() {
+  printf 'Usage: %s [--apply]\n' "$0" >&2
+  printf 'Default mode is dry-run. --apply is required before deleting files.\n' >&2
+}
+
+if [[ $# -gt 1 ]]; then usage; exit 2; fi
+if [[ $# -eq 1 ]]; then
+  [[ $1 == '--apply' ]] || { usage; exit 2; }
+  mode=apply
+fi
+
+for tool in find stat lsof flock date tee mkdir mv chmod rm; do
+  command -v "$tool" >/dev/null 2>&1 || { printf 'Required tool is unavailable: %s\n' "$tool" >&2; exit 3; }
+done
+
+mkdir -p "$(dirname "$LOG_FILE")" "$(dirname "$LOCK_FILE")" "$(dirname "$STATUS_FILE")"
+exec 9>"$LOCK_FILE"
+if ! flock -n 9; then
+  printf '%s cleanup already running; exiting\n' "$(date -u +%FT%TZ)" | tee -a "$LOG_FILE"
+  exit 0
+fi
+
+log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*" | tee -a "$LOG_FILE"; }
+
+write_status() {
+  local state=$1 completed_at=$2 candidates=$3 skipped=$4 bytes=$5
+  local temp_file="${STATUS_FILE}.tmp.$$"
+  local completed_json=null
+  [[ -n "$completed_at" ]] && completed_json="\"$completed_at\""
+  umask 022
+  printf '{"state":"%s","mode":"%s","completed_at":%s,"candidate_count":%s,"skipped_count":%s,"bytes_processed":%s}\n' \
+    "$state" "$mode" "$completed_json" "$candidates" "$skipped" "$bytes" > "$temp_file"
+  chmod 0644 "$temp_file"
+  mv -f -- "$temp_file" "$STATUS_FILE"
+}
+
+is_protected_path() {
+  case "$1" in
+    *SmartTradeAI*|*smarttrade*|*/.env|*/.env.*|*secret*|*credential*|*token*|*password*|*.key|*.pem|*.crt|*.cert|*backup*|*model*|*upload*|*report*|*archive*|*database*|*redis*|*postgres*|*sqlite*|*.db|*.sqlite*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+used_bytes=0
+candidate_count=0
+skipped_count=0
+write_status running "" 0 0 0
+log "START mode=$mode max_bytes=$MAX_BYTES roots=/tmp:14d,/var/tmp:30d"
+
+while IFS=: read -r root days; do
+  minutes=$((days * 24 * 60))
+  [[ -d "$root" ]] || { log "SKIP root_missing path=$root"; continue; }
+  while IFS= read -r -d '' file; do
+    if [[ ! -f "$file" || -L "$file" ]]; then
+      log "SKIP not_regular path=$file"; skipped_count=$((skipped_count + 1)); continue
+    fi
+    if is_protected_path "$file"; then
+      log "SKIP protected path=$file"; skipped_count=$((skipped_count + 1)); continue
+    fi
+    if lsof -- "$file" >/dev/null 2>&1; then
+      log "SKIP open path=$file"; skipped_count=$((skipped_count + 1)); continue
+    fi
+    size=$(stat -c '%s' -- "$file") || { log "SKIP stat_failed path=$file"; skipped_count=$((skipped_count + 1)); continue; }
+    if (( used_bytes + size > MAX_BYTES )); then
+      log "SKIP run_limit size=$size path=$file"; skipped_count=$((skipped_count + 1)); continue
+    fi
+    candidate_count=$((candidate_count + 1))
+    if [[ $mode == dry-run ]]; then
+      log "CANDIDATE size=$size path=$file"
+    else
+      rm -- "$file"
+      log "DELETED size=$size path=$file"
+    fi
+    used_bytes=$((used_bytes + size))
+  done < <(find "$root" -xdev -type f -user ubuntu -mmin "+$minutes" -print0 2>/dev/null)
+done <<'ROOTS'
+/tmp:14
+/var/tmp:30
+ROOTS
+
+write_status completed "$(date -u +%FT%TZ)" "$candidate_count" "$skipped_count" "$used_bytes"
+log "END mode=$mode candidates=$candidate_count skipped=$skipped_count bytes=$used_bytes"
