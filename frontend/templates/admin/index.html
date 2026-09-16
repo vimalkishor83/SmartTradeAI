@@ -367,7 +367,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('clearAuditBtn').style.display = isSuperAdmin ? '' : 'none';
 
   loadAdminDashboard();
-  setInterval(loadAdminDashboard, 30000);
+  STRefresh.start(loadAdminDashboard, 30);
 });
 </script>
 {% endblock %}

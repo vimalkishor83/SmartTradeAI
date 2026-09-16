@@ -371,7 +371,7 @@
   document.addEventListener('app:ready', agEnhance);
   // Fallback: the inline script may register after app:ready has already fired,
   // so also kick off shortly after load (agEnhance is idempotent).
-  setTimeout(function () { agEnhance(); setInterval(agEnhance, 60000); }, 1200);
+  setTimeout(function () { agEnhance(); STRefresh.start(agEnhance, 60); }, 1200);
 })();
 </script>
 {% endblock %}

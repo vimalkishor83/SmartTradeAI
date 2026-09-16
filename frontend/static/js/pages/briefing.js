@@ -409,5 +409,5 @@ document.addEventListener('app:ready', () => {
   document.getElementById('briefRefresh')?.addEventListener('click', loadAll);
   document.getElementById('briefShare')?.addEventListener('click', shareBriefing);
   document.getElementById('klConfigBtn')?.addEventListener('click', _openKlConfig);
-  setInterval(loadAll, 120000);
+  STRefresh.start(loadAll, 120);
 });

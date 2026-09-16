@@ -683,5 +683,5 @@ document.addEventListener('app:ready', () => {
     _heatmapMode = tab.dataset.mode; _aiSummaryCache = null; loadHeatmap();
   }));
 
-  setInterval(loadAll, 90000);
+  STRefresh.start(loadAll, 90);
 });

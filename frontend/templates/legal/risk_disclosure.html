@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Risk Disclosure — SmartTrade AI</title>
   <meta name="description" content="An educational overview of the risks involved in trading Crypto, Forex, Indian Stocks and Commodities — read this before using SmartTrade AI." />
-  <link rel="canonical" href="https://smarttradeai.online/risk-disclosure" />
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/risk-disclosure" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
   <meta property="og:title" content="Risk Disclosure — SmartTrade AI" />
   <meta property="og:description" content="An educational overview of the risks involved in trading Crypto, Forex, Indian Stocks and Commodities — read this before using SmartTrade AI." />
-  <meta property="og:url" content="https://smarttradeai.online/risk-disclosure" />
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL }}/risk-disclosure" />
 
   <script type="application/ld+json">
   {
@@ -19,8 +19,8 @@
     "@type": "WebPage",
     "name": "Risk Disclosure",
     "description": "An educational overview of the risks involved in trading Crypto, Forex, Indian Stocks and Commodities.",
-    "url": "https://smarttradeai.online/risk-disclosure",
-    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "https://smarttradeai.online/home" }
+    "url": "{{ config.PUBLIC_SITE_URL }}/risk-disclosure",
+    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "{{ config.PUBLIC_SITE_URL }}/home" }
   }
   </script>
   <script type="application/ld+json">
@@ -28,9 +28,9 @@
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://smarttradeai.online/home" },
-      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" },
-      { "@type": "ListItem", "position": 3, "name": "Risk Disclosure", "item": "https://smarttradeai.online/risk-disclosure" }
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ config.PUBLIC_SITE_URL }}/home" },
+      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "{{ config.PUBLIC_SITE_URL }}/legal" },
+      { "@type": "ListItem", "position": 3, "name": "Risk Disclosure", "item": "{{ config.PUBLIC_SITE_URL }}/risk-disclosure" }
     ]
   }
   </script>
@@ -546,7 +546,7 @@
       <div class="footer-col-title">Support</div>
       <ul>
         <li><a href="/home#contact">Contact Support</a></li>
-        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+        <li><a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a></li>
       </ul>
     </div>
   </div>

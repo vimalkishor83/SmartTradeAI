@@ -502,8 +502,8 @@ document.addEventListener('app:ready', () => {
   });
   const signalBody = document.getElementById('mktSignalsBody');
   signalBody?.setAttribute('data-bound', '1');
-  setInterval(() => loadSignals(1), 60000);
-  setInterval(() => _assets.forEach(a => loadPrice(a)), 30000);
+  STRefresh.start(() => loadSignals(1), 60);
+  STRefresh.start(() => _assets.forEach(a => loadPrice(a)), 30);
 });
 </script>
 {% endblock %}

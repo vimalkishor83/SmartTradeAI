@@ -86,12 +86,14 @@ class Config:
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "support@smarttradeai.online")
+    PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://smarttradeai.online").rstrip("/")
+    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "support@smarttradeai.online")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", SUPPORT_EMAIL)
     # No SMTP credentials configured yet? Suppress actual sending and log the
     # email instead (see app/services/mailer.py) so registration/reset flows
     # keep working end-to-end before you've wired up a real mail provider.
     MAIL_SUPPRESS_SEND = not bool(MAIL_USERNAME and MAIL_PASSWORD)
-    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://127.0.0.1:5000")
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", PUBLIC_SITE_URL)
 
     # Telegram
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -99,7 +101,7 @@ class Config:
     # Web Push (VAPID)
     VAPID_PUBLIC_KEY    = os.environ.get("VAPID_PUBLIC_KEY", "")
     VAPID_PRIVATE_KEY   = os.environ.get("VAPID_PRIVATE_KEY", "")
-    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:support@smarttradeai.online")
+    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", f"mailto:{SUPPORT_EMAIL}")
 
     # Scheduler
     SCHEDULER_TIMEZONE = "Asia/Kolkata"
@@ -115,6 +117,11 @@ class Config:
 class DevelopmentConfig(Config):
     # Public development deployments must not expose debug tooling.
     DEBUG = False
+    PUBLIC_SITE_URL = "https://smarttradeai.info"
+    SUPPORT_EMAIL = "support@smarttradeai.info"
+    MAIL_DEFAULT_SENDER = SUPPORT_EMAIL
+    VAPID_CLAIMS_EMAIL = f"mailto:{SUPPORT_EMAIL}"
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", PUBLIC_SITE_URL)
     BROKER_TRADING_ENABLED = False
     BROKER_CONNECTIONS_ENABLED = False
     PROTECTIVE_ORDERS_ENABLED = False

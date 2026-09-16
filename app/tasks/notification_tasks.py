@@ -1,6 +1,8 @@
 """Background jobs for sending notifications."""
 import logging
 
+from flask import current_app
+
 logger = logging.getLogger(__name__)
 
 def _market_enabled(cfg: dict, field: str, market: str) -> bool:
@@ -19,10 +21,16 @@ def _market_enabled(cfg: dict, field: str, market: str) -> bool:
 # Appended to every trade-related Telegram message (new signal, close,
 # watchlist, protective order) — Telegram's legacy Markdown parse_mode
 # supports [text](url) links same as MarkdownV2 does.
-_TELEGRAM_DISCLAIMER = (
-    "\n\n⚠️ _Disclaimer: For informational purposes only — not financial "
-    "advice. [Read full disclaimer](https://smarttradeai.online/disclaimer)_"
-)
+def _telegram_disclaimer():
+    """Build the disclaimer link for the active deployment environment."""
+    try:
+        site_url = current_app.config.get("PUBLIC_SITE_URL", "https://smarttradeai.online")
+    except RuntimeError:
+        site_url = "https://smarttradeai.online"
+    return (
+        "\n\n⚠️ _Disclaimer: For informational purposes only — not financial "
+        f"advice. [Read full disclaimer]({site_url.rstrip('/')}/disclaimer)_"
+    )
 
 
 def send_pending_notifications(app):
@@ -395,7 +403,7 @@ def _format_rating_change_telegram(symbol: str, tf: str, old_rating: str, new_ra
         lines.append(f"_{reason}_")
     lines.append("")
     lines.append(f"📊 Overall trend: *{overall_trend}*")
-    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+    return "\n".join(lines) + _telegram_disclaimer()
 
 
 def check_rating_changes(app):
@@ -524,7 +532,7 @@ def _format_signal_telegram(sig, asset) -> str:
         lines.append("")
         lines.append("*Why:* " + sig.reasoning.replace(" | ", ", "))
 
-    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+    return "\n".join(lines) + _telegram_disclaimer()
 
 
 def fire_signal_alerts(app):
@@ -661,7 +669,7 @@ def fire_signal_alerts(app):
                 f"📍 Entry: `{h.entry_price:.4f}`\n"
                 f"{'🎯' if won else '🛑'} Exit: `{h.exit_price:.4f}`\n"
                 f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
-            ) + _TELEGRAM_DISCLAIMER
+            ) + _telegram_disclaimer()
             tg_close_individual_allowed = _market_enabled(cfg, "telegram_signal_closed_individual_markets", asset.market)
             tg_close_signal_limit_allowed = individual_signal_allowed(h.asset_id, h.timeframe)
             tg_close_group_allowed = _market_enabled(cfg, "telegram_signal_closed_group_markets", asset.market)

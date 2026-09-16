@@ -9,9 +9,9 @@ from app.extensions import db
 def _telegram_disclaimer():
     # Keep Terminal lifecycle alerts consistent with regular signal alerts:
     # two newlines separate the context footer and the link remains clickable.
-    from app.tasks.notification_tasks import _TELEGRAM_DISCLAIMER
+    from app.tasks.notification_tasks import _telegram_disclaimer as build_disclaimer
 
-    return _TELEGRAM_DISCLAIMER
+    return build_disclaimer()
 
 
 def _event_identity(event):

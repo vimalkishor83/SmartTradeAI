@@ -534,6 +534,22 @@ const LivePrices = {
   },
 };
 
+// Shared timer helper keeps page refreshes visible-state aware and gives
+// live-data modules one bounded interpretation of the admin refresh setting.
+window.STRefresh = window.STRefresh || {
+  seconds(defaultSeconds, options = {}) {
+    const configured = Number(window.PLATFORM_CONFIG?.live_price_refresh_interval_seconds);
+    const value = options.usePlatform && Number.isFinite(configured) ? configured : defaultSeconds;
+    return Math.min(options.max || 3600, Math.max(options.min || 1, Number(value) || defaultSeconds));
+  },
+  start(callback, defaultSeconds, options = {}) {
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') callback();
+    }, this.seconds(defaultSeconds, options) * 1000);
+    return timer;
+  },
+};
+
 // ─── Ticker Ribbon ────────────────────────────
 const Ticker = {
   _items: {},
@@ -812,7 +828,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Ticker.load();
   LivePrices.seed();  // bootstrap price cache before WS connects
   LivePrices.startRefresh();
-  setInterval(() => Notifications.load(), 60000);
+  STRefresh.start(() => Notifications.load(), 60);
 
   // Fire ready event for page-specific scripts — skipped entirely on a
   // tier-locked page (see showTierLockOverlay in Auth.updateUI): the

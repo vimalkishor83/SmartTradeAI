@@ -744,7 +744,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('histMkt')?.addEventListener('change',     () => loadHistory(1));
   document.getElementById('histOutcome')?.addEventListener('change', () => loadHistory(1));
 
-  setInterval(refreshLiveData, 60000);
+  STRefresh.start(refreshLiveData, 60);
 });
 </script>
 {% endblock %}

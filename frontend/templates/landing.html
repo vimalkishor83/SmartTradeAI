@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>SmartTrade AI — AI-Powered Trading Signals for Global Markets</title>
   <meta name="description" content="Real-time BUY/SELL signals across Crypto, Forex, Stocks & Commodities — backed by 50+ technical indicators, multi-timeframe analysis and AI-assisted insights." />
-  <link rel="canonical" href="https://smarttradeai.online/home" />
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/home" />
 
   <!-- Open Graph / social preview — reuses the same real app icon as the
        PWA manifest, no fabricated marketing imagery. -->
@@ -13,12 +13,12 @@
   <meta property="og:site_name" content="SmartTrade AI" />
   <meta property="og:title" content="SmartTrade AI — AI-Powered Trading Signals for Global Markets" />
   <meta property="og:description" content="Real-time BUY/SELL signals across Crypto, Forex, Stocks & Commodities — backed by 50+ technical indicators, multi-timeframe analysis and AI-assisted insights." />
-  <meta property="og:url" content="https://smarttradeai.online/home" />
-  <meta property="og:image" content="https://smarttradeai.online/static/img/icon-512.png" />
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL }}/home" />
+  <meta property="og:image" content="{{ config.PUBLIC_SITE_URL }}/static/img/icon-512.png" />
   <meta name="twitter:card" content="summary" />
   <meta name="twitter:title" content="SmartTrade AI — AI-Powered Trading Signals for Global Markets" />
   <meta name="twitter:description" content="Real-time BUY/SELL signals across Crypto, Forex, Stocks & Commodities — backed by 50+ technical indicators, multi-timeframe analysis and AI-assisted insights." />
-  <meta name="twitter:image" content="https://smarttradeai.online/static/img/icon-512.png" />
+  <meta name="twitter:image" content="{{ config.PUBLIC_SITE_URL }}/static/img/icon-512.png" />
 
   <!-- Structured data (JSON-LD) — every field below traces to real app
        state (live Subscription pricing, the actual FAQ content rendered
@@ -30,8 +30,8 @@
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "SmartTrade AI",
-    "url": "https://smarttradeai.online/home",
-    "logo": "https://smarttradeai.online/static/img/icon-512.png"
+    "url": "{{ config.PUBLIC_SITE_URL }}/home",
+    "logo": "{{ config.PUBLIC_SITE_URL }}/static/img/icon-512.png"
   }
   </script>
   <script type="application/ld+json">
@@ -39,7 +39,7 @@
     "@context": "https://schema.org",
     "@type": "WebSite",
     "name": "SmartTrade AI",
-    "url": "https://smarttradeai.online/home"
+    "url": "{{ config.PUBLIC_SITE_URL }}/home"
   }
   </script>
   <script type="application/ld+json">
@@ -1583,8 +1583,8 @@
     <p class="section-sub">Questions, feedback, or need help with your account? We're happy to help.</p>
   </div>
   <div style="max-width:480px;margin:0 auto;text-align:center">
-    <a href="mailto:support@smarttradeai.online" class="btn btn-accent btn-lg" style="display:inline-flex">
-      ✉️ support@smarttradeai.online
+    <a href="mailto:{{ config.SUPPORT_EMAIL }}" class="btn btn-accent btn-lg" style="display:inline-flex">
+      ✉️ {{ config.SUPPORT_EMAIL }}
     </a>
     <p style="color:var(--text3);font-size:13px;margin-top:16px">We typically respond within 24–48 hours.</p>
   </div>
@@ -1639,7 +1639,7 @@
       <div class="footer-col-title">Support</div>
       <ul>
         <li><a href="#contact">Contact Support</a></li>
-        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+        <li><a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a></li>
       </ul>
     </div>
   </div>

@@ -1023,11 +1023,11 @@ document.addEventListener('app:ready', () => {
     else if (_currentTab === 'ema') loadEmaData(true);
     else loadData(true);
   });
-  setInterval(() => {
+  STRefresh.start(() => {
     if (_currentTab === 'ai') loadAiData(false);
     else if (_currentTab === 'ema') loadEmaData(false);
     else loadData(false);
-  }, 120000);
+  }, 120);
 
   document.getElementById('emaOlderBtn').addEventListener('click', emaStepOlder);
   document.getElementById('emaNewerBtn').addEventListener('click', emaStepNewer);

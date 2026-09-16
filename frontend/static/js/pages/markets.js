@@ -473,5 +473,5 @@ document.addEventListener('app:ready', () => {
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
   wireSearchClear('assetSearch');
   document.getElementById('generateAll')?.addEventListener('click', generateAll);
-  setInterval(loadAll, 90000);
+  STRefresh.start(loadAll, 90);
 });
