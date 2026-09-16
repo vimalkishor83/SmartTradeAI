@@ -58,7 +58,10 @@ def test_shared_shell_exposes_route_aware_visual_atmosphere():
     assert 'data-active="{{ active|default(\'dashboard\') }}"' in base
     assert ".page-content::before" in css
     assert ".app-shell .page-content > *" in css
-    assert "isolation: isolate" in css
+    # The page-content stacking context previously trapped body-level modal
+    # backdrops above their dialogs. Keep the atmosphere without recreating
+    # that shared modal layering bug.
+    assert "isolation: isolate" not in css
     assert "markets-atmosphere.png" in css
     assert "legal-center-atmosphere.png" in css
 
