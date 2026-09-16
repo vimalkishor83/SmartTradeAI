@@ -7751,3 +7751,129 @@ html.sidebar-mobile-open body {
     border-top-color: #d2dde7;
   }
 }
+
+/* Shared authenticated-page spacing contract. Keep page rhythm predictable
+   across legacy and newer modules without changing their markup or behavior. */
+:root {
+  --layout-page-inline: clamp(16px, 2vw, 28px);
+  --layout-page-block: clamp(16px, 2.4vw, 24px);
+  --layout-section-gap: 16px;
+  --layout-card-padding: 16px;
+  --layout-control-gap: 8px;
+}
+
+.app-shell .page-content {
+  min-width: 0;
+  padding: var(--layout-page-block) var(--layout-page-inline) 24px;
+}
+
+.app-shell .page-header {
+  gap: var(--layout-control-gap);
+  margin-bottom: var(--layout-section-gap);
+  padding-bottom: var(--layout-control-gap);
+}
+
+.app-shell .dash-header {
+  gap: 16px;
+  margin-bottom: var(--layout-section-gap);
+  padding: var(--layout-card-padding) 18px;
+}
+
+.app-shell .dashboard-context {
+  gap: 12px;
+  margin: 0 0 var(--layout-section-gap);
+  padding: 8px 12px;
+}
+
+.app-shell .filter-bar,
+.app-shell .ui-toolbar {
+  gap: var(--layout-control-gap);
+  margin-bottom: var(--layout-section-gap);
+  padding: 8px 12px;
+}
+
+.app-shell .section-card {
+  margin-bottom: var(--layout-section-gap);
+}
+
+.app-shell .section-card-header {
+  min-height: 48px;
+  gap: var(--layout-control-gap);
+  padding: 12px var(--layout-card-padding);
+}
+
+.app-shell .section-card-body {
+  padding: var(--layout-card-padding);
+}
+
+.app-shell .kpi-card {
+  padding: var(--layout-card-padding) 18px;
+}
+
+.app-shell .kpi-top {
+  gap: var(--layout-control-gap);
+  margin-bottom: var(--layout-control-gap);
+}
+
+.app-shell .kpi-value {
+  margin-block: 6px;
+}
+
+.app-shell .smart-table tbody td {
+  height: 48px;
+}
+
+.app-shell .financial-disclaimer-strip {
+  margin-top: 24px;
+  padding: 8px 12px;
+}
+
+.app-shell .admin-page-hero {
+  gap: 16px;
+  margin-bottom: var(--layout-section-gap);
+  padding: var(--layout-card-padding) 18px;
+}
+
+.app-shell .admin-meta-strip {
+  gap: var(--layout-control-gap);
+  margin-bottom: var(--layout-section-gap);
+}
+
+@media (max-width: 768px) {
+  .app-shell .page-content {
+    padding: 16px 14px 20px;
+  }
+
+  .app-shell .dash-header {
+    padding: 14px 16px;
+  }
+
+  .app-shell .section-card-header,
+  .app-shell .section-card-body {
+    padding-inline: 14px;
+  }
+
+  .app-shell .kpi-card {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 520px) {
+  .app-shell .page-content {
+    padding-inline: 12px;
+  }
+
+  .app-shell .dash-header {
+    gap: 12px;
+    padding: 12px 14px;
+  }
+
+  .app-shell .section-card-header,
+  .app-shell .section-card-body {
+    padding: 12px;
+  }
+
+  .app-shell .admin-page-hero {
+    padding: 14px;
+  }
+}
