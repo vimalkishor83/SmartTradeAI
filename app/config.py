@@ -14,9 +14,18 @@ def _env_bool(name, default=False):
     return str(value).strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _development_cors_origins():
+    """Use a same-site allowlist when development CORS is not configured."""
+    configured = os.environ.get("CORS_ORIGINS", "").strip()
+    if not configured or configured == "*":
+        return ["https://smarttradeai.info", "https://www.smarttradeai.info"]
+    return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+
 class Config:
     DEBUG = _env_bool("DEBUG", False)
     BROKER_TRADING_ENABLED = _env_bool("BROKER_TRADING_ENABLED", False)
+    BROKER_CONNECTIONS_ENABLED = _env_bool("BROKER_CONNECTIONS_ENABLED", False)
     PROTECTIVE_ORDERS_ENABLED = _env_bool("PROTECTIVE_ORDERS_ENABLED", False)
     TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
     RUN_MIGRATIONS_ON_STARTUP = _env_bool("RUN_MIGRATIONS_ON_STARTUP", False)
@@ -107,9 +116,13 @@ class DevelopmentConfig(Config):
     # Public development deployments must not expose debug tooling.
     DEBUG = False
     BROKER_TRADING_ENABLED = False
+    BROKER_CONNECTIONS_ENABLED = False
     PROTECTIVE_ORDERS_ENABLED = False
     TELEGRAM_NOTIFICATIONS_ENABLED = False
     RUN_MIGRATIONS_ON_STARTUP = False
+    JWT_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    CORS_ORIGINS = _development_cors_origins()
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", "sqlite:///smarttrade_dev.db"
     )
@@ -128,6 +141,9 @@ _INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-
 
 class ProductionConfig(Config):
     DEBUG = False
+    # Preserve the existing production connection workflow explicitly; the
+    # shared default remains fail-closed for development and tests.
+    BROKER_CONNECTIONS_ENABLED = True
     # SQLite is fine here too — DATABASE_URL just needs to point at whatever
     # engine you're running (falls back to the local sqlite file so a first
     # deploy without DATABASE_URL set doesn't hard-crash before you've had a

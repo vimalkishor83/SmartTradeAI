@@ -30,6 +30,7 @@ def test_telegram_delivery_failure_releases_claim_for_retry(app):
     from app.tasks.notification_tasks import send_pending_notifications
 
     with app.app_context():
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
         user = User.query.filter_by(username="admin").first()
         user.telegram_enabled = True
         user.telegram_chat_id = "12345"

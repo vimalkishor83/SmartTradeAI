@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import threading
 from flask import Blueprint, request, jsonify
 from functools import wraps

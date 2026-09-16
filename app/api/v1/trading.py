@@ -24,7 +24,11 @@ from app.auth.decorators import login_required, approved_required, subscription_
 from app.services.data.fetcher import to_delta_symbol
 from app.services.trading.delta_trading import get_configured_client, DeltaTradingError
 from app.services.trading.broker_registry import get_broker, list_brokers, required_fields
-from app.services.safety import broker_trading_enabled, safety_disabled_payload
+from app.services.safety import (
+    broker_connections_enabled,
+    broker_trading_enabled,
+    safety_disabled_payload,
+)
 
 trading_bp = Blueprint("trading", __name__)
 
@@ -177,6 +181,8 @@ def broker_status():
 def broker_connect():
     """Save (or replace) the current user's own credentials for ANY
     supported broker — provider is now a request field, not hardcoded."""
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     from app.models.api_config import UserBrokerCredential
     user_id = get_jwt_identity()
     data = request.get_json(silent=True)
@@ -257,6 +263,8 @@ def broker_test():
     meaningful for brokers with trading_enabled=True (a real client wired
     up) — others return a clear "not yet supported" response rather than
     silently pretending to test something with no implementation."""
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     from app.models.api_config import UserBrokerCredential
     user_id = get_jwt_identity()
     data = request.get_json(silent=True) or {}

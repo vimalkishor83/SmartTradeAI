@@ -32,6 +32,10 @@ def broker_trading_enabled():
     return feature_enabled("BROKER_TRADING_ENABLED")
 
 
+def broker_connections_enabled():
+    return feature_enabled("BROKER_CONNECTIONS_ENABLED")
+
+
 def protective_orders_enabled():
     return feature_enabled("PROTECTIVE_ORDERS_ENABLED")
 
@@ -49,6 +53,10 @@ def safety_disabled_payload(feature):
         "broker_trading": (
             "broker_trading_disabled",
             "Broker trading is disabled in this environment; no live order was sent.",
+        ),
+        "broker_connections": (
+            "broker_connections_disabled",
+            "Broker connections are disabled in this environment; no credentials were stored or tested.",
         ),
         "protective_orders": (
             "protective_orders_disabled",

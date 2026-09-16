@@ -8,9 +8,10 @@ from unittest.mock import Mock, patch
 
 from flask import Flask
 
-from app.config import Config, DevelopmentConfig, TestingConfig
+from app.config import Config, DevelopmentConfig, ProductionConfig, TestingConfig
 from app.services.safety import (
     as_bool,
+    broker_connections_enabled,
     feature_enabled,
     protective_orders_enabled,
     telegram_notifications_enabled,
@@ -19,14 +20,23 @@ from app.services.safety import (
 
 def test_safety_flags_default_to_false_and_debug_is_forced_off():
     assert Config.BROKER_TRADING_ENABLED is False
+    assert Config.BROKER_CONNECTIONS_ENABLED is False
     assert Config.PROTECTIVE_ORDERS_ENABLED is False
     assert Config.TELEGRAM_NOTIFICATIONS_ENABLED is False
     assert Config.RUN_MIGRATIONS_ON_STARTUP is False
     assert DevelopmentConfig.BROKER_TRADING_ENABLED is False
+    assert DevelopmentConfig.BROKER_CONNECTIONS_ENABLED is False
+    assert ProductionConfig.BROKER_CONNECTIONS_ENABLED is True
     assert DevelopmentConfig.PROTECTIVE_ORDERS_ENABLED is False
     assert DevelopmentConfig.TELEGRAM_NOTIFICATIONS_ENABLED is False
     assert DevelopmentConfig.RUN_MIGRATIONS_ON_STARTUP is False
     assert DevelopmentConfig.DEBUG is False
+    assert DevelopmentConfig.JWT_COOKIE_SECURE is True
+    assert DevelopmentConfig.SESSION_COOKIE_SECURE is True
+    assert DevelopmentConfig.CORS_ORIGINS == [
+        "https://smarttradeai.info",
+        "https://www.smarttradeai.info",
+    ]
     assert DevelopmentConfig.RUN_MIGRATIONS_ON_STARTUP is False
     assert TestingConfig.RUN_MIGRATIONS_ON_STARTUP is True
 
@@ -51,12 +61,12 @@ def test_manual_mutations_are_guarded_before_external_calls():
 
 def test_protective_and_telegram_paths_are_fail_closed():
     root = Path(__file__).parents[2]
-    protective_api = (root / "app" / "api" / "v1" / "protective_orders.py").read_text()
-    protective_task = (root / "app" / "tasks" / "protective_order_tasks.py").read_text()
-    notifications = (root / "app" / "tasks" / "notification_tasks.py").read_text()
-    live_read = (root / "app" / "services" / "signals" / "live_read_notifications.py").read_text()
-    auth = (root / "app" / "auth" / "routes.py").read_text()
-    admin = (root / "app" / "api" / "v1" / "admin.py").read_text()
+    protective_api = (root / "app" / "api" / "v1" / "protective_orders.py").read_text(encoding="utf-8-sig")
+    protective_task = (root / "app" / "tasks" / "protective_order_tasks.py").read_text(encoding="utf-8-sig")
+    notifications = (root / "app" / "tasks" / "notification_tasks.py").read_text(encoding="utf-8-sig")
+    live_read = (root / "app" / "services" / "signals" / "live_read_notifications.py").read_text(encoding="utf-8-sig")
+    auth = (root / "app" / "auth" / "routes.py").read_text(encoding="utf-8-sig")
+    admin = (root / "app" / "api" / "v1" / "admin.py").read_text(encoding="utf-8-sig")
 
     create_start = protective_api.index("def create_protective_order")
     update_start = protective_api.index("def update_protective_order")
@@ -72,13 +82,14 @@ def test_protective_and_telegram_paths_are_fail_closed():
 
 
 def test_startup_migrations_are_explicitly_gated():
-    source = (Path(__file__).parents[2] / "app" / "__init__.py").read_text()
+    source = (Path(__file__).parents[2] / "app" / "__init__.py").read_text(encoding="utf-8-sig")
     assert "RUN_MIGRATIONS_ON_STARTUP=0" in source
     assert "migrations_on_startup()" in source
 
 
 def test_safety_gates_fail_closed_without_application_context():
     assert feature_enabled("PROTECTIVE_ORDERS_ENABLED") is False
+    assert broker_connections_enabled() is False
     assert protective_orders_enabled() is False
     assert telegram_notifications_enabled() is False
 
@@ -89,6 +100,14 @@ def test_safety_gate_honors_explicit_enabled_value_in_application_context():
 
     with app.app_context():
         assert protective_orders_enabled() is True
+
+
+def test_broker_connection_routes_guard_before_storage_or_network_access():
+    source = (Path(__file__).parents[2] / "app" / "api" / "v1" / "trading.py").read_text(encoding="utf-8-sig")
+    connect_start = source.index("def broker_connect")
+    test_start = source.index("def broker_test")
+    assert source.index('safety_disabled_payload("broker_connections")', connect_start) < source.index("db.session.commit", connect_start)
+    assert source.index('safety_disabled_payload("broker_connections")', test_start) < source.index("get_configured_client", test_start)
 
 
 def test_execute_close_is_blocked_without_application_context():
