@@ -775,44 +775,44 @@ def _seed_initial_data(app):
         if a.exchange == "binance":
             a.exchange = "delta_exchange"
 
-    # Add Crude Oil if missing
-    if not Asset.query.filter_by(symbol="CLUSD").first():
-        db.session.add(Asset(symbol="CLUSD", name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"))
-
-    # Assets
-    if not Asset.query.first():
-        assets = [
-            # Crypto
-            Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            # Forex
-            Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="yahoo"),
-            # Commodities
-            Asset(symbol="XAUUSD", name="Gold",      market="commodity", exchange="commodity", data_source="yahoo"),
-            Asset(symbol="XAGUSD", name="Silver",    market="commodity", exchange="commodity", data_source="yahoo"),
-            Asset(symbol="CLUSD",  name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"),
-            # Indian Stocks
-            Asset(symbol="RELIANCE", name="Reliance Industries", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="TCS", name="Tata Consultancy Services", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="INFY", name="Infosys", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="HDFCBANK", name="HDFC Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="ICICIBANK", name="ICICI Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="SBIN", name="State Bank of India", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            # Indices
-            Asset(symbol="NIFTY50", name="Nifty 50", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="BANKNIFTY", name="Bank Nifty", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="SENSEX", name="BSE Sensex", market="index", exchange="BSE", data_source="yahoo"),
-            Asset(symbol="FINNIFTY", name="Fin Nifty", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="MIDCPNIFTY", name="Midcap Nifty", market="index", exchange="NSE", data_source="yahoo"),
-        ]
-        db.session.add_all(assets)
+    # Assets. Seed each symbol independently so a partially seeded database is
+    # repaired on the next explicit seed/migration run. The old implementation
+    # inserted CLUSD first and then used Asset.query.first(), which prevented
+    # every other default asset from being added.
+    assets = [
+        # Crypto
+        Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        # Forex
+        Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="yahoo"),
+        # Commodities
+        Asset(symbol="XAUUSD", name="Gold",      market="commodity", exchange="commodity", data_source="yahoo"),
+        Asset(symbol="XAGUSD", name="Silver",    market="commodity", exchange="commodity", data_source="yahoo"),
+        Asset(symbol="CLUSD",  name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"),
+        # Indian Stocks
+        Asset(symbol="RELIANCE", name="Reliance Industries", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="TCS", name="Tata Consultancy Services", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="INFY", name="Infosys", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="HDFCBANK", name="HDFC Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="ICICIBANK", name="ICICI Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="SBIN", name="State Bank of India", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        # Indices
+        Asset(symbol="NIFTY50", name="Nifty 50", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="BANKNIFTY", name="Bank Nifty", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="SENSEX", name="BSE Sensex", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="FINNIFTY", name="Fin Nifty", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="MIDCPNIFTY", name="Midcap Nifty", market="index", exchange="NSE", data_source="yahoo"),
+    ]
+    for asset in assets:
+        if not Asset.query.filter_by(symbol=asset.symbol, exchange=asset.exchange).first():
+            db.session.add(asset)
 
     # Backfill risk_reward for old signals that have NULL
     try:
