@@ -27,8 +27,15 @@ def evaluate_limits(limits, *, current_exposure=0.0, proposed_exposure=0.0,
     return {"allowed": True, "checks": result, "reason": None}
 
 
-def evaluate_order_for_user(user_id, *, size, price, stop_price=None):
+def evaluate_order_for_user(user_id, *, size, price, stop_price=None, symbol=None):
     """Evaluate a proposed order against the user's stored portfolio limits."""
+    from datetime import datetime
+
+    from sqlalchemy import func
+
+    from app.extensions import db
+    from app.models.asset import Asset
+    from app.models.journal import JournalEntry
     from app.models.portfolio import Portfolio
     from app.models.risk_limit import RiskLimit
 
@@ -38,13 +45,43 @@ def evaluate_order_for_user(user_id, *, size, price, stop_price=None):
 
     portfolio = Portfolio.query.filter_by(user_id=user_id).first()
     current_exposure = 0.0
+    current_open_risk = 0.0
+    drawdown_pct = 0.0
+    current_correlated_exposure = 0.0
     if portfolio:
-        current_exposure = sum(float(item.current_value or 0) for item in portfolio.items)
+        items = list(portfolio.items)
+        current_exposure = sum(float(item.current_value or 0) for item in items)
+        current_open_risk = sum(
+            abs(float(item.current_price or item.buy_price) - float(item.stop_loss)) * abs(float(item.quantity))
+            for item in items if item.stop_loss is not None
+        )
+        capital = float(portfolio.capital or 0)
+        if capital > 0:
+            drawdown_pct = max(0.0, (capital - current_exposure) / capital * 100)
+
+    today_loss = db.session.query(func.coalesce(func.sum(JournalEntry.pnl_amount), 0)).filter(
+        JournalEntry.user_id == user_id,
+        JournalEntry.trade_date == datetime.utcnow().date(),
+        JournalEntry.pnl_amount < 0,
+    ).scalar()
+    daily_loss = abs(float(today_loss or 0))
+
+    order_asset = Asset.query.filter_by(symbol=symbol.upper()).first() if symbol else None
+    if order_asset and portfolio:
+        current_correlated_exposure = sum(
+            float(item.current_value or 0)
+            for item in portfolio.items
+            if item.asset and item.asset.market == order_asset.market
+        )
+
     notional = float(size) * float(price or 0)
-    open_risk = abs(float(price or 0) - float(stop_price or price or 0)) * float(size)
+    proposed_open_risk = abs(float(price or 0) - float(stop_price or price or 0)) * float(size)
     return evaluate_limits(
         limits,
         current_exposure=current_exposure,
         proposed_exposure=notional,
-        open_risk=open_risk,
+        open_risk=current_open_risk + proposed_open_risk,
+        daily_loss=daily_loss,
+        drawdown_pct=drawdown_pct,
+        correlated_exposure=current_correlated_exposure,
     )

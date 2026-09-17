@@ -513,7 +513,8 @@ def place_order():
 
     user_id = int(get_jwt_identity())
     risk = evaluate_order_for_user(
-        user_id, size=size_int, price=limit_price or data.get("market_price"), stop_price=stop_price,
+        user_id, size=size_int, price=limit_price or data.get("market_price"),
+        stop_price=stop_price, symbol=our_symbol,
     )
     if not risk["allowed"]:
         return jsonify({

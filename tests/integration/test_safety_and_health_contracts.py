@@ -128,6 +128,39 @@ def test_risk_limits_can_be_saved_and_exposed_before_order_execution(app, client
     assert loaded.get_json()["max_total_exposure"] == 1000
 
 
+def test_daily_loss_limit_rejects_order_before_broker_call(app, client, monkeypatch):
+    from datetime import date
+    from app.extensions import db
+    from app.models.journal import JournalEntry
+    from app.models.risk_limit import RiskLimit
+
+    headers, user_id = _approved_headers(app)
+    app.config.update(
+        TRADING_EXECUTION_MODE="paper",
+        PAPER_TRADING_ENABLED=True,
+        BROKER_TRADING_ENABLED=False,
+    )
+    with app.app_context():
+        db.session.add(RiskLimit(user_id=user_id, max_daily_loss=100))
+        db.session.add(JournalEntry(
+            user_id=user_id, trade_date=date.today(), pnl_amount=-101,
+        ))
+        db.session.commit()
+
+    def fail_if_called(*args, **kwargs):
+        raise AssertionError("risk-rejected order reached a broker client")
+
+    monkeypatch.setattr("app.api.v1.trading.get_configured_client", fail_if_called)
+    response = client.post(
+        "/api/v1/trading/orders",
+        headers={**headers, "Idempotency-Key": "risk-daily-loss-1"},
+        json={"symbol": "BTCUSDT", "side": "buy", "order_type": "limit_order", "size": 1, "limit_price": 100},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "portfolio_risk_limit_exceeded"
+
+
 def test_signal_lifecycle_contract_tracks_milestones():
     from app.services.signals.lifecycle import lifecycle_snapshot
 
