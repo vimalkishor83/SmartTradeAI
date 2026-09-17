@@ -40,7 +40,11 @@ def list_backtests():
     user_id = get_jwt_identity()
     tests = Backtest.query.filter_by(user_id=user_id) \
         .order_by(Backtest.created_at.desc()).limit(50).all()
-    return jsonify({"backtests": [t.to_dict() for t in tests]}), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(
+        {"backtests": [t.to_dict() for t in tests]},
+        source="backtests", pagination={"limit": 50, "total": len(tests)},
+    )), 200
 
 
 @backtesting_bp.route("/run", methods=["POST"])
@@ -138,7 +142,8 @@ def run_backtest():
     response = bt.to_dict()
     response["equity_curve"] = bt.equity_curve
     response["trades_data"] = bt.trades_data
-    return jsonify(response), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(response, source="backtest_result")), 200
 
 
 @backtesting_bp.route("/walk-forward", methods=["POST"])
@@ -201,7 +206,8 @@ def walk_forward():
     )
     if "error" in result:
         return jsonify(result), 422
-    return jsonify(result), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(result, source="backtest_result")), 200
 
 
 @backtesting_bp.route("/<int:bt_id>", methods=["GET"])
@@ -212,7 +218,8 @@ def get_backtest(bt_id):
     result = bt.to_dict()
     result["equity_curve"] = bt.equity_curve
     result["trades_data"] = bt.trades_data
-    return jsonify(result), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(result, source="backtest_result")), 200
 
 
 @backtesting_bp.route("/sweeps", methods=["GET"])

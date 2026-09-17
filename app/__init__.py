@@ -186,6 +186,18 @@ def _register_request_observability(app):
             duration_ms = max((time.perf_counter() - started_at) * 1000, 0.0)
 
         response.headers["X-Request-ID"] = request_id
+        # Report-only first: the application still contains legacy inline
+        # scripts, so enforcing CSP immediately would break existing pages.
+        # This gives admins browser-visible violations before a later nonce
+        # migration turns the policy into enforcement.
+        if request.endpoint != "static":
+            response.headers.setdefault(
+                "Content-Security-Policy-Report-Only",
+                "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; "
+                "form-action 'self'; img-src 'self' data: https:; "
+                "font-src 'self' data: https:; connect-src 'self' https: wss:; "
+                "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+            )
         if request.endpoint == "static":
             return response
 
@@ -380,6 +392,7 @@ def _register_blueprints(app):
     from app.api.v1.news import news_bp
     from app.api.v1.scanner import scanner_bp
     from app.api.v1.admin import admin_bp
+    from app.api.v1.admin_telegram_limits import admin_telegram_limits_bp
     from app.api.v1.notifications import notifications_bp
     from app.api.v1.predictions import predictions_bp
     from app.api.v1.risk import risk_bp
@@ -409,6 +422,7 @@ def _register_blueprints(app):
     app.register_blueprint(news_bp, url_prefix="/api/v1/news")
     app.register_blueprint(scanner_bp, url_prefix="/api/v1/scanner")
     app.register_blueprint(admin_bp, url_prefix="/api/v1/admin")
+    app.register_blueprint(admin_telegram_limits_bp, url_prefix="/api/v1/admin")
     app.register_blueprint(notifications_bp, url_prefix="/api/v1/notifications")
     app.register_blueprint(predictions_bp, url_prefix="/api/v1/predictions")
     app.register_blueprint(risk_bp, url_prefix="/api/v1/risk")
@@ -436,6 +450,15 @@ def _init_db(app):
         from app.models.api_config import UserBrokerCredential  # ensure table is created
         from app.models.platform_config import PlatformConfig  # ensure table is created
         from app.models.live_read_log import LiveReadLog        # ensure table is created
+        from app.models.telegram_individual_signal_limit import TelegramIndividualSignalLimit  # ensure table is created
+
+        from app.services.safety import migrations_on_startup
+        if not migrations_on_startup():
+            logging.getLogger(__name__).info(
+                "RUN_MIGRATIONS_ON_STARTUP=0 — skipping startup migrations, "
+                "fallback schema creation, and initial seeding."
+            )
+            return
 
         migrations_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "migrations")
         if os.path.isdir(migrations_dir):
@@ -522,6 +545,8 @@ def _migrate_columns(app):
         ("live_read_logs", "trailing_stop",     "REAL"),
         ("live_read_logs", "high_water_mark",   "REAL"),
         ("live_read_logs", "trail_stage",       "INTEGER DEFAULT 0"),
+        ("live_read_logs", "current_price",     "REAL"),
+        ("live_read_logs", "last_observed_at",  "DATETIME"),
         ("live_read_logs", "snapshot",          "TEXT"),
         ("live_read_logs", "event_history",     "TEXT"),
         ("signal_history", "target2",           "REAL"),
@@ -762,44 +787,44 @@ def _seed_initial_data(app):
         if a.exchange == "binance":
             a.exchange = "delta_exchange"
 
-    # Add Crude Oil if missing
-    if not Asset.query.filter_by(symbol="CLUSD").first():
-        db.session.add(Asset(symbol="CLUSD", name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"))
-
-    # Assets
-    if not Asset.query.first():
-        assets = [
-            # Crypto
-            Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
-            # Forex
-            Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="yahoo"),
-            Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="yahoo"),
-            # Commodities
-            Asset(symbol="XAUUSD", name="Gold",      market="commodity", exchange="commodity", data_source="yahoo"),
-            Asset(symbol="XAGUSD", name="Silver",    market="commodity", exchange="commodity", data_source="yahoo"),
-            Asset(symbol="CLUSD",  name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"),
-            # Indian Stocks
-            Asset(symbol="RELIANCE", name="Reliance Industries", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="TCS", name="Tata Consultancy Services", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="INFY", name="Infosys", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="HDFCBANK", name="HDFC Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="ICICIBANK", name="ICICI Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="SBIN", name="State Bank of India", market="indian_stock", exchange="NSE", data_source="yahoo"),
-            # Indices
-            Asset(symbol="NIFTY50", name="Nifty 50", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="BANKNIFTY", name="Bank Nifty", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="SENSEX", name="BSE Sensex", market="index", exchange="BSE", data_source="yahoo"),
-            Asset(symbol="FINNIFTY", name="Fin Nifty", market="index", exchange="NSE", data_source="yahoo"),
-            Asset(symbol="MIDCPNIFTY", name="Midcap Nifty", market="index", exchange="NSE", data_source="yahoo"),
-        ]
-        db.session.add_all(assets)
+    # Assets. Seed each symbol independently so a partially seeded database is
+    # repaired on the next explicit seed/migration run. The old implementation
+    # inserted CLUSD first and then used Asset.query.first(), which prevented
+    # every other default asset from being added.
+    assets = [
+        # Crypto
+        Asset(symbol="BTCUSDT", name="Bitcoin", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="ETHUSDT", name="Ethereum", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="BNBUSDT", name="BNB", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="SOLUSDT", name="Solana", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        Asset(symbol="XRPUSDT", name="XRP", market="crypto", exchange="delta_exchange", data_source="delta_exchange"),
+        # Forex
+        Asset(symbol="EURUSD", name="Euro/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="GBPUSD", name="GBP/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="USDJPY", name="USD/JPY", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="AUDUSD", name="AUD/USD", market="forex", exchange="forex", data_source="yahoo"),
+        Asset(symbol="USDINR", name="USD/INR", market="forex", exchange="forex", data_source="yahoo"),
+        # Commodities
+        Asset(symbol="XAUUSD", name="Gold",      market="commodity", exchange="commodity", data_source="yahoo"),
+        Asset(symbol="XAGUSD", name="Silver",    market="commodity", exchange="commodity", data_source="yahoo"),
+        Asset(symbol="CLUSD",  name="Crude Oil", market="commodity", exchange="commodity", data_source="yahoo"),
+        # Indian Stocks
+        Asset(symbol="RELIANCE", name="Reliance Industries", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="TCS", name="Tata Consultancy Services", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="INFY", name="Infosys", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="HDFCBANK", name="HDFC Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="ICICIBANK", name="ICICI Bank", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="SBIN", name="State Bank of India", market="indian_stock", exchange="NSE", data_source="yahoo"),
+        # Indices
+        Asset(symbol="NIFTY50", name="Nifty 50", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="BANKNIFTY", name="Bank Nifty", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="SENSEX", name="BSE Sensex", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="FINNIFTY", name="Fin Nifty", market="index", exchange="NSE", data_source="yahoo"),
+        Asset(symbol="MIDCPNIFTY", name="Midcap Nifty", market="index", exchange="NSE", data_source="yahoo"),
+    ]
+    for asset in assets:
+        if not Asset.query.filter_by(symbol=asset.symbol, exchange=asset.exchange).first():
+            db.session.add(asset)
 
     # Backfill risk_reward for old signals that have NULL
     try:
@@ -912,6 +937,8 @@ def _init_scheduler(app):
             except Exception:
                 pass
 
+        _ensure_development_auto_generate_defaults(app)
+
     if not scheduler.running:
         scheduler.start()
 
@@ -983,6 +1010,44 @@ def _init_scheduler(app):
         minutes=5,
         replace_existing=True,
     )
+
+
+def _ensure_development_auto_generate_defaults(app):
+    """Create the first-run paper schedule for the isolated dev environment.
+
+    This is deliberately limited to the dedicated development profile and to
+    an empty config table. A saved row, including an intentional stopped state,
+    always wins so an operator can still control the schedule from the UI.
+    """
+    if app.config.get("TESTING") or os.environ.get("FLASK_ENV", "development").strip().lower() != "development":
+        return
+
+    defaults = app.config.get("DEVELOPMENT_AUTO_GENERATE_DEFAULTS") or {}
+    if not defaults:
+        return
+
+    from app.models.auto_generate_config import AutoGenerateConfig
+
+    try:
+        if AutoGenerateConfig.query.first() is not None:
+            return
+        row = AutoGenerateConfig(**{
+            key: list(value) if isinstance(value, list) else value
+            for key, value in defaults.items()
+        })
+        db.session.add(row)
+        db.session.commit()
+        logging.getLogger(__name__).info(
+            "Development Auto Generate defaults initialized: all timeframes, "
+            "paper-only, Telegram disabled."
+        )
+    except Exception as exc:
+        db.session.rollback()
+        # A missing schema is handled by the explicit migration phase; boot
+        # must not attempt schema creation just to seed this optional config.
+        logging.getLogger(__name__).warning(
+            "Development Auto Generate defaults could not be initialized: %s", exc
+        )
 
 
 def _expire_trials(app):

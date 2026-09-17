@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Refund &amp; Cancellation Policy — SmartTrade AI</title>
   <meta name="description" content="Billing, cancellation and refund terms for SmartTrade AI subscriptions." />
-  <link rel="canonical" href="https://smarttradeai.online/refund-policy" />
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/refund-policy" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
   <meta property="og:title" content="Refund &amp; Cancellation Policy — SmartTrade AI" />
   <meta property="og:description" content="Billing, cancellation and refund terms for SmartTrade AI subscriptions." />
-  <meta property="og:url" content="https://smarttradeai.online/refund-policy" />
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL }}/refund-policy" />
 
   <script type="application/ld+json">
   {
@@ -19,8 +19,8 @@
     "@type": "WebPage",
     "name": "Refund & Cancellation Policy",
     "description": "Billing, cancellation and refund terms for SmartTrade AI subscriptions.",
-    "url": "https://smarttradeai.online/refund-policy",
-    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "https://smarttradeai.online/home" }
+    "url": "{{ config.PUBLIC_SITE_URL }}/refund-policy",
+    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "{{ config.PUBLIC_SITE_URL }}/home" }
   }
   </script>
   <script type="application/ld+json">
@@ -28,9 +28,9 @@
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://smarttradeai.online/home" },
-      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" },
-      { "@type": "ListItem", "position": 3, "name": "Refund & Cancellation Policy", "item": "https://smarttradeai.online/refund-policy" }
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ config.PUBLIC_SITE_URL }}/home" },
+      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "{{ config.PUBLIC_SITE_URL }}/legal" },
+      { "@type": "ListItem", "position": 3, "name": "Refund & Cancellation Policy", "item": "{{ config.PUBLIC_SITE_URL }}/refund-policy" }
     ]
   }
   </script>
@@ -333,7 +333,7 @@
   <div class="legal-notices">
     <div class="notice-status">
       This document has not yet been reviewed by outside legal counsel. Questions? Contact
-      <a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a>.
+      <a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a>.
     </div>
   </div>
 
@@ -424,7 +424,7 @@
           If a renewal payment fails, we may retry the charge or downgrade your account to the Free plan
           rather than leaving a paid feature set active without payment. If you believe you were charged
           in error — for example, a duplicate or incorrect charge — contact
-          <a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a> and we'll
+          <a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a> and we'll
           investigate.
         </p>
       </section>
@@ -505,7 +505,7 @@
       <div class="footer-col-title">Support</div>
       <ul>
         <li><a href="/home#contact">Contact Support</a></li>
-        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+        <li><a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a></li>
       </ul>
     </div>
   </div>

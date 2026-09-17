@@ -175,16 +175,16 @@
 
   <div class="section-card">
     <div class="table-responsive">
-      <table class="smart-table signals-table-adv" data-mobile-cards><caption class="visually-hidden">Active trading signals and model context</caption>
+      <table class="smart-table signals-table-adv" data-mobile-cards><caption class="visually-hidden">Active trading signals with entry, protection, targets, confidence, profit, model context and lifecycle status</caption>
         <thead>
           <tr>
             <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
             <th>SL</th><th>TP1</th><th>TP2</th><th>Confidence</th><th>R:R</th>
-            <th>Age</th><th>Regime</th><th>Model</th><th>Status</th>
+            <th>P&amp;L</th><th>Age</th><th>Regime</th><th>Model</th><th>Status</th>
           </tr>
         </thead>
         <tbody id="allSignalsBody">
-          <tr><td colspan="14" class="text-center py-5 text-muted">
+          <tr><td colspan="15" class="text-center py-5 text-muted">
             <i class="bi bi-lightning-charge d-block mb-2" style="font-size:28px"></i>Loading signals…
           </td></tr>
         </tbody>
@@ -408,7 +408,7 @@ async function loadSignals(page = 1) {
   const tbody = document.getElementById('allSignalsBody');
   if (!data) {
     document.getElementById('allCount').textContent = 'unavailable';
-    if (tbody) tbody.innerHTML = '<tr><td colspan="14" class="text-center py-5 text-muted">Active signals are temporarily unavailable.</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="15" class="text-center py-5 text-muted">Active signals are temporarily unavailable.</td></tr>';
     return false;
   }
 
@@ -428,12 +428,12 @@ async function loadSignals(page = 1) {
     if (params.timeframe) activeFilters.push(`timeframe = ${signalText(params.timeframe)}`);
 
     tbody.innerHTML = activeFilters.length
-      ? `<tr><td colspan="14" class="text-center py-5 text-muted">
+      ? `<tr><td colspan="15" class="text-center py-5 text-muted">
           <i class="bi bi-funnel d-block mb-2" style="font-size:28px"></i>
           0 signals match your current filters (${activeFilters.join(', ')}).
           <div class="mt-2"><button type="button" class="btn btn-sm btn-outline-secondary" data-action="clear-signal-filters">Clear filters</button></div>
         </td></tr>`
-      : `<tr><td colspan="14" class="text-center py-5 text-muted">
+      : `<tr><td colspan="15" class="text-center py-5 text-muted">
           <i class="bi bi-inbox d-block mb-2" style="font-size:28px"></i>
           No signals generated yet.
         </td></tr>`;
@@ -447,6 +447,9 @@ async function loadSignals(page = 1) {
     const rrClr   = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
     const cur     = signalNumber(s.current_price, null) ?? signalNumber(s.entry_price, null);
     const st      = _statusOf(s);
+    const pnl     = signalNumber(s.pnl_pct, null);
+    const pnlText = pnl === null ? '—' : `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`;
+    const pnlClr  = pnl === null ? 'var(--text-muted)' : pnl >= 0 ? 'var(--green)' : 'var(--red)';
     const mkt     = String(s.market || '').replace('_', ' ');
     return `<tr>
       <td><a href="${STSafe.assetHref(s.asset_id)}" class="asset-cell-name" style="text-decoration:none">${signalText(s.asset || 'Unknown asset')}</a><div class="asset-cell-sub"><span class="badge-tag">${signalText(mkt)}</span></div></td>
@@ -459,10 +462,11 @@ async function loadSignals(page = 1) {
       <td class="num" style="color:var(--green)">${signalNumber(s.target2, null) === null ? '—' : formatPrice(signalNumber(s.target2, null), s.market)}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
+      <td class="num" style="color:${pnlClr};font-weight:700">${pnlText}</td>
       <td class="num">${typeof relativeTime==='function'?relativeTime(s.generated_at):shortTime(s.generated_at)}</td>
       <td><span class="regime-chip">${signalText(_regimeOf(s))}</span></td>
       <td>${_modelBars(s)}</td>
-      <td><span class="status-chip" style="color:${st.c};border-color:${st.c}">${signalText(st.t)}</span></td>
+      <td><span class="status-chip signal-status-${st.tone}" aria-label="Signal status: ${signalText(st.t)}">${signalText(st.t)}</span></td>
     </tr>`;
   }).join('');
 
@@ -472,7 +476,24 @@ async function loadSignals(page = 1) {
 
 /* ── shared per-signal derivations (match dashboard) ── */
 function _regimeOf(s){const t=signalPercent(s.trend_score),m=signalPercent(s.momentum_score);if(t>=60)return'Trending';if(m>=65&&t<45)return'Volatile';return'Ranging';}
-function _statusOf(s){const age=s.generated_at?(Date.now()-new Date(s.generated_at))/60000:999;const cur=signalNumber(s.current_price,null),entry=signalNumber(s.entry_price,null);if(cur!==null&&entry!==null){if((s.signal_type==='BUY'&&cur>=entry)||(s.signal_type==='SELL'&&cur<=entry))return{t:'ENTRY HIT',c:'var(--green)'};}if(age<30)return{t:'NEW',c:'var(--accent-light)'};return{t:'WATCHING',c:'var(--yellow)'};}
+function _statusOf(s){
+  const lifecycle = s.lifecycle && typeof s.lifecycle === 'object' ? s.lifecycle : {};
+  const targets = lifecycle.targets && typeof lifecycle.targets === 'object' ? lifecycle.targets : {};
+  const raw = String(s.status || lifecycle.status || 'active').toLowerCase();
+  if (raw === 'hit_sl' || lifecycle.stop_loss_hit) return {t:'STOP HIT',tone:'danger'};
+  if (raw === 'hit_target' || targets.t3 || targets.t2 || targets.t1) {
+    if (targets.t3) return {t:'TARGET 3 HIT',tone:'success'};
+    if (targets.t2) return {t:'TARGET 2 HIT',tone:'success'};
+    return {t:'TARGET 1 HIT',tone:'success'};
+  }
+  if (raw === 'expired') return {t:'EXPIRED',tone:'muted'};
+  const cur = signalNumber(s.current_price, null), entry = signalNumber(s.entry_price, null);
+  const direction = String(s.signal_type || '').toUpperCase();
+  const entryHit = cur !== null && entry !== null && (
+    (direction === 'BUY' && cur >= entry) || (direction === 'SELL' && cur <= entry)
+  );
+  return entryHit ? {t:'ENTRY HIT',tone:'success'} : {t:'ACTIVE',tone:'muted'};
+}
 function _modelBars(s){const dir=s.signal_type==='SELL'?'var(--red)':'var(--green)';const sc=[s.trend_score,s.momentum_score,s.volume_score,s.pattern_score].map(v=>signalPercent(v));const lb=['Trend','Momentum','Volume','Pattern'];return`<div class="model-bars" title="${signalText(lb.map((l,i)=>l+' '+Math.round(sc[i])).join(' · '))}">`+sc.map(v=>{const h=Math.max(3,v);const c=v>=50?dir:'rgba(148,163,184,.45)';return`<span class="mbar" style="height:${h}%;background:${c}"></span>`;}).join('')+'</div>';}
 
 /* ── Market-state strip (heatmap-derived) ── */
@@ -744,7 +765,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('histMkt')?.addEventListener('change',     () => loadHistory(1));
   document.getElementById('histOutcome')?.addEventListener('change', () => loadHistory(1));
 
-  setInterval(refreshLiveData, 60000);
+  STRefresh.start(refreshLiveData, 60);
 });
 </script>
 {% endblock %}

@@ -97,12 +97,18 @@
       input.disabled = false; sendBtn.disabled = false;
       input.value = '';
 
+      const safeText = (value) => {
+        const text = String(value ?? '');
+        return typeof STSafe !== 'undefined' && typeof STSafe.html === 'function'
+          ? STSafe.html(text)
+          : text.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+      };
       if (res && res.answer) {
-        answerBox.innerHTML = `<div style="color:var(--text-primary);line-height:1.5">${res.answer.replace(/</g, '&lt;')}</div>`;
+        answerBox.innerHTML = `<div style="color:var(--text-primary);line-height:1.5">${safeText(res.answer)}</div>`;
       } else if (res && res.message) {
-        answerBox.innerHTML = `<span class="text-warning">${res.message}</span>`;
+        answerBox.innerHTML = `<span class="text-warning">${safeText(res.message)}</span>`;
       } else {
-        answerBox.innerHTML = `<span class="text-danger">${res?.error || 'Could not get an answer — try again.'}</span>`;
+        answerBox.innerHTML = `<span class="text-danger">${safeText(res?.error || 'Could not get an answer — try again.')}</span>`;
       }
     }
 

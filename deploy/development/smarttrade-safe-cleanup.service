@@ -1,0 +1,12 @@
+[Unit]
+Description=SmartTradeAI conservative temporary-file cleanup
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/local/sbin/smarttrade-safe-cleanup --apply
+NoNewPrivileges=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/log /run/lock /var/lib/smarttrade-safe-cleanup

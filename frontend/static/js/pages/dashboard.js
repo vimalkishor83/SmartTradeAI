@@ -10,6 +10,8 @@ let _dashboardLoadPromise = null;
 let _dashboardBooted = false;
 let _signalsRequestId = 0;
 let _heatmapRequestId = 0;
+let _opportunityHideTimer = null;
+let _opportunityInspectorPinned = false;
 
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const numberOr = (value, fallback = null) => {
@@ -49,6 +51,8 @@ function setDashboardState(kind, message) {
   } else if (live) {
     live.textContent = kind === 'error' ? 'Dashboard data unavailable' : 'Dashboard partially updated';
   }
+  const retry = document.getElementById('dashboardRetry');
+  if (retry) retry.hidden = !['degraded', 'error'].includes(kind);
 }
 
 function setDashboardBusy(isBusy) {
@@ -58,6 +62,11 @@ function setDashboardBusy(isBusy) {
   if (refresh) {
     refresh.setAttribute('aria-busy', String(isBusy));
     refresh.disabled = isBusy;
+  }
+  const retry = document.getElementById('dashboardRetry');
+  if (retry) {
+    retry.setAttribute('aria-busy', String(isBusy));
+    retry.disabled = isBusy;
   }
 }
 
@@ -70,6 +79,28 @@ function stateRow(container, message, icon = 'bi-exclamation-circle') {
   } else {
     container.innerHTML = state;
   }
+}
+
+function dashboardEmptyState(message, href, label) {
+  const state = document.createElement('div');
+  if (typeof STState !== 'undefined' && typeof STState.render === 'function') {
+    STState.render(state, 'empty', message);
+  } else {
+    state.className = 'ui-state ui-state--empty';
+    state.setAttribute('role', 'status');
+    state.innerHTML = `<i class="bi bi-inbox" aria-hidden="true"></i><span>${STSafe.html(message)}</span>`;
+  }
+  if (href && label) {
+    const actions = document.createElement('div');
+    actions.className = 'ui-state__actions';
+    const link = document.createElement('a');
+    link.className = 'btn btn-sm btn-outline-secondary';
+    link.href = href;
+    link.textContent = label;
+    actions.append(link);
+    state.append(actions);
+  }
+  return state;
 }
 
 function chartState(canvas, message) {
@@ -226,19 +257,25 @@ function _oppTag(conf, type) {
 function loadOpportunityRadar(signals) {
   const wrap = document.getElementById('oppRadar');
   if (!wrap) return;
+  _hideOpportunityInspector(true);
   const seen = new Set();
   const top = (Array.isArray(signals) ? signals : [])
     .filter(s => { if (!s?.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
     .sort((a, b) => numberOr(b?.confidence_score, 0) - numberOr(a?.confidence_score, 0))
     .slice(0, 5);
-  if (!top.length) { wrap.innerHTML = '<div class="text-muted small p-3">No opportunities right now.</div>'; return; }
+  if (!top.length) {
+    wrap.replaceChildren(dashboardEmptyState('No opportunities right now.', '/markets/crypto', 'Browse Markets'));
+    return;
+  }
 
   wrap.innerHTML = top.map(s => {
     const conf = clamp(s.confidence_score, 0, 100, 0);
     const tag = _oppTag(conf, s.signal_type === 'SELL' ? 'SELL' : 'BUY');
     const rr = numberOr(s.risk_reward, 0);
     const note = String(s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || String(s.confidence_label || '');
-    return `<a class="opp-card" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
+    const opportunityId = STSafe.domId('opp_', s.id);
+    const label = `${STSafe.html(s.asset)} ${STSafe.html(s.signal_type || 'signal')} at ${conf.toFixed(0)}% confidence. Hover or select to inspect.`;
+    return `<article class="opp-card" role="button" tabindex="0" aria-expanded="false" aria-controls="inspectorCard" data-opportunity-id="${opportunityId}" aria-label="${label}">
       <div class="opp-top">
         <div class="opp-name">${STSafe.html(s.asset)}</div>
         <span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span>
@@ -246,13 +283,64 @@ function loadOpportunityRadar(signals) {
       <div class="opp-conf" style="color:${tag.c}">${conf.toFixed(0)}%</div>
       <div id="${STSafe.domId('oppspk_', s.id)}" class="opp-spark"></div>
       <div class="opp-foot"><span>R:R ${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span class="text-muted">${STSafe.html(note)}</span></div>
-    </a>`;
+    </article>`;
   }).join('');
 
   top.forEach(s => {
     const el = document.getElementById(STSafe.domId('oppspk_', s.id));
     if (el && typeof Sparkline !== 'undefined') Sparkline.load(el, s.asset_id, s.timeframe || '1h');
+    const card = wrap.querySelector(`[data-opportunity-id="${STSafe.domId('opp_', s.id)}"]`);
+    if (!card) return;
+    const inspect = (pin = false) => _showOpportunityInspector(s, pin);
+    card.addEventListener('mouseenter', () => inspect());
+    card.addEventListener('mouseleave', _scheduleOpportunityInspectorHide);
+    card.addEventListener('focus', () => inspect());
+    card.addEventListener('blur', _scheduleOpportunityInspectorHide);
+    card.addEventListener('click', () => inspect(true));
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        inspect(true);
+      }
+    });
   });
+}
+
+function _setOpportunitySelection(opportunityId) {
+  document.querySelectorAll('#oppRadar .opp-card').forEach(card => {
+    const selected = card.dataset.opportunityId === opportunityId;
+    card.classList.toggle('is-inspected', selected);
+    card.setAttribute('aria-expanded', String(selected));
+  });
+}
+
+function _hideOpportunityInspector(force = false) {
+  if (_opportunityInspectorPinned && !force) return;
+  clearTimeout(_opportunityHideTimer);
+  _opportunityInspectorPinned = false;
+  const panel = document.getElementById('inspectorCard');
+  if (panel) panel.hidden = true;
+  _setOpportunitySelection('');
+}
+
+function _scheduleOpportunityInspectorHide() {
+  if (_opportunityInspectorPinned) return;
+  clearTimeout(_opportunityHideTimer);
+  _opportunityHideTimer = setTimeout(() => {
+    const active = document.activeElement;
+    const panel = document.getElementById('inspectorCard');
+    if (active?.closest('#oppRadar .opp-card') || active?.closest('#inspectorCard') || panel?.matches(':hover')) return;
+    _hideOpportunityInspector();
+  }, 140);
+}
+
+function _showOpportunityInspector(signal, pin = false) {
+  clearTimeout(_opportunityHideTimer);
+  _opportunityInspectorPinned = pin || _opportunityInspectorPinned;
+  loadInspector(signal);
+  const panel = document.getElementById('inspectorCard');
+  if (panel) panel.hidden = false;
+  _setOpportunitySelection(STSafe.domId('opp_', signal.id));
 }
 
 /* ── Live Signals (enhanced) ──────────────────────────────────── */
@@ -277,7 +365,6 @@ async function loadSignals(page) {
   _signalData = Array.isArray(data.signals) ? data.signals : [];
   _renderSignals(_signalData);
   loadOpportunityRadar(_signalData);
-  if (_signalData.length) loadInspector([..._signalData].sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0))[0]);
 
   set('signalCount', countOr(data.total) + ' active');
   const pag = document.getElementById('signalPagination');
@@ -299,7 +386,13 @@ function _renderSignals(signals) {
   const minConf = clamp(window.MIN_CONFIDENCE, 0, 100, 0);
   const filtered = (Array.isArray(signals) ? signals : []).filter(s => numberOr(s?.confidence_score, 0) >= minConf);
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No signals yet — generate one from a market page.</td></tr>`;
+    const cell = document.createElement('td');
+    cell.colSpan = 12;
+    cell.className = 'text-center py-4';
+    cell.append(dashboardEmptyState('No active signals for this filter.', '/markets/crypto', 'Browse Markets'));
+    const row = document.createElement('tr');
+    row.append(cell);
+    tbody.replaceChildren(row);
     return;
   }
   tbody.innerHTML = filtered.map(s => {
@@ -309,18 +402,29 @@ function _renderSignals(signals) {
     const rrClr = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
     const cur = numberOr(s.current_price, numberOr(s.entry_price));
     const mkt = String(s.market || '').replace('_', ' ');
+    const lifecycle = s.lifecycle && typeof s.lifecycle === 'object' ? s.lifecycle : {};
+    const targets = lifecycle.targets && typeof lifecycle.targets === 'object' ? lifecycle.targets : {};
+    const signalStatus = _signalTableStatus(s, lifecycle, targets);
+    const pnl = numberOr(s.pnl_pct);
+    const pnlText = pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`;
+    const pnlClr = pnl == null ? 'var(--text-muted)' : pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const age = s.generated_at && typeof relativeTime === 'function' ? relativeTime(s.generated_at) : '—';
     // Row itself navigates to the asset's AI Position Analysis (SL/targets/
-    // age/regime/model-agreement/status all live there now) — only the
-    // trash-icon-style affordance differs, so make the whole row clickable
-    // rather than just the asset name.
+    // regime/model-agreement details) — make the whole row clickable rather
+    // than limiting navigation to the asset name.
     return `<tr style="cursor:pointer" tabindex="0" data-asset-href="${STSafe.assetHref(s.asset_id)}">
       <td><span class="asset-cell-name">${STSafe.html(s.asset)}</span><div class="asset-cell-sub"><span class="badge-tag">${STSafe.html(mkt)}</span></div></td>
       <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
+      <td><span class="status-chip signal-status-${signalStatus.tone}" aria-label="Signal status: ${STSafe.html(signalStatus.label)}">${STSafe.html(signalStatus.label)}</span></td>
       <td class="num">${safePrice(s.entry_price, s.market)}</td>
       <td class="num">${safePrice(cur, s.market)}</td>
+      <td class="num signal-level-stop">${safePrice(s.stop_loss, s.market)}</td>
+      <td class="num signal-level-target">${safePrice(s.target1, s.market)}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
+      <td class="num" style="color:${pnlClr};font-weight:700">${pnlText}</td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
+      <td class="signal-age">${STSafe.html(age)}</td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('tr[data-asset-href]').forEach(row => {
@@ -332,12 +436,38 @@ function _renderSignals(signals) {
   });
 }
 
+function _signalTableStatus(signal, lifecycle, targets) {
+  const raw = String(signal.status || lifecycle.status || 'active').toLowerCase();
+  if (raw === 'hit_sl' || lifecycle.stop_loss_hit) return { label: 'STOP HIT', tone: 'danger' };
+  if (raw === 'hit_target' || targets.t3 || targets.t2 || targets.t1) {
+    if (targets.t3) return { label: 'TARGET 3 HIT', tone: 'success' };
+    if (targets.t2) return { label: 'TARGET 2 HIT', tone: 'success' };
+    return { label: 'TARGET 1 HIT', tone: 'success' };
+  }
+  if (raw === 'expired') return { label: 'EXPIRED', tone: 'muted' };
+
+  const entry = numberOr(signal.entry_price);
+  const current = numberOr(signal.current_price);
+  const direction = String(signal.signal_type || '').toUpperCase();
+  const entryHit = entry != null && current != null && (
+    (direction === 'BUY' && current >= entry) ||
+    (direction === 'SELL' && current <= entry)
+  );
+  return entryHit ? { label: 'ENTRY HIT', tone: 'success' } : { label: 'WAITING', tone: 'muted' };
+}
+
 /* ── AI Decision Inspector ────────────────────────────────────── */
 function loadInspector(s) {
   const body = document.getElementById('inspectorBody');
   if (!body || !s) return;
   const conf = clamp(s.confidence_score, 0, 100, 0);
   document.getElementById('inspHeader').textContent = `${s.asset} · ${s.signal_type} · ${conf.toFixed(0)}%`;
+  const openLink = document.getElementById('inspOpenLink');
+  const assetHref = STSafe.assetHref(s.asset_id);
+  if (openLink) {
+    openLink.href = assetHref;
+    openLink.hidden = assetHref === '#';
+  }
   const entry = numberOr(s.entry_price);
   const stop = numberOr(s.stop_loss);
   const cur = numberOr(s.current_price, entry);
@@ -671,10 +801,14 @@ document.addEventListener('app:ready', () => {
   loadAll();
 
   document.getElementById('refreshAll')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
+  document.getElementById('dashboardRetry')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
   document.getElementById('generateSignalBtn')?.addEventListener('click', _generateSignal);
   document.getElementById('globalTimeframe')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalMarketFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalTypeFilter')?.addEventListener('change', () => loadSignals(1));
+  document.getElementById('inspectorCard')?.addEventListener('mouseenter', () => clearTimeout(_opportunityHideTimer));
+  document.getElementById('inspectorCard')?.addEventListener('mouseleave', _scheduleOpportunityInspectorHide);
+  document.getElementById('inspectorClose')?.addEventListener('click', () => _hideOpportunityInspector(true));
   document.querySelectorAll('.hm-tab').forEach(tab => tab.addEventListener('click', () => {
     document.querySelectorAll('.hm-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.hm-tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
@@ -683,5 +817,5 @@ document.addEventListener('app:ready', () => {
     _heatmapMode = tab.dataset.mode; _aiSummaryCache = null; loadHeatmap();
   }));
 
-  setInterval(loadAll, 90000);
+  STRefresh.start(loadAll, 90);
 });

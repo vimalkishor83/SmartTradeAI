@@ -23,6 +23,8 @@ function _setMarketStatus(state, message, detail) {
   if (context) context.className = `dashboard-context is-${state}`;
   mset('marketsLiveStatus', message);
   if (detail !== undefined) mset('marketsUpdatedAt', detail);
+  const retry = document.getElementById('marketsRetry');
+  if (retry) retry.hidden = !['degraded', 'error'].includes(state);
 }
 
 function _setMarketBusy(busy) {
@@ -30,11 +32,30 @@ function _setMarketBusy(busy) {
   if (content) content.setAttribute('aria-busy', busy ? 'true' : 'false');
   const generate = document.getElementById('generateAll');
   if (generate) generate.disabled = !!busy;
+  const retry = document.getElementById('marketsRetry');
+  if (retry) {
+    retry.disabled = !!busy;
+    retry.setAttribute('aria-busy', busy ? 'true' : 'false');
+  }
 }
 
 function _setMarketUnavailable(id, message) {
   const el = document.getElementById(id);
-  if (el) el.innerHTML = `<div class="ui-state ui-state--error p-3"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>${STSafe.html(message)}</span></div>`;
+  if (!el) return;
+  _renderMarketState(el, 'error', message);
+}
+
+function _renderMarketState(el, state, message) {
+  const target = document.createElement('div');
+  el.replaceChildren(target);
+  if (typeof STState !== 'undefined' && typeof STState.render === 'function') {
+    STState.render(target, state, message, () => loadAll());
+    return;
+  }
+  const icon = state === 'empty' ? 'bi-inbox' : 'bi-exclamation-triangle';
+  target.className = `ui-state ui-state--${state} p-3`;
+  target.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span>${STSafe.html(message)}</span><button type="button" class="btn btn-sm btn-outline-secondary ui-state-retry">Retry</button>`;
+  target.querySelector('.ui-state-retry')?.addEventListener('click', () => loadAll(), { once: true });
 }
 
 /* ── KPIs + sentiment + volatility from heatmap/signals ── */
@@ -279,7 +300,10 @@ async function loadAiHeat() {
   items = items.sort((a, b) => b.score - a.score);
   loadConsensus(items);                 // consensus from every scored asset
   items = items.slice(0, 24);
-  if (!items.length) { grid.innerHTML = '<div class="text-muted small p-3">No AI score is available for this selection.</div>'; return true; }
+  if (!items.length) {
+    _renderMarketState(grid, 'empty', 'No AI score is available for this selection.');
+    return true;
+  }
   grid.innerHTML = items.map(it => {
     const score = it.score;
     const label = score >= 80 ? 'STRONG BUY' : score >= 60 ? 'BUY' : score >= 40 ? 'HOLD' : score >= 20 ? 'SELL' : 'STRONG SELL';
@@ -473,5 +497,6 @@ document.addEventListener('app:ready', () => {
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
   wireSearchClear('assetSearch');
   document.getElementById('generateAll')?.addEventListener('click', generateAll);
-  setInterval(loadAll, 90000);
+  document.getElementById('marketsRetry')?.addEventListener('click', () => loadAll());
+  STRefresh.start(loadAll, 90);
 });

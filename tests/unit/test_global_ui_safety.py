@@ -22,6 +22,18 @@ def test_core_widgets_do_not_interpolate_untrusted_text_into_html():
     assert "el.querySelector('button')?.addEventListener('click'" in source
     assert "STSafe.html(formatTime(n.created_at))" in source
     assert "el.querySelector('span').textContent" in source
+    assert "_wsStartFreshnessWatch" in source
+    assert "_lastTickerAt" in source
+
+
+def test_global_market_health_banner_is_removed_from_shared_shell():
+    template = (ROOT / "frontend" / "templates" / "partials" / "base.html").read_text(encoding="utf-8")
+    source = (ROOT / "frontend" / "static" / "js" / "app.js").read_text(encoding="utf-8")
+    styles = (ROOT / "frontend" / "static" / "css" / "main.css").read_text(encoding="utf-8")
+
+    assert 'id="marketHealthStrip"' not in template
+    assert "STMarketHealth" not in source
+    assert ".market-health-strip" not in styles
 
 
 def test_command_palette_escapes_asset_values_and_ids():

@@ -162,7 +162,7 @@ def _build_features(df: pd.DataFrame) -> pd.DataFrame:
     vol_std  = vol_safe.rolling(20).std()
     feat["volume_zscore"]   = (vol_safe - vol_mean) / vol_std.replace(0, np.nan)
     feat["volume_vs_mean"]  = vol_safe / vol_mean       # >1 = above-average activity
-    feat["volume_trend_5"]  = vol_safe.pct_change(5)    # recent volume direction
+    feat["volume_trend_5"]  = vol_safe.pct_change(5, fill_method=None)    # recent volume direction
     feat["buy_vol_proxy"]   = (close > open_).astype(float) * vol_safe / vol_mean
 
     # ── 12. Volatility regime (Phase 5) ──────────────────────

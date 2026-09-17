@@ -1,7 +1,11 @@
 """Background jobs for sending notifications."""
 import logging
 
+from flask import current_app
+
 logger = logging.getLogger(__name__)
+
+MAX_DELIVERY_ATTEMPTS = 3
 
 def _market_enabled(cfg: dict, field: str, market: str) -> bool:
     """Per-category, per-delivery-level market list (e.g.
@@ -19,10 +23,16 @@ def _market_enabled(cfg: dict, field: str, market: str) -> bool:
 # Appended to every trade-related Telegram message (new signal, close,
 # watchlist, protective order) — Telegram's legacy Markdown parse_mode
 # supports [text](url) links same as MarkdownV2 does.
-_TELEGRAM_DISCLAIMER = (
-    "\n\n⚠️ _Disclaimer: For informational purposes only — not financial "
-    "advice. [Read full disclaimer](https://smarttradeai.online/disclaimer)_"
-)
+def _telegram_disclaimer():
+    """Build the disclaimer link for the active deployment environment."""
+    try:
+        site_url = current_app.config.get("PUBLIC_SITE_URL", "https://smarttradeai.online")
+    except RuntimeError:
+        site_url = "https://smarttradeai.online"
+    return (
+        "\n\n⚠️ _Disclaimer: For informational purposes only — not financial "
+        f"advice. [Read full disclaimer]({site_url.rstrip('/')}/disclaimer)_"
+    )
 
 
 def send_pending_notifications(app):
@@ -30,7 +40,8 @@ def send_pending_notifications(app):
         from app.models.notification import Notification
         from app.models.user import User
         from app.extensions import db
-        from datetime import datetime
+        from datetime import datetime, timedelta
+        from app.services.safety import telegram_notifications_enabled
 
         # Match the delivery-queue index and keep retries deterministic.
         pending = (Notification.query.filter_by(is_sent=False)
@@ -43,12 +54,35 @@ def send_pending_notifications(app):
         # SELECT per notification (was a straightforward N+1 — with users in
         # the thousands and >50 pending notifications per poll, this alone
         # was 50 extra round-trips every 30 seconds).
-        user_ids = {n.user_id for n in pending}
+        now = datetime.utcnow()
+        eligible = []
+        for notif in pending:
+            status = getattr(notif, "delivery_status", None) or ("sent" if notif.is_sent else "pending")
+            attempts = int(getattr(notif, "attempt_count", 0) or 0)
+            next_attempt = getattr(notif, "next_attempt_at", None)
+            if status in {"sent", "skipped", "dead_letter", "sending"}:
+                continue
+            if attempts >= MAX_DELIVERY_ATTEMPTS:
+                notif.delivery_status = "dead_letter"
+                notif.last_error = "Maximum delivery attempts reached"
+                continue
+            if next_attempt and next_attempt > now:
+                continue
+            eligible.append(notif)
+
+        if not eligible:
+            db.session.commit()
+            return
+
+        user_ids = {n.user_id for n in eligible}
         users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
 
-        for notif in pending:
+        for notif in eligible:
             user = users_by_id.get(notif.user_id)
             if not user:
+                notif.delivery_status = "skipped"
+                notif.skipped_reason = "user_not_found"
+                notif.is_sent = True
                 continue
 
             # Claim BEFORE sending, not after. This loop previously sent first
@@ -76,19 +110,33 @@ def send_pending_notifications(app):
                 # reasoning bullets — the duplicate/disclaimer-missing alerts
                 # reported in production were this second, unwanted send.
                 if user.telegram_enabled and user.telegram_chat_id and notif.channel in ("telegram", None):
-                    if not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
+                    if not telegram_notifications_enabled():
+                        logger.info(
+                            "Telegram notification %s skipped because Telegram delivery is disabled",
+                            notif.id,
+                        )
+                        notif.delivery_status = "skipped"
+                        notif.skipped_reason = "telegram_disabled"
+                    elif not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
                         raise RuntimeError("Telegram delivery was not accepted")
+                if not getattr(notif, "delivery_status", None) or notif.delivery_status == "sending":
+                    notif.delivery_status = "sent"
+                notif.last_error = None
+                notif.next_attempt_at = None
             except Exception as e:
-                # Release the claim so a later run retries rather than silently
-                # dropping the notification — claiming up front must not turn a
-                # transient SMTP/Telegram failure into permanent loss.
-                logger.error(f"Notification send failed: {e}")
-                db.session.execute(
-                    Notification.__table__.update()
-                    .where(Notification.id == notif.id)
-                    .values(is_sent=False, sent_at=None)
-                )
-                db.session.commit()
+                # Retry transient failures a bounded number of times, then
+                # retain a dead-letter row for admin inspection instead of
+                # retrying forever. Never persist exception text from a client
+                # library because it can accidentally contain a credential.
+                attempts = int(getattr(notif, "attempt_count", 0) or 0)
+                status = "dead_letter" if attempts >= MAX_DELIVERY_ATTEMPTS else "failed"
+                delay = min(300, 30 * (2 ** max(0, attempts - 1)))
+                logger.error("Notification %s send failed (%s): %s", notif.id, type(e).__name__, e)
+                notif.is_sent = False
+                notif.sent_at = None
+                notif.delivery_status = status
+                notif.last_error = f"{type(e).__name__}: delivery was not accepted"
+                notif.next_attempt_at = None if status == "dead_letter" else datetime.utcnow() + timedelta(seconds=delay)
 
         db.session.commit()
 
@@ -108,7 +156,13 @@ def _claim_notification(notif) -> bool:
     result = db.session.execute(
         Notification.__table__.update()
         .where(Notification.id == notif.id, Notification.is_sent == False)  # noqa: E712
-        .values(is_sent=True, sent_at=datetime.utcnow())
+        .values(
+            is_sent=True,
+            sent_at=datetime.utcnow(),
+            delivery_status="sending",
+            attempt_count=Notification.attempt_count + 1,
+            last_error=None,
+        )
     )
     db.session.commit()
     return result.rowcount > 0
@@ -136,6 +190,11 @@ def _telegram_token_for(user) -> str | None:
 
 
 def _send_telegram(user, text: str):
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        logger.info("Telegram user delivery blocked by environment safety gate")
+        return False
+
     try:
         import requests
         token = _telegram_token_for(user)
@@ -256,6 +315,11 @@ def _send_to_chat(chat_id: str, text: str):
     bot token the way _send_telegram does. No-ops silently if the bot
     token isn't configured yet."""
     try:
+        from app.services.safety import telegram_notifications_enabled
+        if not telegram_notifications_enabled():
+            logger.info("Telegram group delivery blocked by environment safety gate")
+            return False
+
         from flask import current_app
         token = current_app.config.get("TELEGRAM_BOT_TOKEN")
         if not token or not chat_id:
@@ -303,6 +367,11 @@ def _send_to_channels(text: str, market: str, category: str, timeframe: str | No
     destination: different markets/timeframes legitimately want different
     audiences and different alert mixes."""
     try:
+        from app.services.safety import telegram_notifications_enabled
+        if not telegram_notifications_enabled():
+            logger.info("Telegram channel fan-out blocked by environment safety gate")
+            return 0
+
         from app.models.telegram_alert_channel import TelegramAlertChannel
         channels = TelegramAlertChannel.query.filter_by(is_active=True).all()
         for channel in channels:
@@ -372,7 +441,7 @@ def _format_rating_change_telegram(symbol: str, tf: str, old_rating: str, new_ra
         lines.append(f"_{reason}_")
     lines.append("")
     lines.append(f"📊 Overall trend: *{overall_trend}*")
-    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+    return "\n".join(lines) + _telegram_disclaimer()
 
 
 def check_rating_changes(app):
@@ -391,6 +460,7 @@ def check_rating_changes(app):
         from app.models.rating_snapshot import RatingSnapshot
         from app.models.user import User
         from app.services.platform_config import get_platform_config
+        from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
 
         cfg = get_platform_config()
         # Fast bail-out only when NO market is enabled for EITHER delivery
@@ -416,6 +486,7 @@ def check_rating_changes(app):
                 if not cell or not cell.get("rating"):
                     continue
                 new_rating = cell["rating"]
+                individual_limit_allowed = individual_signal_allowed(row["id"], tf) if individual_on else False
                 snap = existing.get((row["id"], tf))
                 old_rating = snap.rating if snap else None
 
@@ -431,7 +502,7 @@ def check_rating_changes(app):
                     )
                     if group_on:
                         _send_to_channels(text, market, "rating_change", tf)
-                    if individual_on:
+                    if individual_on and individual_limit_allowed:
                         if users is None:
                             users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                         for user in users:
@@ -499,7 +570,7 @@ def _format_signal_telegram(sig, asset) -> str:
         lines.append("")
         lines.append("*Why:* " + sig.reasoning.replace(" | ", ", "))
 
-    return "\n".join(lines) + _TELEGRAM_DISCLAIMER
+    return "\n".join(lines) + _telegram_disclaimer()
 
 
 def fire_signal_alerts(app):
@@ -521,6 +592,7 @@ def fire_signal_alerts(app):
         from datetime import datetime, timedelta
 
         from app.services.platform_config import get_platform_config
+        from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
         cfg = get_platform_config()
 
         cutoff = datetime.utcnow() - timedelta(minutes=6)
@@ -570,6 +642,7 @@ def fire_signal_alerts(app):
             )
             tg_msg = _format_signal_telegram(sig, asset)
             tg_individual_allowed = _market_enabled(cfg, "telegram_signal_individual_markets", asset.market)
+            tg_individual_signal_limit_allowed = individual_signal_allowed(sig.asset_id, sig.timeframe)
             tg_group_allowed = _market_enabled(cfg, "telegram_signal_group_markets", asset.market)
             # Once per signal, not once per user — this is a shared group,
             # not an inbox each user gets their own copy of. Guarded the
@@ -597,7 +670,8 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if (tg_individual_allowed and tg_individual_signal_limit_allowed
+                        and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
                     try:
@@ -633,8 +707,9 @@ def fire_signal_alerts(app):
                 f"📍 Entry: `{h.entry_price:.4f}`\n"
                 f"{'🎯' if won else '🛑'} Exit: `{h.exit_price:.4f}`\n"
                 f"{'📈' if h.pnl_pct >= 0 else '📉'} P&L: `{h.pnl_pct:+.2f}%` | ⏱ Held: `{duration_label}`"
-            ) + _TELEGRAM_DISCLAIMER
+            ) + _telegram_disclaimer()
             tg_close_individual_allowed = _market_enabled(cfg, "telegram_signal_closed_individual_markets", asset.market)
+            tg_close_signal_limit_allowed = individual_signal_allowed(h.asset_id, h.timeframe)
             tg_close_group_allowed = _market_enabled(cfg, "telegram_signal_closed_group_markets", asset.market)
             if tg_close_group_allowed and not any(
                 (u.id, "signal_closed", asset.symbol) in already_sent for u in users
@@ -655,7 +730,8 @@ def fire_signal_alerts(app):
                     broadcast_notification(user.id, title, msg)
                 except Exception:
                     pass
-                if tg_close_individual_allowed and user.telegram_enabled and user.telegram_chat_id:
+                if (tg_close_individual_allowed and tg_close_signal_limit_allowed
+                        and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
                     try:

@@ -6,7 +6,39 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def _env_bool(name, default=False):
+    """Parse boolean environment values without truthiness surprises."""
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _development_cors_origins():
+    """Use a same-site allowlist when development CORS is not configured."""
+    configured = os.environ.get("CORS_ORIGINS", "").strip()
+    if not configured or configured == "*":
+        return ["https://smarttradeai.info", "https://www.smarttradeai.info"]
+    return [origin.strip() for origin in configured.split(",") if origin.strip()]
+
+
+_DEVELOPMENT_AUTO_GENERATE_TIMEFRAMES = [
+    "1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d",
+]
+
+
 class Config:
+    DEBUG = _env_bool("DEBUG", False)
+    BROKER_TRADING_ENABLED = _env_bool("BROKER_TRADING_ENABLED", False)
+    BROKER_CONNECTIONS_ENABLED = _env_bool("BROKER_CONNECTIONS_ENABLED", False)
+    PROTECTIVE_ORDERS_ENABLED = _env_bool("PROTECTIVE_ORDERS_ENABLED", False)
+    TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
+    RUN_MIGRATIONS_ON_STARTUP = _env_bool("RUN_MIGRATIONS_ON_STARTUP", False)
+    # "live" preserves the existing production contract; development overrides
+    # this to paper mode so a test order can never reach a broker client.
+    TRADING_EXECUTION_MODE = os.environ.get("TRADING_EXECUTION_MODE", "live").strip().lower()
+    PAPER_TRADING_ENABLED = _env_bool("PAPER_TRADING_ENABLED", False)
+
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "jwt-secret-change-in-production")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(hours=int(os.environ.get("JWT_ACCESS_EXPIRES_HOURS", 24)))
@@ -63,12 +95,14 @@ class Config:
     MAIL_USE_TLS = os.environ.get("MAIL_USE_TLS", "true").lower() == "true"
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME")
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD")
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", "support@smarttradeai.online")
+    PUBLIC_SITE_URL = os.environ.get("PUBLIC_SITE_URL", "https://smarttradeai.online").rstrip("/")
+    SUPPORT_EMAIL = os.environ.get("SUPPORT_EMAIL", "support@smarttradeai.online")
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_DEFAULT_SENDER", SUPPORT_EMAIL)
     # No SMTP credentials configured yet? Suppress actual sending and log the
     # email instead (see app/services/mailer.py) so registration/reset flows
     # keep working end-to-end before you've wired up a real mail provider.
     MAIL_SUPPRESS_SEND = not bool(MAIL_USERNAME and MAIL_PASSWORD)
-    FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://127.0.0.1:5000")
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", PUBLIC_SITE_URL)
 
     # Telegram
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
@@ -76,7 +110,7 @@ class Config:
     # Web Push (VAPID)
     VAPID_PUBLIC_KEY    = os.environ.get("VAPID_PUBLIC_KEY", "")
     VAPID_PRIVATE_KEY   = os.environ.get("VAPID_PRIVATE_KEY", "")
-    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", "mailto:support@smarttradeai.online")
+    VAPID_CLAIMS_EMAIL  = os.environ.get("VAPID_CLAIMS_EMAIL", f"mailto:{SUPPORT_EMAIL}")
 
     # Scheduler
     SCHEDULER_TIMEZONE = "Asia/Kolkata"
@@ -90,7 +124,23 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    DEBUG = True
+    # Public development deployments must not expose debug tooling.
+    DEBUG = False
+    PUBLIC_SITE_URL = "https://smarttradeai.info"
+    SUPPORT_EMAIL = "support@smarttradeai.info"
+    MAIL_DEFAULT_SENDER = SUPPORT_EMAIL
+    VAPID_CLAIMS_EMAIL = f"mailto:{SUPPORT_EMAIL}"
+    FRONTEND_URL = os.environ.get("FRONTEND_URL", PUBLIC_SITE_URL)
+    BROKER_TRADING_ENABLED = False
+    BROKER_CONNECTIONS_ENABLED = False
+    PROTECTIVE_ORDERS_ENABLED = False
+    TELEGRAM_NOTIFICATIONS_ENABLED = False
+    RUN_MIGRATIONS_ON_STARTUP = False
+    TRADING_EXECUTION_MODE = "paper"
+    PAPER_TRADING_ENABLED = True
+    JWT_COOKIE_SECURE = True
+    SESSION_COOKIE_SECURE = True
+    CORS_ORIGINS = _development_cors_origins()
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", "sqlite:///smarttrade_dev.db"
     )
@@ -102,6 +152,20 @@ class DevelopmentConfig(Config):
     # edit templates during normal use, so caching them makes page navigations
     # faster. Set TEMPLATES_AUTO_RELOAD=1 in the env only while editing HTML.
     TEMPLATES_AUTO_RELOAD = os.environ.get("TEMPLATES_AUTO_RELOAD", "0") == "1"
+    # A fresh isolated development database should provide paper signals
+    # without requiring a manual Start click. Existing saved settings remain
+    # authoritative and are never overwritten by this bootstrap.
+    DEVELOPMENT_AUTO_GENERATE_DEFAULTS = {
+        "running": True,
+        "asset_ids": [],
+        "markets": [],
+        "timeframes": list(_DEVELOPMENT_AUTO_GENERATE_TIMEFRAMES),
+        "signal_filter": "all",
+        "min_confidence": 0,
+        "max_per_run": 10,
+        "interval_minutes": 15,
+        "telegram_on_signal": False,
+    }
 
 
 _INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-in-production"}
@@ -109,6 +173,9 @@ _INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-
 
 class ProductionConfig(Config):
     DEBUG = False
+    # Preserve the existing production connection workflow explicitly; the
+    # shared default remains fail-closed for development and tests.
+    BROKER_CONNECTIONS_ENABLED = True
     # SQLite is fine here too — DATABASE_URL just needs to point at whatever
     # engine you're running (falls back to the local sqlite file so a first
     # deploy without DATABASE_URL set doesn't hard-crash before you've had a
@@ -128,6 +195,8 @@ class ProductionConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    # Tests explicitly own an in-memory schema; deployment profiles default off.
+    RUN_MIGRATIONS_ON_STARTUP = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=5)
     # In-memory SQLite uses SQLAlchemy's StaticPool internally, which

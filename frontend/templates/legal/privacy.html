@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Privacy Policy — SmartTrade AI</title>
   <meta name="description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
-  <link rel="canonical" href="https://smarttradeai.online/privacy" />
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/privacy" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
   <meta property="og:title" content="Privacy Policy — SmartTrade AI" />
   <meta property="og:description" content="What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data." />
-  <meta property="og:url" content="https://smarttradeai.online/privacy" />
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL }}/privacy" />
 
   <script type="application/ld+json">
   {
@@ -19,8 +19,8 @@
     "@type": "WebPage",
     "name": "Privacy Policy",
     "description": "What SmartTrade AI collects, how broker API keys are handled, and your rights over your account data.",
-    "url": "https://smarttradeai.online/privacy",
-    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "https://smarttradeai.online/home" }
+    "url": "{{ config.PUBLIC_SITE_URL }}/privacy",
+    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "{{ config.PUBLIC_SITE_URL }}/home" }
   }
   </script>
   <script type="application/ld+json">
@@ -28,9 +28,9 @@
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://smarttradeai.online/home" },
-      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" },
-      { "@type": "ListItem", "position": 3, "name": "Privacy Policy", "item": "https://smarttradeai.online/privacy" }
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ config.PUBLIC_SITE_URL }}/home" },
+      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "{{ config.PUBLIC_SITE_URL }}/legal" },
+      { "@type": "ListItem", "position": 3, "name": "Privacy Policy", "item": "{{ config.PUBLIC_SITE_URL }}/privacy" }
     ]
   }
   </script>
@@ -358,7 +358,7 @@
   <div class="legal-notices">
     <div class="notice-status">
       This document has not yet been reviewed by outside legal counsel. Questions? Contact
-      <a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a>.
+      <a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a>.
     </div>
   </div>
 
@@ -501,7 +501,7 @@
       <div class="footer-col-title">Support</div>
       <ul>
         <li><a href="/home#contact">Contact Support</a></li>
-        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+        <li><a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a></li>
       </ul>
     </div>
   </div>

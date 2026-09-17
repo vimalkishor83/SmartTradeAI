@@ -7,12 +7,11 @@ The original `frontend/` and its Flask template/static config are untouched.
 """
 import os
 
-from flask import Blueprint, send_from_directory
+from flask import Blueprint, abort, send_from_directory
 
 from app.extensions import limiter
 
 frontends_bp = Blueprint("frontends", __name__)
-limiter.exempt(frontends_bp)
 
 # Project root (one level above this app/ package).
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -20,6 +19,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def _serve(folder: str, path: str):
     directory = os.path.join(_ROOT, folder)
+    if not os.path.isdir(directory):
+        abort(404, description=f"The {folder} frontend is not installed")
     rel = path or "index.html"
     full = os.path.join(directory, rel)
     # SPA fallback: unknown paths (client-side routes) serve index.html

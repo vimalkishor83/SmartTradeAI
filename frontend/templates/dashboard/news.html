@@ -248,9 +248,9 @@ document.addEventListener('app:ready', () => {
   }
 
   // Auto-refresh every 5 minutes
-  if (!_newsRefreshTimer) _newsRefreshTimer = setInterval(() => loadNews(1), 300000);
+  if (!_newsRefreshTimer) _newsRefreshTimer = STRefresh.start(() => loadNews(1), 300);
   // Refresh econ calendar every 30 minutes
-  if (!_econRefreshTimer) _econRefreshTimer = setInterval(loadEcon, 1800000);
+  if (!_econRefreshTimer) _econRefreshTimer = STRefresh.start(loadEcon, 1800, { max: 3600 });
   Promise.allSettled([loadNews(1), loadEcon()]);
 });
 </script>

@@ -117,6 +117,24 @@ const API = {
     }
   },
 
+  async getWithSignal(path, params = {}, signal) {
+    const url = new URL(this.base + path, window.location.origin);
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+      .forEach(([k, v]) => url.searchParams.set(k, v));
+    try {
+      const res = await fetch(url, { headers: this.headers(), signal });
+      if (res.status === 401 && !IS_PUBLIC) {
+        localStorage.removeItem('access_token');
+        window.location.replace('/login');
+        return null;
+      }
+      return res.ok ? res.json() : null;
+    } catch (e) {
+      if (e?.name !== 'AbortError') console.error('API GET error:', path, e);
+      return null;
+    }
+  },
+
   // Like get(), but preserves the error body on non-2xx responses instead
   // of returning null — most callers rely on the truthy-on-success shortcut
   // (if (!data) return), so this is opt-in rather than changing get()'s
@@ -534,6 +552,55 @@ const LivePrices = {
   },
 };
 
+// Shared timer helper keeps page refreshes visible-state aware and gives
+// live-data modules one bounded interpretation of the admin refresh setting.
+window.STRefresh = window.STRefresh || {
+  seconds(defaultSeconds, options = {}) {
+    const configured = Number(window.PLATFORM_CONFIG?.live_price_refresh_interval_seconds);
+    const value = options.usePlatform && Number.isFinite(configured) ? configured : defaultSeconds;
+    return Math.min(options.max || 3600, Math.max(options.min || 1, Number(value) || defaultSeconds));
+  },
+  start(callback, defaultSeconds, options = {}) {
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'hidden') callback();
+    }, this.seconds(defaultSeconds, options) * 1000);
+    return timer;
+  },
+};
+
+// Shared request/state helpers let data-heavy modules cancel stale requests
+// and present the same loading, empty, stale, error and permission language.
+window.STRequest = window.STRequest || {
+  _controllers: new Map(),
+  get(path, params = {}) {
+    const key = `${path}?${new URLSearchParams(params).toString()}`;
+    this._controllers.get(key)?.abort();
+    const controller = new AbortController();
+    this._controllers.set(key, controller);
+    return API.getWithSignal(path, params, controller.signal).finally(() => {
+      if (this._controllers.get(key) === controller) this._controllers.delete(key);
+    });
+  },
+};
+
+window.STState = window.STState || {
+  render(target, state, message, retry) {
+    const el = typeof target === 'string' ? document.querySelector(target) : target;
+    if (!el) return;
+    const labels = {
+      loading: 'Loading…', empty: 'No data available', error: 'Unable to load this data',
+      stale: 'Data may be stale', permission: 'You do not have permission to view this data',
+    };
+    const text = String(message || labels[state] || '');
+    el.classList.add('ui-state');
+    el.dataset.state = state;
+    el.setAttribute('role', state === 'error' || state === 'permission' ? 'alert' : 'status');
+    const icon = state === 'loading' ? 'bi-hourglass-split' : state === 'empty' ? 'bi-inbox' : state === 'permission' ? 'bi-lock' : state === 'stale' ? 'bi-clock-history' : 'bi-exclamation-triangle';
+    el.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span>${STSafe.html(text)}</span>${retry ? '<button type="button" class="btn btn-sm btn-outline-secondary ui-state-retry">Retry</button>' : ''}`;
+    if (retry) el.querySelector('.ui-state-retry')?.addEventListener('click', retry, { once: true });
+  },
+};
+
 // ─── Ticker Ribbon ────────────────────────────
 const Ticker = {
   _items: {},
@@ -812,7 +879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   Ticker.load();
   LivePrices.seed();  // bootstrap price cache before WS connects
   LivePrices.startRefresh();
-  setInterval(() => Notifications.load(), 60000);
+  STRefresh.start(() => Notifications.load(), 60);
 
   // Fire ready event for page-specific scripts — skipped entirely on a
   // tier-locked page (see showTierLockOverlay in Auth.updateUI): the
@@ -836,17 +903,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       const _wsLabel = document.getElementById('wsStatusLabel');
       let _wsStaleSince = null;
       let _wsStaleTimer = null;
+      let _wsConnectedAt = null;
+      let _lastTickerAt = null;
 
       function _wsSetStatus(state) {
         if (!_wsDot) return;
         _wsDot.className = 'ws-dot ' + state;
         _wsLabel.textContent = state === 'live' ? 'Live' : state === 'delayed' ? 'Delayed' : 'Offline';
+        const labels = { live: 'Live data stream connected', delayed: 'Data stream connected but no recent ticker update', offline: 'Live data stream disconnected' };
+        document.getElementById('wsStatusBadge')?.setAttribute('title', labels[state] || 'Live data connection');
+      }
+
+      function _wsStartFreshnessWatch() {
+        clearInterval(_wsStaleTimer);
+        _wsStaleTimer = setInterval(() => {
+          if (!socket.connected) return;
+          const lastEvent = _lastTickerAt || _wsConnectedAt;
+          if (lastEvent && Date.now() - lastEvent > 30000) _wsSetStatus('delayed');
+          else _wsSetStatus('live');
+        }, 5000);
       }
 
       socket.on('connect', () => {
         _wsSetStatus('live');
         _wsStaleSince = null;
-        clearTimeout(_wsStaleTimer);
+        _wsConnectedAt = Date.now();
+        _lastTickerAt = null;
+        _wsStartFreshnessWatch();
         socket.emit('subscribe_all_tickers');
         socket.emit('subscribe_signals', { market: 'all' });
         socket.emit('subscribe_notifications');
@@ -855,6 +938,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       socket.on('disconnect', () => {
         _wsSetStatus('offline');
         _wsStaleSince = Date.now();
+        clearInterval(_wsStaleTimer);
       });
 
       socket.on('connect_error', () => {
@@ -868,6 +952,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Live price → update ribbon + notify page listeners
       socket.on('ticker_update', tick => {
         if (!tick?.symbol) return;
+        _lastTickerAt = Date.now();
+        _wsSetStatus('live');
         LivePrices.update(tick);
         Ticker.patchItem(tick);
         // Dispatch DOM event so page components can react

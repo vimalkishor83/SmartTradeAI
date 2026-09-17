@@ -37,3 +37,10 @@ def test_user_actions_are_bound_from_dataset_values():
     assert "button.addEventListener('click', () => toggleUser" in source
     assert "button.addEventListener('change', () => changeUserRole" in source
     assert "button.addEventListener('change', () => changeUserSubscription" in source
+    assert "function setFormStatus(form, message, kind = 'danger')" in source
+    assert "data-form-status" in source
+    assert "form.setAttribute('aria-busy', String(busy))" in source
+    assert "Credentials are shown below." in source
+    assert "id=\"trialForm\" aria-busy=\"false\"" in source
+    assert "trialModal').addEventListener('hidden.bs.modal'" in source
+    assert "Start trial error:" in source

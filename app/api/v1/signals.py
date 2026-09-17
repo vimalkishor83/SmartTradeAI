@@ -689,17 +689,24 @@ def ag_status():
 def ag_watchlist():
     """Return all active assets grouped by market — used to build the asset picker."""
     assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
-    selected = set(_AG_STATE["asset_ids"])
+    # The picker is served by the web tier, while the scheduler owns the
+    # running configuration. Read the same shared snapshot as /status so a
+    # different web worker cannot reset saved timeframes to its local default.
+    snap = _ag_status_snapshot()
+    selected_asset_ids = snap.get("asset_ids") or []
+    selected_markets = snap.get("markets") or []
+    selected_timeframes = snap.get("timeframes") or ["1h"]
+    selected = set(selected_asset_ids)
     return jsonify({
         "assets": [
             {**a.to_dict(), "selected": a.id in selected}
             for a in assets
         ],
         "markets": Asset.MARKETS,
-        "selected_asset_ids": _AG_STATE["asset_ids"],
-        "selected_markets": _AG_STATE.get("markets") or [],
-        "selected_timeframes": _AG_STATE["timeframes"],
-        "running": _AG_STATE["running"],
+        "selected_asset_ids": selected_asset_ids,
+        "selected_markets": selected_markets,
+        "selected_timeframes": selected_timeframes,
+        "running": bool(snap.get("running")),
     }), 200
 
 
@@ -1171,12 +1178,15 @@ def get_signals():
         row["historical_context"] = history_context[(signal.asset_id, signal.timeframe)]
         serialized.append(row)
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "signals": serialized,
         "total": signals.total,
         "page": page,
         "pages": signals.pages,
-    }), 200
+    }, source="signals", pagination={
+        "page": page, "pages": signals.pages, "per_page": per_page, "total": signals.total,
+    })), 200
 
 
 @signals_bp.route("/<int:signal_id>", methods=["GET"])
@@ -1419,6 +1429,7 @@ def _live_read_from_log(row):
     state["trailing_stop"] = row.trailing_stop
     state["high_water_mark"] = row.high_water_mark or row.entry_price
     state["trail_stage"] = row.trail_stage or 0
+    state["current_price"] = row.current_price or state.get("current_price")
     state["event_history"] = row.event_history or initial_event_history(
         row.generated_at, row.entry_price,
     )
@@ -1515,7 +1526,7 @@ def _advance_live_read_trailing(state, live_price):
 
 
 def _persist_live_read_trailing(state):
-    """Persist only trailing-state changes; cached reads remain fast."""
+    """Persist trailing state and the latest quote without reshaping the plan."""
     log_id = state.get("live_read_log_id")
     if not log_id:
         return
@@ -1527,6 +1538,8 @@ def _persist_live_read_trailing(state):
         row.high_water_mark = state.get("high_water_mark")
         row.trailing_stop = state.get("trailing_stop")
         row.trail_stage = int(state.get("trail_stage") or 0)
+        row.current_price = _live_read_number(state.get("current_price"))
+        row.last_observed_at = datetime.utcnow()
         previous_events = row.event_history or []
         next_events = state.get("event_history") or previous_events
         row.event_history = next_events
@@ -1656,6 +1669,8 @@ def _open_live_read_log(asset, timeframe, result):
             stop_loss=result.get("stop_loss"), target1=result.get("target1"),
             target2=result.get("target2"), target3=result.get("target3"),
             high_water_mark=result.get("entry_price"), trail_stage=0,
+            current_price=_live_read_number(result.get("current_price")),
+            last_observed_at=generated_at,
             snapshot=_live_read_snapshot(result),
             generated_at=generated_at,
             expires_at=generated_at + timedelta(minutes=_SIGNAL_EXPIRY.get(timeframe, 240)),
@@ -2084,12 +2099,13 @@ def signal_performance():
             "expected_win_rate": (lo + hi) // 2,
         })
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "lookback_days": days,
         "overall": overall,
         "by_asset_timeframe": by_asset_tf[:50],
         "calibration": calibration,
-    }), 200
+    }, source="signal_performance", pagination={"limit": 50, "total": len(by_asset_tf)})), 200
 
 
 @signals_bp.route("/summary", methods=["GET"])
@@ -2502,7 +2518,8 @@ def get_analytics():
     } for sym, mkt, total, w in asset_rows]
     top_assets.sort(key=lambda x: x["win_rate"], reverse=True)
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "overall": {
             "total_signals": total_signals,
             "active": active_count,
@@ -2518,7 +2535,7 @@ def get_analytics():
         "confidence_buckets": confidence_buckets,
         "recent_performance": recent_performance,
         "top_assets": top_assets,
-    }), 200
+    }, source="signal_summary")), 200
 
 
 
@@ -2693,7 +2710,8 @@ def get_performance():
     # (dashboard.js `perf?.calibration`) always rendered empty.
     calibration = _confidence_calibration_bands()
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "overall": {
             "total_closed": total_closed,
             "win_rate": win_rate,
@@ -2712,7 +2730,7 @@ def get_performance():
         "calibration": calibration,
         "daily_pnl": daily_pnl,
         "hourly_win_rate": hourly_win_rate,
-    }), 200
+    }, source="signal_performance")), 200
 
 
 def _confidence_calibration_bands():
@@ -2761,24 +2779,7 @@ def _confidence_calibration_bands():
 @login_required
 @cache.cached(timeout=60, key_prefix="signals_live_read_performance")
 def live_read_performance():
-    """How well Terminal's live-preview cards (the non-persisted analyze()
-    fallback, tracked in LiveReadLog — see _frozen_live_read) actually call
-    it, separate from real generated-signal performance above. Useful for
-    judging whether the board's "at a glance" reads are trustworthy on
-    their own, not just as a stand-in for a real signal.
-
-    IMPORTANT — this win_rate is NOT directly comparable to the real-signal
-    win rate shown elsewhere on the same page: a LiveReadLog only resolves
-    (and can only count as a win) once price reaches target3, the final/
-    hardest target, whereas a real Signal is marked a win at target1 (see
-    _frozen_live_read's docstring). A read that reaches target1 or target2
-    and then reverses counts as neither a win nor a loss here — it just
-    sits in `open` only until its timeframe window ends, then resolves as
-    an explicit neutral `expired` outcome. Expired reads are included in
-    the resolved denominator and exposed separately, rather than silently
-    disappearing when the cache entry ages out. Do not use this number to claim
-    an overall platform accuracy figure without this caveat attached.
-    """
+    """Return the legacy Terminal live-read summary used by the existing page."""
     from app.models.live_read_log import LiveReadLog
 
     total = LiveReadLog.query.count()
@@ -2801,14 +2802,27 @@ def live_read_performance():
         "win_rate": round(w / res_n * 100, 1) if res_n else None,
     } for tf, total_n, w, res_n, expired_n in tf_rows]
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "total_logged": total,
         "resolved": resolved,
         "expired": expired,
         "open": total - resolved,
         "win_rate": win_rate,
         "by_timeframe": by_timeframe,
-    }), 200
+    }, source="terminal_live_read_performance")), 200
+
+
+@signals_bp.route("/terminal-performance", methods=["GET"])
+@login_required
+def terminal_performance():
+    """Dedicated source-separated performance payload for Terminal live reads."""
+    from app.services.signals.live_read_performance import build_live_read_performance
+
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(
+        build_live_read_performance(), source="terminal_live_read_performance"
+    )), 200
 
 
 def _signal_outcome_label(status: str) -> str | None:

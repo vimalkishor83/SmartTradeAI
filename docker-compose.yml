@@ -32,6 +32,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ${CLEANUP_STATUS_HOST_PATH:-/var/lib/smarttrade-safe-cleanup/status.json}:/app/cleanup/status.json:ro
     healthcheck:
       # /ready (not /health): 503s when DB/Redis/scheduler are unusable, so an
       # orchestrator stops routing traffic to a process that cannot serve it.
@@ -62,6 +63,7 @@ services:
         condition: service_healthy
     volumes:
       - ./logs:/app/logs
+      - ${CLEANUP_STATUS_HOST_PATH:-/var/lib/smarttrade-safe-cleanup/status.json}:/app/cleanup/status.json:ro
     restart: unless-stopped
     # The worker owns no HTTP port, so its liveness check reads the same
     # short-lived Redis heartbeat consumed by /system/ready on the web tier.

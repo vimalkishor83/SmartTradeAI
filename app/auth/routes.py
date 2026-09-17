@@ -731,6 +731,10 @@ def find_telegram_chat_id():
     page guide), the chat ID is sitting right there, so auto-fill it
     instead of asking the user to read it out of a raw JSON blob by hand.
     """
+    from app.services.safety import telegram_notifications_enabled, safety_disabled_payload
+    if not telegram_notifications_enabled():
+        return jsonify(safety_disabled_payload("telegram")), 403
+
     import requests
     user = get_current_user()
     data = request.get_json(silent=True) or {}
@@ -773,6 +777,10 @@ def send_telegram_test():
     real alert to silently never arrive. This exists purely to close that
     loop from the Settings page.
     """
+    from app.services.safety import telegram_notifications_enabled, safety_disabled_payload
+    if not telegram_notifications_enabled():
+        return jsonify(safety_disabled_payload("telegram")), 403
+
     import requests
     user = get_current_user()
     data = request.get_json(silent=True) or {}

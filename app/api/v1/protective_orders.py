@@ -16,6 +16,7 @@ from app.extensions import db
 from app.models.portfolio import Portfolio, PortfolioItem
 from app.models.protective_order import ProtectiveOrder
 from app.auth.decorators import login_required, approved_required
+from app.services.safety import protective_orders_enabled, safety_disabled_payload
 
 protective_orders_bp = Blueprint("protective_orders", __name__)
 MAX_PROTECTIVE_PRICE = 1_000_000_000_000
@@ -86,6 +87,11 @@ def create_protective_order():
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
+    if not protective_orders_enabled() and (
+        bool(data.get("auto_execute"))
+        or ("is_dry_run" in data and not bool(data.get("is_dry_run")))
+    ):
+        return jsonify(safety_disabled_payload("protective_orders")), 403
 
     item_id = data.get("portfolio_item_id")
     if not item_id:
@@ -159,6 +165,12 @@ def update_protective_order(order_id):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
+    if not protective_orders_enabled() and (
+        bool(data.get("auto_execute"))
+        or ("is_dry_run" in data and not bool(data.get("is_dry_run")))
+    ):
+        return jsonify(safety_disabled_payload("protective_orders")), 403
+
     for field in ("stop_loss", "take_profit", "trailing_distance_pct"):
         if field in data and data[field] is not None:
             try:

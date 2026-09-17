@@ -5,13 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Cookie Policy — SmartTrade AI</title>
   <meta name="description" content="What cookies and local storage SmartTrade AI actually uses — authentication, display preferences, and nothing more." />
-  <link rel="canonical" href="https://smarttradeai.online/cookie-policy" />
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/cookie-policy" />
 
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="SmartTrade AI" />
   <meta property="og:title" content="Cookie Policy — SmartTrade AI" />
   <meta property="og:description" content="What cookies and local storage SmartTrade AI actually uses — authentication, display preferences, and nothing more." />
-  <meta property="og:url" content="https://smarttradeai.online/cookie-policy" />
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL }}/cookie-policy" />
 
   <script type="application/ld+json">
   {
@@ -19,8 +19,8 @@
     "@type": "WebPage",
     "name": "Cookie Policy",
     "description": "What cookies and local storage SmartTrade AI actually uses.",
-    "url": "https://smarttradeai.online/cookie-policy",
-    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "https://smarttradeai.online/home" }
+    "url": "{{ config.PUBLIC_SITE_URL }}/cookie-policy",
+    "isPartOf": { "@type": "WebSite", "name": "SmartTrade AI", "url": "{{ config.PUBLIC_SITE_URL }}/home" }
   }
   </script>
   <script type="application/ld+json">
@@ -28,9 +28,9 @@
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://smarttradeai.online/home" },
-      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "https://smarttradeai.online/legal" },
-      { "@type": "ListItem", "position": 3, "name": "Cookie Policy", "item": "https://smarttradeai.online/cookie-policy" }
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "{{ config.PUBLIC_SITE_URL }}/home" },
+      { "@type": "ListItem", "position": 2, "name": "Legal", "item": "{{ config.PUBLIC_SITE_URL }}/legal" },
+      { "@type": "ListItem", "position": 3, "name": "Cookie Policy", "item": "{{ config.PUBLIC_SITE_URL }}/cookie-policy" }
     ]
   }
   </script>
@@ -333,7 +333,7 @@
   <div class="legal-notices">
     <div class="notice-status">
       This document has not yet been reviewed by outside legal counsel. Questions? Contact
-      <a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a>.
+      <a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a>.
     </div>
   </div>
 
@@ -520,7 +520,7 @@
       <div class="footer-col-title">Support</div>
       <ul>
         <li><a href="/home#contact">Contact Support</a></li>
-        <li><a href="mailto:support@smarttradeai.online">support@smarttradeai.online</a></li>
+        <li><a href="mailto:{{ config.SUPPORT_EMAIL }}">{{ config.SUPPORT_EMAIL }}</a></li>
       </ul>
     </div>
   </div>

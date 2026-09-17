@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 TEMPLATES = ROOT / "frontend" / "templates"
+STYLES = ROOT / "frontend" / "static" / "css" / "main.css"
 
 
 def _read(relative_path):
@@ -39,6 +40,24 @@ def test_signal_center_exposes_a_clear_next_step_workflow():
     assert '>Investigate</a>' in source
     assert 'href="/risk"' in source
     assert '>Manage risk</a>' in source
+
+
+def test_signal_center_table_exposes_lifecycle_and_pnl_context():
+    source = _read("dashboard/signals.html")
+
+    assert "lifecycle.status" in source
+    assert "TARGET 1 HIT" in source
+    assert "STOP HIT" in source
+    assert "const pnl     = signalNumber(s.pnl_pct, null)" in source
+    assert "<th>P&amp;L</th>" in source
+    assert 'colspan="15"' in source
+    assert "aria-label=\"Signal status:" in source
+
+
+def test_open_positions_table_fills_its_full_width_panel():
+    styles = STYLES.read_text(encoding="utf-8")
+    assert ".app-shell .table-responsive > #pnlTable" in styles
+    assert "  width: 100%;" in styles
 
 
 def test_discovery_scanner_sets_expectations_before_trading():

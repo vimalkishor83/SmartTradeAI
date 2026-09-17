@@ -9,9 +9,9 @@ from app.extensions import db
 def _telegram_disclaimer():
     # Keep Terminal lifecycle alerts consistent with regular signal alerts:
     # two newlines separate the context footer and the link remains clickable.
-    from app.tasks.notification_tasks import _TELEGRAM_DISCLAIMER
+    from app.tasks.notification_tasks import _telegram_disclaimer as build_disclaimer
 
-    return _TELEGRAM_DISCLAIMER
+    return build_disclaimer()
 
 
 def _event_identity(event):
@@ -41,6 +41,10 @@ def _market_enabled(cfg, market):
 
 
 def _telegram_ready(user):
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        return False
+
     if not user.telegram_enabled or not user.telegram_chat_id:
         return False
     try:
@@ -145,6 +149,10 @@ def enqueue_live_read_event_notifications(row, events, previous_events):
     savepoint lets a concurrent duplicate lose cleanly without rolling back
     the live-read state update around it.
     """
+    from app.services.safety import telegram_notifications_enabled
+    if not telegram_notifications_enabled():
+        return 0
+
     asset = row.asset
     if not asset:
         return 0
@@ -152,8 +160,10 @@ def enqueue_live_read_event_notifications(row, events, previous_events):
     from app.models.notification import Notification
     from app.models.user import User
     from app.services.platform_config import get_platform_config
+    from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
 
-    if not _market_enabled(get_platform_config(), asset.market):
+    if (not _market_enabled(get_platform_config(), asset.market)
+            or not individual_signal_allowed(asset.id, row.timeframe)):
         return 0
 
     new_events = _new_events(events, previous_events)

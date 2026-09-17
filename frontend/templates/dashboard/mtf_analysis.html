@@ -362,7 +362,7 @@ document.addEventListener('app:ready', () => {
   });
   document.getElementById('mktFilter').addEventListener('change', () => loadMatrix(true));
   document.getElementById('viewMode').addEventListener('change', updateCellContents);
-  setInterval(() => loadMatrix(false), 120000);
+  STRefresh.start(() => loadMatrix(false), 120);
 });
 </script>
 

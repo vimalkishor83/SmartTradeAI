@@ -1,10 +1,11 @@
-from flask import Blueprint, render_template, redirect, url_for, request, Response
+from flask import Blueprint, current_app, render_template, redirect, url_for, request, Response
 from app.models.asset import Asset
 from app.auth.decorators import page_admin_required
 
 views_bp = Blueprint("views", __name__)
 
-_SITE_URL = "https://smarttradeai.online"
+def _site_url():
+    return current_app.config.get("PUBLIC_SITE_URL", "https://smarttradeai.online").rstrip("/")
 
 # Only genuinely public, indexable pages — everything under /dashboard,
 # /admin, /asset, etc. requires auth and has nothing for a crawler to index.
@@ -52,7 +53,7 @@ def robots_txt():
         "Disallow: /asset/",
         "Disallow: /api/",
         "Disallow: /settings",
-        f"Sitemap: {_SITE_URL}/sitemap.xml",
+        f"Sitemap: {_site_url()}/sitemap.xml",
         "",
     ]
     return Response("\n".join(lines), mimetype="text/plain")
@@ -61,7 +62,7 @@ def robots_txt():
 @views_bp.route("/sitemap.xml")
 def sitemap_xml():
     urls = "".join(
-        f"<url><loc>{_SITE_URL}{path}</loc>"
+        f"<url><loc>{_site_url()}{path}</loc>"
         f"<changefreq>{freq}</changefreq><priority>{priority}</priority></url>"
         for path, priority, freq in _PUBLIC_PAGES
     )
@@ -306,6 +307,12 @@ def admin():
     return render_template("admin/index.html")
 
 
+@views_bp.route("/admin/cleanup")
+@page_admin_required
+def admin_cleanup():
+    return render_template("admin/cleanup.html")
+
+
 @views_bp.route("/admin/users")
 @page_admin_required
 def admin_users():
@@ -340,6 +347,12 @@ def admin_platform_config():
 @page_admin_required
 def admin_telegram_alerts():
     return render_template("admin/telegram_alerts.html")
+
+
+@views_bp.route("/admin/telegram-signal-limits")
+@page_admin_required
+def admin_telegram_signal_limits():
+    return render_template("admin/telegram_signal_limits.html")
 
 
 @views_bp.route("/admin/sessions")

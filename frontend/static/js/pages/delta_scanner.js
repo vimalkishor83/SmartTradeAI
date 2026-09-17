@@ -281,7 +281,7 @@ function mtfStartCommonAutoRefresh() {
   // Cheap call (a handful of symbols, ~8 by default), so this refreshes
   // faster than the 220-symbol All Coins scan (dsStartScanAutoRefresh,
   // 5 min — matched to its backend cache TTL).
-  mtfCommonTimer = setInterval(mtfLoadCommon, 30000);
+  mtfCommonTimer = STRefresh.start(mtfLoadCommon, 30);
 }
 
 /* ── Configure Common Coins — search-and-select modal ──────────── */
@@ -487,7 +487,7 @@ function dsInitScanTableSorting() {
 let dsScanTimer = null;
 function dsStartScanAutoRefresh() {
   if (dsScanTimer) clearInterval(dsScanTimer);
-  dsScanTimer = setInterval(() => dsLoadScan(false), 300000);
+  dsScanTimer = STRefresh.start(() => dsLoadScan(false), 300);
 }
 
 /* ═══════════════════════════════════════════════

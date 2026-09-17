@@ -116,12 +116,14 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-tab="yearly">Year-wise</button>
           </div>
         </div>
+        <div class="dcc-schedule-mobile-hint" role="note"><i class="bi bi-phone me-1" aria-hidden="true"></i>On mobile, each period is shown as a compact card.</div>
         <div class="table-responsive dcc-schedule-wrap" style="max-height:520px">
-          <table class="smart-table" data-mobile-cards>
+          <table class="smart-table dcc-schedule-table">
             <thead id="tHead"></thead>
             <tbody id="tBody"></tbody>
           </table>
         </div>
+        <div class="dcc-schedule-cards" id="tCards" role="list" aria-live="polite"></div>
       </div>
     </div>
   </div>
@@ -132,7 +134,7 @@
      narrow phone; an edge-anchored panel can cleanly become full-width
      there via one media query instead of needing a separate mobile layout. -->
 <div class="dcc-panel-backdrop" id="savePanel" role="presentation" aria-hidden="true">
-  <div class="dcc-panel" role="dialog" aria-modal="true" aria-labelledby="savePanelTitle">
+  <div class="dcc-panel" role="dialog" aria-modal="true" aria-labelledby="savePanelTitle" aria-describedby="savePanelHelp">
     <div class="dcc-panel-head">
       <div>
         <div class="dcc-panel-kicker">Scenario library</div>
@@ -140,7 +142,7 @@
       </div>
       <button type="button" class="dcc-panel-close" id="pClose" aria-label="Close save scenario panel"><i class="bi bi-x-lg"></i></button>
     </div>
-    <p class="dcc-panel-help">Save the current inputs so you can reload and compare this projection later.</p>
+    <p class="dcc-panel-help" id="savePanelHelp">Save the current inputs so you can reload and compare this projection later.</p>
     <label class="form-label small">Name</label>
     <input type="text" class="form-control mb-3" id="pName" placeholder="e.g. Retirement Fund" />
     <div class="dcc-panel-actions">
@@ -169,7 +171,20 @@
   .dcc-result-status { align-self:flex-start; padding:5px 8px; color:var(--green); border:1px solid rgba(16,185,129,.3); border-radius:999px; background:rgba(16,185,129,.08); font-size:10px; font-weight:700; white-space:nowrap; }
   .dcc-summary-chips { display:flex; flex-wrap:wrap; gap:8px; }
   .dcc-schedule-hint { margin-top:3px; color:var(--text-muted); font-size:11px; }
+  .dcc-schedule-mobile-hint { display:none; color:var(--text-muted); font-size:11px; padding:10px 14px 0; }
   .dcc-schedule-wrap { border-top:1px solid var(--border); }
+  .dcc-schedule-table { min-width:620px; }
+  .dcc-schedule-table th, .dcc-schedule-table td { white-space:nowrap; }
+  .dcc-schedule-cards { display:none; }
+  .dcc-schedule-card { padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--glass); }
+  .dcc-schedule-card-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding-bottom:9px; margin-bottom:9px; border-bottom:1px solid var(--border); }
+  .dcc-schedule-card-period { color:var(--text-primary); font-weight:700; }
+  .dcc-schedule-card-date { color:var(--text-muted); font-size:11px; text-align:right; }
+  .dcc-schedule-card-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+  .dcc-schedule-card-field { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .dcc-schedule-card-field span { color:var(--text-muted); font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+  .dcc-schedule-card-field strong { overflow:hidden; color:var(--text-primary); font:600 12px/1.35 var(--font-mono); text-overflow:ellipsis; white-space:nowrap; }
+  .dcc-schedule-card-field strong.pos { color:var(--green); }
   .dcc-panel-backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,0.58); display: none; z-index: 1100; backdrop-filter: blur(3px);
   }
@@ -194,6 +209,9 @@
     .dcc-result-status { margin-left:auto; }
     .dcc-final-amount { font-size:24px; }
     .dcc-schedule-card .section-card-header { align-items:flex-start; flex-direction:column; gap:12px; }
+    .dcc-schedule-mobile-hint { display:block; }
+    .dcc-schedule-wrap { display:none; }
+    .dcc-schedule-cards { display:grid; gap:8px; padding:10px; }
     #scheduleTabs { width:100%; }
     #scheduleTabs .btn { flex:1; min-height:38px; padding-inline:6px; }
   }
@@ -217,6 +235,7 @@
   let lastResult = null;
   let activeTab = 'daily';
   let savedScenarios = [];
+  let panelPreviousFocus = null;
 
   const fmt = (n) => {
     if (n == null) return '—';
@@ -280,15 +299,18 @@
   function renderTable() {
     if (!lastResult) return;
     const thead = el('tHead'), tbody = el('tBody');
+    const rows = activeTab === 'daily' ? lastResult.daily_schedule : (activeTab === 'monthly' ? lastResult.monthly_schedule : lastResult.yearly_schedule);
+    const safe = (value) => STSafe.html(String(value ?? '—'));
+    const metric = (label, value, className = '') => '<div class="dcc-schedule-card-field"><span>' + label + '</span><strong class="' + className + '">' + safe(value) + '</strong></div>';
+
     if (activeTab === 'daily') {
       thead.innerHTML = '<tr><th>Day</th><th>Date</th><th class="num">Opening</th><th class="num">Interest</th><th class="num">Closing</th><th class="num">Cumulative</th></tr>';
-      tbody.innerHTML = lastResult.daily_schedule.map((r) =>
+      tbody.innerHTML = rows.map((r) =>
         '<tr><td>' + r.day + '</td><td>' + r.date + '</td><td class="num">' + fmt(r.opening_balance) + '</td>' +
         '<td class="num ' + (r.interest_earned > 0 ? 'pos' : '') + '">' + fmt(r.interest_earned) + '</td>' +
         '<td class="num">' + fmt(r.closing_balance) + '</td><td class="num">' + fmt(r.cumulative_interest) + '</td></tr>'
       ).join('') || '<tr><td colspan="6" class="text-center text-muted py-3">No rows</td></tr>';
     } else {
-      const rows = activeTab === 'monthly' ? lastResult.monthly_schedule : lastResult.yearly_schedule;
       thead.innerHTML = '<tr><th>Period</th><th>Range</th><th class="num">Opening</th><th class="num">Interest</th><th class="num">Closing</th><th class="num">Cumulative</th></tr>';
       tbody.innerHTML = rows.map((r) =>
         '<tr><td>' + r.period_start.slice(0, activeTab === 'monthly' ? 7 : 4) + '</td>' +
@@ -297,6 +319,30 @@
         '<td class="num">' + fmt(r.closing_balance) + '</td><td class="num">' + fmt(r.cumulative_interest) + '</td></tr>'
       ).join('') || '<tr><td colspan="6" class="text-center text-muted py-3">No rows</td></tr>';
     }
+
+    const cards = el('tCards');
+    if (!cards) return;
+    if (!rows.length) {
+      cards.innerHTML = '<div class="text-center text-muted py-3">No rows</div>';
+      return;
+    }
+    cards.innerHTML = rows.map((r) => {
+      if (activeTab === 'daily') {
+        return '<article class="dcc-schedule-card" role="listitem">' +
+          '<div class="dcc-schedule-card-head"><span class="dcc-schedule-card-period">Day ' + safe(r.day) + '</span><span class="dcc-schedule-card-date">' + safe(r.date) + '</span></div>' +
+          '<div class="dcc-schedule-card-grid">' +
+          metric('Opening', fmt(r.opening_balance)) + metric('Interest', fmt(r.interest_earned), r.interest_earned > 0 ? 'pos' : '') +
+          metric('Closing', fmt(r.closing_balance)) + metric('Cumulative', fmt(r.cumulative_interest)) +
+          '</div></article>';
+      }
+      const period = r.period_start.slice(0, activeTab === 'monthly' ? 7 : 4);
+      return '<article class="dcc-schedule-card" role="listitem">' +
+        '<div class="dcc-schedule-card-head"><span class="dcc-schedule-card-period">' + safe(period) + '</span><span class="dcc-schedule-card-date">' + safe(r.period_start) + ' → ' + safe(r.period_end) + '</span></div>' +
+        '<div class="dcc-schedule-card-grid">' +
+        metric('Opening', fmt(r.opening_balance)) + metric('Interest', fmt(r.interest_earned), r.interest_earned > 0 ? 'pos' : '') +
+        metric('Closing', fmt(r.closing_balance)) + metric('Cumulative', fmt(r.cumulative_interest)) +
+        '</div></article>';
+    }).join('');
   }
 
   document.querySelectorAll('#scheduleTabs [data-tab]').forEach((btn) => {
@@ -338,9 +384,38 @@
   });
 
   function setPanelOpen(open) {
-    el('savePanel').classList.toggle('open', open);
-    el('savePanel').setAttribute('aria-hidden', String(!open));
-    if (open) setTimeout(() => el('pName').focus(), 0);
+    const panel = el('savePanel');
+    panel.classList.toggle('open', open);
+    panel.setAttribute('aria-hidden', String(!open));
+    if (open) {
+      panelPreviousFocus = document.activeElement;
+      setTimeout(() => el('pName').focus(), 0);
+    } else {
+      panelPreviousFocus?.focus?.();
+      panelPreviousFocus = null;
+    }
+  }
+
+  function handlePanelKeydown(e) {
+    if (!el('savePanel').classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setPanelOpen(false);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(el('savePanel').querySelectorAll('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])'))
+      .filter((node) => !node.disabled && node.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   el('btnSave').addEventListener('click', () => {
@@ -352,9 +427,7 @@
   el('savePanel').addEventListener('click', (e) => {
     if (e.target.id === 'savePanel') setPanelOpen(false);
   });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && el('savePanel').classList.contains('open')) setPanelOpen(false);
-  });
+  document.addEventListener('keydown', handlePanelKeydown);
   el('pConfirm').addEventListener('click', async () => {
     const name = el('pName').value.trim();
     if (!name) { Toast.show('Please enter a name.', 'warning'); return; }

@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily safe SmartTradeAI temporary-file cleanup
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=smarttrade-safe-cleanup.service
+
+[Install]
+WantedBy=timers.target

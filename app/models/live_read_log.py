@@ -37,6 +37,10 @@ class LiveReadLog(db.Model):
     trailing_stop = db.Column(db.Float)
     high_water_mark = db.Column(db.Float)
     trail_stage = db.Column(db.Integer, nullable=False, default=0)
+    # Last quote observed by the server-side lifecycle tracker. This keeps
+    # open-performance P&L honest without changing the frozen trade plan.
+    current_price = db.Column(db.Float)
+    last_observed_at = db.Column(db.DateTime, index=True)
     # Full deterministic analysis snapshot so an open Terminal setup can be
     # restored after Redis eviction or an application restart.
     snapshot = db.Column(db.JSON, default=dict)
@@ -79,6 +83,8 @@ class LiveReadLog(db.Model):
             "trailing_stop": self.trailing_stop,
             "high_water_mark": self.high_water_mark,
             "trail_stage": self.trail_stage,
+            "current_price": self.current_price,
+            "last_observed_at": self.last_observed_at.isoformat() if self.last_observed_at else None,
             "event_history": self.event_history or [],
             "snapshot": self.snapshot,
             "outcome": self.outcome,

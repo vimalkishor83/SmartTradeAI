@@ -513,6 +513,12 @@ document.addEventListener('app:ready', () => {
   };
   refreshAll();
   refresh?.addEventListener('click', refreshAll);
+  const refreshTimer = window.STRefresh
+    ? STRefresh.start(() => refreshAll(), 60, { usePlatform: true })
+    : null;
+  window.addEventListener('pagehide', () => {
+    if (refreshTimer) clearInterval(refreshTimer);
+  }, { once: true });
 });
 </script>
 {% endblock %}

@@ -32,6 +32,7 @@ def test_live_read_event_queue_is_user_scoped_and_idempotent(app):
     )
 
     with app.app_context():
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
         owner = User.query.filter_by(username="admin").first()
         owner.telegram_enabled = True
         owner.telegram_chat_id = "12345"

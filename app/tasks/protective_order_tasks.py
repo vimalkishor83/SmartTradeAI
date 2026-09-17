@@ -150,9 +150,15 @@ def _handle_trigger(order, asset, current_price, outcome, app):
         "triggered_trailing": "Trailing Stop Hit",
     }.get(outcome, outcome)
 
+    from app.services.safety import protective_orders_enabled
+
     executed = False
     if order.auto_execute and not order.is_dry_run:
-        executed = _execute_close(order, asset, current_price)
+        if not protective_orders_enabled():
+            order.error_message = "Protective-order execution is disabled in this environment"
+            logger.warning("Protective order %s close blocked by environment safety gate", order.id)
+        else:
+            executed = _execute_close(order, asset, current_price)
     elif order.auto_execute and order.is_dry_run:
         order.broker_order_result = json.dumps({"dry_run": True, "would_close_at": current_price})
 
@@ -166,6 +172,11 @@ def _execute_close(order, asset, current_price) -> bool:
     status) — it records the error so the user sees a clear "we tried to
     close this and it failed, check your position manually" state instead
     of silently retrying against a real account indefinitely."""
+    from app.services.safety import protective_orders_enabled
+    if not protective_orders_enabled():
+        order.error_message = "Protective-order execution is disabled in this environment"
+        logger.warning("Protective order %s close blocked immediately before broker action", order.id)
+        return False
     from app.services.trading.delta_trading import get_configured_client, DeltaTradingError
     from app.services.data.fetcher import to_delta_symbol
 
@@ -234,7 +245,7 @@ def _notify_trigger(order, asset, current_price, label, executed):
             from app.tasks.notification_tasks import _market_enabled
             _tg_cfg = get_platform_config()
             if _market_enabled(_tg_cfg, "telegram_protective_order_individual_markets", asset.market):
-                from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
+                from app.tasks.notification_tasks import _send_telegram, _telegram_disclaimer
                 is_sl = "SL" in label or "Stop" in label
                 lines = [f"{'🛑' if is_sl else '🎯'} *{label.upper()} — {asset.symbol}*", ""]
                 lines.append(f"Position: `{order.side.upper()}`")
@@ -244,7 +255,7 @@ def _notify_trigger(order, asset, current_price, label, executed):
                     lines.append(f"🎯 Take Profit: `{order.take_profit:.4f}`")
                 lines.append(f"Trigger price: `{current_price:.4f}`")
                 lines.append(f"Status: `{mode}`")
-                _send_telegram(user, "\n".join(lines) + _TELEGRAM_DISCLAIMER)
+                _send_telegram(user, "\n".join(lines) + _telegram_disclaimer())
         except Exception:
             pass
     if user.push_enabled and user.push_subscription:

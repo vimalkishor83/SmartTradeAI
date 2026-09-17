@@ -36,29 +36,29 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close create user dialog"></button>
       </div>
       <div class="modal-body">
-        <form id="createUserForm">
+        <form id="createUserForm" autocomplete="off" aria-busy="false" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">First Name</label>
-              <input type="text" class="form-control" id="cuFirstName" />
+              <input type="text" class="form-control" id="cuFirstName" autocomplete="off" />
             </div>
             <div class="col">
               <label class="form-label">Last Name</label>
-              <input type="text" class="form-control" id="cuLastName" />
+              <input type="text" class="form-control" id="cuLastName" autocomplete="off" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Username</label>
-            <input type="text" class="form-control" id="cuUsername" required />
+            <input type="text" class="form-control" id="cuUsername" autocomplete="off" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" class="form-control" id="cuEmail" required />
+            <input type="email" class="form-control" id="cuEmail" autocomplete="off" inputmode="email" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Password</label>
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="cuPassword" required />
+              <input type="password" class="form-control" id="cuPassword" name="new-password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" required />
               <button type="button" class="btn btn-outline-secondary text-nowrap" id="cuGenPwd">Generate</button>
             </div>
           </div>
@@ -73,6 +73,7 @@
             </div>
           </div>
           <div class="fs-xs text-muted mb-3">Created accounts are approved and verified immediately — no email step, ready to hand to a tester right away.</div>
+          <div class="alert alert-danger py-2 small mt-3" data-form-status role="alert" aria-live="assertive" hidden></div>
           <button type="submit" class="btn btn-primary w-100" data-submit-label="Create Account">Create Account</button>
         </form>
         <div id="cuResult" class="mt-3" style="display:none">
@@ -102,30 +103,30 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close edit user dialog"></button>
       </div>
       <div class="modal-body">
-        <form id="editUserForm">
+        <form id="editUserForm" autocomplete="off" aria-busy="false" data-form-type="other" data-lpignore="true" data-1p-ignore="true" data-bwignore="true">
           <input type="hidden" id="euId" />
           <div class="row g-3 mb-3">
             <div class="col">
               <label class="form-label">First Name</label>
-              <input type="text" class="form-control" id="euFirstName" />
+              <input type="text" class="form-control" id="euFirstName" autocomplete="off" />
             </div>
             <div class="col">
               <label class="form-label">Last Name</label>
-              <input type="text" class="form-control" id="euLastName" />
+              <input type="text" class="form-control" id="euLastName" autocomplete="off" />
             </div>
           </div>
           <div class="mb-3">
             <label class="form-label">Username</label>
-            <input type="text" class="form-control" id="euUsername" required />
+            <input type="text" class="form-control" id="euUsername" autocomplete="off" autocapitalize="none" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">Email</label>
-            <input type="email" class="form-control" id="euEmail" required />
+            <input type="email" class="form-control" id="euEmail" autocomplete="off" inputmode="email" spellcheck="false" required />
           </div>
           <div class="mb-3">
             <label class="form-label">New Password</label>
             <div class="d-flex gap-2">
-              <input type="text" class="form-control" id="euPassword" placeholder="Leave blank to keep current password" />
+              <input type="password" class="form-control" id="euPassword" name="new-password" placeholder="Leave blank to keep current password" autocomplete="new-password" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" />
               <button type="button" class="btn btn-outline-secondary text-nowrap" id="euGenPwd">Generate</button>
             </div>
           </div>
@@ -135,6 +136,7 @@
               Super Admin <span class="text-muted small">— full access to create/edit/delete across the Admin panel (only meaningful for the Admin role)</span>
             </label>
           </div>
+          <div class="alert alert-danger py-2 small mt-3" data-form-status role="alert" aria-live="assertive" hidden></div>
           <button type="submit" class="btn btn-primary w-100" data-submit-label="Save Changes">Save Changes</button>
         </form>
         <div id="euResult" class="mt-3" style="display:none">
@@ -166,7 +168,7 @@
       </div>
       <div class="modal-body">
         <p class="text-muted small mb-3">Grants <strong id="trUsername"></strong> full access to the selected plan for a limited time. Their account automatically switches back to Free once it ends — no need to remember to revoke it.</p>
-        <form id="trialForm">
+        <form id="trialForm" aria-busy="false">
           <input type="hidden" id="trUserId" />
           <div class="mb-3">
             <label class="form-label">Plan to trial</label>
@@ -176,6 +178,7 @@
             <label class="form-label">Duration (days)</label>
             <input type="number" class="form-control" id="trDays" min="1" max="365" value="7" required />
           </div>
+          <div class="alert alert-danger py-2 small mt-3" data-form-status role="alert" aria-live="assertive" hidden></div>
           <button type="submit" class="btn btn-primary w-100" data-submit-label="Start Trial"><i class="bi bi-play-fill me-1"></i>Start Trial</button>
         </form>
       </div>
@@ -241,6 +244,7 @@ function userModal(id) {
 function setFormBusy(form, busy, busyLabel = 'Working…') {
   const submit = form?.querySelector('button[type="submit"]');
   if (!submit) return;
+  form.setAttribute('aria-busy', String(busy));
   if (busy) {
     submit.dataset.idleHtml = submit.innerHTML;
     submit.disabled = true;
@@ -250,6 +254,14 @@ function setFormBusy(form, busy, busyLabel = 'Working…') {
     submit.innerHTML = submit.dataset.idleHtml || submit.dataset.submitLabel || 'Submit';
     delete submit.dataset.idleHtml;
   }
+}
+
+function setFormStatus(form, message, kind = 'danger') {
+  const target = form?.querySelector('[data-form-status]');
+  if (!target) return;
+  target.className = `alert alert-${kind} py-2 small mt-3`;
+  target.textContent = message || '';
+  target.hidden = !message;
 }
 
 function apiErrorMessage(res, fallback) {
@@ -506,11 +518,13 @@ document.getElementById('createUserForm').addEventListener('submit', async (e) =
   e.preventDefault();
   const form = e.currentTarget;
   if (!form.reportValidity()) return;
+  setFormStatus(form, '');
   const email = document.getElementById('cuEmail').value.trim();
   const password = document.getElementById('cuPassword').value;
   const roleId = Number(document.getElementById('cuRole').value);
   const subscriptionId = Number(document.getElementById('cuSubscription').value);
   if (!Number.isSafeInteger(roleId) || roleId <= 0 || !Number.isSafeInteger(subscriptionId) || subscriptionId <= 0) {
+    setFormStatus(form, 'Role and plan options are still loading. Please try again.', 'warning');
     Toast.show('Role and plan options are still loading. Please try again.', 'warning');
     return;
   }
@@ -531,13 +545,17 @@ document.getElementById('createUserForm').addEventListener('submit', async (e) =
       document.getElementById('cuResultEmail').textContent = email;
       document.getElementById('cuResultPassword').textContent = password;
       document.getElementById('cuResult').style.display = '';
+      setFormStatus(form, 'Account created. Credentials are shown below.', 'success');
       form.reset();
       loadUsers(userPage);
     } else {
-      Toast.show(apiErrorMessage(res, 'Failed to create user'), 'error');
+      const message = apiErrorMessage(res, 'Failed to create user');
+      setFormStatus(form, message);
+      Toast.show(message, 'error');
     }
   } catch (error) {
     console.error('Create user error:', error);
+    setFormStatus(form, 'Unable to create user. Please try again.');
     Toast.show('Unable to create user. Please try again.', 'error');
   } finally {
     setFormBusy(form, false);
@@ -546,7 +564,9 @@ document.getElementById('createUserForm').addEventListener('submit', async (e) =
 
 document.getElementById('createUserModal').addEventListener('hidden.bs.modal', () => {
   document.getElementById('cuResult').style.display = 'none';
-  document.getElementById('createUserForm').reset();
+  const form = document.getElementById('createUserForm');
+  form.reset();
+  setFormStatus(form, '');
 });
 
 // ── Edit User (super admin only) ────────────────────────────────────────
@@ -577,8 +597,10 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
   e.preventDefault();
   const form = e.currentTarget;
   if (!form.reportValidity()) return;
+  setFormStatus(form, '');
   const id = STSafe.assetId(document.getElementById('euId').value);
   if (!id) {
+    setFormStatus(form, 'The selected user is no longer available. Reload the page.');
     Toast.show('The selected user is no longer available. Reload the page.', 'error');
     return;
   }
@@ -602,15 +624,20 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
         document.getElementById('euResultEmail').textContent = email;
         document.getElementById('euResultPassword').textContent = password;
         document.getElementById('euResult').style.display = '';
+        setFormStatus(form, 'User updated. The new password is shown below.', 'success');
       } else {
+        setFormStatus(form, 'User updated successfully.', 'success');
         userModal('editUserModal')?.hide();
       }
       loadUsers(userPage);
     } else {
-      Toast.show(apiErrorMessage(res, 'Failed to update user'), 'error');
+      const message = apiErrorMessage(res, 'Failed to update user');
+      setFormStatus(form, message);
+      Toast.show(message, 'error');
     }
   } catch (error) {
     console.error('Update user error:', error);
+    setFormStatus(form, 'Unable to update user. Please try again.');
     Toast.show('Unable to update user. Please try again.', 'error');
   } finally {
     setFormBusy(form, false);
@@ -619,7 +646,15 @@ document.getElementById('editUserForm').addEventListener('submit', async (e) => 
 
 document.getElementById('editUserModal').addEventListener('hidden.bs.modal', () => {
   document.getElementById('euResult').style.display = 'none';
-  document.getElementById('editUserForm').reset();
+  const form = document.getElementById('editUserForm');
+  form.reset();
+  setFormStatus(form, '');
+});
+
+document.getElementById('trialModal').addEventListener('hidden.bs.modal', () => {
+  const form = document.getElementById('trialForm');
+  form.reset();
+  setFormStatus(form, '');
 });
 
 // ── Plan Trials (super admin only) ──────────────────────────────────────
@@ -636,18 +671,32 @@ function openTrialModal(id) {
 
 document.getElementById('trialForm').addEventListener('submit', async (e) => {
   e.preventDefault();
+  const form = e.currentTarget;
+  setFormStatus(form, '');
   const id = STSafe.assetId(document.getElementById('trUserId').value);
   if (!id) return;
-  const res = await API.post(`/admin/users/${id}/trial`, {
-    subscription_id: parseInt(document.getElementById('trPlan').value),
-    days: parseInt(document.getElementById('trDays').value),
-  });
-  if (res && !res.error) {
-    Toast.show('Trial started', 'success');
-    bootstrap.Modal.getInstance(document.getElementById('trialModal'))?.hide();
-    loadUsers(userPage);
-  } else {
-    Toast.show(res?.error || 'Failed to start trial', 'error');
+  setFormBusy(form, true, 'Starting trial…');
+  try {
+    const res = await API.post(`/admin/users/${id}/trial`, {
+      subscription_id: parseInt(document.getElementById('trPlan').value),
+      days: parseInt(document.getElementById('trDays').value),
+    });
+    if (res && !res.error) {
+      setFormStatus(form, 'Trial started successfully.', 'success');
+      Toast.show('Trial started', 'success');
+      bootstrap.Modal.getInstance(document.getElementById('trialModal'))?.hide();
+      loadUsers(userPage);
+    } else {
+      const message = res?.error || 'Failed to start trial';
+      setFormStatus(form, message);
+      Toast.show(message, 'error');
+    }
+  } catch (error) {
+    console.error('Start trial error:', error);
+    setFormStatus(form, 'Unable to start trial. Please try again.');
+    Toast.show('Unable to start trial. Please try again.', 'error');
+  } finally {
+    setFormBusy(form, false);
   }
 });
 

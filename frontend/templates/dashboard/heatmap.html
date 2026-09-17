@@ -321,7 +321,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('hmRefreshBtn').addEventListener('click', loadHeatmapPage);
   populateMarketSelect(document.getElementById('hmMarket'), { includeAll: true });
   loadHeatmapPage();
-  setInterval(loadHeatmapPage, 180000); // refresh every 3 min
+  STRefresh.start(loadHeatmapPage, 180);
 });
 </script>
 {% endblock %}

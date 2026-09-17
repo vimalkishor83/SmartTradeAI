@@ -7,6 +7,7 @@ attributes.
 """
 from types import SimpleNamespace
 import pytest
+from flask import Flask
 
 from app.tasks.protective_order_tasks import _check_breach, _update_trailing, _execute_close
 from app.api.v1.protective_orders import _positive_level, _strict_bool, _validate_levels
@@ -128,5 +129,8 @@ class TestProtectiveOrderSafety:
         asset = SimpleNamespace(symbol="BTCUSD")
         monkeypatch.setattr("app.services.data.fetcher.to_delta_symbol", lambda _symbol: "BTCUSD")
         monkeypatch.setattr("app.services.trading.delta_trading.get_configured_client", lambda _id: object())
-        assert _execute_close(order, asset, 100) is False
+        app = Flask(__name__)
+        app.config["PROTECTIVE_ORDERS_ENABLED"] = True
+        with app.app_context():
+            assert _execute_close(order, asset, 100) is False
         assert "whole-number" in order.error_message

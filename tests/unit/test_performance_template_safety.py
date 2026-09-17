@@ -27,3 +27,6 @@ def test_performance_normalizes_partial_payloads_and_serializes_refreshes():
     assert "Promise.allSettled([loadPerformance(), loadLiveReadPerformance()])" in source
     assert "Some performance data is unavailable. Try refreshing." in source
     assert "escapeHtml(String(r.timeframe ?? 'Unknown'))" in source
+    assert "STRefresh.start(() => refreshAll(), 60" in source
+    assert "document.addEventListener('pagehide'" not in source
+    assert "window.addEventListener('pagehide'" in source

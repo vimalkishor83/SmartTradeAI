@@ -1957,7 +1957,7 @@ document.addEventListener('app:ready', () => {
   });
 
   // Auto-refresh price every 30s
-  setInterval(loadLivePrice, 30000);
+  STRefresh.start(loadLivePrice, 30, { usePlatform: true });
 });
 
 /* ── Pre-Trade Checklist ──────────────────────────────── */

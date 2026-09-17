@@ -47,6 +47,7 @@
   <div class="dashboard-context-main"><span class="dashboard-context-dot" aria-hidden="true"></span><strong id="dashboardDataState">Loading dashboard data</strong></div>
   <span id="dashboardLastUpdated">Last updated —</span>
   <span>Auto-refresh every 90 seconds</span>
+  <button type="button" class="btn btn-sm btn-outline-secondary dashboard-context-retry" id="dashboardRetry" aria-controls="dashboardContent" hidden><i class="bi bi-arrow-clockwise me-1" aria-hidden="true"></i>Retry</button>
 </div>
 
 <div id="dashboardContent" aria-busy="true">
@@ -95,11 +96,28 @@
   <div class="opp-radar" id="oppRadar">
     <div class="text-muted small p-3">Scanning markets…</div>
   </div>
+
+  <div class="opp-inspector" id="inspectorCard" hidden aria-live="polite">
+    <div class="section-card-header">
+      <span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Decision Inspector</span>
+      <div class="opp-inspector-actions">
+        <span class="badge-tag" id="inspHeader">—</span>
+        <button type="button" class="opp-inspector-close" id="inspectorClose" aria-label="Close AI Decision Inspector" title="Close inspector">
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+      </div>
+    </div>
+    <div class="section-card-body" id="inspectorBody"></div>
+    <div class="opp-inspector-footer">
+      <span class="text-muted fs-xs">Hover or select another opportunity to inspect it.</span>
+      <a class="btn btn-sm btn-outline-secondary" id="inspOpenLink" href="#" hidden>Open full analysis <i class="bi bi-arrow-up-right ms-1"></i></a>
+    </div>
+  </div>
 </div>
 
-<!-- ══ Live Signals table + AI Decision Inspector ══ -->
+<!-- ══ Live Signals table ══ -->
 <div class="row g-3 mb-3">
-  <div class="col-xl-8">
+  <div class="col-12">
     <div class="section-card h-100">
       <div class="section-card-header">
         <span class="section-card-title"><i class="bi bi-lightning-charge-fill text-accent me-1"></i>Live Signals <span class="badge-tag ms-1" id="signalCount">—</span></span>
@@ -112,38 +130,23 @@
           </select>
         </div>
       </div>
-      <!-- Trimmed from 14 columns to the 7 a glance actually needs (Asset,
-           TF, Signal, Entry, Current, Confidence, R:R) — SL/targets/age/
-           regime/model-agreement/status are all one click away on the
-           asset's own AI Position Analysis panel, which shows them with
-           more room and more context than a packed row ever could. -->
+      <!-- Keep primary decision fields visible; deeper evidence remains in
+           the opportunity inspector and asset analysis page. -->
       <div class="table-responsive">
         <table class="smart-table signals-table-adv" data-mobile-cards>
-          <caption class="ui-visually-hidden">Active signals with entry, current price, confidence and risk-reward values</caption>
+          <caption class="ui-visually-hidden">Active signals with status, entry, current price, stop loss, target, confidence, profit and risk-reward values</caption>
           <thead><tr>
-            <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
-            <th>Confidence</th><th>R:R</th>
+            <th>Asset</th><th>TF</th><th>Signal</th><th>Status</th><th>Entry</th><th>Current</th>
+            <th>Stop Loss</th><th>Target 1</th><th>Confidence</th><th>P&amp;L</th><th>R:R</th><th>Age</th>
           </tr></thead>
           <tbody id="signalsBody">
-            <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
+            <tr><td colspan="12" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
           </tbody>
         </table>
       </div>
       <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="border-top:1px solid var(--border)">
         <a href="/signals" class="btn btn-sm btn-outline-secondary">View all signals <i class="bi bi-arrow-right ms-1"></i></a>
         <nav><ul class="pagination pagination-sm mb-0" id="signalPagination"></ul></nav>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-xl-4">
-    <div class="section-card h-100" id="inspectorCard">
-      <div class="section-card-header">
-        <span class="section-card-title"><i class="bi bi-cpu text-accent me-1"></i>AI Decision Inspector</span>
-        <span class="badge-tag" id="inspHeader">—</span>
-      </div>
-      <div class="section-card-body" id="inspectorBody">
-        <div class="text-muted fs-sm">Select or wait for a signal…</div>
       </div>
     </div>
   </div>

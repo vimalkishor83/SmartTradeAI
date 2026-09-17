@@ -6,7 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 def send_push_notification(subscription_json: str, title: str, body: str,
-                           icon: str = "/static/icons/icon-192.png",
+                           icon: str = "/static/img/icon-192.png",
                            url: str = "/dashboard") -> bool:
     """
     Send a Web Push notification to a single subscription.
@@ -19,7 +19,8 @@ def send_push_notification(subscription_json: str, title: str, body: str,
 
         vapid_private = current_app.config.get("VAPID_PRIVATE_KEY")
         vapid_claims  = {
-            "sub": current_app.config.get("VAPID_CLAIMS_EMAIL", "mailto:support@smarttradeai.online")
+            "sub": current_app.config.get("VAPID_CLAIMS_EMAIL")
+                   or f"mailto:{current_app.config.get('SUPPORT_EMAIL', 'support@smarttradeai.online')}"
         }
 
         if not vapid_private:

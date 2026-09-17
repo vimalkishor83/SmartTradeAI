@@ -21,6 +21,10 @@ def test_calculator_has_mobile_safe_input_and_results_regions():
     assert 'class="col-lg-8 dcc-results-column"' in source
     assert 'class="dcc-action-row"' in source
     assert "dcc-schedule-wrap" in source
+    assert 'class="smart-table dcc-schedule-table"' in source
+    assert 'id="tCards"' in source
+    assert "dcc-schedule-cards" in source
+    assert "compact card" in source
     assert "grid-template-columns:1fr" in source
 
 
@@ -35,6 +39,9 @@ def test_calculator_result_panel_has_clear_empty_and_loaded_states():
     assert "grid-template-columns:42px minmax(0, 1fr)" in source
     assert "Growth schedule" in source
     assert "Switch views to inspect the projection" in source
+    assert "function renderTable()" in source
+    assert "role=\"listitem\"" in source
+    assert "const metric =" in source
 
 
 def test_mobile_toolbar_does_not_create_horizontal_overflow():
@@ -50,8 +57,12 @@ def test_save_panel_is_mobile_safe_and_keyboard_dismissible():
     source = TEMPLATE.read_text(encoding="utf-8")
 
     assert 'role="dialog" aria-modal="true"' in source
+    assert 'aria-describedby="savePanelHelp"' in source
     assert 'id="pClose"' in source
     assert "function setPanelOpen(open)" in source
     assert "setAttribute('aria-hidden', String(!open))" in source
+    assert "function handlePanelKeydown(e)" in source
     assert "e.key === 'Escape'" in source
+    assert "e.key !== 'Tab'" in source
+    assert "panelPreviousFocus?.focus?.()" in source
     assert "width:100%; max-width:100%" in source
