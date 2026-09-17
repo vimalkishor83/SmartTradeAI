@@ -24,6 +24,10 @@ def test_core_widgets_do_not_interpolate_untrusted_text_into_html():
     assert "el.querySelector('span').textContent" in source
     assert "Live fetch: waiting for first request" in source
     assert "runtimeProviders" in source
+    assert "liveDataAvailable" in source
+    assert "verificationPending" in source
+    assert "Live fetch is healthy; provider verification is pending" in source
+    assert "banner.dataset.state = displayState" in source
     assert "_wsStartFreshnessWatch" in source
     assert "_lastTickerAt" in source
     assert "data-market-health-retry" in source
