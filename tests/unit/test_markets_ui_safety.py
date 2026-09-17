@@ -17,6 +17,8 @@ def test_markets_page_exposes_live_context_and_accessible_filter_controls():
     assert 'id="mktTabs" role="tablist"' in source
     assert 'id="marketTabAll" role="tab"' in source
     assert 'id="marketsUpdatedAt"' in source
+    assert 'id="marketsRetry"' in source
+    assert 'aria-controls="marketsContent" hidden' in source
     assert '<label class="visually-hidden" for="tfFilter">' in source
     assert '<option value="5m">5 Min</option>' in source
     assert '<label class="visually-hidden" for="typeFilter">' in source
@@ -37,6 +39,9 @@ def test_markets_controller_bounds_values_and_serializes_refreshes():
     assert "Promise.allSettled(loaders.map(loader => loader()))" in source
     assert "if (!_marketIsCurrent(sequence)) return null;" in source
     assert "function _setMarketStatus(state, message, detail)" in source
+    assert "retry.hidden = !['degraded', 'error'].includes(state);" in source
+    assert "retry.setAttribute('aria-busy', busy ? 'true' : 'false');" in source
+    assert "document.getElementById('marketsRetry')?.addEventListener('click', () => loadAll());" in source
     assert "function _setActiveTab()" in source
     assert "t.setAttribute('aria-selected', selected ? 'true' : 'false');" in source
 
@@ -71,5 +76,6 @@ def test_markets_header_controls_stack_without_overflow_on_narrow_layouts():
     assert ".markets-overview .dash-header-actions > .form-select" in css
     assert ".markets-overview .dash-header-actions > .search-bar" in css
     assert ".markets-overview .dash-header-actions > #generateAll" in css
+    assert ".dashboard-context-retry" in css
     assert "flex: 1 1 calc(50% - 4px)" in css
     assert "@media (max-width: 760px)" in css

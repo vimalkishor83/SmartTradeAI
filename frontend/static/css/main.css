@@ -4168,6 +4168,10 @@ body[data-requires-admin] #pageContentBody::before {
   color: var(--text-primary);
 }
 
+.dashboard-context-retry {
+  margin-left: auto;
+}
+
 .dashboard-context-dot {
   width: 7px;
   height: 7px;
@@ -4197,6 +4201,10 @@ body[data-requires-admin] #pageContentBody::before {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
+  }
+
+  .dashboard-context-retry {
+    margin-left: 0;
   }
 }
 

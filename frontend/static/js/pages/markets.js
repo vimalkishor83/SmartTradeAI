@@ -23,6 +23,8 @@ function _setMarketStatus(state, message, detail) {
   if (context) context.className = `dashboard-context is-${state}`;
   mset('marketsLiveStatus', message);
   if (detail !== undefined) mset('marketsUpdatedAt', detail);
+  const retry = document.getElementById('marketsRetry');
+  if (retry) retry.hidden = !['degraded', 'error'].includes(state);
 }
 
 function _setMarketBusy(busy) {
@@ -30,6 +32,11 @@ function _setMarketBusy(busy) {
   if (content) content.setAttribute('aria-busy', busy ? 'true' : 'false');
   const generate = document.getElementById('generateAll');
   if (generate) generate.disabled = !!busy;
+  const retry = document.getElementById('marketsRetry');
+  if (retry) {
+    retry.disabled = !!busy;
+    retry.setAttribute('aria-busy', busy ? 'true' : 'false');
+  }
 }
 
 function _setMarketUnavailable(id, message) {
@@ -473,5 +480,6 @@ document.addEventListener('app:ready', () => {
   document.getElementById('assetSearch')?.addEventListener('input', () => loadLiveSignals());
   wireSearchClear('assetSearch');
   document.getElementById('generateAll')?.addEventListener('click', generateAll);
+  document.getElementById('marketsRetry')?.addEventListener('click', () => loadAll());
   STRefresh.start(loadAll, 90);
 });
