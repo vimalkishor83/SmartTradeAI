@@ -518,6 +518,9 @@
 .provider-health-count.healthy { color:var(--green); background:rgba(34,197,94,.1); }
 .provider-health-count.warning { color:var(--yellow); background:rgba(245,166,35,.1); }
 .provider-health-runtime { flex-basis:100%; padding-top:.65rem; border-top:1px solid var(--border); color:var(--text-muted); font-size:11px; }
+.provider-health-runtime[data-state="healthy"] { color:var(--success); }
+.provider-health-runtime[data-state="attention"] { color:var(--warning); }
+.provider-health-runtime[data-state="error"] { color:var(--danger); }
 .provider-health-badge { font-size:10px; font-weight:800; letter-spacing:.2px; }
 </style>
 {% endblock %}
@@ -578,19 +581,32 @@ async function loadConfigs() {
 async function loadRuntimeHealth() {
   const target = document.getElementById('runtimeHealthCopy');
   if (!target) return;
+  target.setAttribute('aria-busy', 'true');
   try {
     const data = await API.get('/system/market-health');
     const providers = Array.isArray(data?.runtime?.providers) ? data.runtime.providers : [];
     if (!providers.length) {
+      target.dataset.state = 'attention';
       target.textContent = 'Live fetch telemetry: waiting for the first market-data request.';
       return;
     }
     const healthy = providers.filter(p => p.state === 'HEALTHY').length;
-    const details = providers.map(p => `${p.provider}: ${p.state.toLowerCase()}`).join(' · ');
+    const details = providers.map(p => {
+      const latency = Number.isFinite(Number(p.last_latency_ms)) ? `, ${Math.round(Number(p.last_latency_ms))}ms` : '';
+      return `${p.provider}: ${p.state.toLowerCase()}${latency}`;
+    }).join(' · ');
+    target.dataset.state = healthy === providers.length ? 'healthy' : 'attention';
     target.textContent = `Live fetch telemetry: ${healthy}/${providers.length} provider(s) healthy · ${details}`;
   } catch (_) {
+    target.dataset.state = 'error';
     target.textContent = 'Live fetch telemetry: temporarily unavailable.';
+  } finally {
+    target.setAttribute('aria-busy', 'false');
   }
+}
+
+if (window.STRefresh) {
+  STRefresh.start(() => loadRuntimeHealth(), 30, { usePlatform: true });
 }
 
 function updateKPIs(configs) {
