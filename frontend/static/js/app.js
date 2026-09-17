@@ -619,12 +619,14 @@ window.STMarketHealth = window.STMarketHealth || {
       const runtimeCopy = runtimeProviders.length
         ? `Live fetch: ${runtimeHealthy}/${runtimeProviders.length} healthy`
         : 'Live fetch: waiting for first request';
+      const needsAction = status !== 'ready';
       banner.dataset.state = status;
-      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(freshness.label || status)}</strong><span>${STSafe.html(data?.reason || 'No provider status available')}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)} · ${STSafe.html(runtimeCopy)}</span>`;
+      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(freshness.label || status)}</strong><span>${STSafe.html(data?.reason || 'No provider status available')}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)} · ${STSafe.html(runtimeCopy)}</span>${needsAction ? '<span class="market-health-guidance">Try again, or ask an administrator to verify provider settings.</span><button type="button" class="btn btn-sm btn-outline-secondary" data-market-health-retry>Check again</button>' : ''}`;
+      banner.querySelector('[data-market-health-retry]')?.addEventListener('click', () => this.load(), { once: true });
     } catch (_) {
       banner.dataset.state = 'unavailable';
-      banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data unavailable</strong><span>Provider status could not be loaded.</span><button type="button" class="btn btn-sm btn-outline-secondary">Retry</button>';
-      banner.querySelector('button')?.addEventListener('click', () => this.load(), { once: true });
+      banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data unavailable</strong><span>Provider status could not be loaded.</span><span class="market-health-guidance">Try again, or ask an administrator to verify provider settings.</span><button type="button" class="btn btn-sm btn-outline-secondary" data-market-health-retry>Check again</button>';
+      banner.querySelector('[data-market-health-retry]')?.addEventListener('click', () => this.load(), { once: true });
     }
   },
 };
