@@ -297,18 +297,33 @@ async function loadHeadlines() {
 }
 
 /* ── Economic Calendar + Upcoming ─────────────────────────────── */
+function _briefingEventDate(value) {
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw) ? raw : `${raw}Z`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
 async function loadEcon() {
   const data = await API.get('/news/economic-calendar');
-  const events = (data?.events || []).filter(e => e.event_time);
+  const now = new Date();
+  const events = (data?.events || [])
+    .map(event => ({ event, date: _briefingEventDate(event?.event_time) }))
+    .filter(item => item.date && item.date >= now)
+    .sort((a, b) => a.date - b.date)
+    .map(item => item.event);
   const impRank = { high: 0, medium: 1, low: 2 };
-  events.sort((a, b) => new Date(a.event_time) - new Date(b.event_time));
   const tb = document.getElementById('econBody');
   const upcoming = document.getElementById('upcomingBody');
   if (tb) {
-    if (!events.length) { tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No scheduled events</td></tr>'; }
+    if (!events.length) { tb.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No upcoming events</td></tr>'; }
     else tb.innerHTML = events.slice(0, 6).map(e => {
       const imp = (e.impact || 'low').toLowerCase();
-      const t = new Date(e.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const eventDate = _briefingEventDate(e.event_time);
+      const day = eventDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+      const time = eventDate.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const t = `${day}, ${time} IST`;
       const impClr = imp === 'high' ? 'var(--red)' : imp === 'medium' ? 'var(--yellow)' : 'var(--text-muted)';
       return `<tr><td class="num">${t}</td><td>${STSafe.html(e.title || '')}</td>
         <td><span style="color:${impClr};font-weight:700"><i class="bi bi-bar-chart-fill" style="font-size:9px"></i> ${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))}</span></td>
@@ -316,14 +331,17 @@ async function loadEcon() {
     }).join('');
   }
   if (upcoming) {
-    const next = events.filter(e => new Date(e.event_time + 'Z') >= new Date()).sort((a, b) => (impRank[(a.impact || 'low').toLowerCase()] ?? 2) - (impRank[(b.impact || 'low').toLowerCase()] ?? 2))[0];
+    const next = events.sort((a, b) => (impRank[(a.impact || 'low').toLowerCase()] ?? 2) - (impRank[(b.impact || 'low').toLowerCase()] ?? 2))[0];
     const link = '<a href="/economic-calendar" class="btn btn-sm btn-outline-secondary" style="white-space:nowrap">View Full Calendar</a>';
     if (next) {
-      const t = new Date(next.event_time + 'Z').toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const nextDate = _briefingEventDate(next.event_time);
+      const day = nextDate.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short' });
+      const time = nextDate.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false });
+      const t = `${day}, ${time} IST`;
       const imp = (next.impact || 'low').toLowerCase();
       upcoming.innerHTML = `<div class="d-flex align-items-center gap-2"><i class="bi bi-calendar2-event text-accent"></i><div><div style="font-weight:700;font-size:13px">${t} &nbsp;${STSafe.html(next.title || '')}</div><div class="fs-xs" style="color:${imp === 'high' ? 'var(--red)' : 'var(--yellow)'}">${STSafe.html(imp.charAt(0).toUpperCase() + imp.slice(1))} Impact</div></div></div>${link}`;
     } else {
-      upcoming.innerHTML = `<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No high-impact events scheduled</div>${link}`;
+      upcoming.innerHTML = `<div class="text-muted fs-sm"><i class="bi bi-check-circle text-green me-1"></i>No upcoming events scheduled</div>${link}`;
     }
   }
 }

@@ -56,3 +56,16 @@ def test_briefing_serializes_refreshes_and_normalizes_market_state():
     assert "Some briefing data is unavailable. Try refreshing." in source
     assert "Your daily trading snapshot across global markets" in source
     assert "updated on ${d}, ${t} IST" not in source
+
+
+def test_briefing_calendar_only_shows_upcoming_events_with_ist_date_and_time():
+    template = (Path(__file__).parents[2] / "frontend" / "templates" / "dashboard" / "briefing.html").read_text(encoding="utf-8")
+    source = (STATIC_JS / "pages" / "briefing.js").read_text(encoding="utf-8")
+
+    assert "function _briefingEventDate(value)" in source
+    assert ".filter(item => item.date && item.date >= now)" in source
+    assert "timeZone: 'Asia/Kolkata'" in source
+    assert "toLocaleDateString('en-IN'" in source
+    assert "const t = `${day}, ${time} IST`;" in source
+    assert "<th>Date / time</th>" in template
+    assert "No upcoming events" in source
