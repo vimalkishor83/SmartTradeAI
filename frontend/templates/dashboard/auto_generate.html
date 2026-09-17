@@ -91,6 +91,7 @@
                 <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="15m"> 15 Minutes</label>
                 <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="30m"> 30 Minutes</label>
                 <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="1h" checked> 1 Hour</label>
+                <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="2h"> 2 Hours</label>
                 <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="4h"> 4 Hours</label>
                 <label class="dropdown-item ag-dropdown-item d-flex align-items-center gap-2"><input type="checkbox" class="form-check-input m-0 tf-pick-cb" value="1d"> Daily</label>
               </div>
@@ -429,7 +430,7 @@ function loadConfig() {
 }
 
 /* ── Timeframe multi-select dropdown ─────────────────────── */
-const TF_LABELS = {'1m':'1 Minute','5m':'5 Minutes','15m':'15 Minutes','30m':'30 Minutes','1h':'1 Hour','4h':'4 Hours','1d':'Daily'};
+const TF_LABELS = {'1m':'1 Minute','5m':'5 Minutes','15m':'15 Minutes','30m':'30 Minutes','1h':'1 Hour','2h':'2 Hours','4h':'4 Hours','1d':'Daily'};
 
 function getSelectedTimeframes() {
   return Array.from(document.querySelectorAll('.tf-pick-cb:checked')).map(cb => cb.value);

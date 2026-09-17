@@ -41,6 +41,21 @@ def test_safety_flags_default_to_false_and_debug_is_forced_off():
     assert TestingConfig.RUN_MIGRATIONS_ON_STARTUP is True
 
 
+def test_development_auto_generate_defaults_cover_all_timeframes_safely():
+    defaults = DevelopmentConfig.DEVELOPMENT_AUTO_GENERATE_DEFAULTS
+
+    assert defaults["running"] is True
+    assert defaults["timeframes"] == ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+    assert defaults["markets"] == []
+    assert defaults["asset_ids"] == []
+    assert defaults["interval_minutes"] == 15
+    assert defaults["max_per_run"] == 10
+    assert defaults["telegram_on_signal"] is False
+    assert DevelopmentConfig.TRADING_EXECUTION_MODE == "paper"
+    assert DevelopmentConfig.BROKER_TRADING_ENABLED is False
+    assert DevelopmentConfig.PROTECTIVE_ORDERS_ENABLED is False
+
+
 def test_safety_flag_parser_handles_real_boolean_values():
     assert as_bool(True) is True
     assert as_bool(False) is False

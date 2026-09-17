@@ -937,6 +937,8 @@ def _init_scheduler(app):
             except Exception:
                 pass
 
+        _ensure_development_auto_generate_defaults(app)
+
     if not scheduler.running:
         scheduler.start()
 
@@ -1008,6 +1010,44 @@ def _init_scheduler(app):
         minutes=5,
         replace_existing=True,
     )
+
+
+def _ensure_development_auto_generate_defaults(app):
+    """Create the first-run paper schedule for the isolated dev environment.
+
+    This is deliberately limited to the dedicated development profile and to
+    an empty config table. A saved row, including an intentional stopped state,
+    always wins so an operator can still control the schedule from the UI.
+    """
+    if app.config.get("TESTING") or os.environ.get("FLASK_ENV", "development").strip().lower() != "development":
+        return
+
+    defaults = app.config.get("DEVELOPMENT_AUTO_GENERATE_DEFAULTS") or {}
+    if not defaults:
+        return
+
+    from app.models.auto_generate_config import AutoGenerateConfig
+
+    try:
+        if AutoGenerateConfig.query.first() is not None:
+            return
+        row = AutoGenerateConfig(**{
+            key: list(value) if isinstance(value, list) else value
+            for key, value in defaults.items()
+        })
+        db.session.add(row)
+        db.session.commit()
+        logging.getLogger(__name__).info(
+            "Development Auto Generate defaults initialized: all timeframes, "
+            "paper-only, Telegram disabled."
+        )
+    except Exception as exc:
+        db.session.rollback()
+        # A missing schema is handled by the explicit migration phase; boot
+        # must not attempt schema creation just to seed this optional config.
+        logging.getLogger(__name__).warning(
+            "Development Auto Generate defaults could not be initialized: %s", exc
+        )
 
 
 def _expire_trials(app):

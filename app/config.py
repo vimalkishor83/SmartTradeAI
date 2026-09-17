@@ -22,6 +22,11 @@ def _development_cors_origins():
     return [origin.strip() for origin in configured.split(",") if origin.strip()]
 
 
+_DEVELOPMENT_AUTO_GENERATE_TIMEFRAMES = [
+    "1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d",
+]
+
+
 class Config:
     DEBUG = _env_bool("DEBUG", False)
     BROKER_TRADING_ENABLED = _env_bool("BROKER_TRADING_ENABLED", False)
@@ -147,6 +152,20 @@ class DevelopmentConfig(Config):
     # edit templates during normal use, so caching them makes page navigations
     # faster. Set TEMPLATES_AUTO_RELOAD=1 in the env only while editing HTML.
     TEMPLATES_AUTO_RELOAD = os.environ.get("TEMPLATES_AUTO_RELOAD", "0") == "1"
+    # A fresh isolated development database should provide paper signals
+    # without requiring a manual Start click. Existing saved settings remain
+    # authoritative and are never overwritten by this bootstrap.
+    DEVELOPMENT_AUTO_GENERATE_DEFAULTS = {
+        "running": True,
+        "asset_ids": [],
+        "markets": [],
+        "timeframes": list(_DEVELOPMENT_AUTO_GENERATE_TIMEFRAMES),
+        "signal_filter": "all",
+        "min_confidence": 0,
+        "max_per_run": 10,
+        "interval_minutes": 15,
+        "telegram_on_signal": False,
+    }
 
 
 _INSECURE_DEFAULTS = {"dev-secret-key-change-in-production", "jwt-secret-change-in-production"}

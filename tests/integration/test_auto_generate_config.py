@@ -25,6 +25,36 @@ up right.
 import pytest
 
 
+def test_fresh_development_bootstrap_creates_all_timeframe_paper_schedule(app, monkeypatch):
+    from app import _ensure_development_auto_generate_defaults
+    from app.extensions import db
+    from app.models.auto_generate_config import AutoGenerateConfig
+
+    monkeypatch.setenv("FLASK_ENV", "development")
+    app.config["TESTING"] = False
+    app.config["DEVELOPMENT_AUTO_GENERATE_DEFAULTS"] = {
+        "running": True,
+        "asset_ids": [],
+        "markets": [],
+        "timeframes": ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"],
+        "signal_filter": "all",
+        "min_confidence": 0,
+        "max_per_run": 10,
+        "interval_minutes": 15,
+        "telegram_on_signal": False,
+    }
+
+    with app.app_context():
+        db.session.query(AutoGenerateConfig).delete()
+        db.session.commit()
+        _ensure_development_auto_generate_defaults(app)
+        row = AutoGenerateConfig.query.one()
+
+        assert row.running is True
+        assert row.timeframes == ["1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d"]
+        assert row.telegram_on_signal is False
+
+
 @pytest.fixture(autouse=True)
 def restore_auto_generate_state():
     """Keep module-global scheduler state isolated between tests/modules."""
