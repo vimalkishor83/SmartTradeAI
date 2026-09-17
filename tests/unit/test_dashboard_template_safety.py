@@ -89,3 +89,20 @@ def test_dashboard_normalizes_provider_numbers_before_rendering():
     assert "clamp(s.confidence_score, 0, 100, 0)" in source
     assert "numberOr(row?.pnl_pct)" in source
     assert "typeof Chart === 'undefined'" in source
+
+
+def test_dashboard_signal_table_exposes_trade_lifecycle_context():
+    source = TEMPLATE.read_text(encoding="utf-8")
+    page = PAGE.read_text(encoding="utf-8")
+
+    assert "function _signalTableStatus(signal, lifecycle, targets)" in source
+    assert "ENTRY HIT" in source
+    assert "TARGET 1 HIT" in source
+    assert "STOP HIT" in source
+    assert "const pnl = numberOr(s.pnl_pct)" in source
+    assert "relativeTime(s.generated_at)" in source
+    assert "<th>Status</th>" in page
+    assert "<th>Stop Loss</th>" in page
+    assert "<th>Target 1</th>" in page
+    assert "<th>P&amp;L</th>" in page
+    assert 'colspan="12"' in page

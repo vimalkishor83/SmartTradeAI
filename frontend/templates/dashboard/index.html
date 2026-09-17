@@ -130,17 +130,17 @@
           </select>
         </div>
       </div>
-      <!-- Trimmed from 14 columns to the 7 a glance actually needs. Full
-           signal context is available by inspecting an opportunity card. -->
+      <!-- Keep primary decision fields visible; deeper evidence remains in
+           the opportunity inspector and asset analysis page. -->
       <div class="table-responsive">
         <table class="smart-table signals-table-adv" data-mobile-cards>
-          <caption class="ui-visually-hidden">Active signals with entry, current price, confidence and risk-reward values</caption>
+          <caption class="ui-visually-hidden">Active signals with status, entry, current price, stop loss, target, confidence, profit and risk-reward values</caption>
           <thead><tr>
-            <th>Asset</th><th>TF</th><th>Signal</th><th>Entry</th><th>Current</th>
-            <th>Confidence</th><th>R:R</th>
+            <th>Asset</th><th>TF</th><th>Signal</th><th>Status</th><th>Entry</th><th>Current</th>
+            <th>Stop Loss</th><th>Target 1</th><th>Confidence</th><th>P&amp;L</th><th>R:R</th><th>Age</th>
           </tr></thead>
           <tbody id="signalsBody">
-            <tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
+            <tr><td colspan="12" class="text-center text-muted py-4"><i class="bi bi-hourglass-split d-block mb-2" style="font-size:22px;opacity:.4"></i>Loading signals…</td></tr>
           </tbody>
         </table>
       </div>

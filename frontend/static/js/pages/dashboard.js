@@ -387,7 +387,7 @@ function _renderSignals(signals) {
   const filtered = (Array.isArray(signals) ? signals : []).filter(s => numberOr(s?.confidence_score, 0) >= minConf);
   if (!filtered.length) {
     const cell = document.createElement('td');
-    cell.colSpan = 7;
+    cell.colSpan = 12;
     cell.className = 'text-center py-4';
     cell.append(dashboardEmptyState('No active signals for this filter.', '/markets/crypto', 'Browse Markets'));
     const row = document.createElement('tr');
@@ -402,18 +402,29 @@ function _renderSignals(signals) {
     const rrClr = rr >= 2 ? 'var(--green)' : rr >= 1.5 ? 'var(--yellow)' : 'var(--text-primary)';
     const cur = numberOr(s.current_price, numberOr(s.entry_price));
     const mkt = String(s.market || '').replace('_', ' ');
+    const lifecycle = s.lifecycle && typeof s.lifecycle === 'object' ? s.lifecycle : {};
+    const targets = lifecycle.targets && typeof lifecycle.targets === 'object' ? lifecycle.targets : {};
+    const signalStatus = _signalTableStatus(s, lifecycle, targets);
+    const pnl = numberOr(s.pnl_pct);
+    const pnlText = pnl == null ? '—' : `${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%`;
+    const pnlClr = pnl == null ? 'var(--text-muted)' : pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const age = s.generated_at && typeof relativeTime === 'function' ? relativeTime(s.generated_at) : '—';
     // Row itself navigates to the asset's AI Position Analysis (SL/targets/
-    // age/regime/model-agreement/status all live there now) — only the
-    // trash-icon-style affordance differs, so make the whole row clickable
-    // rather than just the asset name.
+    // regime/model-agreement details) — make the whole row clickable rather
+    // than limiting navigation to the asset name.
     return `<tr style="cursor:pointer" tabindex="0" data-asset-href="${STSafe.assetHref(s.asset_id)}">
       <td><span class="asset-cell-name">${STSafe.html(s.asset)}</span><div class="asset-cell-sub"><span class="badge-tag">${STSafe.html(mkt)}</span></div></td>
       <td><span class="badge-tag">${STSafe.html(s.timeframe)}</span></td>
       <td>${signalBadge(s.signal_type)}</td>
+      <td><span class="status-chip signal-status-${signalStatus.tone}" aria-label="Signal status: ${STSafe.html(signalStatus.label)}">${STSafe.html(signalStatus.label)}</span></td>
       <td class="num">${safePrice(s.entry_price, s.market)}</td>
       <td class="num">${safePrice(cur, s.market)}</td>
+      <td class="num signal-level-stop">${safePrice(s.stop_loss, s.market)}</td>
+      <td class="num signal-level-target">${safePrice(s.target1, s.market)}</td>
       <td style="min-width:110px"><div style="font-weight:700;color:${confClr};font-size:12px">${conf.toFixed(0)}%</div><div class="confidence-bar"><div class="confidence-fill" style="width:${conf}%;background:${confClr}"></div></div></td>
+      <td class="num" style="color:${pnlClr};font-weight:700">${pnlText}</td>
       <td class="num" style="color:${rrClr};font-weight:700">${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</td>
+      <td class="signal-age">${STSafe.html(age)}</td>
     </tr>`;
   }).join('');
   tbody.querySelectorAll('tr[data-asset-href]').forEach(row => {
@@ -423,6 +434,26 @@ function _renderSignals(signals) {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); go(); }
     });
   });
+}
+
+function _signalTableStatus(signal, lifecycle, targets) {
+  const raw = String(signal.status || lifecycle.status || 'active').toLowerCase();
+  if (raw === 'hit_sl' || lifecycle.stop_loss_hit) return { label: 'STOP HIT', tone: 'danger' };
+  if (raw === 'hit_target' || targets.t3 || targets.t2 || targets.t1) {
+    if (targets.t3) return { label: 'TARGET 3 HIT', tone: 'success' };
+    if (targets.t2) return { label: 'TARGET 2 HIT', tone: 'success' };
+    return { label: 'TARGET 1 HIT', tone: 'success' };
+  }
+  if (raw === 'expired') return { label: 'EXPIRED', tone: 'muted' };
+
+  const entry = numberOr(signal.entry_price);
+  const current = numberOr(signal.current_price);
+  const direction = String(signal.signal_type || '').toUpperCase();
+  const entryHit = entry != null && current != null && (
+    (direction === 'BUY' && current >= entry) ||
+    (direction === 'SELL' && current <= entry)
+  );
+  return entryHit ? { label: 'ENTRY HIT', tone: 'success' } : { label: 'WAITING', tone: 'muted' };
 }
 
 /* ── AI Decision Inspector ────────────────────────────────────── */

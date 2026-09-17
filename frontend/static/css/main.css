@@ -4637,6 +4637,31 @@ body[data-requires-admin] #pageContentBody::before {
   white-space: nowrap
 }
 
+.signals-table-adv .signal-status-success {
+  color: var(--green);
+  border-color: var(--green);
+  background: color-mix(in srgb, var(--green) 10%, transparent);
+}
+
+.signals-table-adv .signal-status-danger {
+  color: var(--red);
+  border-color: var(--red);
+  background: color-mix(in srgb, var(--red) 10%, transparent);
+}
+
+.signals-table-adv .signal-status-muted {
+  color: var(--text-secondary);
+  border-color: var(--border-strong, var(--border));
+  background: var(--bg-subtle, transparent);
+}
+
+.signals-table-adv .signal-level-stop { color: var(--red); }
+.signals-table-adv .signal-level-target { color: var(--green); }
+.signals-table-adv .signal-age {
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
 .model-bars {
   display: flex;
   align-items: flex-end;
