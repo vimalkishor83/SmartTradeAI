@@ -275,7 +275,7 @@ function loadOpportunityRadar(signals) {
     const note = String(s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || String(s.confidence_label || '');
     const opportunityId = STSafe.domId('opp_', s.id);
     const label = `${STSafe.html(s.asset)} ${STSafe.html(s.signal_type || 'signal')} at ${conf.toFixed(0)}% confidence. Hover or select to inspect.`;
-    return `<article class="opp-card" role="button" tabindex="0" aria-pressed="false" aria-controls="inspectorCard" data-opportunity-id="${opportunityId}" aria-label="${label}">
+    return `<article class="opp-card" role="button" tabindex="0" aria-expanded="false" aria-controls="inspectorCard" data-opportunity-id="${opportunityId}" aria-label="${label}">
       <div class="opp-top">
         <div class="opp-name">${STSafe.html(s.asset)}</div>
         <span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span>
@@ -310,7 +310,7 @@ function _setOpportunitySelection(opportunityId) {
   document.querySelectorAll('#oppRadar .opp-card').forEach(card => {
     const selected = card.dataset.opportunityId === opportunityId;
     card.classList.toggle('is-inspected', selected);
-    card.setAttribute('aria-pressed', String(selected));
+    card.setAttribute('aria-expanded', String(selected));
   });
 }
 

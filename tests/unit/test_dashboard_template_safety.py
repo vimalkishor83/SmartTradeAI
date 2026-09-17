@@ -34,7 +34,7 @@ def test_opportunity_cards_drive_the_inline_inspector_accessibly():
     source = TEMPLATE.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")
 
-    assert 'class="opp-card" role="button" tabindex="0"' in source
+    assert 'class="opp-card" role="button" tabindex="0" aria-expanded="false"' in source
     assert 'aria-controls="inspectorCard"' in source
     assert "mouseenter" in source
     assert "card.addEventListener('focus'" in source
