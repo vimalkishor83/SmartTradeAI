@@ -940,17 +940,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       const _wsLabel = document.getElementById('wsStatusLabel');
       let _wsStaleSince = null;
       let _wsStaleTimer = null;
+      let _wsConnectedAt = null;
+      let _lastTickerAt = null;
 
       function _wsSetStatus(state) {
         if (!_wsDot) return;
         _wsDot.className = 'ws-dot ' + state;
         _wsLabel.textContent = state === 'live' ? 'Live' : state === 'delayed' ? 'Delayed' : 'Offline';
+        const labels = { live: 'Live data stream connected', delayed: 'Data stream connected but no recent ticker update', offline: 'Live data stream disconnected' };
+        document.getElementById('wsStatusBadge')?.setAttribute('title', labels[state] || 'Live data connection');
+      }
+
+      function _wsStartFreshnessWatch() {
+        clearInterval(_wsStaleTimer);
+        _wsStaleTimer = setInterval(() => {
+          if (!socket.connected) return;
+          const lastEvent = _lastTickerAt || _wsConnectedAt;
+          if (lastEvent && Date.now() - lastEvent > 30000) _wsSetStatus('delayed');
+          else _wsSetStatus('live');
+        }, 5000);
       }
 
       socket.on('connect', () => {
         _wsSetStatus('live');
         _wsStaleSince = null;
-        clearTimeout(_wsStaleTimer);
+        _wsConnectedAt = Date.now();
+        _lastTickerAt = null;
+        _wsStartFreshnessWatch();
         socket.emit('subscribe_all_tickers');
         socket.emit('subscribe_signals', { market: 'all' });
         socket.emit('subscribe_notifications');
@@ -959,6 +975,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       socket.on('disconnect', () => {
         _wsSetStatus('offline');
         _wsStaleSince = Date.now();
+        clearInterval(_wsStaleTimer);
       });
 
       socket.on('connect_error', () => {
@@ -972,6 +989,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // Live price → update ribbon + notify page listeners
       socket.on('ticker_update', tick => {
         if (!tick?.symbol) return;
+        _lastTickerAt = Date.now();
+        _wsSetStatus('live');
         LivePrices.update(tick);
         Ticker.patchItem(tick);
         // Dispatch DOM event so page components can react

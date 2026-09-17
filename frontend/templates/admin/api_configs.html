@@ -63,6 +63,9 @@
     <span class="provider-health-count healthy" id="healthHealthy">— verified</span>
     <span class="provider-health-count warning" id="healthAttention">— need attention</span>
   </div>
+  <div class="provider-health-runtime" id="runtimeHealthCopy" role="status" aria-live="polite">
+    Live fetch telemetry: waiting for the first market-data request.
+  </div>
 </div>
 
 <!-- Market Tabs -->
@@ -514,6 +517,7 @@
 .provider-health-count { padding:5px 9px; border-radius:999px; white-space:nowrap; }
 .provider-health-count.healthy { color:var(--green); background:rgba(34,197,94,.1); }
 .provider-health-count.warning { color:var(--yellow); background:rgba(245,166,35,.1); }
+.provider-health-runtime { flex-basis:100%; padding-top:.65rem; border-top:1px solid var(--border); color:var(--text-muted); font-size:11px; }
 .provider-health-badge { font-size:10px; font-weight:800; letter-spacing:.2px; }
 </style>
 {% endblock %}
@@ -560,7 +564,7 @@ async function init() {
   // Load provider metadata
   const pd = await API.get('/admin/api-configs/providers');
   if (pd) { Object.assign(PROVIDERS, pd.providers); Object.assign(PROVIDER_DEFAULTS, pd.defaults); }
-  await loadConfigs();
+  await Promise.all([loadConfigs(), loadRuntimeHealth()]);
 }
 
 async function loadConfigs() {
@@ -569,6 +573,24 @@ async function loadConfigs() {
   allConfigs = data.configs || [];
   updateKPIs(allConfigs);
   renderTable(currentTab);
+}
+
+async function loadRuntimeHealth() {
+  const target = document.getElementById('runtimeHealthCopy');
+  if (!target) return;
+  try {
+    const data = await API.get('/system/market-health');
+    const providers = Array.isArray(data?.runtime?.providers) ? data.runtime.providers : [];
+    if (!providers.length) {
+      target.textContent = 'Live fetch telemetry: waiting for the first market-data request.';
+      return;
+    }
+    const healthy = providers.filter(p => p.state === 'HEALTHY').length;
+    const details = providers.map(p => `${p.provider}: ${p.state.toLowerCase()}`).join(' · ');
+    target.textContent = `Live fetch telemetry: ${healthy}/${providers.length} provider(s) healthy · ${details}`;
+  } catch (_) {
+    target.textContent = 'Live fetch telemetry: temporarily unavailable.';
+  }
 }
 
 function updateKPIs(configs) {

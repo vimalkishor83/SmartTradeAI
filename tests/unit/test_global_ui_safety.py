@@ -24,6 +24,8 @@ def test_core_widgets_do_not_interpolate_untrusted_text_into_html():
     assert "el.querySelector('span').textContent" in source
     assert "Live fetch: waiting for first request" in source
     assert "runtimeProviders" in source
+    assert "_wsStartFreshnessWatch" in source
+    assert "_lastTickerAt" in source
 
 
 def test_command_palette_escapes_asset_values_and_ids():

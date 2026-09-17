@@ -17,6 +17,8 @@ def test_provider_values_and_test_details_are_escaped():
     assert "escapeHtml(providerLabel(p))" in source
     assert "escapeHtml(detail)" in source
     assert "escapeHtml(l.error_message || '—')" in source
+    assert "loadRuntimeHealth" in source
+    assert "runtimeHealthCopy" in source
 
 
 def test_configuration_actions_are_bound_from_validated_ids():
