@@ -356,19 +356,24 @@ async function loadUsers(page = 1) {
     // Available for any account, admin-role included — feature access is
     // gated on Subscription (see the backend for why), so trialing a
     // different plan on an admin-role account is a real, meaningful change.
+    // aria-label mirrors the existing title text on every icon-only button
+    // below -- title alone only surfaces as a mouse-hover tooltip in most
+    // browsers, not on keyboard focus, so a sighted keyboard-only user
+    // tabbing through this column previously saw four unlabeled icon
+    // buttons with no visible way to tell them apart.
     const trialBtn = u.is_on_trial
-      ? `<button type="button" class="btn btn-sm btn-outline-warning" data-user-action="cancel-trial" data-id="${STSafe.assetId(u.id)}" title="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
-      : `<button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="start-trial" data-id="${STSafe.assetId(u.id)}" title="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
+      ? `<button type="button" class="btn btn-sm btn-outline-warning" data-user-action="cancel-trial" data-id="${STSafe.assetId(u.id)}" title="Cancel Trial" aria-label="Cancel Trial"><i class="bi bi-stopwatch"></i></button>`
+      : `<button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="start-trial" data-id="${STSafe.assetId(u.id)}" title="Start Trial" aria-label="Start Trial"><i class="bi bi-hourglass-split"></i></button>`;
     return `
         <div class="d-flex gap-1">
-          <button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="edit-user" data-id="${STSafe.assetId(u.id)}" title="Edit">
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-user-action="edit-user" data-id="${STSafe.assetId(u.id)}" title="Edit" aria-label="Edit">
             <i class="bi bi-pencil"></i>
           </button>
           ${trialBtn}
-          <button type="button" class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" data-user-action="toggle-user" data-id="${STSafe.assetId(u.id)}" data-active="${!u.is_active}" title="${u.is_active ? 'Disable' : 'Enable'}">
+          <button type="button" class="btn btn-sm btn-outline-${u.is_active ? 'danger' : 'success'}" data-user-action="toggle-user" data-id="${STSafe.assetId(u.id)}" data-active="${!u.is_active}" title="${u.is_active ? 'Disable' : 'Enable'}" aria-label="${u.is_active ? 'Disable' : 'Enable'}">
             ${u.is_active ? '<i class="bi bi-lock"></i>' : '<i class="bi bi-unlock"></i>'}
           </button>
-          <button type="button" class="btn btn-sm btn-outline-danger" data-user-action="delete-user" data-id="${STSafe.assetId(u.id)}" data-username="${STSafe.html(u.username)}" title="Delete">
+          <button type="button" class="btn btn-sm btn-outline-danger" data-user-action="delete-user" data-id="${STSafe.assetId(u.id)}" data-username="${STSafe.html(u.username)}" title="Delete" aria-label="Delete">
             <i class="bi bi-trash"></i>
           </button>
         </div>`;

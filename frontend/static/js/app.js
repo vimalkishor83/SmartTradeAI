@@ -875,11 +875,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Load shared navbar data
   initTickerToggle();
-  Notifications.load();
+  // Notifications are per-account -- calling this on a public page (e.g.
+  // /login, before any session exists) always produced a console 401 for
+  // no reason, since there's no notifications bell to populate there.
+  if (!IS_PUBLIC) {
+    Notifications.load();
+    STRefresh.start(() => Notifications.load(), 60);
+  }
   Ticker.load();
   LivePrices.seed();  // bootstrap price cache before WS connects
   LivePrices.startRefresh();
-  STRefresh.start(() => Notifications.load(), 60);
 
   // Fire ready event for page-specific scripts — skipped entirely on a
   // tier-locked page (see showTierLockOverlay in Auth.updateUI): the

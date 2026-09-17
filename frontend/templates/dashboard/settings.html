@@ -100,6 +100,13 @@
           </ol>
         </details>
 
+        <!-- Wrapped in a <form> purely so the password-type token field
+             below is a semantically valid password input (browsers/screen
+             readers flag a bare <input type="password"> with no <form>
+             ancestor) -- every control here is still JS-driven
+             (type="button"), so this changes nothing about how saving
+             actually works. -->
+        <form id="telegramForm" onsubmit="return false">
         <div class="mb-3">
           <label class="form-label" for="telegramBotToken">Telegram Bot Token</label>
           <input type="password" class="form-control" id="telegramBotToken" placeholder="Leave blank to keep your saved token" autocomplete="new-password" name="telegram-bot-token-not-a-login-field" />
@@ -116,6 +123,7 @@
           <button type="button" class="btn btn-primary" id="saveNotifs">Save Notifications</button>
           <button class="btn btn-outline-secondary" id="testTelegram" type="button"><i class="bi bi-send me-1"></i>Send Test Message</button>
         </div>
+        </form>
       </div>
     </div>
 
@@ -123,8 +131,8 @@
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lock text-accent"></i> Change Password</span></div>
       <div class="section-card-body">
         <form id="pwdForm">
-        <div class="mb-3"><label class="form-label" for="curPwd">Current Password</label><input type="password" class="form-control" id="curPwd" /></div>
-          <div class="mb-3"><label class="form-label" for="newPwd">New Password</label><input type="password" class="form-control" id="newPwd" /></div>
+        <div class="mb-3"><label class="form-label" for="curPwd">Current Password</label><input type="password" class="form-control" id="curPwd" autocomplete="current-password" /></div>
+          <div class="mb-3"><label class="form-label" for="newPwd">New Password</label><input type="password" class="form-control" id="newPwd" autocomplete="new-password" /></div>
           <button type="submit" class="btn btn-primary">Update Password</button>
         </form>
       </div>

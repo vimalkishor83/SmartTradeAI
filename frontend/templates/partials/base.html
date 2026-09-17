@@ -24,6 +24,14 @@
   <title>{% block title %}SmartTrade AI{% endblock %}</title>
   <meta name="description" content="{% block meta_description %}AI-assisted market analysis, trading signals, multi-timeframe analysis and risk-management tools for Crypto, Forex, Indian Stocks and Commodities.{% endblock %}" />
   {% block seo_meta %}{% endblock %}
+  <!-- No dedicated favicon asset exists yet -- reuses the same chart emoji
+       already used as the brand mark next to "SmartTrade AI" elsewhere in
+       this template, as an inline SVG data URI, rather than requesting
+       and inlining a brand-new binary icon file with no source design to
+       draw from. Browsers request /favicon.ico by default when no icon
+       link is present at all, which was producing a console 404 on every
+       page. -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" crossorigin />
