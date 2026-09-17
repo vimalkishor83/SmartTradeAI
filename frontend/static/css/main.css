@@ -4668,6 +4668,12 @@ body[data-requires-admin] #pageContentBody::before {
   width: 100%;
 }
 
+/* Signal history is a full-width card; keep its desktop columns readable
+   without leaving the table stranded at its intrinsic content width. */
+.app-shell .table-responsive > #historyTable {
+  width: 100%;
+}
+
 .model-bars {
   display: flex;
   align-items: flex-end;
