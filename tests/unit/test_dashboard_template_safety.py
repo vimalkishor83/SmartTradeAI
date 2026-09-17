@@ -37,6 +37,8 @@ def test_dashboard_explains_data_scope_and_refresh_state():
     assert '<h1 class="page-greeting" id="pageGreeting">' in page
     assert 'id="dashboardContent" aria-busy="true"' in page
     assert 'id="dashboardDataStatus" role="status" aria-live="polite"' in page
+    assert 'id="dashboardRetry"' in page
+    assert 'aria-controls="dashboardContent" hidden' in page
     assert 'Last 100 closed' in page
     assert "Today's Summary <span class=\"text-muted fw-normal\">(UTC)" in page
     assert 'role="tablist"' in page
@@ -47,6 +49,9 @@ def test_dashboard_explains_data_scope_and_refresh_state():
     assert "_dashboardLoadPromise" in source
     assert "setDashboardBusy(true)" in source
     assert "Dashboard partially updated" in source
+    assert "retry.hidden = !['degraded', 'error'].includes(kind);" in source
+    assert "retry.setAttribute('aria-busy', String(isBusy));" in source
+    assert "document.getElementById('dashboardRetry')?.addEventListener('click'" in source
     assert "requestId !== _signalsRequestId" in source
     assert "requestId !== _heatmapRequestId" in source
     assert "stateRow" in source

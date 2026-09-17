@@ -49,6 +49,8 @@ function setDashboardState(kind, message) {
   } else if (live) {
     live.textContent = kind === 'error' ? 'Dashboard data unavailable' : 'Dashboard partially updated';
   }
+  const retry = document.getElementById('dashboardRetry');
+  if (retry) retry.hidden = !['degraded', 'error'].includes(kind);
 }
 
 function setDashboardBusy(isBusy) {
@@ -58,6 +60,11 @@ function setDashboardBusy(isBusy) {
   if (refresh) {
     refresh.setAttribute('aria-busy', String(isBusy));
     refresh.disabled = isBusy;
+  }
+  const retry = document.getElementById('dashboardRetry');
+  if (retry) {
+    retry.setAttribute('aria-busy', String(isBusy));
+    retry.disabled = isBusy;
   }
 }
 
@@ -671,6 +678,7 @@ document.addEventListener('app:ready', () => {
   loadAll();
 
   document.getElementById('refreshAll')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
+  document.getElementById('dashboardRetry')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
   document.getElementById('generateSignalBtn')?.addEventListener('click', _generateSignal);
   document.getElementById('globalTimeframe')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalMarketFilter')?.addEventListener('change', () => loadSignals(1));
