@@ -41,6 +41,18 @@ def test_signal_center_exposes_a_clear_next_step_workflow():
     assert '>Manage risk</a>' in source
 
 
+def test_signal_center_table_exposes_lifecycle_and_pnl_context():
+    source = _read("dashboard/signals.html")
+
+    assert "lifecycle.status" in source
+    assert "TARGET 1 HIT" in source
+    assert "STOP HIT" in source
+    assert "const pnl     = signalNumber(s.pnl_pct, null)" in source
+    assert "<th>P&amp;L</th>" in source
+    assert 'colspan="15"' in source
+    assert "aria-label=\"Signal status:" in source
+
+
 def test_discovery_scanner_sets_expectations_before_trading():
     source = _read("dashboard/scanner.html")
 
