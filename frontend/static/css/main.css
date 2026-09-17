@@ -4468,12 +4468,24 @@ body[data-requires-admin] #pageContentBody::before {
   transition: .15s;
   display: flex;
   flex-direction: column;
-  gap: 8px
+  gap: 8px;
+  min-width: 0;
+  outline: none
 }
 
 .opp-card:hover {
   border-color: var(--accent);
   transform: translateY(-2px)
+}
+
+.opp-card:focus-visible {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent)
+}
+
+.opp-card.is-inspected {
+  border-color: var(--accent);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .16), 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent)
 }
 
 .opp-top {
@@ -4514,6 +4526,82 @@ body[data-requires-admin] #pageContentBody::before {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-primary)
+}
+
+.opp-inspector {
+  margin: 0 14px 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--accent-violet));
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+  animation: dashboard-inspector-in .16s ease-out;
+}
+
+.opp-inspector[hidden] {
+  display: none !important
+}
+
+.opp-inspector .section-card-header {
+  margin: 0;
+  border-radius: 0;
+}
+
+.opp-inspector .section-card-body {
+  max-height: min(62vh, 620px);
+  overflow: auto;
+}
+
+.opp-inspector-actions,
+.opp-inspector-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px
+}
+
+.opp-inspector-close {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  cursor: pointer
+}
+
+.opp-inspector-close:hover,
+.opp-inspector-close:focus-visible {
+  color: var(--text-primary);
+  border-color: var(--accent)
+}
+
+.opp-inspector-footer {
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid var(--border)
+}
+
+@keyframes dashboard-inspector-in {
+  from { opacity: 0; transform: translateY(-4px) }
+  to { opacity: 1; transform: translateY(0) }
+}
+
+@media (max-width: 680px) {
+  .opp-inspector {
+    margin: 0 10px 10px
+  }
+
+  .opp-inspector .section-card-body {
+    max-height: 70vh
+  }
+
+  .opp-inspector-footer {
+    align-items: flex-start;
+    flex-direction: column
+  }
 }
 
 /* Enhanced signals table */

@@ -30,6 +30,22 @@ def test_dashboard_rows_remain_keyboard_navigable_after_inline_handler_removal()
     assert "event.key === 'Enter' || event.key === ' '" in source
 
 
+def test_opportunity_cards_drive_the_inline_inspector_accessibly():
+    source = TEMPLATE.read_text(encoding="utf-8")
+    page = PAGE.read_text(encoding="utf-8")
+
+    assert 'class="opp-card" role="button" tabindex="0"' in source
+    assert 'aria-controls="inspectorCard"' in source
+    assert "mouseenter" in source
+    assert "card.addEventListener('focus'" in source
+    assert "card.addEventListener('click', () => inspect(true))" in source
+    assert "id=\"inspectorCard\" hidden" in page
+    assert 'id="inspectorClose"' in page
+    assert 'id="inspOpenLink"' in page
+    assert 'class="col-xl-4"' not in page
+    assert "loadInspector([..._signalData]" not in source
+
+
 def test_dashboard_explains_data_scope_and_refresh_state():
     source = TEMPLATE.read_text(encoding="utf-8")
     page = PAGE.read_text(encoding="utf-8")

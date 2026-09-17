@@ -10,6 +10,8 @@ let _dashboardLoadPromise = null;
 let _dashboardBooted = false;
 let _signalsRequestId = 0;
 let _heatmapRequestId = 0;
+let _opportunityHideTimer = null;
+let _opportunityInspectorPinned = false;
 
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const numberOr = (value, fallback = null) => {
@@ -255,6 +257,7 @@ function _oppTag(conf, type) {
 function loadOpportunityRadar(signals) {
   const wrap = document.getElementById('oppRadar');
   if (!wrap) return;
+  _hideOpportunityInspector(true);
   const seen = new Set();
   const top = (Array.isArray(signals) ? signals : [])
     .filter(s => { if (!s?.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
@@ -270,7 +273,9 @@ function loadOpportunityRadar(signals) {
     const tag = _oppTag(conf, s.signal_type === 'SELL' ? 'SELL' : 'BUY');
     const rr = numberOr(s.risk_reward, 0);
     const note = String(s.reasoning || '').split(/[.,]/)[0].slice(0, 28) || String(s.confidence_label || '');
-    return `<a class="opp-card" href="${STSafe.assetHref(s.asset_id)}" style="text-decoration:none;color:inherit">
+    const opportunityId = STSafe.domId('opp_', s.id);
+    const label = `${STSafe.html(s.asset)} ${STSafe.html(s.signal_type || 'signal')} at ${conf.toFixed(0)}% confidence. Hover or select to inspect.`;
+    return `<article class="opp-card" role="button" tabindex="0" aria-pressed="false" aria-controls="inspectorCard" data-opportunity-id="${opportunityId}" aria-label="${label}">
       <div class="opp-top">
         <div class="opp-name">${STSafe.html(s.asset)}</div>
         <span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span>
@@ -278,13 +283,64 @@ function loadOpportunityRadar(signals) {
       <div class="opp-conf" style="color:${tag.c}">${conf.toFixed(0)}%</div>
       <div id="${STSafe.domId('oppspk_', s.id)}" class="opp-spark"></div>
       <div class="opp-foot"><span>R:R ${rr > 0 ? '1:' + rr.toFixed(1) : '—'}</span><span class="text-muted">${STSafe.html(note)}</span></div>
-    </a>`;
+    </article>`;
   }).join('');
 
   top.forEach(s => {
     const el = document.getElementById(STSafe.domId('oppspk_', s.id));
     if (el && typeof Sparkline !== 'undefined') Sparkline.load(el, s.asset_id, s.timeframe || '1h');
+    const card = wrap.querySelector(`[data-opportunity-id="${STSafe.domId('opp_', s.id)}"]`);
+    if (!card) return;
+    const inspect = (pin = false) => _showOpportunityInspector(s, pin);
+    card.addEventListener('mouseenter', () => inspect());
+    card.addEventListener('mouseleave', _scheduleOpportunityInspectorHide);
+    card.addEventListener('focus', () => inspect());
+    card.addEventListener('blur', _scheduleOpportunityInspectorHide);
+    card.addEventListener('click', () => inspect(true));
+    card.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        inspect(true);
+      }
+    });
   });
+}
+
+function _setOpportunitySelection(opportunityId) {
+  document.querySelectorAll('#oppRadar .opp-card').forEach(card => {
+    const selected = card.dataset.opportunityId === opportunityId;
+    card.classList.toggle('is-inspected', selected);
+    card.setAttribute('aria-pressed', String(selected));
+  });
+}
+
+function _hideOpportunityInspector(force = false) {
+  if (_opportunityInspectorPinned && !force) return;
+  clearTimeout(_opportunityHideTimer);
+  _opportunityInspectorPinned = false;
+  const panel = document.getElementById('inspectorCard');
+  if (panel) panel.hidden = true;
+  _setOpportunitySelection('');
+}
+
+function _scheduleOpportunityInspectorHide() {
+  if (_opportunityInspectorPinned) return;
+  clearTimeout(_opportunityHideTimer);
+  _opportunityHideTimer = setTimeout(() => {
+    const active = document.activeElement;
+    const panel = document.getElementById('inspectorCard');
+    if (active?.closest('#oppRadar .opp-card') || active?.closest('#inspectorCard') || panel?.matches(':hover')) return;
+    _hideOpportunityInspector();
+  }, 140);
+}
+
+function _showOpportunityInspector(signal, pin = false) {
+  clearTimeout(_opportunityHideTimer);
+  _opportunityInspectorPinned = pin || _opportunityInspectorPinned;
+  loadInspector(signal);
+  const panel = document.getElementById('inspectorCard');
+  if (panel) panel.hidden = false;
+  _setOpportunitySelection(STSafe.domId('opp_', signal.id));
 }
 
 /* ── Live Signals (enhanced) ──────────────────────────────────── */
@@ -309,7 +365,6 @@ async function loadSignals(page) {
   _signalData = Array.isArray(data.signals) ? data.signals : [];
   _renderSignals(_signalData);
   loadOpportunityRadar(_signalData);
-  if (_signalData.length) loadInspector([..._signalData].sort((a, b) => (b.confidence_score || 0) - (a.confidence_score || 0))[0]);
 
   set('signalCount', countOr(data.total) + ' active');
   const pag = document.getElementById('signalPagination');
@@ -376,6 +431,12 @@ function loadInspector(s) {
   if (!body || !s) return;
   const conf = clamp(s.confidence_score, 0, 100, 0);
   document.getElementById('inspHeader').textContent = `${s.asset} · ${s.signal_type} · ${conf.toFixed(0)}%`;
+  const openLink = document.getElementById('inspOpenLink');
+  const assetHref = STSafe.assetHref(s.asset_id);
+  if (openLink) {
+    openLink.href = assetHref;
+    openLink.hidden = assetHref === '#';
+  }
   const entry = numberOr(s.entry_price);
   const stop = numberOr(s.stop_loss);
   const cur = numberOr(s.current_price, entry);
@@ -714,6 +775,9 @@ document.addEventListener('app:ready', () => {
   document.getElementById('globalTimeframe')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalMarketFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalTypeFilter')?.addEventListener('change', () => loadSignals(1));
+  document.getElementById('inspectorCard')?.addEventListener('mouseenter', () => clearTimeout(_opportunityHideTimer));
+  document.getElementById('inspectorCard')?.addEventListener('mouseleave', _scheduleOpportunityInspectorHide);
+  document.getElementById('inspectorClose')?.addEventListener('click', () => _hideOpportunityInspector(true));
   document.querySelectorAll('.hm-tab').forEach(tab => tab.addEventListener('click', () => {
     document.querySelectorAll('.hm-tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.hm-tab').forEach(t => t.setAttribute('aria-selected', String(t === tab)));
