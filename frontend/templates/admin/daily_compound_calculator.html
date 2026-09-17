@@ -134,7 +134,7 @@
      narrow phone; an edge-anchored panel can cleanly become full-width
      there via one media query instead of needing a separate mobile layout. -->
 <div class="dcc-panel-backdrop" id="savePanel" role="presentation" aria-hidden="true">
-  <div class="dcc-panel" role="dialog" aria-modal="true" aria-labelledby="savePanelTitle">
+  <div class="dcc-panel" role="dialog" aria-modal="true" aria-labelledby="savePanelTitle" aria-describedby="savePanelHelp">
     <div class="dcc-panel-head">
       <div>
         <div class="dcc-panel-kicker">Scenario library</div>
@@ -142,7 +142,7 @@
       </div>
       <button type="button" class="dcc-panel-close" id="pClose" aria-label="Close save scenario panel"><i class="bi bi-x-lg"></i></button>
     </div>
-    <p class="dcc-panel-help">Save the current inputs so you can reload and compare this projection later.</p>
+    <p class="dcc-panel-help" id="savePanelHelp">Save the current inputs so you can reload and compare this projection later.</p>
     <label class="form-label small">Name</label>
     <input type="text" class="form-control mb-3" id="pName" placeholder="e.g. Retirement Fund" />
     <div class="dcc-panel-actions">
@@ -235,6 +235,7 @@
   let lastResult = null;
   let activeTab = 'daily';
   let savedScenarios = [];
+  let panelPreviousFocus = null;
 
   const fmt = (n) => {
     if (n == null) return '—';
@@ -383,9 +384,38 @@
   });
 
   function setPanelOpen(open) {
-    el('savePanel').classList.toggle('open', open);
-    el('savePanel').setAttribute('aria-hidden', String(!open));
-    if (open) setTimeout(() => el('pName').focus(), 0);
+    const panel = el('savePanel');
+    panel.classList.toggle('open', open);
+    panel.setAttribute('aria-hidden', String(!open));
+    if (open) {
+      panelPreviousFocus = document.activeElement;
+      setTimeout(() => el('pName').focus(), 0);
+    } else {
+      panelPreviousFocus?.focus?.();
+      panelPreviousFocus = null;
+    }
+  }
+
+  function handlePanelKeydown(e) {
+    if (!el('savePanel').classList.contains('open')) return;
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      setPanelOpen(false);
+      return;
+    }
+    if (e.key !== 'Tab') return;
+    const focusable = Array.from(el('savePanel').querySelectorAll('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])'))
+      .filter((node) => !node.disabled && node.offsetParent !== null);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
   }
 
   el('btnSave').addEventListener('click', () => {
@@ -397,9 +427,7 @@
   el('savePanel').addEventListener('click', (e) => {
     if (e.target.id === 'savePanel') setPanelOpen(false);
   });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && el('savePanel').classList.contains('open')) setPanelOpen(false);
-  });
+  document.addEventListener('keydown', handlePanelKeydown);
   el('pConfirm').addEventListener('click', async () => {
     const name = el('pName').value.trim();
     if (!name) { Toast.show('Please enter a name.', 'warning'); return; }

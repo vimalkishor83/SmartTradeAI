@@ -57,8 +57,12 @@ def test_save_panel_is_mobile_safe_and_keyboard_dismissible():
     source = TEMPLATE.read_text(encoding="utf-8")
 
     assert 'role="dialog" aria-modal="true"' in source
+    assert 'aria-describedby="savePanelHelp"' in source
     assert 'id="pClose"' in source
     assert "function setPanelOpen(open)" in source
     assert "setAttribute('aria-hidden', String(!open))" in source
+    assert "function handlePanelKeydown(e)" in source
     assert "e.key === 'Escape'" in source
+    assert "e.key !== 'Tab'" in source
+    assert "panelPreviousFocus?.focus?.()" in source
     assert "width:100%; max-width:100%" in source
