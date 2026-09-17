@@ -261,7 +261,7 @@ function loadOpportunityRadar(signals) {
     .sort((a, b) => numberOr(b?.confidence_score, 0) - numberOr(a?.confidence_score, 0))
     .slice(0, 5);
   if (!top.length) {
-    wrap.replaceChildren(dashboardEmptyState('No opportunities right now.', '/markets', 'Browse Markets'));
+    wrap.replaceChildren(dashboardEmptyState('No opportunities right now.', '/markets/crypto', 'Browse Markets'));
     return;
   }
 
@@ -334,7 +334,7 @@ function _renderSignals(signals) {
     const cell = document.createElement('td');
     cell.colSpan = 7;
     cell.className = 'text-center py-4';
-    cell.append(dashboardEmptyState('No active signals for this filter.', '/markets', 'Browse Markets'));
+    cell.append(dashboardEmptyState('No active signals for this filter.', '/markets/crypto', 'Browse Markets'));
     const row = document.createElement('tr');
     row.append(cell);
     tbody.replaceChildren(row);

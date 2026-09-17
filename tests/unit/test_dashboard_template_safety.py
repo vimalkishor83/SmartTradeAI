@@ -56,7 +56,7 @@ def test_dashboard_explains_data_scope_and_refresh_state():
     assert "requestId !== _heatmapRequestId" in source
     assert "function dashboardEmptyState(message, href, label)" in source
     assert "No active signals for this filter." in source
-    assert "dashboardEmptyState('No opportunities right now.', '/markets', 'Browse Markets')" in source
+    assert "dashboardEmptyState('No opportunities right now.', '/markets/crypto', 'Browse Markets')" in source
     assert "link.textContent = label;" in source
     assert "stateRow" in source
     assert "Live conditions across all markets" in source
