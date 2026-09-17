@@ -5079,6 +5079,22 @@ body[data-requires-admin] #pageContentBody::before {
   flex-wrap: wrap
 }
 
+/* Keep Markets Overview controls usable when the dashboard content is narrow,
+   without changing shared header behavior on other routes. */
+@media (max-width: 760px) {
+  .markets-overview .dash-header-actions > .form-select {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .markets-overview .dash-header-actions > .search-bar,
+  .markets-overview .dash-header-actions > #generateAll {
+    flex: 1 1 100%;
+    width: 100% !important;
+    min-width: 0;
+  }
+}
+
 .mkt-tab {
   background: var(--bg-secondary);
   border: 1px solid var(--border);

@@ -11,6 +11,7 @@ SCRIPT = ROOT / "frontend" / "static" / "js" / "pages" / "markets.js"
 def test_markets_page_exposes_live_context_and_accessible_filter_controls():
     source = TEMPLATE.read_text(encoding="utf-8")
 
+    assert '<div class="markets-overview">' in source
     assert 'id="marketsContext" role="status" aria-live="polite"' in source
     assert 'id="marketsContent" role="tabpanel"' in source
     assert 'id="mktTabs" role="tablist"' in source
@@ -62,3 +63,13 @@ def test_markets_heatmap_uses_selected_timeframe_and_blends_price_momentum():
     assert "const heatTimeframes = ['5m', '15m', '30m', '1h', '4h', '1d'];" in source
     assert "This is a confluence average, not a latest-row or highest-confidence pick." in source
     assert "selectedTf === '5m' ? 26" in source
+
+
+def test_markets_header_controls_stack_without_overflow_on_narrow_layouts():
+    css = (ROOT / "frontend" / "static" / "css" / "main.css").read_text(encoding="utf-8")
+
+    assert ".markets-overview .dash-header-actions > .form-select" in css
+    assert ".markets-overview .dash-header-actions > .search-bar" in css
+    assert ".markets-overview .dash-header-actions > #generateAll" in css
+    assert "flex: 1 1 calc(50% - 4px)" in css
+    assert "@media (max-width: 760px)" in css
