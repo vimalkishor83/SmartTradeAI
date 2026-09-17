@@ -79,6 +79,28 @@ function stateRow(container, message, icon = 'bi-exclamation-circle') {
   }
 }
 
+function dashboardEmptyState(message, href, label) {
+  const state = document.createElement('div');
+  if (typeof STState !== 'undefined' && typeof STState.render === 'function') {
+    STState.render(state, 'empty', message);
+  } else {
+    state.className = 'ui-state ui-state--empty';
+    state.setAttribute('role', 'status');
+    state.innerHTML = `<i class="bi bi-inbox" aria-hidden="true"></i><span>${STSafe.html(message)}</span>`;
+  }
+  if (href && label) {
+    const actions = document.createElement('div');
+    actions.className = 'ui-state__actions';
+    const link = document.createElement('a');
+    link.className = 'btn btn-sm btn-outline-secondary';
+    link.href = href;
+    link.textContent = label;
+    actions.append(link);
+    state.append(actions);
+  }
+  return state;
+}
+
 function chartState(canvas, message) {
   const wrapper = canvas?.parentElement;
   if (!wrapper) return;
@@ -238,7 +260,10 @@ function loadOpportunityRadar(signals) {
     .filter(s => { if (!s?.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
     .sort((a, b) => numberOr(b?.confidence_score, 0) - numberOr(a?.confidence_score, 0))
     .slice(0, 5);
-  if (!top.length) { wrap.innerHTML = '<div class="text-muted small p-3">No opportunities right now.</div>'; return; }
+  if (!top.length) {
+    wrap.replaceChildren(dashboardEmptyState('No opportunities right now.', '/markets', 'Browse Markets'));
+    return;
+  }
 
   wrap.innerHTML = top.map(s => {
     const conf = clamp(s.confidence_score, 0, 100, 0);
@@ -306,7 +331,13 @@ function _renderSignals(signals) {
   const minConf = clamp(window.MIN_CONFIDENCE, 0, 100, 0);
   const filtered = (Array.isArray(signals) ? signals : []).filter(s => numberOr(s?.confidence_score, 0) >= minConf);
   if (!filtered.length) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center text-muted py-4"><i class="bi bi-inbox d-block mb-2" style="font-size:22px;opacity:.4"></i>No signals yet — generate one from a market page.</td></tr>`;
+    const cell = document.createElement('td');
+    cell.colSpan = 7;
+    cell.className = 'text-center py-4';
+    cell.append(dashboardEmptyState('No active signals for this filter.', '/markets', 'Browse Markets'));
+    const row = document.createElement('tr');
+    row.append(cell);
+    tbody.replaceChildren(row);
     return;
   }
   tbody.innerHTML = filtered.map(s => {
