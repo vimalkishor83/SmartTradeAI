@@ -60,6 +60,14 @@ def test_open_positions_table_fills_its_full_width_panel():
     assert "  width: 100%;" in styles
 
 
+def test_signal_history_table_fills_its_full_width_panel():
+    source = _read("dashboard/signals.html")
+    styles = STYLES.read_text(encoding="utf-8")
+    assert 'id="historyTable"' in source
+    assert ".app-shell .table-responsive > #historyTable" in styles
+    assert "  width: 100%;" in styles
+
+
 def test_discovery_scanner_sets_expectations_before_trading():
     source = _read("dashboard/scanner.html")
 
