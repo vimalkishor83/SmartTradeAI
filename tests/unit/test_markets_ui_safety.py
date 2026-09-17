@@ -42,6 +42,9 @@ def test_markets_controller_bounds_values_and_serializes_refreshes():
     assert "retry.hidden = !['degraded', 'error'].includes(state);" in source
     assert "retry.setAttribute('aria-busy', busy ? 'true' : 'false');" in source
     assert "document.getElementById('marketsRetry')?.addEventListener('click', () => loadAll());" in source
+    assert "function _renderMarketState(el, state, message)" in source
+    assert "STState.render(target, state, message, () => loadAll());" in source
+    assert "_renderMarketState(grid, 'empty', 'No AI score is available for this selection.');" in source
     assert "function _setActiveTab()" in source
     assert "t.setAttribute('aria-selected', selected ? 'true' : 'false');" in source
 
