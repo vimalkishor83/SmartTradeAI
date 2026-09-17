@@ -116,13 +116,14 @@
             <button type="button" class="btn btn-sm btn-outline-secondary" data-tab="yearly">Year-wise</button>
           </div>
         </div>
-        <div class="dcc-schedule-mobile-hint" role="note"><i class="bi bi-arrows-expand-horizontal me-1" aria-hidden="true"></i>Swipe horizontally to view all columns.</div>
+        <div class="dcc-schedule-mobile-hint" role="note"><i class="bi bi-phone me-1" aria-hidden="true"></i>On mobile, each period is shown as a compact card.</div>
         <div class="table-responsive dcc-schedule-wrap" style="max-height:520px">
           <table class="smart-table dcc-schedule-table">
             <thead id="tHead"></thead>
             <tbody id="tBody"></tbody>
           </table>
         </div>
+        <div class="dcc-schedule-cards" id="tCards" role="list" aria-live="polite"></div>
       </div>
     </div>
   </div>
@@ -174,6 +175,16 @@
   .dcc-schedule-wrap { border-top:1px solid var(--border); }
   .dcc-schedule-table { min-width:620px; }
   .dcc-schedule-table th, .dcc-schedule-table td { white-space:nowrap; }
+  .dcc-schedule-cards { display:none; }
+  .dcc-schedule-card { padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--glass); }
+  .dcc-schedule-card-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding-bottom:9px; margin-bottom:9px; border-bottom:1px solid var(--border); }
+  .dcc-schedule-card-period { color:var(--text-primary); font-weight:700; }
+  .dcc-schedule-card-date { color:var(--text-muted); font-size:11px; text-align:right; }
+  .dcc-schedule-card-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:8px 12px; }
+  .dcc-schedule-card-field { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .dcc-schedule-card-field span { color:var(--text-muted); font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
+  .dcc-schedule-card-field strong { overflow:hidden; color:var(--text-primary); font:600 12px/1.35 var(--font-mono); text-overflow:ellipsis; white-space:nowrap; }
+  .dcc-schedule-card-field strong.pos { color:var(--green); }
   .dcc-panel-backdrop {
     position: fixed; inset: 0; background: rgba(0,0,0,0.58); display: none; z-index: 1100; backdrop-filter: blur(3px);
   }
@@ -199,12 +210,8 @@
     .dcc-final-amount { font-size:24px; }
     .dcc-schedule-card .section-card-header { align-items:flex-start; flex-direction:column; gap:12px; }
     .dcc-schedule-mobile-hint { display:block; }
-    .dcc-schedule-wrap { margin-top:8px; overflow-x:auto; }
-    .dcc-schedule-table { min-width:620px; }
-    .dcc-schedule-table th:first-child, .dcc-schedule-table td:first-child {
-      position:sticky; left:0; z-index:1; background:var(--bg-card);
-    }
-    .dcc-schedule-table thead th:first-child { z-index:2; background:var(--bg-secondary); }
+    .dcc-schedule-wrap { display:none; }
+    .dcc-schedule-cards { display:grid; gap:8px; padding:10px; }
     #scheduleTabs { width:100%; }
     #scheduleTabs .btn { flex:1; min-height:38px; padding-inline:6px; }
   }
@@ -291,15 +298,18 @@
   function renderTable() {
     if (!lastResult) return;
     const thead = el('tHead'), tbody = el('tBody');
+    const rows = activeTab === 'daily' ? lastResult.daily_schedule : (activeTab === 'monthly' ? lastResult.monthly_schedule : lastResult.yearly_schedule);
+    const safe = (value) => STSafe.html(String(value ?? '—'));
+    const metric = (label, value, className = '') => '<div class="dcc-schedule-card-field"><span>' + label + '</span><strong class="' + className + '">' + safe(value) + '</strong></div>';
+
     if (activeTab === 'daily') {
       thead.innerHTML = '<tr><th>Day</th><th>Date</th><th class="num">Opening</th><th class="num">Interest</th><th class="num">Closing</th><th class="num">Cumulative</th></tr>';
-      tbody.innerHTML = lastResult.daily_schedule.map((r) =>
+      tbody.innerHTML = rows.map((r) =>
         '<tr><td>' + r.day + '</td><td>' + r.date + '</td><td class="num">' + fmt(r.opening_balance) + '</td>' +
         '<td class="num ' + (r.interest_earned > 0 ? 'pos' : '') + '">' + fmt(r.interest_earned) + '</td>' +
         '<td class="num">' + fmt(r.closing_balance) + '</td><td class="num">' + fmt(r.cumulative_interest) + '</td></tr>'
       ).join('') || '<tr><td colspan="6" class="text-center text-muted py-3">No rows</td></tr>';
     } else {
-      const rows = activeTab === 'monthly' ? lastResult.monthly_schedule : lastResult.yearly_schedule;
       thead.innerHTML = '<tr><th>Period</th><th>Range</th><th class="num">Opening</th><th class="num">Interest</th><th class="num">Closing</th><th class="num">Cumulative</th></tr>';
       tbody.innerHTML = rows.map((r) =>
         '<tr><td>' + r.period_start.slice(0, activeTab === 'monthly' ? 7 : 4) + '</td>' +
@@ -308,6 +318,30 @@
         '<td class="num">' + fmt(r.closing_balance) + '</td><td class="num">' + fmt(r.cumulative_interest) + '</td></tr>'
       ).join('') || '<tr><td colspan="6" class="text-center text-muted py-3">No rows</td></tr>';
     }
+
+    const cards = el('tCards');
+    if (!cards) return;
+    if (!rows.length) {
+      cards.innerHTML = '<div class="text-center text-muted py-3">No rows</div>';
+      return;
+    }
+    cards.innerHTML = rows.map((r) => {
+      if (activeTab === 'daily') {
+        return '<article class="dcc-schedule-card" role="listitem">' +
+          '<div class="dcc-schedule-card-head"><span class="dcc-schedule-card-period">Day ' + safe(r.day) + '</span><span class="dcc-schedule-card-date">' + safe(r.date) + '</span></div>' +
+          '<div class="dcc-schedule-card-grid">' +
+          metric('Opening', fmt(r.opening_balance)) + metric('Interest', fmt(r.interest_earned), r.interest_earned > 0 ? 'pos' : '') +
+          metric('Closing', fmt(r.closing_balance)) + metric('Cumulative', fmt(r.cumulative_interest)) +
+          '</div></article>';
+      }
+      const period = r.period_start.slice(0, activeTab === 'monthly' ? 7 : 4);
+      return '<article class="dcc-schedule-card" role="listitem">' +
+        '<div class="dcc-schedule-card-head"><span class="dcc-schedule-card-period">' + safe(period) + '</span><span class="dcc-schedule-card-date">' + safe(r.period_start) + ' → ' + safe(r.period_end) + '</span></div>' +
+        '<div class="dcc-schedule-card-grid">' +
+        metric('Opening', fmt(r.opening_balance)) + metric('Interest', fmt(r.interest_earned), r.interest_earned > 0 ? 'pos' : '') +
+        metric('Closing', fmt(r.closing_balance)) + metric('Cumulative', fmt(r.cumulative_interest)) +
+        '</div></article>';
+    }).join('');
   }
 
   document.querySelectorAll('#scheduleTabs [data-tab]').forEach((btn) => {
