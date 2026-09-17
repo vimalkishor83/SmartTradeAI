@@ -17,6 +17,8 @@ connected a broker key.
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
 from decimal import Decimal, InvalidOperation
+import hashlib
+import json
 import re
 from sqlalchemy.exc import IntegrityError
 from app.extensions import db
@@ -28,7 +30,11 @@ from app.services.safety import (
     broker_connections_enabled,
     broker_trading_enabled,
     safety_disabled_payload,
+    paper_trading_enabled,
+    trading_execution_mode,
 )
+from app.services.risk.portfolio_limits import evaluate_order_for_user
+from app.models.trading_order import TradeRequest
 
 trading_bp = Blueprint("trading", __name__)
 
@@ -93,6 +99,58 @@ def _credential_text(value, field_name):
     if any(ord(char) < 32 for char in value):
         raise ValueError(f"{field_name} contains unsupported control characters")
     return value
+
+
+def _idempotency_key(data):
+    """Require a stable client key before any order mutation."""
+    value = request.headers.get("Idempotency-Key") or data.get("client_order_id")
+    if not isinstance(value, str):
+        raise ValueError("Idempotency-Key header is required for order mutations")
+    value = value.strip()
+    if not value or len(value) > 128 or not re.fullmatch(r"[A-Za-z0-9._:-]+", value):
+        raise ValueError("Idempotency-Key must be 1-128 safe characters")
+    return value
+
+
+def _order_request_hash(data):
+    clean = {key: data.get(key) for key in (
+        "symbol", "side", "order_type", "size", "limit_price", "stop_price",
+        "leverage", "reduce_only",
+    )}
+    return hashlib.sha256(json.dumps(clean, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def _paper_order_response(user_id, data, key, request_hash, *, symbol, side,
+                          order_type, size_int, limit_price, stop_price, reduce_only):
+    from app.models.trading_order import PaperOrder, TradeRequest
+
+    existing = TradeRequest.query.filter_by(user_id=user_id, idempotency_key=key).first()
+    if existing:
+        if existing.request_hash != request_hash:
+            return {"error": "Idempotency-Key was already used with a different order", "code": "idempotency_conflict"}, 409
+        if existing.response:
+            return existing.response, 200
+        return {"error": "An order with this Idempotency-Key is still being processed", "code": "order_in_progress"}, 409
+
+    record = TradeRequest(
+        user_id=user_id, idempotency_key=key, request_hash=request_hash,
+        mode="paper", status="pending",
+    )
+    db.session.add(record)
+    db.session.flush()
+    order = PaperOrder(
+        user_id=user_id, client_order_id=key, symbol=symbol, side=side,
+        order_type=order_type, size=size_int, limit_price=limit_price,
+        stop_price=stop_price, fill_price=limit_price, reduce_only=reduce_only,
+    )
+    db.session.add(order)
+    db.session.flush()
+    response = {"order": order.to_dict(), "paper": True, "idempotent_replay": False}
+    record.response = response
+    record.broker_order_id = f"paper-{order.id}"
+    record.status = "succeeded"
+    db.session.commit()
+    return response, 201
 
 
 def _client_or_error():
@@ -316,6 +374,8 @@ def status():
     """Whether the trading connection actually works — the frontend calls
     this first to decide whether to show the trading UI or a 'connect your
     account' prompt."""
+    if not broker_connections_enabled():
+        return jsonify({"connected": False, **safety_disabled_payload("broker_connections")}), 200
     client, err = _client_or_error()
     if err:
         return jsonify({"connected": False}), 200
@@ -329,6 +389,8 @@ def status():
 @trading_bp.route("/balances", methods=["GET"])
 @approved_required
 def balances():
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     client, err = _client_or_error()
     if err:
         return err
@@ -341,6 +403,8 @@ def balances():
 @trading_bp.route("/positions", methods=["GET"])
 @approved_required
 def positions():
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     client, err = _client_or_error()
     if err:
         return err
@@ -353,6 +417,8 @@ def positions():
 @trading_bp.route("/orders", methods=["GET"])
 @approved_required
 def open_orders():
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     client, err = _client_or_error()
     if err:
         return err
@@ -365,6 +431,8 @@ def open_orders():
 @trading_bp.route("/orders/history", methods=["GET"])
 @approved_required
 def order_history():
+    if not broker_connections_enabled():
+        return jsonify(safety_disabled_payload("broker_connections")), 403
     client, err = _client_or_error()
     if err:
         return err
@@ -378,7 +446,10 @@ def order_history():
 @trading_bp.route("/orders", methods=["POST"])
 @approved_required
 def place_order():
-    if not broker_trading_enabled():
+    mode = trading_execution_mode()
+    if mode != "paper" and not broker_trading_enabled():
+        return jsonify(safety_disabled_payload("broker_trading")), 403
+    if mode not in {"paper", "live"}:
         return jsonify(safety_disabled_payload("broker_trading")), 403
 
     data = request.get_json(silent=True)
@@ -411,6 +482,11 @@ def place_order():
         return jsonify({"error": "order_type must be 'limit_order' or 'market_order'"}), 400
 
     try:
+        idempotency_key = _idempotency_key(data)
+    except ValueError as e:
+        return jsonify({"error": str(e), "code": "idempotency_key_required"}), 400
+
+    try:
         size_int = _positive_int(data.get("size"), "size", MAX_ORDER_SIZE)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
@@ -431,22 +507,71 @@ def place_order():
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
 
+    delta_symbol = None if paper_trading_enabled() else to_delta_symbol(our_symbol)
+    if not paper_trading_enabled() and not delta_symbol:
+        return jsonify({"error": f"{our_symbol} is not a tradeable Delta Exchange symbol"}), 400
+
+    user_id = int(get_jwt_identity())
+    risk = evaluate_order_for_user(
+        user_id, size=size_int, price=limit_price or data.get("market_price"), stop_price=stop_price,
+    )
+    if not risk["allowed"]:
+        return jsonify({
+            "error": risk["reason"],
+            "code": "portfolio_risk_limit_exceeded",
+            "risk": risk,
+        }), 409
+
+    if paper_trading_enabled():
+        try:
+            paper_response, paper_status = _paper_order_response(
+                user_id, data, idempotency_key, _order_request_hash(data),
+                symbol=our_symbol, side=side, order_type=order_type,
+                size_int=size_int, limit_price=limit_price,
+                stop_price=stop_price, reduce_only=reduce_only,
+            )
+            if paper_status == 200 and isinstance(paper_response, dict):
+                paper_response = {**paper_response, "idempotent_replay": True}
+            return jsonify(paper_response), paper_status
+        except IntegrityError:
+            db.session.rollback()
+            existing = TradeRequest.query.filter_by(user_id=user_id, idempotency_key=idempotency_key).first()
+            if existing and existing.response:
+                return jsonify({**existing.response, "idempotent_replay": True}), 200
+            return jsonify({"error": "Unable to safely reserve this order key", "code": "idempotency_unavailable"}), 503
+
     client, err = _client_or_error()
     if err:
         return err
 
-    delta_symbol = to_delta_symbol(our_symbol)
-    if not delta_symbol:
-        return jsonify({"error": f"{our_symbol} is not a tradeable Delta Exchange symbol"}), 400
-
     try:
+        live_request = None
+        request_hash = _order_request_hash(data)
+        existing = TradeRequest.query.filter_by(user_id=user_id, idempotency_key=idempotency_key).first()
+        if existing:
+            if existing.request_hash != request_hash:
+                return jsonify({"error": "Idempotency-Key was already used with a different order", "code": "idempotency_conflict"}), 409
+            if existing.response:
+                return jsonify({"order": existing.response, "idempotent_replay": True}), 200
+            return jsonify({"error": "An order with this Idempotency-Key is still being processed", "code": "order_in_progress"}), 409
+        live_request = TradeRequest(
+            user_id=user_id, idempotency_key=idempotency_key,
+            request_hash=request_hash, mode="live", status="pending",
+        )
+        db.session.add(live_request)
+        db.session.commit()
         product_id = client.get_product_id(delta_symbol)
         if leverage_int:
             client.set_leverage(product_id, leverage_int)
         result = client.place_order(
             product_id=product_id, side=side, size=size_int, order_type=order_type,
             limit_price=limit_price, stop_price=stop_price, reduce_only=reduce_only,
+            client_order_id=idempotency_key,
         )
+        live_request.status = "succeeded"
+        live_request.response = result
+        live_request.broker_order_id = str(result.get("id") or result.get("order_id")) if isinstance(result, dict) else None
+        db.session.commit()
         order_id = result.get("id") or result.get("order_id") if isinstance(result, dict) else None
         _audit_trade(
             user_id, "order_placed", order_id,
@@ -462,17 +587,30 @@ def place_order():
             details={"symbol": our_symbol, "side": side, "order_type": order_type,
                      "size": size_int, "reduce_only": reduce_only},
         )
+        if live_request is not None:
+            live_request.status = "rejected"
+            db.session.commit()
         return jsonify({"error": str(e)}), e.status_code or 400
 
 
 @trading_bp.route("/orders/<int:order_id>", methods=["DELETE"])
 @approved_required
 def cancel_order(order_id):
-    if not broker_trading_enabled():
+    mode = trading_execution_mode()
+    if mode not in {"paper", "live"} or (mode != "paper" and not broker_trading_enabled()):
         return jsonify(safety_disabled_payload("broker_trading")), 403
 
     if order_id <= 0:
         return jsonify({"error": "order_id must be greater than zero"}), 400
+    user_id = int(get_jwt_identity())
+    if paper_trading_enabled():
+        from app.models.trading_order import PaperOrder
+        paper_order = PaperOrder.query.filter_by(id=order_id, user_id=user_id).first()
+        if not paper_order:
+            return jsonify({"error": "paper order not found", "code": "paper_order_not_found"}), 404
+        paper_order.status = "cancelled"
+        db.session.commit()
+        return jsonify({"order": paper_order.to_dict(), "paper": True}), 200
     try:
         product_id = _positive_int(request.args.get("product_id"), "product_id")
     except ValueError as e:

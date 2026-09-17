@@ -946,7 +946,7 @@ function applyTerminalFilters(options = {}) {
     grid.innerHTML = `<div class="col-12 terminal-empty-column" style="flex:0 0 100%;max-width:100%">
       <div class="terminal-empty">
         <i class="bi ${q ? 'bi-search' : 'bi-inbox'}"></i>
-        ${q ? `No asset matching "${_escHtmlLocal(_termSearch)}"` : `No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.`}
+        ${q ? `No asset matching "${_escHtmlLocal(_termSearch)}"` : `No assets configured for ${MARKET_LABEL[_termMarket] || _termMarket} yet.<small class="d-block mt-2">An administrator can configure the active asset universe from <a href="/admin/assets">Admin → Assets</a>.</small>`}
       </div>
     </div>`;
     return;

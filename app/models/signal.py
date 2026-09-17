@@ -110,6 +110,7 @@ class Signal(db.Model):
             self.confidence_label = "Weak"
 
     def to_dict(self):
+        from app.services.signals.lifecycle import lifecycle_snapshot
         return {
             "id": self.id,
             "asset_id": self.asset_id,
@@ -142,6 +143,7 @@ class Signal(db.Model):
             "invalidation_conditions": self.invalidation_conditions,
             "target_allocations": self.target_allocations,
             "event_history": self.event_history or [],
+            "lifecycle": lifecycle_snapshot(self.status, self.event_history, self.expires_at),
             # Persisted signals do not trail, so their displayed stop is also
             # the immutable initial protective stop.
             "initial_stop_loss": self.stop_loss,

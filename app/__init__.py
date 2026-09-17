@@ -186,6 +186,18 @@ def _register_request_observability(app):
             duration_ms = max((time.perf_counter() - started_at) * 1000, 0.0)
 
         response.headers["X-Request-ID"] = request_id
+        # Report-only first: the application still contains legacy inline
+        # scripts, so enforcing CSP immediately would break existing pages.
+        # This gives admins browser-visible violations before a later nonce
+        # migration turns the policy into enforcement.
+        if request.endpoint != "static":
+            response.headers.setdefault(
+                "Content-Security-Policy-Report-Only",
+                "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; "
+                "form-action 'self'; img-src 'self' data: https:; "
+                "font-src 'self' data: https:; connect-src 'self' https: wss:; "
+                "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
+            )
         if request.endpoint == "static":
             return response
 

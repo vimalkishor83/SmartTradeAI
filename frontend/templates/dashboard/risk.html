@@ -111,6 +111,17 @@
     flex-wrap: wrap;
   }
   .quick-signal-row:last-child { border-bottom: none; }
+  #riskLimitsCard .input-with-suffix { display: flex; align-items: center; }
+  #riskLimitsCard .input-with-suffix input { border-radius: 6px 0 0 6px; border-right: none; }
+  #riskLimitsCard .input-suffix {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-left: none;
+    border-radius: 0 6px 6px 0;
+    padding: 6px 10px;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
 </style>
 {% endblock %}
 
@@ -307,6 +318,55 @@
   <div class="section-card-body" id="portfolioRiskBody">
     <div class="text-center py-4 text-muted">
       <div class="spinner-border spinner-border-sm me-2"></div>Analyzing portfolio…
+    </div>
+  </div>
+</div>
+
+<!-- ── Server-side portfolio guardrails ─────────────────── -->
+<div class="section-card mt-4" id="riskLimitsCard">
+  <div class="section-card-header">
+    <span class="section-card-title"><i class="bi bi-sliders text-accent"></i> Portfolio Guardrails</span>
+    <span class="text-muted fs-xs">Hard server checks before an order is accepted</span>
+  </div>
+  <div class="section-card-body">
+    <div class="d-flex align-items-start justify-content-between gap-3 flex-wrap mb-3">
+      <div>
+        <div class="fw-700">Protect the whole portfolio</div>
+        <p class="text-muted fs-xs mb-0">A value of 0 means that limit is not configured. Limits are checked server-side before paper or live execution.</p>
+      </div>
+      <label class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" id="riskLimitsEnabled" checked>
+        <span class="form-check-label fs-sm">Enabled</span>
+      </label>
+    </div>
+    <div class="row g-3">
+      <div class="col-6 col-lg-3">
+        <label class="form-label" for="riskMaxDailyLoss">Max daily loss</label>
+        <input class="form-control form-control-sm" type="number" id="riskMaxDailyLoss" min="0" step="any" value="0">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label" for="riskMaxDrawdown">Max drawdown</label>
+        <div class="input-with-suffix">
+          <input class="form-control form-control-sm" type="number" id="riskMaxDrawdown" min="0" max="100" step="any" value="0">
+          <span class="input-suffix">%</span>
+        </div>
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label" for="riskMaxExposure">Max total exposure</label>
+        <input class="form-control form-control-sm" type="number" id="riskMaxExposure" min="0" step="any" value="0">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label" for="riskMaxCorrelated">Max correlated exposure</label>
+        <input class="form-control form-control-sm" type="number" id="riskMaxCorrelated" min="0" step="any" value="0">
+      </div>
+      <div class="col-6 col-lg-3">
+        <label class="form-label" for="riskMaxOpen">Max open risk</label>
+        <input class="form-control form-control-sm" type="number" id="riskMaxOpen" min="0" step="any" value="0">
+      </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 mt-3">
+      <button type="button" class="btn btn-sm btn-primary" id="saveRiskLimits"><i class="bi bi-shield-check me-1"></i>Save guardrails</button>
+      <span class="text-muted fs-xs" id="riskLimitsStatus" role="status" aria-live="polite"></span>
     </div>
   </div>
 </div>
@@ -525,6 +585,7 @@ document.addEventListener('app:ready', () => {
 
   loadQuickSignals();
   loadPortfolioRisk();
+  loadRiskLimits();
 });
 
 /* ── Portfolio Risk (concentration + correlation) ────────── */
@@ -617,5 +678,63 @@ async function loadPortfolioRisk() {
 
   body.innerHTML = parts.join('');
 }
+
+/* ── Server-side portfolio guardrails ───────────────────── */
+const riskLimitFieldMap = {
+  max_daily_loss: 'riskMaxDailyLoss',
+  max_drawdown_pct: 'riskMaxDrawdown',
+  max_total_exposure: 'riskMaxExposure',
+  max_correlated_exposure: 'riskMaxCorrelated',
+  max_open_risk: 'riskMaxOpen',
+};
+
+function setRiskLimitsStatus(message, isError = false) {
+  const status = document.getElementById('riskLimitsStatus');
+  if (!status) return;
+  status.textContent = message || '';
+  status.classList.toggle('text-red', isError);
+}
+
+async function loadRiskLimits() {
+  const data = await API.get('/risk/limits').catch(() => null);
+  if (!data) {
+    setRiskLimitsStatus('Guardrails could not be loaded.', true);
+    return;
+  }
+  document.getElementById('riskLimitsEnabled').checked = data.enabled !== false;
+  Object.entries(riskLimitFieldMap).forEach(([key, id]) => {
+    const input = document.getElementById(id);
+    if (input) input.value = Number(data[key] || 0);
+  });
+  setRiskLimitsStatus(data.updated_at ? `Updated ${new Date(data.updated_at).toLocaleString()}` : 'Using defaults');
+}
+
+async function saveRiskLimits() {
+  const button = document.getElementById('saveRiskLimits');
+  const payload = { enabled: document.getElementById('riskLimitsEnabled').checked };
+  for (const [key, id] of Object.entries(riskLimitFieldMap)) {
+    const value = Number(document.getElementById(id)?.value || 0);
+    if (!Number.isFinite(value) || value < 0 || (key === 'max_drawdown_pct' && value > 100)) {
+      setRiskLimitsStatus('Enter valid non-negative limits; drawdown must be 0-100%.', true);
+      document.getElementById(id)?.focus();
+      return;
+    }
+    payload[key] = value;
+  }
+  button.disabled = true;
+  const original = button.innerHTML;
+  button.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+  const result = await API.put('/risk/limits', payload).catch(() => null);
+  button.disabled = false;
+  button.innerHTML = original;
+  if (!result || result.error) {
+    setRiskLimitsStatus(result?.error || 'Guardrails could not be saved.', true);
+    return;
+  }
+  setRiskLimitsStatus('Guardrails saved. New orders will be checked server-side.');
+  Toast.show('Portfolio guardrails saved', 'success');
+}
+
+document.getElementById('saveRiskLimits')?.addEventListener('click', saveRiskLimits);
 </script>
 {% endblock %}

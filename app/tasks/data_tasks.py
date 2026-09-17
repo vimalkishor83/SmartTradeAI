@@ -1112,13 +1112,13 @@ def check_watchlist_alerts(app):
                     if (user and user.telegram_enabled and user.telegram_chat_id
                             and _market_enabled(_tg_cfg, "telegram_watchlist_individual_markets", asset.market)):
                         try:
-                            from app.tasks.notification_tasks import _send_telegram, _TELEGRAM_DISCLAIMER
+                            from app.tasks.notification_tasks import _send_telegram, _telegram_disclaimer
                             arrow = "📈" if direction == "above" else "📉"
                             tg_text = (
                                 f"🔔 *WATCHLIST ALERT — {symbol}*\n\n"
                                 f"{arrow} Crossed `₹{alert_price:.2f}` ({direction})\n"
                                 f"Current price: `₹{current_price:.2f}`"
-                            ) + _TELEGRAM_DISCLAIMER
+                            ) + _telegram_disclaimer()
                             _send_telegram(user, tg_text)
                         except Exception:
                             pass

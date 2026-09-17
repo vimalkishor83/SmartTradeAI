@@ -41,6 +41,24 @@ def initial_event_history(generated_at=None, entry_price=None):
     }]
 
 
+def lifecycle_snapshot(status, event_history, expires_at=None):
+    """Normalize milestone state for cards, history and canonical APIs."""
+    events = [event for event in (event_history or []) if isinstance(event, dict)]
+    types = {event.get("type") for event in events}
+    return {
+        "status": status or "active",
+        "targets": {
+            "t1": "target1" in types,
+            "t2": "target2" in types,
+            "t3": "target3" in types,
+        },
+        "stop_loss_hit": "stop_loss" in types,
+        "trailing_stop_active": "trailing_stop" in types,
+        "expires_at": expires_at.isoformat() if hasattr(expires_at, "isoformat") else expires_at,
+        "last_event": events[-1] if events else None,
+    }
+
+
 def reconcile_trailing_milestones(history, trail_stage, target1, target2, target3):
     """Restore target events implied by a previously saved trailing stage.
 

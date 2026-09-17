@@ -51,3 +51,38 @@ def test_telegram_delivery_failure_releases_claim_for_retry(app):
         db.session.refresh(notification)
         assert notification.is_sent is False
         assert notification.sent_at is None
+
+
+def test_notification_delivery_becomes_dead_letter_after_bounded_retries(app):
+    from unittest.mock import patch
+
+    from app.extensions import db
+    from app.models.user import User
+    from app.tasks.notification_tasks import send_pending_notifications
+
+    with app.app_context():
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        user = User.query.filter_by(username="admin").first()
+        user.telegram_enabled = True
+        user.telegram_chat_id = "12345"
+        notification = Notification(
+            user_id=user.id,
+            title="Retry test",
+            message="Bounded",
+            notification_type="test",
+            channel="telegram",
+            notification_key="bounded-retry-event",
+        )
+        db.session.add(notification)
+        db.session.commit()
+
+        with patch("app.tasks.notification_tasks._send_telegram", return_value=False):
+            for _ in range(3):
+                notification.next_attempt_at = None
+                db.session.commit()
+                send_pending_notifications(app)
+
+        db.session.refresh(notification)
+        assert notification.attempt_count == 3
+        assert notification.delivery_status == "dead_letter"
+        assert notification.next_attempt_at is None

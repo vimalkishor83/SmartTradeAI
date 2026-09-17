@@ -129,6 +129,15 @@ def _check_worker_heartbeat() -> dict:
 def ready():
     """Readiness probe — 200 only if all HARD dependencies are healthy."""
     checks = [_check_database(), _check_scheduler(), _check_redis(), _check_worker_heartbeat(), _check_market_stream()]
+    try:
+        from app.services.market_health import build_market_health_snapshot
+        market_data = build_market_health_snapshot()
+    except Exception:
+        market_data = {
+            "status": "unavailable",
+            "reason": "Market-data health contract unavailable",
+            "providers": [],
+        }
     # Database, scheduler and (when configured) Redis are hard requirements;
     # the market stream is soft. _check_redis self-reports healthy when the
     # deployment isn't using Redis at all.
@@ -137,6 +146,22 @@ def ready():
     payload = {
         "status": "ready" if ready_ else "not_ready",
         "checks": checks,
+        "market_data": market_data,
         "time": datetime.now(timezone.utc).isoformat(),
     }
     return jsonify(payload), (200 if ready_ else 503)
+
+
+@system_bp.route("/market-health", methods=["GET"])
+def market_health():
+    """Public, sanitized provider/freshness contract for status surfaces."""
+    try:
+        from app.services.market_health import build_market_health_snapshot
+        return jsonify(build_market_health_snapshot()), 200
+    except Exception as exc:
+        logger.warning("market health contract failed: %s", exc)
+        return jsonify({
+            "status": "unavailable",
+            "reason": "Market-data health is temporarily unavailable",
+            "providers": [],
+        }), 503

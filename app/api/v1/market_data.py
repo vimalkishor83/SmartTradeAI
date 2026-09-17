@@ -82,7 +82,11 @@ def get_ohlcv(asset_id):
         "v": volume.astype(float).fillna(0).round(2),
     }).to_dict(orient="records")
 
-    return jsonify({"symbol": asset.symbol, "timeframe": timeframe, "data": records}), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(
+        {"symbol": asset.symbol, "timeframe": timeframe, "data": records},
+        source="market_data_ohlcv",
+    )), 200
 
 
 @market_data_bp.route("/<int:asset_id>/indicators", methods=["GET"])
@@ -97,7 +101,11 @@ def get_indicators(asset_id):
         return jsonify({"error": "Data unavailable"}), 503
 
     indicators = calculate_all_indicators(df)
-    return jsonify({"symbol": asset.symbol, "timeframe": timeframe, "indicators": indicators}), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(
+        {"symbol": asset.symbol, "timeframe": timeframe, "indicators": indicators},
+        source="market_data_indicators",
+    )), 200
 
 
 def _recent_news_sentiment(symbol: str) -> float:
@@ -626,7 +634,8 @@ def live_prices():
         for a, t in zip(assets, tickers):
             if t:
                 cached[a.symbol] = t
-    return jsonify({"prices": cached}), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({"prices": cached}, source="market_data_live_prices")), 200
 
 
 @market_data_bp.route("/heatmap", methods=["GET"])
@@ -1046,5 +1055,6 @@ def get_advanced(asset_id):
         "volume_profile":   safe(lambda: _compute_volume_profile(highs, lows, closes, volumes), []),
     }
     cache.set(cache_key, payload, timeout=120)
-    return jsonify(payload), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(payload, source="market_data_advanced")), 200
 

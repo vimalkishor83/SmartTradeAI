@@ -16,54 +16,37 @@ def summarize_provider_health(config, now: datetime | None = None) -> dict:
     last_sync = config.last_sync
     last_verified_at = last_sync.isoformat() if last_sync else None
 
-    if status == "paused":
+    def result(state, label, detail, age_seconds=None, stale_after_seconds=None):
         return {
-            "state": "PAUSED",
-            "label": "Paused",
-            "detail": "Provider is intentionally paused",
+            "state": state,
+            "label": label,
+            "detail": detail,
             "last_verified_at": last_verified_at,
-            "age_seconds": None,
+            "age_seconds": age_seconds,
+            "stale_after_seconds": stale_after_seconds,
+            "last_latency_ms": getattr(config, "last_latency_ms", None),
+            "error_count": int(getattr(config, "error_count", 0) or 0),
         }
+
+    if status == "paused":
+        return result("PAUSED", "Paused", "Provider is intentionally paused")
 
     if status == "error" or connection_status == "error":
-        return {
-            "state": "ERROR",
-            "label": "Connection error",
-            "detail": "The last provider verification failed",
-            "last_verified_at": last_verified_at,
-            "age_seconds": _age_seconds(last_sync, now),
-        }
+        return result("ERROR", "Connection error", "The last provider verification failed",
+                      _age_seconds(last_sync, now))
 
     if last_sync is None:
-        return {
-            "state": "UNTESTED",
-            "label": "Not verified",
-            "detail": "Run a connection test to verify this provider",
-            "last_verified_at": None,
-            "age_seconds": None,
-        }
+        return result("UNTESTED", "Not verified", "Run a connection test to verify this provider")
 
     age_seconds = _age_seconds(last_sync, now)
     interval = max(int(config.refresh_interval or 60), 60)
     stale_after_seconds = max(interval * 3, 900)
     if age_seconds is not None and age_seconds > stale_after_seconds:
-        return {
-            "state": "STALE",
-            "label": "Verification stale",
-            "detail": "Run a new connection test before relying on this feed",
-            "last_verified_at": last_verified_at,
-            "age_seconds": age_seconds,
-            "stale_after_seconds": stale_after_seconds,
-        }
+        return result("STALE", "Verification stale", "Run a new connection test before relying on this feed",
+                      age_seconds, stale_after_seconds)
 
-    return {
-        "state": "HEALTHY",
-        "label": "Recently verified",
-        "detail": "Last connection verification succeeded",
-        "last_verified_at": last_verified_at,
-        "age_seconds": age_seconds,
-        "stale_after_seconds": stale_after_seconds,
-    }
+    return result("HEALTHY", "Recently verified", "Last connection verification succeeded",
+                  age_seconds, stale_after_seconds)
 
 
 def _age_seconds(value: datetime | None, now: datetime) -> int | None:

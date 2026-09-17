@@ -1178,12 +1178,15 @@ def get_signals():
         row["historical_context"] = history_context[(signal.asset_id, signal.timeframe)]
         serialized.append(row)
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "signals": serialized,
         "total": signals.total,
         "page": page,
         "pages": signals.pages,
-    }), 200
+    }, source="signals", pagination={
+        "page": page, "pages": signals.pages, "per_page": per_page, "total": signals.total,
+    })), 200
 
 
 @signals_bp.route("/<int:signal_id>", methods=["GET"])
@@ -2096,12 +2099,13 @@ def signal_performance():
             "expected_win_rate": (lo + hi) // 2,
         })
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "lookback_days": days,
         "overall": overall,
         "by_asset_timeframe": by_asset_tf[:50],
         "calibration": calibration,
-    }), 200
+    }, source="signal_performance", pagination={"limit": 50, "total": len(by_asset_tf)})), 200
 
 
 @signals_bp.route("/summary", methods=["GET"])
@@ -2514,7 +2518,8 @@ def get_analytics():
     } for sym, mkt, total, w in asset_rows]
     top_assets.sort(key=lambda x: x["win_rate"], reverse=True)
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "overall": {
             "total_signals": total_signals,
             "active": active_count,
@@ -2530,7 +2535,7 @@ def get_analytics():
         "confidence_buckets": confidence_buckets,
         "recent_performance": recent_performance,
         "top_assets": top_assets,
-    }), 200
+    }, source="signal_summary")), 200
 
 
 
@@ -2705,7 +2710,8 @@ def get_performance():
     # (dashboard.js `perf?.calibration`) always rendered empty.
     calibration = _confidence_calibration_bands()
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "overall": {
             "total_closed": total_closed,
             "win_rate": win_rate,
@@ -2724,7 +2730,7 @@ def get_performance():
         "calibration": calibration,
         "daily_pnl": daily_pnl,
         "hourly_win_rate": hourly_win_rate,
-    }), 200
+    }, source="signal_performance")), 200
 
 
 def _confidence_calibration_bands():
@@ -2796,14 +2802,15 @@ def live_read_performance():
         "win_rate": round(w / res_n * 100, 1) if res_n else None,
     } for tf, total_n, w, res_n, expired_n in tf_rows]
 
-    return jsonify({
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract({
         "total_logged": total,
         "resolved": resolved,
         "expired": expired,
         "open": total - resolved,
         "win_rate": win_rate,
         "by_timeframe": by_timeframe,
-    }), 200
+    }, source="terminal_live_read_performance")), 200
 
 
 @signals_bp.route("/terminal-performance", methods=["GET"])
@@ -2812,7 +2819,10 @@ def terminal_performance():
     """Dedicated source-separated performance payload for Terminal live reads."""
     from app.services.signals.live_read_performance import build_live_read_performance
 
-    return jsonify(build_live_read_performance()), 200
+    from app.services.api_contracts import with_contract
+    return jsonify(with_contract(
+        build_live_read_performance(), source="terminal_live_read_performance"
+    )), 200
 
 
 def _signal_outcome_label(status: str) -> str | None:

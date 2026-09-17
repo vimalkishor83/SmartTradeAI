@@ -152,3 +152,50 @@ def portfolio_risk():
         "correlation": correlation,
         "concentration": concentration,
     }), 200
+
+
+@risk_bp.route("/limits", methods=["GET", "PUT"])
+@login_required
+def risk_limits():
+    """Read or update server-side portfolio risk thresholds.
+
+    A zero threshold means that limit is not configured. Once configured,
+    order routes reject proposals before any broker-side mutation.
+    """
+    from app.extensions import db
+    from app.models.risk_limit import RiskLimit
+
+    user_id = get_jwt_identity()
+    limits = RiskLimit.query.filter_by(user_id=user_id).first()
+    if request.method == "GET":
+        return jsonify(limits.to_dict() if limits else {
+            "enabled": True, "max_daily_loss": 0, "max_drawdown_pct": 0,
+            "max_total_exposure": 0, "max_correlated_exposure": 0,
+            "max_open_risk": 0,
+        }), 200
+
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    try:
+        enabled = data.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise ValueError("enabled must be a boolean")
+        values = {
+            name: _finite_number(data, name, minimum=0, maximum=_MAX_RISK_NUMBER, default=0)
+            for name in (
+                "max_daily_loss", "max_drawdown_pct", "max_total_exposure",
+                "max_correlated_exposure", "max_open_risk",
+            )
+        }
+    except (KeyError, ValueError) as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    if limits is None:
+        limits = RiskLimit(user_id=user_id)
+        db.session.add(limits)
+    limits.enabled = enabled
+    for name, value in values.items():
+        setattr(limits, name, value)
+    db.session.commit()
+    return jsonify(limits.to_dict()), 200

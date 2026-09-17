@@ -5,6 +5,8 @@ from flask import current_app
 
 logger = logging.getLogger(__name__)
 
+MAX_DELIVERY_ATTEMPTS = 3
+
 def _market_enabled(cfg: dict, field: str, market: str) -> bool:
     """Per-category, per-delivery-level market list (e.g.
     telegram_signal_group_markets) — the opposite convention from
@@ -38,7 +40,7 @@ def send_pending_notifications(app):
         from app.models.notification import Notification
         from app.models.user import User
         from app.extensions import db
-        from datetime import datetime
+        from datetime import datetime, timedelta
         from app.services.safety import telegram_notifications_enabled
 
         # Match the delivery-queue index and keep retries deterministic.
@@ -52,12 +54,35 @@ def send_pending_notifications(app):
         # SELECT per notification (was a straightforward N+1 — with users in
         # the thousands and >50 pending notifications per poll, this alone
         # was 50 extra round-trips every 30 seconds).
-        user_ids = {n.user_id for n in pending}
+        now = datetime.utcnow()
+        eligible = []
+        for notif in pending:
+            status = getattr(notif, "delivery_status", None) or ("sent" if notif.is_sent else "pending")
+            attempts = int(getattr(notif, "attempt_count", 0) or 0)
+            next_attempt = getattr(notif, "next_attempt_at", None)
+            if status in {"sent", "skipped", "dead_letter", "sending"}:
+                continue
+            if attempts >= MAX_DELIVERY_ATTEMPTS:
+                notif.delivery_status = "dead_letter"
+                notif.last_error = "Maximum delivery attempts reached"
+                continue
+            if next_attempt and next_attempt > now:
+                continue
+            eligible.append(notif)
+
+        if not eligible:
+            db.session.commit()
+            return
+
+        user_ids = {n.user_id for n in eligible}
         users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
 
-        for notif in pending:
+        for notif in eligible:
             user = users_by_id.get(notif.user_id)
             if not user:
+                notif.delivery_status = "skipped"
+                notif.skipped_reason = "user_not_found"
+                notif.is_sent = True
                 continue
 
             # Claim BEFORE sending, not after. This loop previously sent first
@@ -86,25 +111,32 @@ def send_pending_notifications(app):
                 # reported in production were this second, unwanted send.
                 if user.telegram_enabled and user.telegram_chat_id and notif.channel in ("telegram", None):
                     if not telegram_notifications_enabled():
-                        # The queue has no separate skipped state; the claimed row
-                        # is a terminal skip while Telegram is disabled.
                         logger.info(
                             "Telegram notification %s skipped because Telegram delivery is disabled",
                             notif.id,
                         )
+                        notif.delivery_status = "skipped"
+                        notif.skipped_reason = "telegram_disabled"
                     elif not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
                         raise RuntimeError("Telegram delivery was not accepted")
+                if not getattr(notif, "delivery_status", None) or notif.delivery_status == "sending":
+                    notif.delivery_status = "sent"
+                notif.last_error = None
+                notif.next_attempt_at = None
             except Exception as e:
-                # Release the claim so a later run retries rather than silently
-                # dropping the notification — claiming up front must not turn a
-                # transient SMTP/Telegram failure into permanent loss.
-                logger.error(f"Notification send failed: {e}")
-                db.session.execute(
-                    Notification.__table__.update()
-                    .where(Notification.id == notif.id)
-                    .values(is_sent=False, sent_at=None)
-                )
-                db.session.commit()
+                # Retry transient failures a bounded number of times, then
+                # retain a dead-letter row for admin inspection instead of
+                # retrying forever. Never persist exception text from a client
+                # library because it can accidentally contain a credential.
+                attempts = int(getattr(notif, "attempt_count", 0) or 0)
+                status = "dead_letter" if attempts >= MAX_DELIVERY_ATTEMPTS else "failed"
+                delay = min(300, 30 * (2 ** max(0, attempts - 1)))
+                logger.error("Notification %s send failed (%s): %s", notif.id, type(e).__name__, e)
+                notif.is_sent = False
+                notif.sent_at = None
+                notif.delivery_status = status
+                notif.last_error = f"{type(e).__name__}: delivery was not accepted"
+                notif.next_attempt_at = None if status == "dead_letter" else datetime.utcnow() + timedelta(seconds=delay)
 
         db.session.commit()
 
@@ -124,7 +156,13 @@ def _claim_notification(notif) -> bool:
     result = db.session.execute(
         Notification.__table__.update()
         .where(Notification.id == notif.id, Notification.is_sent == False)  # noqa: E712
-        .values(is_sent=True, sent_at=datetime.utcnow())
+        .values(
+            is_sent=True,
+            sent_at=datetime.utcnow(),
+            delivery_status="sending",
+            attempt_count=Notification.attempt_count + 1,
+            last_error=None,
+        )
     )
     db.session.commit()
     return result.rowcount > 0

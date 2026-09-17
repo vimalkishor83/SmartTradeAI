@@ -117,6 +117,24 @@ const API = {
     }
   },
 
+  async getWithSignal(path, params = {}, signal) {
+    const url = new URL(this.base + path, window.location.origin);
+    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
+      .forEach(([k, v]) => url.searchParams.set(k, v));
+    try {
+      const res = await fetch(url, { headers: this.headers(), signal });
+      if (res.status === 401 && !IS_PUBLIC) {
+        localStorage.removeItem('access_token');
+        window.location.replace('/login');
+        return null;
+      }
+      return res.ok ? res.json() : null;
+    } catch (e) {
+      if (e?.name !== 'AbortError') console.error('API GET error:', path, e);
+      return null;
+    }
+  },
+
   // Like get(), but preserves the error body on non-2xx responses instead
   // of returning null — most callers rely on the truthy-on-success shortcut
   // (if (!data) return), so this is opt-in rather than changing get()'s
@@ -549,6 +567,71 @@ window.STRefresh = window.STRefresh || {
     return timer;
   },
 };
+
+// Shared request/state helpers let data-heavy modules cancel stale requests
+// and present the same loading, empty, stale, error and permission language.
+window.STRequest = window.STRequest || {
+  _controllers: new Map(),
+  get(path, params = {}) {
+    const key = `${path}?${new URLSearchParams(params).toString()}`;
+    this._controllers.get(key)?.abort();
+    const controller = new AbortController();
+    this._controllers.set(key, controller);
+    return API.getWithSignal(path, params, controller.signal).finally(() => {
+      if (this._controllers.get(key) === controller) this._controllers.delete(key);
+    });
+  },
+};
+
+window.STState = window.STState || {
+  render(target, state, message, retry) {
+    const el = typeof target === 'string' ? document.querySelector(target) : target;
+    if (!el) return;
+    const labels = {
+      loading: 'Loading…', empty: 'No data available', error: 'Unable to load this data',
+      stale: 'Data may be stale', permission: 'You do not have permission to view this data',
+    };
+    const text = String(message || labels[state] || '');
+    el.classList.add('ui-state');
+    el.dataset.state = state;
+    el.setAttribute('role', state === 'error' || state === 'permission' ? 'alert' : 'status');
+    const icon = state === 'loading' ? 'bi-hourglass-split' : state === 'empty' ? 'bi-inbox' : state === 'permission' ? 'bi-lock' : state === 'stale' ? 'bi-clock-history' : 'bi-exclamation-triangle';
+    el.innerHTML = `<i class="bi ${icon}" aria-hidden="true"></i><span>${STSafe.html(text)}</span>${retry ? '<button type="button" class="btn btn-sm btn-outline-secondary ui-state-retry">Retry</button>' : ''}`;
+    if (retry) el.querySelector('.ui-state-retry')?.addEventListener('click', retry, { once: true });
+  },
+};
+
+window.STMarketHealth = window.STMarketHealth || {
+  async load() {
+    const banner = document.getElementById('marketHealthStrip');
+    if (!banner) return;
+    banner.dataset.state = 'loading';
+    banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data loading</strong><span>Checking provider freshness…</span>';
+    try {
+      const data = await STRequest.get('/system/market-health');
+      if (!data) throw new Error('market health request failed');
+      const status = data?.status || 'unavailable';
+      const freshness = data?.freshness || {};
+      const provider = data?.providers?.find(item => item.state === 'HEALTHY') || data?.providers?.[0];
+      const updated = freshness.last_update ? new Date(freshness.last_update).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'not verified';
+      banner.dataset.state = status;
+      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(freshness.label || status)}</strong><span>${STSafe.html(data?.reason || 'No provider status available')}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)}</span>`;
+    } catch (_) {
+      banner.dataset.state = 'unavailable';
+      banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data unavailable</strong><span>Provider status could not be loaded.</span><button type="button" class="btn btn-sm btn-outline-secondary">Retry</button>';
+      banner.querySelector('button')?.addEventListener('click', () => this.load(), { once: true });
+    }
+  },
+};
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => STMarketHealth.load(), { once: true });
+} else {
+  STMarketHealth.load();
+}
+if (document.getElementById('marketHealthStrip')) {
+  STRefresh.start(() => STMarketHealth.load(), 60, { usePlatform: true });
+}
 
 // ─── Ticker Ribbon ────────────────────────────
 const Ticker = {

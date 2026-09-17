@@ -29,6 +29,10 @@ class Config:
     PROTECTIVE_ORDERS_ENABLED = _env_bool("PROTECTIVE_ORDERS_ENABLED", False)
     TELEGRAM_NOTIFICATIONS_ENABLED = _env_bool("TELEGRAM_NOTIFICATIONS_ENABLED", False)
     RUN_MIGRATIONS_ON_STARTUP = _env_bool("RUN_MIGRATIONS_ON_STARTUP", False)
+    # "live" preserves the existing production contract; development overrides
+    # this to paper mode so a test order can never reach a broker client.
+    TRADING_EXECUTION_MODE = os.environ.get("TRADING_EXECUTION_MODE", "live").strip().lower()
+    PAPER_TRADING_ENABLED = _env_bool("PAPER_TRADING_ENABLED", False)
 
     SECRET_KEY = os.environ.get("SECRET_KEY", "dev-secret-key-change-in-production")
     JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "jwt-secret-change-in-production")
@@ -127,6 +131,8 @@ class DevelopmentConfig(Config):
     PROTECTIVE_ORDERS_ENABLED = False
     TELEGRAM_NOTIFICATIONS_ENABLED = False
     RUN_MIGRATIONS_ON_STARTUP = False
+    TRADING_EXECUTION_MODE = "paper"
+    PAPER_TRADING_ENABLED = True
     JWT_COOKIE_SECURE = True
     SESSION_COOKIE_SECURE = True
     CORS_ORIGINS = _development_cors_origins()

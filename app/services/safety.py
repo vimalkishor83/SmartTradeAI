@@ -48,6 +48,19 @@ def migrations_on_startup():
     return feature_enabled("RUN_MIGRATIONS_ON_STARTUP")
 
 
+def trading_execution_mode():
+    """Return the explicit execution mode, failing closed outside a request."""
+    if not has_app_context():
+        return "disabled"
+    mode = str(current_app.config.get("TRADING_EXECUTION_MODE", "disabled")).strip().lower()
+    return mode if mode in {"live", "paper"} else "disabled"
+
+
+def paper_trading_enabled():
+    """Paper mode is explicit and must be enabled separately from live trading."""
+    return trading_execution_mode() == "paper" and feature_enabled("PAPER_TRADING_ENABLED")
+
+
 def safety_disabled_payload(feature):
     messages = {
         "broker_trading": (

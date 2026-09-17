@@ -492,8 +492,14 @@
 
   <!-- Page content -->
   <main class="page-content" id="pageContent">
+    {% if 'smarttradeai.info' in config.PUBLIC_SITE_URL %}
+    <div class="development-banner" role="status"><i class="bi bi-shield-check" aria-hidden="true"></i><span><strong>Development environment</strong> Paper trading only. Broker actions and Telegram delivery are disabled.</span></div>
+    {% endif %}
     <div id="approvalBanner" style="display:none" class="approval-banner"></div>
     <div id="trialBanner" style="display:none" class="approval-banner"></div>
+    <div class="market-health-strip" id="marketHealthStrip" role="status" aria-live="polite">
+      <span class="market-health-dot" aria-hidden="true"></span><strong>Market data loading</strong><span>Checking provider freshness…</span>
+    </div>
     <div id="pageContentBody">
     {% block content %}{% endblock %}
     </div>
