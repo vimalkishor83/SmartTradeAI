@@ -601,58 +601,6 @@ window.STState = window.STState || {
   },
 };
 
-window.STMarketHealth = window.STMarketHealth || {
-  async load() {
-    const banner = document.getElementById('marketHealthStrip');
-    if (!banner) return;
-    banner.dataset.state = 'loading';
-    banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data loading</strong><span>Checking provider verification and live fetch health…</span>';
-    try {
-      const data = await STRequest.get('/system/market-health');
-      if (!data) throw new Error('market health request failed');
-      const status = data?.status || 'unavailable';
-      const freshness = data?.freshness || {};
-      const provider = data?.providers?.find(item => item.state === 'HEALTHY') || data?.providers?.[0];
-      const updated = freshness.last_update ? new Date(freshness.last_update).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'not verified';
-      const runtimeProviders = Array.isArray(data?.runtime?.providers) ? data.runtime.providers : [];
-      const runtimeHealthy = runtimeProviders.filter(item => item.state === 'HEALTHY').length;
-      const runtimeCopy = runtimeProviders.length
-        ? `Live fetch: ${runtimeHealthy}/${runtimeProviders.length} healthy`
-        : 'Live fetch: waiting for first request';
-      // A healthy live fetch is stronger evidence for availability than a
-      // missing admin verification record. Keep that state visibly degraded,
-      // but do not present working market data as unavailable.
-      const liveDataAvailable = runtimeHealthy > 0 && Number(data?.active_assets || 0) > 0;
-      const verificationPending = status === 'unavailable' && liveDataAvailable;
-      const displayState = verificationPending ? 'degraded' : status;
-      const displayLabel = verificationPending ? 'Available' : (freshness.label || status);
-      const displayReason = verificationPending
-        ? 'Live fetch is healthy; provider verification is pending'
-        : (data?.reason || 'No provider status available');
-      const guidance = verificationPending
-        ? 'Live data is available. Ask an administrator to verify provider settings.'
-        : 'Try again, or ask an administrator to verify provider settings.';
-      const needsAction = displayState !== 'ready';
-      banner.dataset.state = displayState;
-      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(displayLabel)}</strong><span>${STSafe.html(displayReason)}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)} · ${STSafe.html(runtimeCopy)}</span>${needsAction ? `<span class="market-health-guidance">${STSafe.html(guidance)}</span><button type="button" class="btn btn-sm btn-outline-secondary" data-market-health-retry>Check again</button>` : ''}`;
-      banner.querySelector('[data-market-health-retry]')?.addEventListener('click', () => this.load(), { once: true });
-    } catch (_) {
-      banner.dataset.state = 'unavailable';
-      banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data unavailable</strong><span>Provider status could not be loaded.</span><span class="market-health-guidance">Try again, or ask an administrator to verify provider settings.</span><button type="button" class="btn btn-sm btn-outline-secondary" data-market-health-retry>Check again</button>';
-      banner.querySelector('[data-market-health-retry]')?.addEventListener('click', () => this.load(), { once: true });
-    }
-  },
-};
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => STMarketHealth.load(), { once: true });
-} else {
-  STMarketHealth.load();
-}
-if (document.getElementById('marketHealthStrip')) {
-  STRefresh.start(() => STMarketHealth.load(), 60, { usePlatform: true });
-}
-
 // ─── Ticker Ribbon ────────────────────────────
 const Ticker = {
   _items: {},
