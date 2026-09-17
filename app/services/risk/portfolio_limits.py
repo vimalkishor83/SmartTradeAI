@@ -30,7 +30,9 @@ def evaluate_limits(limits, *, current_exposure=0.0, proposed_exposure=0.0,
 def evaluate_order_for_user(user_id, *, size, price, stop_price=None, symbol=None):
     """Evaluate a proposed order against the user's stored portfolio limits."""
     from datetime import datetime
+    from zoneinfo import ZoneInfo
 
+    from flask import current_app
     from sqlalchemy import func
 
     from app.extensions import db
@@ -59,9 +61,16 @@ def evaluate_order_for_user(user_id, *, size, price, stop_price=None, symbol=Non
         if capital > 0:
             drawdown_pct = max(0.0, (capital - current_exposure) / capital * 100)
 
+    scheduler_timezone = current_app.config.get("SCHEDULER_TIMEZONE", "UTC")
+    try:
+        business_date = datetime.now(ZoneInfo(scheduler_timezone)).date()
+    except (KeyError, ValueError):
+        # Keep the guard usable if a deployment has an invalid timezone setting.
+        business_date = datetime.now().date()
+
     today_loss = db.session.query(func.coalesce(func.sum(JournalEntry.pnl_amount), 0)).filter(
         JournalEntry.user_id == user_id,
-        JournalEntry.trade_date == datetime.utcnow().date(),
+        JournalEntry.trade_date == business_date,
         JournalEntry.pnl_amount < 0,
     ).scalar()
     daily_loss = abs(float(today_loss or 0))
