@@ -4662,6 +4662,12 @@ body[data-requires-admin] #pageContentBody::before {
   white-space: nowrap;
 }
 
+/* The live P&L panel is full-width, so its table should not stop at its
+   natural content width and leave an unused blank region beside the rows. */
+.app-shell .table-responsive > #pnlTable {
+  width: 100%;
+}
+
 .model-bars {
   display: flex;
   align-items: flex-end;
