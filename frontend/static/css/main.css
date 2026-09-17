@@ -8015,6 +8015,7 @@ html.sidebar-mobile-open body {
 .ui-state-retry { flex-basis: auto; }
 .app-shell .table-responsive { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-gutter: stable; }
 .app-shell .table-responsive > table { min-width: 620px; }
+.app-shell .table-responsive > .signals-table-adv { width: 100%; }
 .app-shell :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
 
 @media (max-width: 640px) {
