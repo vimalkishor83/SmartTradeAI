@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from app.services.api_contracts import with_contract
+from app.services.data.runtime_health import snapshot as runtime_health_snapshot
 from app.services.provider_health import summarize_provider_health
 
 
@@ -72,6 +73,10 @@ def build_market_health_snapshot(now=None):
         "providers": providers,
         "last_update": latest,
         "freshness": freshness,
+        "runtime": {
+            "providers": runtime_health_snapshot(),
+            "description": "Process-local fetch telemetry; cached responses do not refresh this timestamp.",
+        },
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     return with_contract(payload, source="provider_verification", freshness=freshness)

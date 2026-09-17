@@ -606,7 +606,7 @@ window.STMarketHealth = window.STMarketHealth || {
     const banner = document.getElementById('marketHealthStrip');
     if (!banner) return;
     banner.dataset.state = 'loading';
-    banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data loading</strong><span>Checking provider freshness…</span>';
+    banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data loading</strong><span>Checking provider verification and live fetch health…</span>';
     try {
       const data = await STRequest.get('/system/market-health');
       if (!data) throw new Error('market health request failed');
@@ -614,8 +614,13 @@ window.STMarketHealth = window.STMarketHealth || {
       const freshness = data?.freshness || {};
       const provider = data?.providers?.find(item => item.state === 'HEALTHY') || data?.providers?.[0];
       const updated = freshness.last_update ? new Date(freshness.last_update).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'not verified';
+      const runtimeProviders = Array.isArray(data?.runtime?.providers) ? data.runtime.providers : [];
+      const runtimeHealthy = runtimeProviders.filter(item => item.state === 'HEALTHY').length;
+      const runtimeCopy = runtimeProviders.length
+        ? `Live fetch: ${runtimeHealthy}/${runtimeProviders.length} healthy`
+        : 'Live fetch: waiting for first request';
       banner.dataset.state = status;
-      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(freshness.label || status)}</strong><span>${STSafe.html(data?.reason || 'No provider status available')}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)}</span>`;
+      banner.innerHTML = `<span class="market-health-dot" aria-hidden="true"></span><strong>Market data ${STSafe.html(freshness.label || status)}</strong><span>${STSafe.html(data?.reason || 'No provider status available')}</span><span class="market-health-meta">${provider ? `Provider: ${STSafe.html(provider.provider)} · ` : ''}Last verified: ${STSafe.html(updated)} · ${STSafe.html(runtimeCopy)}</span>`;
     } catch (_) {
       banner.dataset.state = 'unavailable';
       banner.innerHTML = '<span class="market-health-dot" aria-hidden="true"></span><strong>Market data unavailable</strong><span>Provider status could not be loaded.</span><button type="button" class="btn btn-sm btn-outline-secondary">Retry</button>';

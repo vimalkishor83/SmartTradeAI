@@ -47,6 +47,8 @@ def test_market_health_contract_is_sanitized_and_has_freshness(client):
     assert body["_meta"]["source"] == "provider_verification"
     assert body["freshness"]["state"] in {"ready", "degraded", "unavailable"}
     assert "providers" in body
+    assert "runtime" in body
+    assert "providers" in body["runtime"]
     assert all("api_key" not in provider for provider in body["providers"])
 
 

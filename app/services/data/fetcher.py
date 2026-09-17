@@ -14,6 +14,8 @@ import requests
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from app.services.data.runtime_health import record_failure, record_success
+
 try:
     import yfinance as yf
     _YF_AVAILABLE = True
@@ -560,6 +562,7 @@ class BinanceFetcher:
             if not _breaker_binance.allow():
                 return None   # circuit open — avoid hammering a down service
 
+            started = time.monotonic()
             try:
                 interval = self.INTERVAL.get(timeframe, "1h")
                 resp = _http_session.get(
@@ -581,20 +584,23 @@ class BinanceFetcher:
                 df = df[["timestamp","open","high","low","close","volume"]].set_index("timestamp")
                 _cache.set(cache_key, df)
                 _breaker_binance.success()
+                record_success("binance", latency_ms=(time.monotonic() - started) * 1000)
                 return df
             except Exception as e:
                 _breaker_binance.failure()
+                record_failure("binance")
                 raise   # re-raise so @_retry can catch it
 
     def fetch_ticker(self, symbol: str) -> dict | None:
         if not _breaker_binance.allow():
             return None
+        started = time.monotonic()
         try:
             resp = _http_session.get(f"{self.BASE}/ticker/24hr", params={"symbol": symbol}, timeout=5)
             resp.raise_for_status()
             d = resp.json()
             _breaker_binance.success()
-            return {
+            ticker = {
                 "symbol":     symbol,
                 "price":      float(d["lastPrice"]),
                 "change_pct": float(d["priceChangePercent"]),
@@ -602,8 +608,11 @@ class BinanceFetcher:
                 "high":       float(d["highPrice"]),
                 "low":        float(d["lowPrice"]),
             }
+            record_success("binance", latency_ms=(time.monotonic() - started) * 1000)
+            return ticker
         except Exception as e:
             _breaker_binance.failure()
+            record_failure("binance")
             logger.warning(f"Binance ticker error {symbol}: {e}")
             return None
 
@@ -639,6 +648,7 @@ class DeltaExchangeFetcher:
             if not _breaker_delta.allow():
                 return None   # circuit open — avoid hammering a down service
 
+            started = time.monotonic()
             try:
                 resolution = self.INTERVAL.get(timeframe, "1h")
                 # Candle count → seconds-per-candle, so `start` covers `limit` candles
@@ -674,9 +684,11 @@ class DeltaExchangeFetcher:
                         .sort_values("timestamp").set_index("timestamp").tail(limit)
                 _cache.set(cache_key, df)
                 _breaker_delta.success()
+                record_success("delta_exchange", latency_ms=(time.monotonic() - started) * 1000)
                 return df
             except Exception as e:
                 _breaker_delta.failure()
+                record_failure("delta_exchange")
                 raise   # re-raise so @_retry can catch it
 
     def fetch_ticker(self, symbol: str) -> dict | None:
@@ -685,6 +697,7 @@ class DeltaExchangeFetcher:
             return None
         if not _breaker_delta.allow():
             return None
+        started = time.monotonic()
         try:
             resp = _http_session.get(f"{self.BASE}/tickers/{delta_symbol}", timeout=5)
             resp.raise_for_status()
@@ -693,7 +706,7 @@ class DeltaExchangeFetcher:
             close = float(d.get("close", 0) or 0)
             open_ = float(d.get("open", 0) or 0)
             chg_pct = round((close - open_) / open_ * 100, 2) if open_ else 0.0
-            return {
+            ticker = {
                 "symbol":     symbol,
                 "price":      close,
                 "change_pct": chg_pct,
@@ -701,8 +714,11 @@ class DeltaExchangeFetcher:
                 "high":       float(d.get("high", 0) or 0),
                 "low":        float(d.get("low", 0) or 0),
             }
+            record_success("delta_exchange", latency_ms=(time.monotonic() - started) * 1000)
+            return ticker
         except Exception as e:
             _breaker_delta.failure()
+            record_failure("delta_exchange")
             logger.warning(f"Delta Exchange ticker error {symbol}: {e}")
             return None
 
@@ -747,10 +763,12 @@ class YahooFetcher:
 
     def fetch_ohlcv(self, symbol: str, timeframe: str, limit: int = 220) -> pd.DataFrame | None:
         if not _YF_AVAILABLE:
+            record_failure("yahoo", reason="dependency_unavailable")
             return None
         if not _breaker_yahoo.allow():
             return None
 
+        started = time.monotonic()
         cache_key = f"{symbol}_{timeframe}"
         cached = _cache.get(cache_key, min_rows=limit)
         if cached is not None:
@@ -794,15 +812,19 @@ class YahooFetcher:
                 df = df.tail(limit)
                 _cache.set(cache_key, df)
                 _breaker_yahoo.success()
+                record_success("yahoo", latency_ms=(time.monotonic() - started) * 1000)
                 return df
             except Exception as e:
                 _breaker_yahoo.failure()
+                record_failure("yahoo")
                 logger.debug(f"Yahoo OHLCV error {symbol}/{timeframe}: {e}")
                 return None
 
     def fetch_ohlcv_batch(self, symbols: list[str], timeframe: str, limit: int = 220) -> dict[str, pd.DataFrame]:
         """Fetch multiple Yahoo symbols in a single download call (much faster than one-by-one)."""
         if not _YF_AVAILABLE or not symbols:
+            if symbols and not _YF_AVAILABLE:
+                record_failure("yahoo", reason="dependency_unavailable")
             return {}
 
         # Check cache first — only fetch what's missing
@@ -823,6 +845,7 @@ class YahooFetcher:
 
         interval = self.TF_INTERVAL.get(timeframe, "1d")
         period   = self.TF_PERIOD.get(timeframe, "1y")
+        started = time.monotonic()
 
         def _normalise(df):
             """Flatten any MultiIndex columns → lowercase single-level."""
@@ -845,6 +868,7 @@ class YahooFetcher:
                 threads=True,
             )
             if raw is None or raw.empty:
+                record_failure("yahoo", reason="empty_response")
                 return result
 
             rev = {yf_sym: our_sym for our_sym, yf_sym in zip(to_fetch_sym, to_fetch_yf)}
@@ -877,6 +901,7 @@ class YahooFetcher:
                     except Exception:
                         pass
         except Exception as e:
+            record_failure("yahoo")
             logger.debug(f"Yahoo batch error {timeframe}: {e}")
 
         # Per-symbol fallback: retry any symbol that the batch missed
@@ -897,6 +922,8 @@ class YahooFetcher:
                         _cache.set(f"{sym}_{timeframe}", df)
                         result[sym] = df
 
+        if result:
+            record_success("yahoo", latency_ms=(time.monotonic() - started) * 1000)
         return result
 
 
