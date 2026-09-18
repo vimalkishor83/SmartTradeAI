@@ -1,0 +1,60 @@
+name: Deploy to development (.info)
+
+on:
+  push:
+    branches: [development]
+
+concurrency:
+  group: deploy-development
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: smarttrade
+          POSTGRES_PASSWORD: smarttrade
+          POSTGRES_DB: smarttrade_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U smarttrade"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Run test suite
+        env:
+          FLASK_ENV: testing
+        run: python -m pytest -q --no-cov
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to development server over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_SSH_HOST }}
+          username: ${{ secrets.DEPLOY_SSH_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: bash /home/ubuntu/SmartTradeAI-development/deploy/ci_deploy.sh development
