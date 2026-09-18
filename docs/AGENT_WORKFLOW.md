@@ -47,20 +47,45 @@ the design was wrong) runs on every push to `development`:
 
 Deploys to `https://smarttradeai.info`.
 
-### `main` branch → **manual** deploy (by design)
+### `main` branch → tests run automatically, deploy needs manual approval (2026-09-18, discussed with the user)
 
-There is intentionally no `deploy-production.yml` auto-triggering on push
-to `main`. Run production deploys by hand over SSH:
+`.github/workflows/deploy-production.yml` runs on every push to `main`:
+
+1. `test` job: full suite on GitHub's runners, same as development.
+2. `deploy` job: targets the `production` **environment**. That
+   environment has a required-reviewer rule configured in
+   **Settings > Environments > production** — the job pauses after tests
+   pass and waits for someone with approval rights to click Approve on the
+   run before it SSHes anywhere. This is the deliberate middle ground the
+   user chose: convenience of not typing a command by hand, without giving
+   up the human checkpoint that catches "development looks fine but I
+   haven't actually looked at this specific commit" before it reaches real
+   users.
+3. The approved run calls `sudo -n -- smarttrade-deploy-production
+   --confirm-production --execute` (no `--run-migrations` — see below).
+
+**Migrations are still never automatic on production.** If this push
+includes a schema change, run the migration by hand, once, either just
+before or right after approving the run:
 
 ```
 ssh ubuntu@140.238.247.245 sudo -n -- /usr/local/sbin/smarttrade-deploy-production --confirm-production --execute --run-migrations
 ```
 
-(drop `--run-migrations` if there's nothing new to migrate this deploy). If
-a future agent or the user wants this automated too, that's a real design
-decision to make together first — don't wire up a silent auto-deploy to
-production without discussing it, even though the script itself supports
-being called from CI the same way development's is.
+(That command alone also still works as a fully manual deploy+migrate,
+bypassing GitHub Actions entirely, if the workflow itself is ever broken
+or you need to deploy without waiting on CI.)
+
+Repo secret `PRODUCTION_DEPLOY_KEY` holds the same private key as
+`DEVELOPMENT_DEPLOY_KEY` (the user asked for one common key across both
+environments and interactive use — see the SSH keys section below); it's
+duplicated under a second secret name only so the workflow file reads
+clearly about which environment each secret is for.
+
+If this design ever needs to change (fully automatic, or back to fully
+manual with no workflow at all), that's a real decision — don't just add
+or remove the required-reviewer rule without checking with the user
+first, since production behavior is what's at stake.
 
 ## One agent at a time per area
 
