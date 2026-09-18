@@ -67,6 +67,7 @@ def test_group_sender_accepts_news_but_rejects_signal(app, monkeypatch):
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
         app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
+        app.config["TELEGRAM_BOT_TOKEN"] = "test-platform-token"
         channel = SimpleNamespace(
             group_chat_id="-100-primary",
             markets=[],
