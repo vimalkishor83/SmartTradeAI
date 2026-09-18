@@ -6912,7 +6912,9 @@ html[data-theme="light"] .app-shell {
 
 .app-shell .table-responsive > table,
 .app-shell .ui-table-wrap > table {
-  width: max-content;
+  /* Fill the card when content is short; intrinsic minimums still allow
+     wide tables to scroll instead of creating a blank right rail. */
+  width: 100%;
   min-width: 100%;
 }
 
