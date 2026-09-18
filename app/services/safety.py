@@ -44,6 +44,23 @@ def telegram_notifications_enabled():
     return feature_enabled("TELEGRAM_NOTIFICATIONS_ENABLED")
 
 
+def telegram_delivery_mode():
+    """Return the only supported delivery mode, failing closed otherwise."""
+    if not has_app_context():
+        return "disabled"
+    mode = str(current_app.config.get("TELEGRAM_DELIVERY_MODE", "disabled")).strip().lower()
+    return "group_only" if mode == "group_only" else "disabled"
+
+
+def telegram_group_delivery_enabled():
+    return telegram_notifications_enabled() and telegram_delivery_mode() == "group_only"
+
+
+def telegram_individual_delivery_enabled():
+    """Individual Telegram delivery is deliberately not a supported mode."""
+    return False
+
+
 def migrations_on_startup():
     return feature_enabled("RUN_MIGRATIONS_ON_STARTUP")
 
@@ -78,6 +95,10 @@ def safety_disabled_payload(feature):
         "telegram": (
             "telegram_disabled",
             "Telegram notifications are disabled in this environment; nothing was sent.",
+        ),
+        "telegram_individual": (
+            "telegram_individual_disabled",
+            "Individual Telegram delivery is disabled; alerts are sent only to the configured group.",
         ),
     }
     code, message = messages[feature]

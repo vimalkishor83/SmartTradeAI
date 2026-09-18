@@ -98,6 +98,19 @@ def update_platform_config_route():
     from app.services.platform_config import invalidate_platform_config
 
     data = request.get_json() or {}
+    individual_telegram_fields = {
+        "telegram_signal_individual_markets",
+        "telegram_signal_closed_individual_markets",
+        "telegram_rating_change_individual_markets",
+        "telegram_watchlist_individual_markets",
+        "telegram_protective_order_individual_markets",
+    }
+    if individual_telegram_fields.intersection(data):
+        return jsonify({
+            "error": "Individual Telegram delivery is disabled; configure the shared group only.",
+            "code": "telegram_individual_disabled",
+            "blocked": True,
+        }), 410
     row = PlatformConfig.get_singleton()
 
     if "disabled_nav_items" in data:

@@ -1109,7 +1109,9 @@ def check_watchlist_alerts(app):
                     # did, so a user relying on Telegram/push for signal
                     # alerts got silently weaker coverage for their own
                     # manually-set watchlist alerts.
-                    if (user and user.telegram_enabled and user.telegram_chat_id
+                    from app.services.safety import telegram_individual_delivery_enabled
+                    if (telegram_individual_delivery_enabled()
+                            and user and user.telegram_enabled and user.telegram_chat_id
                             and _market_enabled(_tg_cfg, "telegram_watchlist_individual_markets", asset.market)):
                         try:
                             from app.tasks.notification_tasks import _send_telegram, _telegram_disclaimer

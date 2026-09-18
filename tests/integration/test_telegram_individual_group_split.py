@@ -41,7 +41,7 @@ def signal_setup(app):
         return {"user_id": user.id, "asset_id": asset.id}
 
 
-class TestIndividualGroupSplit:
+class TestGroupOnlyDelivery:
     def test_group_on_individual_off_sends_only_to_channel(self, app, signal_setup, monkeypatch):
         with app.app_context():
             from app.models.platform_config import PlatformConfig
@@ -61,7 +61,7 @@ class TestIndividualGroupSplit:
             assert calls["group"] == 1, "group delivery should fire for a market in its list"
             assert calls["individual"] == 0, "individual delivery must not fire when its own market list is empty"
 
-    def test_individual_on_group_off_sends_only_to_subscriber(self, app, signal_setup, monkeypatch):
+    def test_individual_settings_cannot_send_when_group_is_off(self, app, signal_setup, monkeypatch):
         with app.app_context():
             from app.models.platform_config import PlatformConfig
             from app.extensions import db

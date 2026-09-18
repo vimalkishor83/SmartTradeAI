@@ -10,7 +10,7 @@
   <div class="admin-page-hero-copy">
     <span class="page-eyebrow">Operations / Messaging</span>
     <h1 class="admin-page-hero-title"><span class="admin-page-icon"><i class="bi bi-telegram" aria-hidden="true"></i></span>Telegram Alerts</h1>
-    <p class="page-subtitle">Control personal and shared Telegram delivery from one place, with market and timeframe routing kept explicit.</p>
+    <p class="page-subtitle">Control the single shared Telegram group destination; individual delivery is permanently disabled.</p>
   </div>
   <div class="admin-page-hero-actions">
     <span class="admin-page-badge"><i class="bi bi-sliders2" aria-hidden="true"></i> Platform-wide controls</span>
@@ -19,7 +19,7 @@
 </div>
 
 <div class="admin-meta-strip" aria-label="Telegram alert overview">
-  <div class="admin-meta-item"><span class="admin-meta-label">Delivery model</span><strong class="admin-meta-value">Individual + group</strong></div>
+  <div class="admin-meta-item"><span class="admin-meta-label">Delivery model</span><strong class="admin-meta-value">Shared group only</strong></div>
   <div class="admin-meta-item"><span class="admin-meta-label">Routing scope</span><strong class="admin-meta-value">Market and timeframe</strong></div>
   <div class="admin-meta-item"><span class="admin-meta-label">Managed channels</span><strong class="admin-meta-value" id="channelCountSummary">Loading…</strong></div>
 </div>
@@ -36,17 +36,17 @@
 <div class="section-card admin-section-card admin-setup-card mb-4">
   <div class="section-card-body p-3">
     <details id="setupGuide">
-      <summary><i class="bi bi-question-circle text-accent" aria-hidden="true"></i><span>How this works</span><small class="text-muted fw-normal">Read before connecting a shared group</small></summary>
+      <summary><i class="bi bi-question-circle text-accent" aria-hidden="true"></i><span>How this works</span><small class="text-muted fw-normal">Read before connecting the shared group</small></summary>
       <div class="fs-sm admin-setup-content">
-        <p class="mb-2"><strong>Individual alerts</strong> go to each subscriber's own Telegram chat (they connect it themselves in Settings → Notifications). The toggles below are the master on/off switch per category — turning one off stops it for every subscriber, even those who've connected their own chat.</p>
-        <p class="mb-2"><strong>Group channels</strong> are separate shared destinations you create below — e.g. a "Crypto Signals" group and a "Forex & Gold" group can exist side by side, each getting a different mix of alerts for different markets. To add one:</p>
+        <p class="mb-2"><strong>Only the shared group receives Telegram alerts.</strong> Individual user bots, chat IDs, tests, watchlist alerts, and protective-order alerts are disabled and are never broadcast to the group.</p>
+        <p class="mb-2"><strong>Group routing</strong> is managed here with the platform bot. Keep one active group as the primary destination; legacy inactive channel records are retained for compatibility.</p>
         <ol class="mb-0 ps-3">
           <li>One platform-wide bot handles every channel (not any individual subscriber's own bot) — if <code>TELEGRAM_BOT_TOKEN</code> isn't set on the server yet, get a token from <a href="https://t.me/BotFather" target="_blank" rel="noopener"><strong>@BotFather</strong></a> and add it to the deployment first.</li>
           <li>In Telegram, create a <strong>group</strong> (not a channel) and add your bot to it.</li>
           <li>Send any message in that group — e.g. "hi". This is required once, so the next step has something to find.</li>
           <li>Open this URL in a browser, replacing <code>&lt;token&gt;</code> with the bot token: <code>https://api.telegram.org/bot&lt;token&gt;/getUpdates</code></li>
           <li>Find <code>"chat":{"id":</code> in the response — that number (it will be negative, e.g. <code>-1001234567890</code>) is the group's Chat ID.</li>
-          <li>Click "Add Channel" below, paste the Chat ID, pick which markets and categories it should receive, then use its "Test" button to confirm it actually works.</li>
+          <li>Click "Add Channel" below, paste the group Chat ID, choose the group markets/categories, then use its test button to confirm the primary group.</li>
         </ol>
       </div>
     </details>
@@ -57,14 +57,14 @@
 <div class="section-card admin-section-card mb-4">
   <div class="section-card-header">
     <span class="section-card-title admin-section-heading"><i class="bi bi-bell text-accent" aria-hidden="true"></i><span>Alert Categories<small>Choose where each category is delivered</small></span></span>
-    <button class="btn btn-sm btn-primary" id="saveIndividualBtn"><i class="bi bi-check2 me-1"></i>Save Changes</button>
+    <button class="btn btn-sm btn-primary" id="saveIndividualBtn"><i class="bi bi-check2 me-1"></i>Save Group Settings</button>
   </div>
   <div class="section-card-body p-3">
-    <p class="admin-section-intro">Per category, choose markets for <strong>Individual</strong> subscriber chats and <strong>Group</strong> channels independently. An unchecked market is intentionally disabled for that delivery level.</p>
+    <p class="admin-section-intro">Choose which markets the shared group receives for each public alert category. Individual subscriber delivery is disabled and cannot be enabled from this page.</p>
     <div class="admin-table-shell table-responsive mb-3">
       <table class="table table-sm mb-0" data-mobile-cards style="font-size:13px">
         <thead>
-          <tr><th style="width:20%">Page coverage</th><th style="width:16%">Alert type</th><th>Individual chats</th><th>Shared groups</th></tr>
+          <tr><th style="width:20%">Page coverage</th><th style="width:16%">Alert type</th><th>Individual delivery</th><th>Shared group</th></tr>
         </thead>
         <tbody id="categoryMatrixBody"></tbody>
       </table>
@@ -76,7 +76,7 @@
         <option value="extremes_only">Only when it reaches Strong Buy / Strong Sell</option>
         <option value="every_change">Every single rating change</option>
       </select>
-      <div class="fs-xs text-muted mt-1">Applies to both Individual and Group MTF rating-change alerts.</div>
+      <div class="fs-xs text-muted mt-1">Applies to shared-group MTF rating-change alerts.</div>
     </div>
   </div>
 </div>
@@ -270,16 +270,15 @@ function marketMatrixChipsHtml(cls, catKey, selected, disabled) {
 
 function renderCategoryMatrix(cfg, disabled) {
   document.getElementById('categoryMatrixBody').innerHTML = ALERT_CATEGORIES.map(cat => {
-    const indSelected = new Set(cfg[`telegram_${cat.key}_individual_markets`] || []);
-    const grpCell = cat.hasGroup
-      ? marketMatrixChipsHtml('cat-grp-toggle', cat.key, new Set(cfg[`telegram_${cat.key}_group_markets`] || []), disabled)
-      : `<span class="text-muted small" title="Personal to one subscriber's own item/position — never a shared broadcast">Individual only</span>`;
-    return `<tr>
-      <td class="text-muted">${cat.pages.map(p => `<div>${STSafe.html(p)}</div>`).join('')}</td>
-      <td><strong>${STSafe.html(cat.label)}</strong></td>
-      <td>${marketMatrixChipsHtml('cat-ind-toggle', cat.key, indSelected, disabled)}</td>
-      <td>${grpCell}</td>
-    </tr>`;
+    const groupCell = cat.hasGroup
+      ? marketMatrixChipsHtml('cat-grp-toggle', cat.key, new Set(cfg['telegram_' + cat.key + '_group_markets'] || []), disabled)
+      : '<span class="text-muted small">Not shared</span>';
+    return '<tr>'
+      + '<td class="text-muted">' + cat.pages.map(p => '<div>' + STSafe.html(p) + '</div>').join('') + '</td>'
+      + '<td><strong>' + STSafe.html(cat.label) + '</strong></td>'
+      + '<td><span class="text-muted small">Disabled</span></td>'
+      + '<td>' + groupCell + '</td>'
+      + '</tr>';
   }).join('');
 }
 
@@ -297,21 +296,18 @@ async function loadIndividualSettings() {
   document.getElementById('tgRatingSensitivity').value = cfg.telegram_rating_change_sensitivity || 'cross_zone';
 }
 
-async function saveIndividualSettings() {
+async function saveGroupSettings() {
   const payload = { telegram_rating_change_sensitivity: document.getElementById('tgRatingSensitivity').value };
   ALERT_CATEGORIES.forEach(cat => {
-    payload[`telegram_${cat.key}_individual_markets`] = Array.from(
-      document.querySelectorAll(`.cat-ind-toggle[data-cat="${cat.key}"]:checked`)
-    ).map(el => el.dataset.market);
     if (cat.hasGroup) {
-      payload[`telegram_${cat.key}_group_markets`] = Array.from(
-        document.querySelectorAll(`.cat-grp-toggle[data-cat="${cat.key}"]:checked`)
+      payload['telegram_' + cat.key + '_group_markets'] = Array.from(
+        document.querySelectorAll('.cat-grp-toggle[data-cat="' + cat.key + '"]:checked')
       ).map(el => el.dataset.market);
     }
   });
   const res = await API.put('/admin/platform-config', payload);
   if (res && !res.error) {
-    Toast.show('Alert category settings saved', 'success');
+    Toast.show('Shared group settings saved', 'success');
   } else {
     Toast.show(res?.error || 'Failed to save', 'error');
   }
@@ -343,7 +339,7 @@ function renderChannelsTable() {
   if (!allChannels.length) {
     wrap.innerHTML = `<div class="p-4 text-center text-muted">
       <i class="bi bi-people" style="font-size:1.8rem;opacity:.3"></i>
-      <p class="mt-2 mb-0">No group channels yet — every market's alerts currently only go to individual subscribers.</p>
+      <p class="mt-2 mb-0">No primary group configured yet — automatic Telegram delivery is currently skipped.</p>
     </div>`;
     return;
   }
@@ -479,7 +475,7 @@ document.addEventListener('app:ready', () => {
   document.getElementById('tgBroadcastBtn').style.display = isSuperAdmin ? '' : 'none';
   document.getElementById('tgBroadcastMsg').disabled = !isSuperAdmin;
   document.getElementById('tgRatingSensitivity').disabled = !isSuperAdmin;
-  document.getElementById('saveIndividualBtn').addEventListener('click', saveIndividualSettings);
+  document.getElementById('saveIndividualBtn').addEventListener('click', saveGroupSettings);
   document.getElementById('addChannelBtn').addEventListener('click', () => openChannelModal());
   document.getElementById('tgBroadcastBtn').addEventListener('click', sendTelegramBroadcast);
   document.getElementById('saveChannelBtn').addEventListener('click', saveChannel);

@@ -22,7 +22,7 @@ def test_notification_worker_uses_deterministic_pending_order():
     assert "Telegram delivery was not accepted" in source
 
 
-def test_telegram_delivery_failure_releases_claim_for_retry(app):
+def test_legacy_personal_telegram_row_is_skipped_without_retry(app):
     from unittest.mock import patch
 
     from app.extensions import db
@@ -49,11 +49,12 @@ def test_telegram_delivery_failure_releases_claim_for_retry(app):
             send_pending_notifications(app)
 
         db.session.refresh(notification)
-        assert notification.is_sent is False
-        assert notification.sent_at is None
+        assert notification.is_sent is True
+        assert notification.delivery_status == "skipped"
+        assert notification.skipped_reason == "telegram_group_only"
 
 
-def test_notification_delivery_becomes_dead_letter_after_bounded_retries(app):
+def test_legacy_personal_telegram_row_never_retries(app):
     from unittest.mock import patch
 
     from app.extensions import db
@@ -83,6 +84,7 @@ def test_notification_delivery_becomes_dead_letter_after_bounded_retries(app):
                 send_pending_notifications(app)
 
         db.session.refresh(notification)
-        assert notification.attempt_count == 3
-        assert notification.delivery_status == "dead_letter"
+        assert notification.attempt_count == 1
+        assert notification.delivery_status == "skipped"
+        assert notification.skipped_reason == "telegram_group_only"
         assert notification.next_attempt_at is None

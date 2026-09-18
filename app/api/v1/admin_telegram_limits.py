@@ -21,6 +21,12 @@ def _available_timeframes():
 @admin_telegram_limits_bp.route("/telegram-signal-limits", methods=["GET"])
 @admin_required
 def get_telegram_signal_limits():
+    return jsonify({
+        "error": "Individual Telegram delivery is disabled; use the shared group alert settings.",
+        "code": "telegram_individual_disabled",
+        "blocked": True,
+    }), 410
+
     assets = Asset.query.filter_by(is_active=True).order_by(Asset.market, Asset.symbol).all()
     return jsonify({
         "settings": TelegramIndividualSignalLimit.get_singleton().to_dict(),
@@ -40,6 +46,12 @@ def get_telegram_signal_limits():
 @admin_telegram_limits_bp.route("/telegram-signal-limits", methods=["PUT"])
 @super_admin_required
 def update_telegram_signal_limits():
+    return jsonify({
+        "error": "Individual Telegram delivery is disabled; use the shared group alert settings.",
+        "code": "telegram_individual_disabled",
+        "blocked": True,
+    }), 410
+
     data = request.get_json(silent=True) or {}
     assets = Asset.query.filter_by(is_active=True).all()
     active_asset_ids = {asset.id for asset in assets}
