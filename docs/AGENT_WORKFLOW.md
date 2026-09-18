@@ -191,3 +191,4 @@ and the pipeline is confirmed live end-to-end.
 - The user's original Oracle-provisioned key (`ssh-key-2026-08-29`) is
   still in `authorized_keys` too — that one is the user's own, don't
   remove it.
+# CI verification test Fri Sep 18 14:28:15 UTC 2026
