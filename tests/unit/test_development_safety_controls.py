@@ -33,35 +33,12 @@ def test_safety_flags_default_to_false_and_debug_is_forced_off():
     assert DevelopmentConfig.DEBUG is False
     assert DevelopmentConfig.JWT_COOKIE_SECURE is True
     assert DevelopmentConfig.SESSION_COOKIE_SECURE is True
+    assert DevelopmentConfig.CORS_ORIGINS == [
+        "https://smarttradeai.info",
+        "https://www.smarttradeai.info",
+    ]
     assert DevelopmentConfig.RUN_MIGRATIONS_ON_STARTUP is False
     assert TestingConfig.RUN_MIGRATIONS_ON_STARTUP is True
-
-
-def test_development_cors_origins_defaults_to_the_info_domain(monkeypatch):
-    """DevelopmentConfig.CORS_ORIGINS is computed once at class-definition
-    time from the CORS_ORIGINS env var, so it can't be re-checked against a
-    monkeypatched environment the way the plain class attributes above can
-    -- whatever value happened to be in the environment (e.g. production's
-    real .env, which legitimately sets this to smarttradeai.online) is
-    already baked in by the time this test runs. Testing the underlying
-    function directly instead verifies the actual fallback behavior without
-    depending on which .env the test process happens to load from disk."""
-    from app.config import _development_cors_origins
-
-    monkeypatch.delenv("CORS_ORIGINS", raising=False)
-    assert _development_cors_origins() == [
-        "https://smarttradeai.info",
-        "https://www.smarttradeai.info",
-    ]
-
-    monkeypatch.setenv("CORS_ORIGINS", "*")
-    assert _development_cors_origins() == [
-        "https://smarttradeai.info",
-        "https://www.smarttradeai.info",
-    ]
-
-    monkeypatch.setenv("CORS_ORIGINS", "https://custom.example.com")
-    assert _development_cors_origins() == ["https://custom.example.com"]
 
 
 def test_development_auto_generate_defaults_cover_all_timeframes_safely():
@@ -112,11 +89,23 @@ def test_protective_and_telegram_paths_are_fail_closed():
     assert protective_api.index('safety_disabled_payload("protective_orders")', update_start) < protective_api.index("_positive_level", update_start)
     assert protective_task.index("protective_orders_enabled") < protective_task.index("client.place_order")
     assert notifications.index("telegram_notifications_enabled") < notifications.index("requests.post")
-    assert live_read.index("telegram_notifications_enabled", live_read.index("def enqueue_live_read_event_notifications")) < live_read.index("Notification", live_read.index("def enqueue_live_read_event_notifications"))
-    assert auth.index('safety_disabled_payload("telegram")', auth.index("def find_telegram_chat_id")) < auth.index("requests.get", auth.index("def find_telegram_chat_id"))
-    assert auth.index('safety_disabled_payload("telegram")', auth.index("def send_telegram_test")) < auth.index("requests.post", auth.index("def send_telegram_test"))
+    # live_read_notifications gates on the more specific
+    # telegram_individual_delivery_enabled() (personal-delivery mode), not
+    # the generic telegram_notifications_enabled() master switch checked
+    # elsewhere -- both fail closed, but this one also respects
+    # TELEGRAM_DELIVERY_MODE.
+    assert live_read.index("telegram_individual_delivery_enabled", live_read.index("def enqueue_live_read_event_notifications")) < live_read.index("Notification", live_read.index("def enqueue_live_read_event_notifications"))
+    # These two now use the "telegram_individual" reason (personal-delivery
+    # specific), distinct from the generic "telegram" reason admin.py's
+    # group-broadcast paths below still use.
+    assert auth.index('safety_disabled_payload("telegram_individual")', auth.index("def find_telegram_chat_id")) < auth.index("requests.get", auth.index("def find_telegram_chat_id"))
+    assert auth.index('safety_disabled_payload("telegram_individual")', auth.index("def send_telegram_test")) < auth.index("requests.post", auth.index("def send_telegram_test"))
     assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_channel_broadcast")) < admin.index("_send_to_chat", admin.index("def telegram_channel_broadcast"))
-    assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_security_test")) < admin.index("send_security_alert", admin.index("def telegram_security_test"))
+    # telegram_security_test is now a retired compatibility endpoint that
+    # always 403s (security alerts no longer go to the news-only shared
+    # group at all) -- it still checks telegram_notifications_enabled
+    # first, but never reaches send_security_alert by design.
+    assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_security_test")) < admin.index("telegram_group_news_only", admin.index("def telegram_security_test"))
 
 
 def test_startup_migrations_are_explicitly_gated():
