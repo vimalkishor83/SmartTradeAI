@@ -107,6 +107,7 @@
              (type="button"), so this changes nothing about how saving
              actually works. -->
         <form id="telegramForm" onsubmit="return false">
+        <input type="text" id="telegramFormUsername" autocomplete="username" style="display:none" aria-hidden="true" tabindex="-1" />
         <div class="mb-3">
           <label class="form-label" for="telegramBotToken">Telegram Bot Token</label>
           <input type="password" class="form-control" id="telegramBotToken" placeholder="Leave blank to keep your saved token" autocomplete="new-password" name="telegram-bot-token-not-a-login-field" />
@@ -131,6 +132,7 @@
       <div class="section-card-header"><span class="section-card-title"><i class="bi bi-lock text-accent"></i> Change Password</span></div>
       <div class="section-card-body">
         <form id="pwdForm">
+        <input type="text" id="pwdFormUsername" autocomplete="username" style="display:none" aria-hidden="true" tabindex="-1" />
         <div class="mb-3"><label class="form-label" for="curPwd">Current Password</label><input type="password" class="form-control" id="curPwd" autocomplete="current-password" /></div>
           <div class="mb-3"><label class="form-label" for="newPwd">New Password</label><input type="password" class="form-control" id="newPwd" autocomplete="new-password" /></div>
           <button type="submit" class="btn btn-primary">Update Password</button>
@@ -435,6 +437,14 @@ document.addEventListener('app:ready', async () => {
   document.getElementById('emailNotif').checked = user.email_notifications;
   document.getElementById('telegramNotif').checked = user.telegram_enabled;
   document.getElementById('telegramId').value = user.telegram_chat_id || '';
+  // Hidden username fields (see the <form>s above) -- present purely so a
+  // password manager can correctly associate the saved credential with an
+  // identifier, per the browser's own "password forms should have a
+  // username field" accessibility advisory. Never submitted anywhere;
+  // both forms are already fully JS-driven.
+  const identifier = user.email || user.username || '';
+  document.getElementById('telegramFormUsername').value = identifier;
+  document.getElementById('pwdFormUsername').value = identifier;
   // The token itself is never sent back by the API (only whether one's on
   // file) — so the field always starts blank; this just tells the user
   // what "blank" actually means here instead of leaving it ambiguous.
