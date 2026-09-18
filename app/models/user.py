@@ -167,6 +167,9 @@ class User(db.Model):
     # Per-user AI Insights defaults. The API validates the JSON shape and
     # active asset IDs before persisting it.
     ai_insights_preferences = db.Column(db.JSON, default=dict)
+    # Per-user dashboard signal view preference. Kept separate from AI
+    # Insights because this controls the live dashboard, not analysis setup.
+    dashboard_preferences = db.Column(db.JSON, default=dict)
 
     # Two-Factor Authentication
     totp_secret       = db.Column(db.String(64), nullable=True)
@@ -262,6 +265,7 @@ class User(db.Model):
             "risk_per_trade_pct": self.risk_per_trade_pct or 1.0,
             "min_confidence_filter": self.min_confidence_filter if self.min_confidence_filter is not None else 60,
             "totp_enabled": self.totp_enabled,
+            "dashboard_preferences": self.dashboard_preferences or {"timeframe": "1h"},
             "last_login": self.last_login.isoformat() if self.last_login else None,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }

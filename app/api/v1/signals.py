@@ -1141,6 +1141,10 @@ def get_signals():
     market = request.args.get("market")
     asset_id = request.args.get("asset_id", type=int)
     timeframe = request.args.get("timeframe")
+    # The dashboard's explicit "All timeframes" choice means no timeframe
+    # predicate. Other callers retain the existing single-timeframe behavior.
+    if timeframe == "all":
+        timeframe = None
     signal_type = request.args.get("signal_type")
     min_confidence = bounded_float(request.args.get("min_confidence", 0), default=0, minimum=0, maximum=100)
     page = bounded_page(request.args.get("page", 1))

@@ -28,6 +28,36 @@ _DEFAULT_AI_INSIGHT_PREFERENCES = {
     "timeframes": ["1h", "4h", "1d"],
 }
 
+_DASHBOARD_TIMEFRAMES = ("all", "1m", "5m", "15m", "30m", "1h", "2h", "4h", "1d")
+_DEFAULT_DASHBOARD_PREFERENCES = {"timeframe": "1h"}
+
+
+def _dashboard_timeframe_options() -> list[str]:
+    """Return the user-selectable dashboard timeframes in platform order."""
+    from app.services.platform_config import get_display_timeframes
+    configured = get_display_timeframes()
+    return ["all"] + [tf for tf in configured if tf in _DASHBOARD_TIMEFRAMES[1:]]
+
+
+def _normalise_dashboard_preferences(data: dict | None) -> dict:
+    data = data if isinstance(data, dict) else {}
+    raw_timeframe = data.get("timeframe", _DEFAULT_DASHBOARD_PREFERENCES["timeframe"])
+    if not isinstance(raw_timeframe, str):
+        raise ValueError("timeframe must be text")
+    timeframe = raw_timeframe.strip()
+    options = _dashboard_timeframe_options()
+    if timeframe not in options:
+        raise ValueError("timeframe is not supported by the platform")
+    return {"timeframe": timeframe}
+
+
+def _current_dashboard_preferences(user) -> dict:
+    try:
+        return _normalise_dashboard_preferences(user.dashboard_preferences)
+    except ValueError:
+        from app.services.platform_config import get_terminal_default_timeframe
+        return {"timeframe": get_terminal_default_timeframe()}
+
 
 def _normalise_ai_insight_preferences(data: dict | None, *, validate_asset: bool = False) -> dict:
     """Validate the small, user-owned setup used by the AI Insights page."""
@@ -981,6 +1011,29 @@ def save_ai_insights_preferences():
     user.ai_insights_preferences = preferences
     db.session.commit()
     return jsonify({"message": "AI Insights defaults saved", "preferences": preferences}), 200
+
+
+@auth_bp.route("/me/dashboard-preferences", methods=["GET"])
+@login_required
+def get_dashboard_preferences():
+    user = get_current_user()
+    return jsonify({"preferences": _current_dashboard_preferences(user)}), 200
+
+
+@auth_bp.route("/me/dashboard-preferences", methods=["PUT"])
+@login_required
+def save_dashboard_preferences():
+    user = get_current_user()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "request body must be a JSON object"}), 400
+    try:
+        preferences = _normalise_dashboard_preferences(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    user.dashboard_preferences = preferences
+    db.session.commit()
+    return jsonify({"message": "Dashboard preferences saved", "preferences": preferences}), 200
 
 
 def _audit(user_id, action, resource, resource_id, status="success"):

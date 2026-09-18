@@ -106,3 +106,16 @@ def test_dashboard_signal_table_exposes_trade_lifecycle_context():
     assert "<th>Target 1</th>" in page
     assert "<th>P&amp;L</th>" in page
     assert 'colspan="12"' in page
+
+
+def test_dashboard_timeframe_selector_supports_all_and_persisted_preferences():
+    source = TEMPLATE.read_text(encoding="utf-8")
+    page = PAGE.read_text(encoding="utf-8")
+
+    assert '<option value="all">All Timeframes</option>' in page
+    assert "loadDashboardTimeframePreference" in source
+    assert "saveDashboardTimeframePreference" in source
+    assert "'/auth/me/dashboard-preferences'" in source
+    assert "tf === 'all' ? 100 : 12" in source
+    assert "if (tf !== 'all') params.timeframe = tf" in source
+    assert "all timeframes" in source
