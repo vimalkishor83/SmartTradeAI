@@ -43,7 +43,7 @@ _DELTA_SCREENER_UNIVERSE_BUILD_LOCK = threading.Lock()
 _DELTA_INDICATOR_UNIVERSE_BUILD_LOCK = threading.Lock()
 
 SCAN_FILTERS = [
-    "strong_buy", "strong_sell", "breakout", "breakdown",
+    "strong_buy", "buy", "strong_sell", "sell", "breakout", "breakdown",
     "volume_spike", "52w_high", "52w_low", "gap_up", "gap_down",
     "rsi_oversold", "rsi_overbought",
 ]
@@ -517,11 +517,17 @@ def _apply_filters(df, ind, filters, timeframe: str = "1d") -> list:
 
     checks = {
         "strong_buy": ema20 > ema50 and macd_hist > 0 and 50 < rsi < 70,
+        # Broader than strong_buy: trend + momentum direction agree (EMA20
+        # above EMA50, MACD histogram positive), but without strong_buy's
+        # tighter RSI band -- a genuinely weaker/wider bullish condition
+        # rather than an alias of strong_buy under a different label.
+        "buy": ema20 > ema50 and macd_hist > 0,
         # Mirror of strong_buy's bounded RSI band — previously only checked
         # `rsi < 50` with no lower bound, so it fired even at RSI=5 (deeply
         # oversold), self-contradicting rsi_oversold (a bounce candidate, not
         # a fresh sell signal) for the exact same asset.
         "strong_sell": ema20 < ema50 and macd_hist < 0 and 30 < rsi < 50,
+        "sell": ema20 < ema50 and macd_hist < 0,
         "breakout": close > high_52 * 0.99,
         "breakdown": close < low_52 * 1.01,
         "volume_spike": avg_vol > 0 and curr_vol > avg_vol * 2,
