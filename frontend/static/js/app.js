@@ -910,6 +910,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       let _wsStaleTimer = null;
       let _wsConnectedAt = null;
       let _lastTickerAt = null;
+      // Background tabs can pause timers and ticker delivery. Give a connected
+      // socket a short resume grace period instead of treating that pause as an
+      // outage, then return to the normal freshness check.
+      let _wsResumeGraceUntil = 0;
 
       function _wsSetStatus(state) {
         if (!_wsDot) return;
@@ -919,14 +923,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('wsStatusBadge')?.setAttribute('title', labels[state] || 'Live data connection');
       }
 
+      function _wsCheckFreshness() {
+        if (!socket.connected || document.visibilityState === 'hidden') return;
+
+        const now = Date.now();
+        if (_wsResumeGraceUntil && now < _wsResumeGraceUntil) {
+          _wsSetStatus('live');
+          return;
+        }
+
+        const lastEvent = _lastTickerAt || _wsConnectedAt;
+        if (lastEvent && now - lastEvent > 30000) _wsSetStatus('delayed');
+        else _wsSetStatus('live');
+      }
+
       function _wsStartFreshnessWatch() {
         clearInterval(_wsStaleTimer);
-        _wsStaleTimer = setInterval(() => {
-          if (!socket.connected) return;
-          const lastEvent = _lastTickerAt || _wsConnectedAt;
-          if (lastEvent && Date.now() - lastEvent > 30000) _wsSetStatus('delayed');
-          else _wsSetStatus('live');
-        }, 5000);
+        _wsStaleTimer = setInterval(_wsCheckFreshness, 5000);
       }
 
       socket.on('connect', () => {
@@ -934,6 +947,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         _wsStaleSince = null;
         _wsConnectedAt = Date.now();
         _lastTickerAt = null;
+        _wsResumeGraceUntil = 0;
         _wsStartFreshnessWatch();
         socket.emit('subscribe_all_tickers');
         socket.emit('subscribe_signals', { market: 'all' });
@@ -943,11 +957,29 @@ document.addEventListener('DOMContentLoaded', async () => {
       socket.on('disconnect', () => {
         _wsSetStatus('offline');
         _wsStaleSince = Date.now();
+        _wsResumeGraceUntil = 0;
         clearInterval(_wsStaleTimer);
       });
 
       socket.on('connect_error', () => {
         _wsSetStatus('offline');
+      });
+
+      // A hidden tab can legitimately miss ticker events while the browser
+      // throttles background work. Re-arm the watch on resume and allow the
+      // connected stream to prove freshness again before showing "Delayed".
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') {
+          clearInterval(_wsStaleTimer);
+          return;
+        }
+        if (!socket.connected) {
+          _wsSetStatus('offline');
+          return;
+        }
+        _wsResumeGraceUntil = Date.now() + 30000;
+        _wsSetStatus('live');
+        _wsStartFreshnessWatch();
       });
 
       socket.on('reconnect_attempt', () => {
