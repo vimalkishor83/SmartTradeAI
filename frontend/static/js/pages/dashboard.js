@@ -12,6 +12,7 @@ let _signalsRequestId = 0;
 let _heatmapRequestId = 0;
 let _opportunityHideTimer = null;
 let _opportunityInspectorPinned = false;
+let _dashboardTimeframeLoaded = false;
 
 const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = (v ?? '—'); };
 const numberOr = (value, fallback = null) => {
@@ -259,8 +260,14 @@ function loadOpportunityRadar(signals) {
   if (!wrap) return;
   _hideOpportunityInspector(true);
   const seen = new Set();
+  const allTimeframes = document.getElementById('globalTimeframe')?.value === 'all';
   const top = (Array.isArray(signals) ? signals : [])
-    .filter(s => { if (!s?.asset_id || seen.has(s.asset_id)) return false; seen.add(s.asset_id); return true; })
+    .filter(s => {
+      const key = allTimeframes ? `${s?.asset_id}:${s?.timeframe}` : s?.asset_id;
+      if (!s?.asset_id || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
     .sort((a, b) => numberOr(b?.confidence_score, 0) - numberOr(a?.confidence_score, 0))
     .slice(0, 5);
   if (!top.length) {
@@ -278,7 +285,7 @@ function loadOpportunityRadar(signals) {
     return `<article class="opp-card" role="button" tabindex="0" aria-expanded="false" aria-controls="inspectorCard" data-opportunity-id="${opportunityId}" aria-label="${label}">
       <div class="opp-top">
         <div class="opp-name">${STSafe.html(s.asset)}</div>
-        <span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span>
+        <span class="d-flex align-items-center gap-1"><span class="badge-tag">${STSafe.html(s.timeframe || '—')}</span><span class="opp-badge" style="color:${tag.c};border-color:${tag.c}">${tag.t}</span></span>
       </div>
       <div class="opp-conf" style="color:${tag.c}">${conf.toFixed(0)}%</div>
       <div id="${STSafe.domId('oppspk_', s.id)}" class="opp-spark"></div>
@@ -350,7 +357,8 @@ async function loadSignals(page) {
   const market = document.getElementById('signalMarketFilter')?.value || '';
   const type = document.getElementById('signalTypeFilter')?.value || '';
   const tf = document.getElementById('globalTimeframe')?.value || '1h';
-  const params = { page, per_page: 12, timeframe: tf };
+  const params = { page, per_page: tf === 'all' ? 100 : 12 };
+  if (tf !== 'all') params.timeframe = tf;
   if (market) params.market = market;
   if (type) params.signal_type = type;
 
@@ -366,7 +374,7 @@ async function loadSignals(page) {
   _renderSignals(_signalData);
   loadOpportunityRadar(_signalData);
 
-  set('signalCount', countOr(data.total) + ' active');
+  set('signalCount', countOr(data.total) + ' active' + (tf === 'all' ? ' · all timeframes' : ''));
   const pag = document.getElementById('signalPagination');
   const pages = Math.min(Math.max(1, countOr(data.pages) || 1), 7);
   if (pag) {
@@ -752,7 +760,9 @@ async function _generateSignal() {
   if (!top?.asset) { location = '/auto-generate'; return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Generating…'; }
   try {
-    const res = await API.post('/signals/generate', { symbol: top.asset, timeframe: document.getElementById('globalTimeframe')?.value || '1h' });
+    const selectedTimeframe = document.getElementById('globalTimeframe')?.value || '1h';
+    const generationTimeframe = selectedTimeframe === 'all' ? (top.timeframe || '1h') : selectedTimeframe;
+    const res = await API.post('/signals/generate', { symbol: top.asset, timeframe: generationTimeframe });
     if (typeof toast === 'function') toast(res?.error || res?.message || 'Signal generated', res?.signal ? 'success' : 'info');
   } catch (_) { }
   if (btn) { btn.disabled = false; btn.innerHTML = '<i class="bi bi-magic me-1"></i>Generate Signal'; }
@@ -793,17 +803,45 @@ function loadAll() {
   return _dashboardLoadPromise;
 }
 
+async function loadDashboardTimeframePreference() {
+  const select = document.getElementById('globalTimeframe');
+  if (!select) return;
+  try {
+    const data = await API.get('/auth/me/dashboard-preferences');
+    const timeframe = data?.preferences?.timeframe;
+    if (timeframe && Array.from(select.options).some(option => option.value === timeframe)) {
+      select.value = timeframe;
+    }
+  } catch (_) {
+    // A preference failure must not block dashboard data from loading.
+  } finally {
+    _dashboardTimeframeLoaded = true;
+  }
+}
+
+async function saveDashboardTimeframePreference(timeframe) {
+  try {
+    await API.put('/auth/me/dashboard-preferences', { timeframe });
+  } catch (_) {
+    if (typeof toast === 'function') toast('Dashboard timeframe could not be saved.', 'warning');
+  }
+}
+
 document.addEventListener('app:ready', () => {
   if (_dashboardBooted) return;
   _dashboardBooted = true;
   _chartDefaults();
   populateMarketSelect(document.getElementById('signalMarketFilter'), { includeAll: true });
-  loadAll();
+  loadDashboardTimeframePreference().finally(loadAll);
 
   document.getElementById('refreshAll')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
   document.getElementById('dashboardRetry')?.addEventListener('click', () => { _aiSummaryCache = null; loadAll(); });
   document.getElementById('generateSignalBtn')?.addEventListener('click', _generateSignal);
-  document.getElementById('globalTimeframe')?.addEventListener('change', () => loadSignals(1));
+  document.getElementById('globalTimeframe')?.addEventListener('change', event => {
+    const timeframe = event.target.value;
+    if (_dashboardTimeframeLoaded) saveDashboardTimeframePreference(timeframe);
+    loadSignals(1);
+  });
   document.getElementById('signalMarketFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('signalTypeFilter')?.addEventListener('change', () => loadSignals(1));
   document.getElementById('inspectorCard')?.addEventListener('mouseenter', () => clearTimeout(_opportunityHideTimer));

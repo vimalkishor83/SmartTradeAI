@@ -1,6 +1,24 @@
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def _broker_connections_enabled(app):
+    """These tests exercise POST /broker/connect's request-body/provider
+    validation specifically -- they predate the BROKER_CONNECTIONS_ENABLED
+    safety gate (app/services/safety.py::broker_connections_enabled(),
+    checked first in the route and short-circuiting to 403 before any of
+    this validation runs), which the development environment now sets to
+    disabled by default. Enabling it just for this module's tests restores
+    coverage of the validation logic without touching the gate itself or
+    any other environment's configured value -- the gate's own on/off
+    behavior isn't what's under test here.
+    """
+    previous = app.config.get("BROKER_CONNECTIONS_ENABLED")
+    app.config["BROKER_CONNECTIONS_ENABLED"] = True
+    yield
+    app.config["BROKER_CONNECTIONS_ENABLED"] = previous
+
+
 @pytest.fixture
 def broker_headers(app):
     with app.app_context():

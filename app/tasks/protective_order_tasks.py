@@ -239,7 +239,8 @@ def _notify_trigger(order, asset, current_price, label, executed):
         broadcast_notification(user.id, title, msg)
     except Exception:
         pass
-    if user.telegram_enabled and user.telegram_chat_id:
+    from app.services.safety import telegram_individual_delivery_enabled
+    if telegram_individual_delivery_enabled() and user.telegram_enabled and user.telegram_chat_id:
         try:
             from app.services.platform_config import get_platform_config
             from app.tasks.notification_tasks import _market_enabled

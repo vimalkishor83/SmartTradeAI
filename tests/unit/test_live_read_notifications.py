@@ -25,7 +25,7 @@ def _live_row(asset):
     )
 
 
-def test_live_read_event_queue_is_user_scoped_and_idempotent(app):
+def test_live_read_telegram_events_are_skipped_in_group_only_mode(app):
     from app.services.platform_config import invalidate_platform_config
     from app.services.signals.live_read_notifications import (
         enqueue_live_read_event_notifications,
@@ -56,10 +56,10 @@ def test_live_read_event_queue_is_user_scoped_and_idempotent(app):
 
         queued = enqueue_live_read_event_notifications(row, current, row.event_history)
         db.session.commit()
-        assert queued == 2
+        assert queued == 0
         assert Notification.query.filter_by(
             user_id=owner.id, notification_type="terminal_signal_event",
-        ).count() == 2
+        ).count() == 0
 
         queued_again = enqueue_live_read_event_notifications(row, current, row.event_history)
         db.session.commit()
@@ -69,9 +69,7 @@ def test_live_read_event_queue_is_user_scoped_and_idempotent(app):
         ).count() == 2
 
         notifications = Notification.query.filter_by(user_id=owner.id).all()
-        assert any("TARGET 1 HIT" in item.title for item in notifications)
-        assert any("TRAILING STOP ACTIVATED" in item.title for item in notifications)
-        assert all("TARGET 1 HIT" not in item.message for item in notifications)
+        assert notifications == []
 
 
 def test_live_read_telegram_footer_has_disclaimer_link_and_context_gap(app):

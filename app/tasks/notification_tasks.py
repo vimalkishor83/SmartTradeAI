@@ -78,6 +78,13 @@ def send_pending_notifications(app):
         users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
 
         for notif in eligible:
+            # Legacy personal Telegram rows must never retry or reach a user
+            # bot/chat now that delivery is group-only.
+            if notif.channel == "telegram":
+                if _claim_notification(notif):
+                    notif.delivery_status = "skipped"
+                    notif.skipped_reason = "telegram_group_only"
+                continue
             user = users_by_id.get(notif.user_id)
             if not user:
                 notif.delivery_status = "skipped"
@@ -190,52 +197,38 @@ def _telegram_token_for(user) -> str | None:
 
 
 def _send_telegram(user, text: str):
-    from app.services.safety import telegram_notifications_enabled
-    if not telegram_notifications_enabled():
-        logger.info("Telegram user delivery blocked by environment safety gate")
+    """Send one opted-in personal alert without ever using a group chat."""
+    from app.services.safety import telegram_individual_delivery_enabled
+
+    if not telegram_individual_delivery_enabled():
+        logger.info("Individual Telegram delivery blocked by environment safety gate")
+        return False
+    if not user or not user.telegram_enabled or not user.telegram_chat_id:
+        return False
+
+    token = _telegram_token_for(user)
+    if not token:
+        logger.info("Individual Telegram delivery skipped because no bot token is configured")
         return False
 
     try:
         import requests
-        token = _telegram_token_for(user)
-        if not token or not user.telegram_chat_id:
-            # telegram_enabled=True with no token/chat_id yet is a normal,
-            # common in-progress setup state (the Settings page's own "Find
-            # my Chat ID" step requires messaging the bot first) — but it
-            # was previously indistinguishable from every alert silently
-            # never arriving. One clear line per user per run is cheap and
-            # shows up in the admin System Logs viewer, unlike the request-
-            # scoped logger this file otherwise uses.
-            logger.warning(
-                f"Telegram alert skipped for user {user.id} ({user.username}): "
-                f"{'no bot token configured' if not token else 'no chat_id saved yet'}"
-            )
-            return False
-        resp = requests.post(
+
+        response = requests.post(
             f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": user.telegram_chat_id, "text": text, "parse_mode": "Markdown"},
+            json={
+                "chat_id": user.telegram_chat_id,
+                "text": text,
+                "parse_mode": "Markdown",
+            },
             timeout=5,
         )
-        # A rejected message (bad token, wrong/blocked chat_id, bot removed
-        # from the chat) comes back as a normal 400/403 JSON body, not a
-        # network exception — requests never raises for that on its own,
-        # so this previously "succeeded" from this function's point of view
-        # no matter what Telegram actually did with it.
-        if not resp.ok:
-            logger.warning(
-                f"Telegram alert rejected for user {user.id} ({user.username}): "
-                f"HTTP {resp.status_code} — {resp.text[:200]}"
-            )
+        if not response.ok:
+            logger.warning("Individual Telegram delivery rejected with HTTP %s", response.status_code)
             return False
         return True
-    except Exception as e:
-        # user is sometimes not the User object the type hint promises (seen
-        # live: "'str' object has no attribute 'get_telegram_bot_token'") —
-        # every current call site does pass a real User, so logging what
-        # actually arrived here is the fastest way to catch whichever one
-        # doesn't the next time this fires, rather than re-auditing every
-        # call site by eye again.
-        logger.error(f"Telegram send error: {e} (user was {type(user).__name__}: {user!r})")
+    except Exception as exc:
+        logger.error("Individual Telegram delivery failed: %s", type(exc).__name__)
         return False
 
 
@@ -295,90 +288,53 @@ def send_new_ip_login_alert(logged_in_user, ip: str, user_agent: str):
                 broadcast_notification(admin.id, title, body)
             except Exception:
                 pass
-            if admin.telegram_enabled and admin.telegram_chat_id:
-                _send_telegram(admin, text)
             if admin.push_enabled and admin.push_subscription:
                 try:
                     from app.services.push import send_push_to_user
                     send_push_to_user(admin, title, body, url="/admin/security")
                 except Exception:
                     pass
+        # Keep in-app/admin notifications above, but send this event only
+        # to the shared group; that destination is reserved for market news.
+        send_security_alert(text)
         db.session.commit()
     except Exception as e:
         logger.error(f"New-IP-login alert failed: {e}")
 
 
 def _send_to_chat(chat_id: str, text: str):
-    """Broadcasts one message to an arbitrary Telegram chat/group id using
-    the shared platform bot (TELEGRAM_BOT_TOKEN) — a group chat isn't any
-    individual user's own account, so this never falls back to a per-user
-    bot token the way _send_telegram does. No-ops silently if the bot
-    token isn't configured yet."""
-    try:
-        from app.services.safety import telegram_notifications_enabled
-        if not telegram_notifications_enabled():
-            logger.info("Telegram group delivery blocked by environment safety gate")
-            return False
-
-        from flask import current_app
-        token = current_app.config.get("TELEGRAM_BOT_TOKEN")
-        if not token or not chat_id:
-            return
-
-        import requests
-        resp = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
-            timeout=5,
-        )
-        if not resp.ok:
-            logger.warning(f"Telegram group broadcast rejected (chat {chat_id}): HTTP {resp.status_code} — {resp.text[:200]}")
-    except Exception as e:
-        logger.error(f"Telegram group broadcast error (chat {chat_id}): {e}")
-
+    from app.services.telegram_delivery import send_group_message
+    return send_group_message(text, chat_id=chat_id, category="news")
 
 def send_security_alert(text: str):
-    """Sends one message to the dedicated security-notifications Telegram
-    group (PlatformConfig.telegram_security_chat_id), using the shared
-    platform bot — same delivery mechanism as the trading-signal group
-    channels (_send_to_chat), just a different chat and a different
-    purpose (login activity, unauthorized admin access, anonymous
-    visits — never trading signals). No-ops silently if no chat id has
-    been configured yet. Callers check their own specific
-    telegram_security_notify_* toggle before calling this; this function
-    only handles delivery, not which events are enabled."""
-    try:
-        from app.services.platform_config import get_platform_config
-        chat_id = get_platform_config().get("telegram_security_chat_id")
-        if not chat_id:
-            return
-        _send_to_chat(chat_id, text)
-    except Exception as e:
-        logger.error(f"Security alert broadcast failed: {e}")
+    """Safely skip non-news security delivery because the shared group is news-only."""
+    from app.services.telegram_delivery import send_group_message
+    return send_group_message(text)
+
+def send_news_digest(items):
+    """Send a bounded digest of newly ingested news to the shared group."""
+    items = [item for item in (items or []) if item.get("title") and item.get("url")]
+    if not items:
+        return False
+
+    lines = ["📰 *SmartTrade AI — Market News*", ""]
+    for item in items[:8]:
+        title = str(item["title"]).strip()
+        source = str(item.get("source") or "News").strip()
+        lines.append(f"• *{title}*")
+        lines.append(f"  _{source}_ · {item['url']}")
+    if len(items) > 8:
+        lines.append(f"\n…and {len(items) - 8} more new articles.")
+
+    from app.services.telegram_delivery import send_group_message
+    return send_group_message("\n".join(lines), category="news")
 
 
 def _send_to_channels(text: str, market: str, category: str, timeframe: str | None = None):
-    """Fans one alert out to every active TelegramAlertChannel whose own
-    market list, timeframe list, and category toggle all match — e.g. a
-    "Crypto Scalpers" channel scoped to market="crypto",
-    timeframes=["1m","5m"] with alerts_signal=True only gets crypto
-    BUY/SELL signals on those two timeframes, while a "Swing" channel on
-    ["4h","1d"] never sees them. Replaces the old single global group
-    destination: different markets/timeframes legitimately want different
-    audiences and different alert mixes."""
-    try:
-        from app.services.safety import telegram_notifications_enabled
-        if not telegram_notifications_enabled():
-            logger.info("Telegram channel fan-out blocked by environment safety gate")
-            return 0
-
-        from app.models.telegram_alert_channel import TelegramAlertChannel
-        channels = TelegramAlertChannel.query.filter_by(is_active=True).all()
-        for channel in channels:
-            if channel.matches(market, category, timeframe):
-                _send_to_chat(channel.group_chat_id, text)
-    except Exception as e:
-        logger.error(f"Telegram channel fan-out error: {e}")
+    from app.services.telegram_delivery import send_group_message
+    return int(send_group_message(
+        text, market=market, category=category, timeframe=timeframe,
+    ))
 
 
 # ── MTF rating-change alerts (Delta Scanner / MTF Analysis) ─────────────────
@@ -461,11 +417,11 @@ def check_rating_changes(app):
         from app.models.user import User
         from app.services.platform_config import get_platform_config
         from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
+        from app.services.safety import telegram_individual_delivery_enabled
 
         cfg = get_platform_config()
-        # Fast bail-out only when NO market is enabled for EITHER delivery
-        # level — the actual per-market decision happens per-row below.
-        if not cfg.get("telegram_rating_change_individual_markets") and not cfg.get("telegram_rating_change_group_markets"):
+        # Rating changes are personal alerts; the shared group is news-only.
+        if not cfg.get("telegram_rating_change_individual_markets"):
             return
         sensitivity = cfg.get("telegram_rating_change_sensitivity", "cross_zone")
 
@@ -480,7 +436,6 @@ def check_rating_changes(app):
         for row in ema_rows:
             market = row.get("market")
             individual_on = _market_enabled(cfg, "telegram_rating_change_individual_markets", market)
-            group_on = _market_enabled(cfg, "telegram_rating_change_group_markets", market)
             tf_cells = row.get("tf") or {}
             for tf, cell in tf_cells.items():
                 if not cell or not cell.get("rating"):
@@ -495,14 +450,12 @@ def check_rating_changes(app):
                 # later compares against a stale rating from before it was
                 # disabled and could fire a misleading "change" for a shift
                 # that actually happened gradually while muted.
-                if old_rating and (individual_on or group_on) and _is_ratingchange_alertworthy(old_rating, new_rating, sensitivity):
+                if old_rating and individual_on and _is_ratingchange_alertworthy(old_rating, new_rating, sensitivity):
                     overall = _overall_trend_text(tf_cells)
                     text = _format_rating_change_telegram(
                         row["symbol"], tf, old_rating, new_rating, cell.get("reason", ""), overall
                     )
-                    if group_on:
-                        _send_to_channels(text, market, "rating_change", tf)
-                    if individual_on and individual_limit_allowed:
+                    if individual_on and individual_limit_allowed and telegram_individual_delivery_enabled():
                         if users is None:
                             users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                         for user in users:
@@ -593,6 +546,7 @@ def fire_signal_alerts(app):
 
         from app.services.platform_config import get_platform_config
         from app.services.notifications.telegram_individual_signal_limits import individual_signal_allowed
+        from app.services.safety import telegram_individual_delivery_enabled
         cfg = get_platform_config()
 
         cutoff = datetime.utcnow() - timedelta(minutes=6)
@@ -643,18 +597,7 @@ def fire_signal_alerts(app):
             tg_msg = _format_signal_telegram(sig, asset)
             tg_individual_allowed = _market_enabled(cfg, "telegram_signal_individual_markets", asset.market)
             tg_individual_signal_limit_allowed = individual_signal_allowed(sig.asset_id, sig.timeframe)
-            tg_group_allowed = _market_enabled(cfg, "telegram_signal_group_markets", asset.market)
-            # Once per signal, not once per user — this is a shared group,
-            # not an inbox each user gets their own copy of. Guarded the
-            # same way per-user sends are: cutoff is a 6-minute lookback on
-            # a 5-minute poll, so a signal can legitimately still be "new"
-            # on two consecutive runs — checking whether any user already
-            # has a logged notification for it is the same signal this
-            # already went out for.
-            if tg_group_allowed and not any(
-                (u.id, "signal_alert", asset.symbol) in already_sent for u in users
-            ):
-                _send_to_channels(tg_msg, asset.market, "signal", sig.timeframe)
+            # Signal alerts are personal only; the shared group is news-only.
             for user in users:
                 key = (user.id, "signal_alert", asset.symbol)
                 if key in already_sent:
@@ -671,6 +614,7 @@ def fire_signal_alerts(app):
                 except Exception:
                     pass
                 if (tg_individual_allowed and tg_individual_signal_limit_allowed
+                        and telegram_individual_delivery_enabled()
                         and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_msg)
                 if user.push_enabled and user.push_subscription:
@@ -710,11 +654,7 @@ def fire_signal_alerts(app):
             ) + _telegram_disclaimer()
             tg_close_individual_allowed = _market_enabled(cfg, "telegram_signal_closed_individual_markets", asset.market)
             tg_close_signal_limit_allowed = individual_signal_allowed(h.asset_id, h.timeframe)
-            tg_close_group_allowed = _market_enabled(cfg, "telegram_signal_closed_group_markets", asset.market)
-            if tg_close_group_allowed and not any(
-                (u.id, "signal_closed", asset.symbol) in already_sent for u in users
-            ):
-                _send_to_channels(tg_close, asset.market, "signal_closed", h.timeframe)
+            # Signal-close alerts are personal only; the shared group is news-only.
             for user in users:
                 key = (user.id, "signal_closed", asset.symbol)
                 if key in already_sent:
@@ -731,6 +671,7 @@ def fire_signal_alerts(app):
                 except Exception:
                     pass
                 if (tg_close_individual_allowed and tg_close_signal_limit_allowed
+                        and telegram_individual_delivery_enabled()
                         and user.telegram_enabled and user.telegram_chat_id):
                     _send_telegram(user, tg_close)
                 if user.push_enabled and user.push_subscription:
@@ -788,9 +729,8 @@ def send_daily_summary(app):
                 lines.append(f"  {icon} {sym} {h.signal_type} {h.pnl_pct:+.2f}%")
             text += "\n🔝 Top moves:\n" + "\n".join(lines)
 
-        for user in User.query.filter_by(is_active=True, telegram_enabled=True).all():
-            if user.telegram_chat_id:
-                _send_telegram(user, text)
+        from app.services.telegram_delivery import send_group_message
+        send_group_message(text)
 
 
 def register_notification_jobs(scheduler, app):

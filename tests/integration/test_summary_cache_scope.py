@@ -50,17 +50,34 @@ def test_ta_summary_cold_cache_keeps_the_full_active_universe(
     with app.app_context():
         cache.clear()
 
+    # The app's own _seed_initial_data() seeds several real crypto/forex
+    # assets on every fresh test database (BTCUSDT, ETHUSDT, EURUSD, ...),
+    # so a market=crypto response legitimately contains more than just
+    # this fixture's one asset -- asserting an exact single-item list was
+    # never a valid test of the actual behavior. What's worth proving here
+    # is the thing the test name says: a cold-cache build still populates
+    # the FULL active universe (not narrowed to whichever market the first
+    # request happened to ask for), so per-request market filtering keeps
+    # working correctly on the very next call. That means: this fixture's
+    # own asset shows up under its own market, and never leaks into the
+    # other market's response.
     first = client.get(
         "/api/v1/market-data/ta-summary?market=crypto", headers=summary_headers
     )
     assert first.status_code == 200
-    assert [row["id"] for row in first.get_json()["assets"]] == [summary_assets["crypto"]]
+    first_ids = [row["id"] for row in first.get_json()["assets"]]
+    assert summary_assets["crypto"] in first_ids
+    assert summary_assets["forex"] not in first_ids
+    assert all(row["market"] == "crypto" for row in first.get_json()["assets"])
 
     second = client.get(
         "/api/v1/market-data/ta-summary?market=forex", headers=summary_headers
     )
     assert second.status_code == 200
-    assert [row["id"] for row in second.get_json()["assets"]] == [summary_assets["forex"]]
+    second_ids = [row["id"] for row in second.get_json()["assets"]]
+    assert summary_assets["forex"] in second_ids
+    assert summary_assets["crypto"] not in second_ids
+    assert all(row["market"] == "forex" for row in second.get_json()["assets"])
 
 
 def test_ema_summary_cold_cache_keeps_the_full_active_universe(
@@ -74,14 +91,23 @@ def test_ema_summary_cold_cache_keeps_the_full_active_universe(
     with app.app_context():
         cache.clear()
 
+    # Same reasoning as test_ta_summary_cold_cache_keeps_the_full_active_universe
+    # above -- the seeded default assets mean an exact single-item list was
+    # never a valid assertion; what matters is correct per-market scoping.
     first = client.get(
         "/api/v1/market-data/ema-summary?market=crypto", headers=summary_headers
     )
     assert first.status_code == 200
-    assert [row["id"] for row in first.get_json()["assets"]] == [summary_assets["crypto"]]
+    first_ids = [row["id"] for row in first.get_json()["assets"]]
+    assert summary_assets["crypto"] in first_ids
+    assert summary_assets["forex"] not in first_ids
+    assert all(row["market"] == "crypto" for row in first.get_json()["assets"])
 
     second = client.get(
         "/api/v1/market-data/ema-summary?market=forex", headers=summary_headers
     )
     assert second.status_code == 200
-    assert [row["id"] for row in second.get_json()["assets"]] == [summary_assets["forex"]]
+    second_ids = [row["id"] for row in second.get_json()["assets"]]
+    assert summary_assets["forex"] in second_ids
+    assert summary_assets["crypto"] not in second_ids
+    assert all(row["market"] == "forex" for row in second.get_json()["assets"])
