@@ -49,6 +49,24 @@ class DeltaStreamManager:
         self._stop_event = threading.Event()
         self._app = None
         self._symbols: list[str] = []   # our symbols, e.g. ["BTCUSDT", ...]
+        # Real connection/message state, set from the WS callbacks below --
+        # a live socket.io/system-health surface previously reported this
+        # stream as permanently "idle" because it read a `running`/
+        # `_running` attribute this class never actually set (always None),
+        # regardless of whether the WebSocket was genuinely connected.
+        self._connected = False
+        self._last_message_ts: float | None = None
+        self._last_close_reason: str | None = None
+
+    def status(self) -> dict:
+        """Real-time connection state for health/status surfaces."""
+        with _lock:
+            return {
+                "connected": self._connected,
+                "last_message_ts": self._last_message_ts,
+                "last_close_reason": self._last_close_reason,
+                "thread_alive": bool(self._thread and self._thread.is_alive()),
+            }
 
     def start(self, app):
         """Start the stream in a background daemon thread."""
@@ -108,24 +126,41 @@ class DeltaStreamManager:
         delta_symbols = [to_delta_symbol(s) for s in symbols]
 
         def on_open(ws):
+            with _lock:
+                self._connected = True
+                self._last_close_reason = None
             sub = {
                 "type": "subscribe",
                 "payload": {"channels": [{"name": "v2/ticker", "symbols": delta_symbols}]},
             }
             ws.send(json.dumps(sub))
 
+        def on_error(ws, e):
+            logger.debug(f"DeltaStream WS error: {e}")
+            with _lock:
+                self._connected = False
+                self._last_close_reason = f"error: {type(e).__name__}"
+
+        def on_close(ws, code, msg):
+            logger.debug("DeltaStream WS closed")
+            with _lock:
+                self._connected = False
+                self._last_close_reason = f"closed (code={code})" if code else "closed"
+
         ws = websocket.WebSocketApp(
             self.WS_URL,
             on_open=on_open,
             on_message=self._on_message,
-            on_error=lambda ws, e: logger.debug(f"DeltaStream WS error: {e}"),
-            on_close=lambda ws, c, m: logger.debug("DeltaStream WS closed"),
+            on_error=on_error,
+            on_close=on_close,
         )
         # run_forever blocks until connection drops
         ws.run_forever(ping_interval=20, ping_timeout=10)
 
     def _on_message(self, ws, raw: str):
         """Handle incoming v2/ticker message."""
+        with _lock:
+            self._last_message_ts = time.time()
         try:
             msg = json.loads(raw)
             if msg.get("type") != "v2/ticker":

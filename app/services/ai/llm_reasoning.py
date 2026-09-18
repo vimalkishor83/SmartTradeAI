@@ -80,7 +80,24 @@ def _call_openai_compatible(base_url: str, api_key: str, model: str, prompt: str
     )
     resp.raise_for_status()
     data = resp.json()
-    return data["choices"][0]["message"]["content"].strip()
+    choice = data["choices"][0]
+    content = choice["message"]["content"].strip()
+    if not content and choice.get("finish_reason") == "length":
+        # openai/gpt-oss-20b (and other "reasoning" models) spend part of
+        # max_tokens on an internal reasoning trace before the real answer
+        # -- a low budget can exhaust itself entirely on that trace and
+        # return empty content with finish_reason="length" on every single
+        # call, not just occasionally. Confirmed live against a real Groq
+        # account: the same prompt at max_tokens=120 returned "" every
+        # time; raising the budget (see call sites) is the actual fix, but
+        # log this distinctly so a future model swap that reintroduces the
+        # same failure mode is diagnosable from logs alone.
+        logger.warning(
+            f"LLM call for {model} hit max_tokens before producing any content "
+            f"(reasoning_tokens={data.get('usage', {}).get('completion_tokens_details', {}).get('reasoning_tokens')}); "
+            "raise max_tokens for this model."
+        )
+    return content
 
 
 def _call_gemini(base_url: str, api_key: str, model: str, prompt: str, max_tokens: int = 120) -> str | None:
@@ -135,7 +152,14 @@ def generate_reasoning(direction: str, asset_symbol: str, timeframe: str, confid
     deterministic reasoning string on None, never surface an error."""
     try:
         prompt = _build_prompt(direction, asset_symbol, timeframe, confidence, regime, reasoning_detail)
-        text = _call_llm(prompt, max_tokens=120)
+        # 120 was tuned for a plain completion model's own answer length,
+        # but openai/gpt-oss-20b is a reasoning model that spends part of
+        # this budget on an internal trace before the real content --
+        # confirmed live that 120 left zero room for actual output
+        # (finish_reason="length", content always ""). 500 leaves comfortable
+        # headroom for the observed ~170 reasoning tokens plus the 1-2
+        # sentence answer this prompt asks for.
+        text = _call_llm(prompt, max_tokens=500)
         return text[:500] if text else None
     except Exception as e:
         logger.debug(f"LLM reasoning unavailable, falling back to rule-based text: {e}")
@@ -218,7 +242,10 @@ def answer_asset_question(asset_symbol: str, market: str, question: str, context
     available right now" message on None, never a generic error."""
     try:
         prompt = _build_question_prompt(asset_symbol, market, question, context)
-        text = _call_llm(prompt, max_tokens=350)
+        # See the matching comment in generate_reasoning() -- same reasoning-
+        # model token-budget issue, this prompt asks for up to 4 sentences
+        # so it gets more headroom than the 1-2 sentence signal narrative.
+        text = _call_llm(prompt, max_tokens=700)
         return text[:1200] if text else None
     except Exception as e:
         logger.debug(f"LLM asset Q&A unavailable: {e}")

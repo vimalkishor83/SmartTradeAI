@@ -1,0 +1,121 @@
+name: Rollback
+
+# KNOWN ISSUE (2026-09-18): rolling back "development" currently always
+# fails. smarttrade-deploy-rollback's own compose_config_guard rejects any
+# compose config whose volumes/networks match a "forbidden" pattern meant
+# to catch cross-environment contamination -- but the pattern used for the
+# development case includes the literal string "smarttrade-development",
+# which is also the prefix of development's own legitimate volume names
+# (smarttrade-development-postgres-data, smarttrade-development-redis-data).
+# The guard rejects development's config against itself every time. This is
+# a bug in that script (owned by Codex, not this workflow) -- flagged here
+# rather than worked around, since editing someone else's safety-critical
+# script without discussing it first is worse than a known limitation.
+# Production rollback does not have this problem (its volumes are
+# postgres_data/redis_data, which don't match its forbidden pattern) and
+# has been verified to pass the same guard check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Which environment to roll back
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+
+permissions:
+  contents: read
+
+jobs:
+  rollback:
+    name: Roll back ${{ github.event.inputs.environment }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Production rollback goes through the same required-reviewer gate as a
+    # production deploy -- rolling back is still a change to what's live.
+    # Development has no such environment configured, so this is a no-op
+    # gate for that choice.
+    environment: ${{ github.event.inputs.environment == 'production' && 'production' || '' }}
+    env:
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+      SERVER_HOST: 140.238.247.245
+      SERVER_USER: ubuntu
+      # Pinned server host key. This is public host identity material, not a secret.
+      SERVER_HOST_KEY: 140.238.247.245 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIETGjq7bv3bnXPVw9+6hhli2nob5qD0AJGjU5JJRGt+9
+
+    steps:
+      - name: Configure pinned server host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SERVER_HOST_KEY" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -F "$SERVER_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null
+
+      - name: Roll back
+        shell: bash
+        env:
+          DEVELOPMENT_DEPLOY_KEY: ${{ secrets.DEVELOPMENT_DEPLOY_KEY }}
+          PRODUCTION_DEPLOY_KEY: ${{ secrets.PRODUCTION_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ "$ENVIRONMENT" == production ]]; then
+            deploy_key="$PRODUCTION_DEPLOY_KEY"
+            confirm_flag="--confirm-production"
+          else
+            deploy_key="$DEVELOPMENT_DEPLOY_KEY"
+            confirm_flag=""
+          fi
+          [[ -n "$deploy_key" ]] || {
+            echo "::error::Deploy key for $ENVIRONMENT is not configured" >&2
+            exit 1
+          }
+
+          key_file="$RUNNER_TEMP/smarttradeai-rollback-key"
+          umask 077
+          printf '%s\n' "$deploy_key" > "$key_file"
+          trap 'rm -f -- "$key_file"' EXIT
+
+          ssh_cmd() {
+            ssh \
+              -i "$key_file" \
+              -o IdentitiesOnly=yes \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+              -o ConnectTimeout=15 \
+              "$SERVER_USER@$SERVER_HOST" \
+              "$@"
+          }
+
+          # The most recent .pre record captures the image that was live
+          # immediately before the most recent deploy -- rolling back to it
+          # is "undo the last deploy". smarttrade-deploy-rollback itself
+          # refuses to run against a record outside this exact directory
+          # and refuses an image that's no longer present locally, so this
+          # can't be pointed at an arbitrary or unverified file.
+          latest_record=$(ssh_cmd sudo -n -- find "/var/lib/smarttrade-deploy/records/$ENVIRONMENT" -maxdepth 1 -name '*.pre' -printf '%T@ %p\n' \
+            | sort -rn | head -1 | cut -d' ' -f2-)
+          [[ -n "$latest_record" ]] || {
+            echo "::error::No pre-deployment record found for $ENVIRONMENT -- nothing to roll back to." >&2
+            exit 1
+          }
+          echo "Rolling back $ENVIRONMENT using record: $latest_record"
+
+          timeout --signal=TERM --kill-after=30s 5m \
+            ssh_cmd sudo -n -- /usr/local/sbin/smarttrade-deploy-rollback \
+              --environment "$ENVIRONMENT" --record "$latest_record" $confirm_flag
+
+      - name: Rollback failed
+        if: failure()
+        shell: bash
+        run: echo "::error::Rollback of $ENVIRONMENT failed or timed out."
+
+      - name: Rollback succeeded
+        if: success()
+        shell: bash
+        run: echo "Rollback of $ENVIRONMENT completed."

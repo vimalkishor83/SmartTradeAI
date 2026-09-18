@@ -21,6 +21,18 @@ compose` commands run by hand:
   a conscious, explicit action.
 - `/usr/local/sbin/smarttrade-deploy-rollback` — reverts to the last
   recorded pre-deployment state (see `/var/lib/smarttrade-deploy/records/`).
+  Also exposed as a GitHub Actions `workflow_dispatch` button (`.github/
+  workflows/rollback.yml`) that finds the latest `.pre` record for the
+  chosen environment automatically. **Known issue (2026-09-18)**: rolling
+  back `development` currently always fails — `compose_config_guard`'s
+  forbidden-name check for that environment includes the literal string
+  `smarttrade-development`, which is also the prefix of development's own
+  legitimate volume names (`smarttrade-development-postgres-data` etc.), so
+  it rejects development's config against itself every time. Production
+  rollback doesn't have this problem (verified) since its volumes are
+  named `postgres_data`/`redis_data`. Left as-is rather than patched
+  without discussion, since this script is safety-critical and owned by
+  whoever wrote it — worth a real fix, just not a silent one.
 - `/usr/local/sbin/smarttrade-safe-cleanup` — disk hygiene (see below).
 - Shared logic lives in `/usr/local/libexec/smarttrade-deploy-common`
   (root-readable only).
@@ -191,3 +203,4 @@ and the pipeline is confirmed live end-to-end.
 - The user's original Oracle-provisioned key (`ssh-key-2026-08-29`) is
   still in `authorized_keys` too — that one is the user's own, don't
   remove it.
+# CI verification test Fri Sep 18 14:28:15 UTC 2026

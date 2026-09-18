@@ -2,7 +2,7 @@
 import time
 import threading
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from app.websocket.events import broadcast_ticker
 from app.services.signals.lifecycle import record_milestones
 
@@ -1419,23 +1419,46 @@ def register_data_jobs(scheduler, app):
     # timely while still using the same frozen setup calculation.
     scheduler.add_job(track_live_read_events, "interval", seconds=30,
                       args=[app], id="track_live_read_events", replace_existing=True)
-    # TA/MTF cache pre-warm — every 5 minutes
+    # These five pre-warm jobs are the heaviest recurring work this process
+    # does. Registered with no offset, their periods (2/3/5 min) drift back
+    # into alignment on a regular cycle -- confirmed live on production via
+    # docker stats sampling: the worker container sustained 100%+ CPU for
+    # 20-35s stretches roughly every ~5 minutes, exactly where prewarm_ta
+    # and prewarm_delta_scanner's shared 5-minute period lines up, with
+    # occasional extra overlap from the 2/3-minute jobs.
+    #
+    # Each gets a distinct next_run_time offset so their *ongoing* periods
+    # stay out of phase with each other for as long as this process runs
+    # (an interval trigger's phase is fixed at whatever its first run was,
+    # forever, until the process restarts). Offsets start at 60s -- well
+    # after the separate one-time "startup pre-warm" jobs below (which fire
+    # at 15-45s, once, to fill an empty cache quickly after boot) have
+    # already finished, so this doesn't create a second near-duplicate run
+    # right after boot. coalesce=True additionally stops a delayed run from
+    # trying to "catch up" with a burst of back-to-back executions, which
+    # would only make an already-busy moment worse.
+    stagger_base = datetime.utcnow()
     scheduler.add_job(prewarm_ta_cache, "interval", minutes=5,
-                      args=[app], id="prewarm_ta", replace_existing=True)
+                      args=[app], id="prewarm_ta", replace_existing=True,
+                      coalesce=True, next_run_time=stagger_base + timedelta(seconds=60))
     # Market heatmap pre-warm — every 3 minutes (matches the frontend's 180s
     # refresh) so /market-data/heatmap is always served from a warm cache.
     scheduler.add_job(prewarm_heatmap, "interval", minutes=3,
-                      args=[app], id="prewarm_heatmap", replace_existing=True)
+                      args=[app], id="prewarm_heatmap", replace_existing=True,
+                      coalesce=True, next_run_time=stagger_base + timedelta(seconds=95))
     # Delta Exchange MTF scanner pre-warm — every 5 minutes (cache TTL 330s)
     scheduler.add_job(prewarm_delta_scanner, "interval", minutes=5,
-                      args=[app], id="prewarm_delta_scanner", replace_existing=True)
+                      args=[app], id="prewarm_delta_scanner", replace_existing=True,
+                      coalesce=True, next_run_time=stagger_base + timedelta(seconds=130))
     # Delta market screener universe pre-warm — every 2 minutes (cache TTL 120s)
     scheduler.add_job(prewarm_delta_market_screener, "interval", minutes=2,
-                      args=[app], id="prewarm_delta_screener", replace_existing=True)
+                      args=[app], id="prewarm_delta_screener", replace_existing=True,
+                      coalesce=True, next_run_time=stagger_base + timedelta(seconds=165))
     # Delta indicator-crossover screener pre-warm — every 3 minutes (cache TTL 180s),
     # perpetual_futures across all 3 candle timeframes (~5-8s each).
     scheduler.add_job(prewarm_delta_indicator_screener, "interval", minutes=3,
-                      args=[app], id="prewarm_delta_indicator_screener", replace_existing=True)
+                      args=[app], id="prewarm_delta_indicator_screener", replace_existing=True,
+                      coalesce=True, next_run_time=stagger_base + timedelta(seconds=200))
     # AI predictions pre-warm — every 30 minutes
     scheduler.add_job(prewarm_ai_cache, "interval", minutes=30,
                       args=[app], id="prewarm_ai", replace_existing=True)
@@ -1463,7 +1486,8 @@ def register_data_jobs(scheduler, app):
                       args=[app], id="retrain_models", replace_existing=True)
 
     # ── Startup pre-warm: run TA + AI shortly after boot ─────────
-    from datetime import datetime, timedelta
+    # (datetime/timedelta come from the module-level import now that this
+    # function also needs them earlier, for the recurring jobs' stagger.)
     scheduler.add_job(prewarm_ta_cache, "date",
                       run_date=datetime.utcnow() + timedelta(seconds=15),
                       args=[app], id="prewarm_ta_startup",

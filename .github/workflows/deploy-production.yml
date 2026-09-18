@@ -20,6 +20,43 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for database migration changes
+        shell: bash
+        run: |
+          set -euo pipefail
+          # github.event.before is the tip of main right before this push;
+          # on the very first push to a new branch history it's the all-
+          # zero SHA, which git treats as "diff against nothing" -- fall
+          # back to the previous commit on this branch in that case so the
+          # check never silently no-ops on an edge case instead of erroring.
+          before="${{ github.event.before }}"
+          if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
+            before="HEAD~1"
+          fi
+          changed=$(git diff --name-only "$before" "${{ github.sha }}" -- migrations/versions/ || true)
+          if [[ -n "$changed" ]]; then
+            {
+              echo "## :warning: This push includes database migration changes"
+              echo ""
+              echo "Production migrations are never run automatically -- the deploy"
+              echo "step below intentionally omits \`--run-migrations\`. If any of the"
+              echo "files below need to run against the production database, do it"
+              echo "by hand, once, before or right after approving this deploy:"
+              echo ""
+              echo '```'
+              echo "ssh ubuntu@140.238.247.245 sudo -n -- /usr/local/sbin/smarttrade-deploy-production --confirm-production --execute --run-migrations"
+              echo '```'
+              echo ""
+              echo "Changed migration files:"
+              echo '```'
+              echo "$changed"
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::This push includes migration file changes -- see job summary for the manual migration command."
+          fi
 
       - uses: actions/setup-python@v5
         with:
