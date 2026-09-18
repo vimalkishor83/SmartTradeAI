@@ -7,6 +7,18 @@ logger = logging.getLogger(__name__)
 
 MAX_DELIVERY_ATTEMPTS = 3
 
+# Maps Notification.notification_type -> the per-user Telegram preference
+# category it corresponds to (see app/models/telegram_user_preference.py).
+# Only rows actually queued with channel="telegram"/None reach the generic
+# sweep below, so only those types need an entry here; a type with no entry
+# simply skips the per-user narrowing (matches pre-feature behavior).
+_NOTIFICATION_TYPE_TELEGRAM_CATEGORY = {
+    "terminal_signal_event": "watchlist",
+    "price_alert": "watchlist",
+    "protective_order_triggered": "protective_order",
+}
+
+
 def _market_enabled(cfg: dict, field: str, market: str) -> bool:
     """Per-category, per-delivery-level market list (e.g.
     telegram_signal_group_markets) — the opposite convention from
@@ -78,13 +90,6 @@ def send_pending_notifications(app):
         users_by_id = {u.id: u for u in User.query.filter(User.id.in_(user_ids)).all()}
 
         for notif in eligible:
-            # Legacy personal Telegram rows must never retry or reach a user
-            # bot/chat now that delivery is group-only.
-            if notif.channel == "telegram":
-                if _claim_notification(notif):
-                    notif.delivery_status = "skipped"
-                    notif.skipped_reason = "telegram_group_only"
-                continue
             user = users_by_id.get(notif.user_id)
             if not user:
                 notif.delivery_status = "skipped"
@@ -124,8 +129,11 @@ def send_pending_notifications(app):
                         )
                         notif.delivery_status = "skipped"
                         notif.skipped_reason = "telegram_disabled"
-                    elif not _send_telegram(user, f"*{notif.title}*\n{notif.message}"):
-                        raise RuntimeError("Telegram delivery was not accepted")
+                    else:
+                        category = _NOTIFICATION_TYPE_TELEGRAM_CATEGORY.get(notif.notification_type)
+                        if not _send_telegram(user, f"*{notif.title}*\n{notif.message}",
+                                               category=category):
+                            raise RuntimeError("Telegram delivery was not accepted")
                 if not getattr(notif, "delivery_status", None) or notif.delivery_status == "sending":
                     notif.delivery_status = "sent"
                 notif.last_error = None
@@ -196,8 +204,19 @@ def _telegram_token_for(user) -> str | None:
     return token or current_app.config.get("TELEGRAM_BOT_TOKEN")
 
 
-def _send_telegram(user, text: str):
-    """Send one opted-in personal alert without ever using a group chat."""
+def _send_telegram(user, text: str, *, category: str | None = None,
+                    market: str | None = None, asset_id=None):
+    """Send one opted-in personal alert without ever using a group chat.
+
+    ``category``/``market``/``asset_id`` are optional context used only to
+    check this specific user's own Telegram preferences (see
+    app/services/notifications/telegram_user_preferences.py) — an
+    additional per-user narrowing on top of the PlatformConfig market
+    gates each call site already checks before calling this function.
+    Callers that don't pass a category (e.g. the generic pending-
+    notification sweep above) skip this extra check, matching prior
+    behavior exactly.
+    """
     from app.services.safety import telegram_individual_delivery_enabled
 
     if not telegram_individual_delivery_enabled():
@@ -205,6 +224,10 @@ def _send_telegram(user, text: str):
         return False
     if not user or not user.telegram_enabled or not user.telegram_chat_id:
         return False
+    if category is not None:
+        from app.services.notifications.telegram_user_preferences import user_wants_telegram_category
+        if not user_wants_telegram_category(user.id, category, market=market, asset_id=asset_id):
+            return False
 
     token = _telegram_token_for(user)
     if not token:
@@ -460,7 +483,8 @@ def check_rating_changes(app):
                             users = User.query.filter_by(is_active=True, telegram_enabled=True).all()
                         for user in users:
                             if user.telegram_chat_id:
-                                _send_telegram(user, text)
+                                _send_telegram(user, text, category="rating_change",
+                                               market=market, asset_id=row["id"])
 
                 if snap:
                     snap.rating = new_rating
@@ -616,7 +640,8 @@ def fire_signal_alerts(app):
                 if (tg_individual_allowed and tg_individual_signal_limit_allowed
                         and telegram_individual_delivery_enabled()
                         and user.telegram_enabled and user.telegram_chat_id):
-                    _send_telegram(user, tg_msg)
+                    _send_telegram(user, tg_msg, category="signal",
+                                   market=asset.market, asset_id=asset.id)
                 if user.push_enabled and user.push_subscription:
                     try:
                         from app.services.push import send_push_to_user
@@ -673,7 +698,8 @@ def fire_signal_alerts(app):
                 if (tg_close_individual_allowed and tg_close_signal_limit_allowed
                         and telegram_individual_delivery_enabled()
                         and user.telegram_enabled and user.telegram_chat_id):
-                    _send_telegram(user, tg_close)
+                    _send_telegram(user, tg_close, category="signal_closed",
+                                   market=asset.market, asset_id=asset.id)
                 if user.push_enabled and user.push_subscription:
                     try:
                         from app.services.push import send_push_to_user

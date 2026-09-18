@@ -90,6 +90,49 @@ def test_scan_market_normalizes_empty_all_markets_value():
     assert _normalize_scan_market("crypto") == "crypto"
 
 
+def test_buy_and_strong_buy_are_distinct_conditions():
+    """"buy" must be a genuinely broader condition than "strong_buy", not
+    an alias resolving to the same result -- a prior bug mapped the
+    frontend's "Buy" chip straight onto strong_buy's check, so selecting
+    Buy alone showed identical results to Strong Buy."""
+    import pandas as pd
+    from app.api.v1.scanner import _apply_filters
+
+    df = pd.DataFrame({
+        "close": [100.0] * 30, "open": [100.0] * 30,
+        "high": [101.0] * 30, "low": [99.0] * 30,
+        "volume": [1000.0] * 30,
+    })
+    # Bullish trend/momentum, but RSI outside strong_buy's 50-70 band --
+    # should match the broader "buy" condition without matching strong_buy.
+    ind = {"rsi": 75, "ema20": 105, "ema50": 100, "macd_hist": 1.5}
+    matched = _apply_filters(df, ind, ["strong_buy", "buy"])
+    assert "buy" in matched
+    assert "strong_buy" not in matched
+
+
+def test_sell_and_strong_sell_are_distinct_conditions():
+    import pandas as pd
+    from app.api.v1.scanner import _apply_filters
+
+    df = pd.DataFrame({
+        "close": [100.0] * 30, "open": [100.0] * 30,
+        "high": [101.0] * 30, "low": [99.0] * 30,
+        "volume": [1000.0] * 30,
+    })
+    ind = {"rsi": 20, "ema20": 95, "ema50": 100, "macd_hist": -1.5}
+    matched = _apply_filters(df, ind, ["strong_sell", "sell"])
+    assert "sell" in matched
+    assert "strong_sell" not in matched
+
+
+def test_scan_filters_whitelist_includes_buy_and_sell():
+    from app.api.v1.scanner import SCAN_FILTERS
+
+    assert "buy" in SCAN_FILTERS
+    assert "sell" in SCAN_FILTERS
+
+
 def test_scan_endpoint_accepts_empty_all_markets_value(app, monkeypatch):
     from app.api.v1 import scanner
 

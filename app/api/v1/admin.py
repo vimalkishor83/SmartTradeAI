@@ -502,6 +502,84 @@ def update_user(user_id):
     return jsonify(user.to_dict()), 200
 
 
+@admin_bp.route("/users/<int:user_id>/telegram-preference", methods=["GET"])
+@admin_required
+def get_user_telegram_preference_route(user_id):
+    """Per-user Telegram alert preference — narrows which categories/
+    markets/assets THIS user's personal Telegram alerts cover, on top of
+    (never wider than) the platform-wide PlatformConfig gates. See
+    app/models/telegram_user_preference.py."""
+    User.query.get_or_404(user_id)
+    from app.services.notifications.telegram_user_preferences import get_user_telegram_preference
+    from app.models.telegram_user_preference import TELEGRAM_ALERT_CATEGORIES
+
+    return jsonify({
+        "preference": get_user_telegram_preference(user_id),
+        "available_categories": TELEGRAM_ALERT_CATEGORIES,
+    }), 200
+
+
+@admin_bp.route("/users/<int:user_id>/telegram-preference", methods=["PUT"])
+@super_admin_required
+def update_user_telegram_preference_route(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "A JSON object is required"}), 400
+
+    from app.models.telegram_user_preference import TelegramUserPreference, TELEGRAM_ALERT_CATEGORIES
+    from app.services.notifications.telegram_user_preferences import invalidate_user_telegram_preference
+    from app.models.asset import Asset
+
+    def _validated_list(key, allowed_values=None):
+        if key not in data:
+            return "unset", None
+        value = data[key]
+        if value is None:
+            return "set", None
+        if not isinstance(value, list):
+            return "invalid", None
+        if allowed_values is not None and not set(value).issubset(allowed_values):
+            return "invalid", None
+        return "set", value
+
+    status, categories = _validated_list(key="categories", allowed_values=set(TELEGRAM_ALERT_CATEGORIES))
+    if status == "invalid":
+        return jsonify({"error": f"categories must be a list drawn from {TELEGRAM_ALERT_CATEGORIES} or null"}), 400
+
+    status_m, markets = _validated_list(key="markets", allowed_values=set(Asset.MARKETS))
+    if status_m == "invalid":
+        return jsonify({"error": f"markets must be a list drawn from {list(Asset.MARKETS)} or null"}), 400
+
+    status_a, asset_ids = _validated_list(key="asset_ids")
+    if status_a == "invalid":
+        return jsonify({"error": "asset_ids must be a list of asset ids or null"}), 400
+    if status_a == "set" and asset_ids:
+        try:
+            asset_ids = [int(v) for v in asset_ids]
+        except (TypeError, ValueError):
+            return jsonify({"error": "asset_ids must be a list of asset ids or null"}), 400
+
+    row = TelegramUserPreference.query.filter_by(user_id=user.id).first()
+    if not row:
+        row = TelegramUserPreference(user_id=user.id)
+        db.session.add(row)
+
+    if status == "set":
+        row.categories = categories
+    if status_m == "set":
+        row.markets = markets
+    if status_a == "set":
+        row.asset_ids = asset_ids
+    from flask_jwt_extended import get_jwt_identity
+    row.updated_by = int(get_jwt_identity())
+
+    db.session.commit()
+    invalidate_user_telegram_preference(user.id)
+    _audit_admin_action(user.id, "admin_update_telegram_preference")
+    return jsonify({"preference": row.to_dict()}), 200
+
+
 @admin_bp.route("/roles", methods=["GET"])
 @admin_required
 def list_roles():

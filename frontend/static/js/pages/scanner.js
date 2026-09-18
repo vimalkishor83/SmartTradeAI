@@ -36,7 +36,9 @@ const FILTER_META = {
   '52w_low': { label: '52W Low', sig: '52W Low', clr: 'var(--red)', icon: 'graph-down' },
 };
 // Map convenience chips to backend-supported checks
-const ALIAS = { buy: 'strong_buy', sell: 'strong_sell' };
+// "buy"/"sell" are now real, distinct backend filters (broader than
+// strong_buy/strong_sell) -- no longer aliased to their "strong" variants.
+const ALIAS = {};
 
 /* ── KPI strip (perf + heatmap) ── */
 async function loadScanKPIs() {
@@ -224,7 +226,13 @@ document.addEventListener('app:ready', async () => {
   });
 
   document.querySelectorAll('.scan-chip').forEach(c => c.addEventListener('click', () => {
-    const f = c.dataset.f; if (_active.has(f)) { _active.delete(f); c.classList.remove('active'); } else { _active.add(f); c.classList.add('active'); }
+    const f = c.dataset.f;
+    const wasActive = _active.has(f);
+    // Single-select: clicking a chip clears any other selection first, so
+    // exactly one filter (or none) is ever active at a time.
+    _active.clear();
+    document.querySelectorAll('.scan-chip').forEach(el => el.classList.remove('active'));
+    if (!wasActive) { _active.add(f); c.classList.add('active'); }
   }));
   document.getElementById('runScan').addEventListener('click', runScan);
   document.getElementById('clearFilters').addEventListener('click', () => { _active.clear(); document.querySelectorAll('.scan-chip').forEach(c => c.classList.remove('active')); });
