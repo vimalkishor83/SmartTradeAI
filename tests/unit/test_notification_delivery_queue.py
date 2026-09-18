@@ -22,7 +22,12 @@ def test_notification_worker_uses_deterministic_pending_order():
     assert "Telegram delivery was not accepted" in source
 
 
-def test_legacy_personal_telegram_row_is_skipped_without_retry(app):
+def test_personal_telegram_row_is_sent_when_individual_delivery_enabled(app):
+    """channel="telegram" rows (e.g. terminal-live-read events queued by
+    live_read_notifications.py) are real personal alerts under the
+    news_group_individual_signals delivery mode -- they must actually be
+    sent, not unconditionally skipped as a stale "group-only" era would
+    have done. See notification_tasks.py's generic sweep."""
     from unittest.mock import patch
 
     from app.extensions import db
@@ -31,6 +36,7 @@ def test_legacy_personal_telegram_row_is_skipped_without_retry(app):
 
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
         user = User.query.filter_by(username="admin").first()
         user.telegram_enabled = True
         user.telegram_chat_id = "12345"
@@ -45,16 +51,17 @@ def test_legacy_personal_telegram_row_is_skipped_without_retry(app):
         db.session.add(notification)
         db.session.commit()
 
-        with patch("app.tasks.notification_tasks._send_telegram", return_value=False):
+        with patch("app.tasks.notification_tasks._send_telegram", return_value=True) as mock_send:
             send_pending_notifications(app)
 
+        mock_send.assert_called_once()
+        assert mock_send.call_args.kwargs.get("category") == "watchlist"
         db.session.refresh(notification)
         assert notification.is_sent is True
-        assert notification.delivery_status == "skipped"
-        assert notification.skipped_reason == "telegram_group_only"
+        assert notification.delivery_status == "sent"
 
 
-def test_legacy_personal_telegram_row_never_retries(app):
+def test_personal_telegram_row_retries_on_send_failure(app):
     from unittest.mock import patch
 
     from app.extensions import db
@@ -63,6 +70,7 @@ def test_legacy_personal_telegram_row_never_retries(app):
 
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
         user = User.query.filter_by(username="admin").first()
         user.telegram_enabled = True
         user.telegram_chat_id = "12345"
@@ -84,7 +92,5 @@ def test_legacy_personal_telegram_row_never_retries(app):
                 send_pending_notifications(app)
 
         db.session.refresh(notification)
-        assert notification.attempt_count == 1
-        assert notification.delivery_status == "skipped"
-        assert notification.skipped_reason == "telegram_group_only"
-        assert notification.next_attempt_at is None
+        assert notification.attempt_count == 3
+        assert notification.delivery_status == "dead_letter"

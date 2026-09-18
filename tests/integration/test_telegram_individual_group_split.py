@@ -51,7 +51,7 @@ class TestNewsGroupIndividualSignalDelivery:
             import app.tasks.notification_tasks as nt
             monkeypatch.setattr(
                 nt, "_send_telegram",
-                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+                lambda user, text, **kwargs: calls.__setitem__("individual", calls["individual"] + 1),
             )
             monkeypatch.setattr(
                 nt, "_send_to_channels",
@@ -76,7 +76,7 @@ class TestNewsGroupIndividualSignalDelivery:
             import app.tasks.notification_tasks as nt
             monkeypatch.setattr(
                 nt, "_send_telegram",
-                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+                lambda user, text, **kwargs: calls.__setitem__("individual", calls["individual"] + 1),
             )
             monkeypatch.setattr(
                 nt, "_send_to_channels",
@@ -101,7 +101,7 @@ class TestNewsGroupIndividualSignalDelivery:
             import app.tasks.notification_tasks as nt
             monkeypatch.setattr(
                 nt, "_send_telegram",
-                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+                lambda user, text, **kwargs: calls.__setitem__("individual", calls["individual"] + 1),
             )
             monkeypatch.setattr(
                 nt, "_send_to_channels",

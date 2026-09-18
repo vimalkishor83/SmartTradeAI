@@ -25,7 +25,13 @@ def _live_row(asset):
     )
 
 
-def test_live_read_telegram_events_are_skipped_in_group_only_mode(app):
+def test_live_read_telegram_events_are_queued_once_per_event_when_enabled(app):
+    """Under the news_group_individual_signals mode (Codex's routing
+    policy: shared group is news-only, personal alerts go to opted-in
+    individuals), a Terminal live-read event queues exactly one
+    channel="telegram" Notification per new event, and re-running with the
+    same event history queues nothing further (idempotent on
+    notification_key)."""
     from app.services.platform_config import invalidate_platform_config
     from app.services.signals.live_read_notifications import (
         enqueue_live_read_event_notifications,
@@ -33,6 +39,7 @@ def test_live_read_telegram_events_are_skipped_in_group_only_mode(app):
 
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
         owner = User.query.filter_by(username="admin").first()
         owner.telegram_enabled = True
         owner.telegram_chat_id = "12345"
@@ -56,20 +63,20 @@ def test_live_read_telegram_events_are_skipped_in_group_only_mode(app):
 
         queued = enqueue_live_read_event_notifications(row, current, row.event_history)
         db.session.commit()
-        assert queued == 0
+        assert queued == 2
         assert Notification.query.filter_by(
             user_id=owner.id, notification_type="terminal_signal_event",
-        ).count() == 0
+        ).count() == 2
 
+        # Re-running with the same events must not queue duplicates -- the
+        # unique notification_key already claimed above should make this a
+        # no-op, not a second copy of each alert.
         queued_again = enqueue_live_read_event_notifications(row, current, row.event_history)
         db.session.commit()
         assert queued_again == 0
         assert Notification.query.filter_by(
             user_id=owner.id, notification_type="terminal_signal_event",
         ).count() == 2
-
-        notifications = Notification.query.filter_by(user_id=owner.id).all()
-        assert notifications == []
 
 
 def test_live_read_telegram_footer_has_disclaimer_link_and_context_gap(app):

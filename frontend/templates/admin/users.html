@@ -139,6 +139,14 @@
           <div class="alert alert-danger py-2 small mt-3" data-form-status role="alert" aria-live="assertive" hidden></div>
           <button type="submit" class="btn btn-primary w-100" data-submit-label="Save Changes">Save Changes</button>
         </form>
+
+        <hr class="my-3" style="border-color:var(--border)" />
+        <h6 class="mb-2"><i class="bi bi-telegram me-1"></i>Telegram Alerts</h6>
+        <p class="text-muted small mb-2">Narrow which personal Telegram alert types this user receives. Leave everything checked to use the platform default for every category.</p>
+        <div id="euTelegramCategories" class="d-flex flex-wrap gap-3 mb-3"></div>
+        <button type="button" class="btn btn-outline-primary btn-sm" id="euSaveTelegramPref">Save Telegram Preference</button>
+        <div class="small mt-2" id="euTelegramPrefStatus"></div>
+
         <div id="euResult" class="mt-3" style="display:none">
           <div class="p-3 rounded" style="background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.3)">
             <div class="fw-bold text-green mb-2"><i class="bi bi-check-circle-fill me-1"></i>Updated — share these if the password changed:</div>
@@ -575,6 +583,62 @@ document.getElementById('createUserModal').addEventListener('hidden.bs.modal', (
 });
 
 // ── Edit User (super admin only) ────────────────────────────────────────
+const TELEGRAM_CATEGORY_LABELS = {
+  signal: 'New Signal',
+  signal_closed: 'Signal Closed (TP/SL)',
+  rating_change: 'Rating Change',
+  watchlist: 'Watchlist / Terminal Alerts',
+  protective_order: 'Protective Order',
+};
+
+async function loadTelegramPreferenceInto(userId) {
+  const wrap = document.getElementById('euTelegramCategories');
+  wrap.innerHTML = '<span class="text-muted small">Loading…</span>';
+  document.getElementById('euTelegramPrefStatus').textContent = '';
+  try {
+    const res = await API.get(`/admin/users/${userId}/telegram-preference`);
+    const categories = (res && res.available_categories) || Object.keys(TELEGRAM_CATEGORY_LABELS);
+    const selected = res?.preference?.categories; // null = every category allowed
+    wrap.innerHTML = categories.map(cat => {
+      const checked = selected === null || selected === undefined || selected.includes(cat);
+      const label = TELEGRAM_CATEGORY_LABELS[cat] || cat;
+      return `<div class="form-check">
+        <input class="form-check-input eu-tg-cat" type="checkbox" value="${STSafe.html(cat)}" id="euTg_${STSafe.html(cat)}" ${checked ? 'checked' : ''}>
+        <label class="form-check-label small" for="euTg_${STSafe.html(cat)}">${STSafe.html(label)}</label>
+      </div>`;
+    }).join('');
+  } catch (error) {
+    console.error('Load telegram preference error:', error);
+    wrap.innerHTML = '<span class="text-danger small">Could not load Telegram preferences.</span>';
+  }
+}
+
+document.getElementById('euSaveTelegramPref').addEventListener('click', async () => {
+  const id = STSafe.assetId(document.getElementById('euId').value);
+  if (!id) return;
+  const boxes = [...document.querySelectorAll('.eu-tg-cat')];
+  const allChecked = boxes.every(b => b.checked);
+  // All checked == "no per-user restriction" (null), matching the platform
+  // default rather than persisting a redundant explicit full list.
+  const categories = allChecked ? null : boxes.filter(b => b.checked).map(b => b.value);
+  const statusEl = document.getElementById('euTelegramPrefStatus');
+  statusEl.textContent = 'Saving…';
+  try {
+    const res = await API.put(`/admin/users/${id}/telegram-preference`, { categories });
+    if (res && !res.error) {
+      statusEl.textContent = 'Saved.';
+      statusEl.className = 'small mt-2 text-success';
+    } else {
+      statusEl.textContent = apiErrorMessage(res, 'Failed to save');
+      statusEl.className = 'small mt-2 text-danger';
+    }
+  } catch (error) {
+    console.error('Save telegram preference error:', error);
+    statusEl.textContent = 'Unable to save. Please try again.';
+    statusEl.className = 'small mt-2 text-danger';
+  }
+});
+
 function openEditUser(id) {
   id = STSafe.assetId(id);
   if (!id) return;
@@ -588,6 +652,7 @@ function openEditUser(id) {
   document.getElementById('euPassword').value = '';
   document.getElementById('euSuperAdmin').checked = !!u.is_super_admin;
   document.getElementById('euResult').style.display = 'none';
+  loadTelegramPreferenceInto(u.id);
   userModal('editUserModal')?.show();
 }
 

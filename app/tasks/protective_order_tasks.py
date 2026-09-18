@@ -256,7 +256,9 @@ def _notify_trigger(order, asset, current_price, label, executed):
                     lines.append(f"🎯 Take Profit: `{order.take_profit:.4f}`")
                 lines.append(f"Trigger price: `{current_price:.4f}`")
                 lines.append(f"Status: `{mode}`")
-                _send_telegram(user, "\n".join(lines) + _telegram_disclaimer())
+                _send_telegram(user, "\n".join(lines) + _telegram_disclaimer(),
+                               category="protective_order", market=asset.market,
+                               asset_id=asset.id)
         except Exception:
             pass
     if user.push_enabled and user.push_subscription:
