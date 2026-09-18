@@ -98,19 +98,6 @@ def update_platform_config_route():
     from app.services.platform_config import invalidate_platform_config
 
     data = request.get_json() or {}
-    individual_telegram_fields = {
-        "telegram_signal_individual_markets",
-        "telegram_signal_closed_individual_markets",
-        "telegram_rating_change_individual_markets",
-        "telegram_watchlist_individual_markets",
-        "telegram_protective_order_individual_markets",
-    }
-    if individual_telegram_fields.intersection(data):
-        return jsonify({
-            "error": "Individual Telegram delivery is disabled; configure the shared group only.",
-            "code": "telegram_individual_disabled",
-            "blocked": True,
-        }), 410
     row = PlatformConfig.get_singleton()
 
     if "disabled_nav_items" in data:
@@ -364,35 +351,27 @@ def telegram_channel_broadcast(channel_id):
     if not current_app.config.get("TELEGRAM_BOT_TOKEN"):
         return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
 
-    _send_to_chat(channel.group_chat_id, text)
+    if not _send_to_chat(channel.group_chat_id, text):
+        return jsonify({
+            "error": "News-group delivery was skipped; verify the active primary group and server Telegram settings.",
+            "code": "telegram_news_delivery_skipped",
+        }), 502
     return jsonify({"message": "Sent"}), 200
 
 
 @admin_bp.route("/telegram/security-test", methods=["POST"])
 @super_admin_required
 def telegram_security_test():
-    """Sends one test message to the configured security-notifications
-    chat right now, so an admin can confirm the bot is actually in that
-    group and the chat id is correct before relying on it for real
-    security events (see PlatformConfig.telegram_security_chat_id)."""
+    """Retained compatibility endpoint; shared Telegram is news-only."""
     from app.services.safety import telegram_notifications_enabled, safety_disabled_payload
     if not telegram_notifications_enabled():
         return jsonify(safety_disabled_payload("telegram")), 403
+    return jsonify({
+        "error": "The shared Telegram destination is reserved for market news; security alerts are not sent to it.",
+        "code": "telegram_group_news_only",
+        "blocked": True,
+    }), 403
 
-    from app.services.platform_config import get_platform_config
-    from app.tasks.notification_tasks import send_security_alert
-
-    if not current_app.config.get("TELEGRAM_BOT_TOKEN"):
-        return jsonify({"error": "TELEGRAM_BOT_TOKEN isn't configured on the server"}), 400
-    chat_id = get_platform_config().get("telegram_security_chat_id")
-    if not chat_id:
-        return jsonify({"error": "Set a security chat id first"}), 400
-
-    send_security_alert(
-        "✅ *Test message*\n\nThis chat is correctly wired up to receive "
-        "SmartTrade AI security notifications."
-    )
-    return jsonify({"message": "Sent"}), 200
 
 
 # ─── Users ──────────────────────────────────────────────────────────────────

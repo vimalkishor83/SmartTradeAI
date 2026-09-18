@@ -1,3 +1,5 @@
+"""Focused tests for the Telegram routing policy."""
+
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -8,20 +10,20 @@ from app.services.safety import (
 )
 
 
-def test_development_telegram_delivery_is_group_only(app):
+def test_news_group_and_individual_signal_policy_is_explicit(app):
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
-        app.config["TELEGRAM_DELIVERY_MODE"] = "group_only"
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
 
-        assert telegram_delivery_mode() == "group_only"
+        assert telegram_delivery_mode() == "news_group_individual_signals"
         assert telegram_group_delivery_enabled() is True
-        assert telegram_individual_delivery_enabled() is False
+        assert telegram_individual_delivery_enabled() is True
 
 
-def test_individual_sender_never_calls_telegram(app, monkeypatch):
+def test_individual_sender_is_blocked_when_environment_disables_telegram(app, monkeypatch):
     with app.app_context():
-        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
-        app.config["TELEGRAM_DELIVERY_MODE"] = "group_only"
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = False
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
         requests_post = Mock()
         monkeypatch.setattr("requests.post", requests_post)
 
@@ -30,6 +32,7 @@ def test_individual_sender_never_calls_telegram(app, monkeypatch):
         user = SimpleNamespace(
             id=1,
             username="user",
+            telegram_enabled=True,
             telegram_chat_id="123",
             get_telegram_bot_token=lambda: "user-token",
         )
@@ -37,13 +40,37 @@ def test_individual_sender_never_calls_telegram(app, monkeypatch):
         requests_post.assert_not_called()
 
 
-def test_group_sender_blocks_non_primary_chat_and_accepts_primary(app, monkeypatch):
+def test_individual_sender_uses_user_chat_when_enabled(app, monkeypatch):
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
-        app.config["TELEGRAM_DELIVERY_MODE"] = "group_only"
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
+        app.config["TELEGRAM_BOT_TOKEN"] = "platform-token"
+        response = SimpleNamespace(ok=True, status_code=200)
+        requests_post = Mock(return_value=response)
+        monkeypatch.setattr("requests.post", requests_post)
+
+        from app.tasks.notification_tasks import _send_telegram
+
+        user = SimpleNamespace(
+            id=1,
+            username="user",
+            telegram_enabled=True,
+            telegram_chat_id="123",
+            get_telegram_bot_token=lambda: None,
+        )
+        assert _send_telegram(user, "personal signal") is True
+        requests_post.assert_called_once()
+        assert requests_post.call_args.kwargs["json"]["chat_id"] == "123"
+
+
+def test_group_sender_accepts_news_but_rejects_signal(app, monkeypatch):
+    with app.app_context():
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
         channel = SimpleNamespace(
             group_chat_id="-100-primary",
-            matches=lambda market, category, timeframe: True,
+            markets=[],
+            is_active=True,
         )
         monkeypatch.setattr(
             "app.services.telegram_delivery.primary_group_channel",
@@ -55,8 +82,8 @@ def test_group_sender_blocks_non_primary_chat_and_accepts_primary(app, monkeypat
 
         from app.services.telegram_delivery import send_group_message
 
-        assert send_group_message("blocked", chat_id="-100-other") is False
+        assert send_group_message("signal", chat_id="-100-primary", category="signal") is False
         requests_post.assert_not_called()
 
-        assert send_group_message("allowed", chat_id="-100-primary") is True
+        assert send_group_message("news", chat_id="-100-primary", category="news") is True
         requests_post.assert_called_once()

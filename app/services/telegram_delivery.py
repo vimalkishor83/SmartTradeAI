@@ -1,8 +1,7 @@
 """Central Telegram delivery boundary.
 
-The application has one supported Telegram audience: the primary active group
-channel configured by an administrator. User-owned bot tokens and chat IDs are
-never accepted by this module.
+The shared Telegram group is reserved for market-news updates. Signal and
+other personal alerts must use the individual delivery path instead.
 """
 
 import logging
@@ -30,6 +29,9 @@ def send_group_message(text: str, *, chat_id: str | None = None,
     """Send only to the configured primary group, or safely skip."""
     from app.services.safety import telegram_group_delivery_enabled
 
+    if category != "news":
+        logger.info("Telegram group delivery skipped because the group is news-only")
+        return False
     if not telegram_group_delivery_enabled():
         logger.info("Telegram group delivery blocked by environment safety gate")
         return False
@@ -45,7 +47,7 @@ def send_group_message(text: str, *, chat_id: str | None = None,
     if chat_id is not None and str(chat_id) != str(channel.group_chat_id):
         logger.warning("Telegram delivery to a non-primary chat was blocked")
         return False
-    if market and category and not channel.matches(market, category, timeframe):
+    if market and channel.markets and market not in channel.markets:
         return False
 
     token = current_app.config.get("TELEGRAM_BOT_TOKEN")

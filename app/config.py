@@ -106,8 +106,8 @@ class Config:
 
     # Telegram
     TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
-    # Individual credentials may remain for compatibility, but delivery is group-only.
-    TELEGRAM_DELIVERY_MODE = os.environ.get("TELEGRAM_DELIVERY_MODE", "group_only").strip().lower()
+    # Individual credentials are used only when the explicit delivery mode enables personal alerts.
+    TELEGRAM_DELIVERY_MODE = os.environ.get("TELEGRAM_DELIVERY_MODE", "news_group_individual_signals").strip().lower()
 
     # Web Push (VAPID)
     VAPID_PUBLIC_KEY    = os.environ.get("VAPID_PUBLIC_KEY", "")
@@ -137,7 +137,7 @@ class DevelopmentConfig(Config):
     BROKER_CONNECTIONS_ENABLED = False
     PROTECTIVE_ORDERS_ENABLED = False
     TELEGRAM_NOTIFICATIONS_ENABLED = False
-    TELEGRAM_DELIVERY_MODE = "group_only"
+    TELEGRAM_DELIVERY_MODE = "news_group_individual_signals"
     RUN_MIGRATIONS_ON_STARTUP = False
     TRADING_EXECUTION_MODE = "paper"
     PAPER_TRADING_ENABLED = True

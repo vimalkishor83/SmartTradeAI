@@ -687,8 +687,9 @@ def update_profile():
     if not isinstance(data, dict):
         return jsonify({"error": "request body must be a JSON object"}), 400
     if any(field in data for field in ("telegram_enabled", "telegram_chat_id", "telegram_bot_token")):
-        from app.services.safety import safety_disabled_payload
-        return jsonify(safety_disabled_payload("telegram_individual")), 403
+        from app.services.safety import telegram_individual_delivery_enabled, safety_disabled_payload
+        if not telegram_individual_delivery_enabled():
+            return jsonify(safety_disabled_payload("telegram_individual")), 403
 
     try:
         text_values = {field: _profile_text(data, field) for field in _PROFILE_TEXT_LIMITS}
@@ -764,8 +765,9 @@ def find_telegram_chat_id():
     page guide), the chat ID is sitting right there, so auto-fill it
     instead of asking the user to read it out of a raw JSON blob by hand.
     """
-    from app.services.safety import safety_disabled_payload
-    return jsonify(safety_disabled_payload("telegram_individual")), 403
+    from app.services.safety import telegram_individual_delivery_enabled, safety_disabled_payload
+    if not telegram_individual_delivery_enabled():
+        return jsonify(safety_disabled_payload("telegram_individual")), 403
 
     import requests
     user = get_current_user()
@@ -809,8 +811,9 @@ def send_telegram_test():
     real alert to silently never arrive. This exists purely to close that
     loop from the Settings page.
     """
-    from app.services.safety import safety_disabled_payload
-    return jsonify(safety_disabled_payload("telegram_individual")), 403
+    from app.services.safety import telegram_individual_delivery_enabled, safety_disabled_payload
+    if not telegram_individual_delivery_enabled():
+        return jsonify(safety_disabled_payload("telegram_individual")), 403
 
     import requests
     user = get_current_user()

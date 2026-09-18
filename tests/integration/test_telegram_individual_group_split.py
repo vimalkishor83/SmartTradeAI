@@ -1,19 +1,15 @@
-"""Integration test: proves telegram_signal_individual_markets and
-telegram_signal_group_markets are truly independent, per-market gates in
-fire_signal_alerts — the whole point of this feature (an admin can send
-crypto signal alerts to individuals AND a group, while a different
-market gets only one, the other, or neither). Runs the real task
-function against the in-memory test DB with _send_telegram/
-_send_to_channels monkeypatched to record calls instead of hitting the
-network, since that's the actual boundary these settings control.
-"""
+"""Integration tests for individual signal and news-group routing."""
+
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime
 
 
 @pytest.fixture
 def signal_setup(app):
     with app.app_context():
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
+        app.config["TELEGRAM_DELIVERY_MODE"] = "news_group_individual_signals"
+
         from app.extensions import db
         from app.models.user import User, Role
         from app.models.asset import Asset
@@ -41,59 +37,77 @@ def signal_setup(app):
         return {"user_id": user.id, "asset_id": asset.id}
 
 
-class TestGroupOnlyDelivery:
-    def test_group_on_individual_off_sends_only_to_channel(self, app, signal_setup, monkeypatch):
+class TestNewsGroupIndividualSignalDelivery:
+    def test_signal_group_settings_never_send_to_news_group(self, app, signal_setup, monkeypatch):
         with app.app_context():
             from app.models.platform_config import PlatformConfig
             from app.extensions import db
             row = PlatformConfig.get_singleton()
-            row.telegram_signal_individual_markets = []           # individual OFF for every market
-            row.telegram_signal_group_markets = ["crypto"]        # group ON for crypto only
+            row.telegram_signal_individual_markets = []
+            row.telegram_signal_group_markets = ["crypto"]
             db.session.commit()
 
             calls = {"individual": 0, "group": 0}
             import app.tasks.notification_tasks as nt
-            monkeypatch.setattr(nt, "_send_telegram", lambda user, text: calls.__setitem__("individual", calls["individual"] + 1))
-            monkeypatch.setattr(nt, "_send_to_channels", lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1))
+            monkeypatch.setattr(
+                nt, "_send_telegram",
+                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+            )
+            monkeypatch.setattr(
+                nt, "_send_to_channels",
+                lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1),
+            )
 
             nt.fire_signal_alerts(app)
 
-            assert calls["group"] == 1, "group delivery should fire for a market in its list"
-            assert calls["individual"] == 0, "individual delivery must not fire when its own market list is empty"
+            assert calls["group"] == 0, "signal alerts must never use the news group"
+            assert calls["individual"] == 0, "individual delivery is disabled for this market"
 
-    def test_individual_settings_cannot_send_when_group_is_off(self, app, signal_setup, monkeypatch):
+    def test_individual_signal_settings_send_only_to_users(self, app, signal_setup, monkeypatch):
         with app.app_context():
             from app.models.platform_config import PlatformConfig
             from app.extensions import db
             row = PlatformConfig.get_singleton()
-            row.telegram_signal_individual_markets = ["crypto"]   # individual ON for crypto
-            row.telegram_signal_group_markets = []                 # group OFF for every market
+            row.telegram_signal_individual_markets = ["crypto"]
+            row.telegram_signal_group_markets = ["crypto"]
             db.session.commit()
 
             calls = {"individual": 0, "group": 0}
             import app.tasks.notification_tasks as nt
-            monkeypatch.setattr(nt, "_send_telegram", lambda user, text: calls.__setitem__("individual", calls["individual"] + 1))
-            monkeypatch.setattr(nt, "_send_to_channels", lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1))
+            monkeypatch.setattr(
+                nt, "_send_telegram",
+                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+            )
+            monkeypatch.setattr(
+                nt, "_send_to_channels",
+                lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1),
+            )
 
             nt.fire_signal_alerts(app)
 
-            assert calls["individual"] == 1, "individual delivery should fire for a market in its list"
-            assert calls["group"] == 0, "group delivery must not fire when its own market list is empty"
+            assert calls["individual"] == 1, "individual signal delivery should fire for an enabled market"
+            assert calls["group"] == 0, "signal alerts must never use the news group"
 
-    def test_market_not_in_either_list_sends_nothing(self, app, signal_setup, monkeypatch):
+    def test_market_not_in_individual_list_sends_nothing(self, app, signal_setup, monkeypatch):
         with app.app_context():
             from app.models.platform_config import PlatformConfig
             from app.extensions import db
             row = PlatformConfig.get_singleton()
-            row.telegram_signal_individual_markets = ["forex"]    # crypto (the test signal's market) not listed
-            row.telegram_signal_group_markets = ["forex"]
+            row.telegram_signal_individual_markets = ["forex"]
+            row.telegram_signal_group_markets = ["crypto"]
             db.session.commit()
 
             calls = {"individual": 0, "group": 0}
             import app.tasks.notification_tasks as nt
-            monkeypatch.setattr(nt, "_send_telegram", lambda user, text: calls.__setitem__("individual", calls["individual"] + 1))
-            monkeypatch.setattr(nt, "_send_to_channels", lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1))
+            monkeypatch.setattr(
+                nt, "_send_telegram",
+                lambda user, text: calls.__setitem__("individual", calls["individual"] + 1),
+            )
+            monkeypatch.setattr(
+                nt, "_send_to_channels",
+                lambda text, market, category, tf=None: calls.__setitem__("group", calls["group"] + 1),
+            )
 
             nt.fire_signal_alerts(app)
 
-            assert calls == {"individual": 0, "group": 0}, "a market absent from both lists must get neither delivery level"
+            assert calls == {"individual": 0, "group": 0}

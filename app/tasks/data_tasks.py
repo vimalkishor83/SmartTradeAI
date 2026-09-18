@@ -840,6 +840,7 @@ def fetch_news(app):
             )
 
         new_count = 0
+        new_items = []
         for item in items:
             url = item.get("url")
             if not url or url in existing_urls:
@@ -855,6 +856,7 @@ def fetch_news(app):
                 published_at=item.get("published_at"),
             )
             db.session.add(news)
+            new_items.append(item)
             # Guard duplicates returned within this same provider response.
             existing_urls.add(url)
             new_count += 1
@@ -863,6 +865,8 @@ def fetch_news(app):
             db.session.commit()
             if new_count:
                 logger.info(f"Saved {new_count} new news items")
+                from app.tasks.notification_tasks import send_news_digest
+                send_news_digest(new_items)
         except Exception as e:
             db.session.rollback()
             logger.error(f"News save failed: {e}")
