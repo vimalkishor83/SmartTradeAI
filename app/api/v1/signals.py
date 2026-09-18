@@ -2431,16 +2431,47 @@ def get_analytics():
     losses_sum = func.sum(case((SignalHistory.outcome == "loss", 1), else_=0))
 
     # ── By market ────────────────────────────────────────────────────────────
+    # These are historical market-level metrics, so use the values captured
+    # on SignalHistory rather than current Signal rows. The CASE prevents a
+    # divide-by-zero when a legacy row has entry and stop at the same price.
+    historical_rr = case(
+        (
+            and_(
+                SignalHistory.entry_price.isnot(None),
+                SignalHistory.stop_loss.isnot(None),
+                SignalHistory.target1.isnot(None),
+                func.abs(SignalHistory.entry_price - SignalHistory.stop_loss) > 0,
+            ),
+            func.abs(SignalHistory.target1 - SignalHistory.entry_price)
+            / func.abs(SignalHistory.entry_price - SignalHistory.stop_loss),
+        ),
+        else_=None,
+    )
     mkt_rows = (
-        db.session.query(Asset.market, func.count(SignalHistory.id).label("total"), wins_sum, losses_sum)
+        db.session.query(
+            Asset.market,
+            func.count(SignalHistory.id).label("total"),
+            wins_sum,
+            losses_sum,
+            func.avg(historical_rr).label("avg_rr"),
+            func.avg(SignalHistory.pnl_pct).label("expectancy"),
+        )
         .join(SignalHistory, SignalHistory.asset_id == Asset.id)
         .group_by(Asset.market)
         .all()
     )
-    by_market = [{
-        "market": mkt, "total": total, "wins": w or 0, "losses": l or 0,
-        "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
-    } for mkt, total, w, l in mkt_rows]
+    by_market = []
+    for mkt, total, w, l, avg_rr_value, expectancy_value in mkt_rows:
+        by_market.append({
+            "market": mkt,
+            "total": total,
+            "wins": w or 0,
+            "losses": l or 0,
+            "win_rate": round((w or 0) / total * 100, 1) if total else 0.0,
+            "avg_rr": round(float(avg_rr_value), 2) if avg_rr_value is not None else None,
+            "expectancy": round(float(expectancy_value), 3)
+            if expectancy_value is not None else None,
+        })
 
     # ── By timeframe ─────────────────────────────────────────────────────────
     tf_rows = (

@@ -76,3 +76,52 @@ def test_signal_performance_preserves_calibration_and_hourly_contract(
     assert calibration["Weak"]["actual_win_rate"] is None
     assert calibration["Strong"]["signals"] == 2
     assert calibration["Strong"]["actual_win_rate"] == 50.0
+
+def test_signal_analytics_market_metrics_use_historical_risk_and_pnl(
+    app, client, login_headers,
+):
+    with app.app_context():
+        from app.extensions import cache, db
+        from app.models.asset import Asset
+        from app.models.signal import Signal, SignalHistory
+
+        cache.delete("signals_analytics")
+        now = datetime.utcnow().replace(second=0, microsecond=0)
+        asset = Asset(symbol="SIGANALYTICS", name="Signal Analytics", market="crypto", is_active=True)
+        db.session.add(asset)
+        db.session.flush()
+
+        winning_signal = Signal(
+            asset_id=asset.id, timeframe="1h", signal_type="BUY",
+            entry_price=100.0, stop_loss=95.0, target1=110.0,
+            risk_reward=2.0, status="hit_target",
+        )
+        losing_signal = Signal(
+            asset_id=asset.id, timeframe="1h", signal_type="SELL",
+            entry_price=100.0, stop_loss=104.0, target1=92.0,
+            risk_reward=2.0, status="hit_sl",
+        )
+        db.session.add_all([winning_signal, losing_signal])
+        db.session.flush()
+        db.session.add_all([
+            SignalHistory(
+                signal_id=winning_signal.id, asset_id=asset.id, timeframe="1h",
+                signal_type="BUY", entry_price=100.0, stop_loss=95.0,
+                target1=110.0, outcome="win", pnl_pct=5.0, closed_at=now,
+            ),
+            SignalHistory(
+                signal_id=losing_signal.id, asset_id=asset.id, timeframe="1h",
+                signal_type="SELL", entry_price=100.0, stop_loss=104.0,
+                target1=92.0, outcome="loss", pnl_pct=-2.0, closed_at=now,
+            ),
+        ])
+        db.session.commit()
+
+    response = client.get("/api/v1/signals/analytics", headers=login_headers)
+
+    assert response.status_code == 200
+    market = next(row for row in response.get_json()["by_market"] if row["market"] == "crypto")
+    assert market["total"] == 2
+    assert market["win_rate"] == 50.0
+    assert market["avg_rr"] == 2.0
+    assert market["expectancy"] == 1.5
