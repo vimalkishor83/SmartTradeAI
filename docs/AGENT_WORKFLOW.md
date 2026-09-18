@@ -141,7 +141,8 @@ original private half had never actually been saved anywhere retrievable
 set), so it was rotated out rather than left as a dead end. Do not
 regenerate or rotate it again without checking here first and updating
 this note — a second silent rotation just reintroduces the same problem
-for whoever reads this next.
+for whoever reads this next. `DEVELOPMENT_DEPLOY_KEY` is now set (2026-09-18)
+and the pipeline is confirmed live end-to-end.
 
 - **`smarttradeai-common-key`** — the ONE shared key for both interactive
   SSH access to the server and the CI deploy pipeline, by explicit user
