@@ -250,6 +250,10 @@ function loadHeaderStats(heatmap) {
 function _oppTag(conf, type) {
   if (type === 'SELL' && conf >= 70) return { t: 'AVOID', c: 'var(--red)' };
   if (conf >= 85) return { t: 'BUY', c: 'var(--green)' };
+  // 80-84%: close enough to the BUY threshold to call out separately from
+  // a plain WATCH, without promising a BUY the confidence score hasn't
+  // actually reached yet.
+  if (conf >= 80) return { t: 'STRONG WATCH', c: 'var(--green)' };
   if (conf >= 70) return { t: 'WATCH', c: 'var(--accent-light)' };
   if (conf >= 55) return { t: 'WAIT', c: 'var(--yellow)' };
   return { t: 'AVOID', c: 'var(--red)' };

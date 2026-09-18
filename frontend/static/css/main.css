@@ -4506,7 +4506,8 @@ body[data-requires-admin] #pageContentBody::before {
   letter-spacing: .03em;
   border: 1px solid;
   border-radius: 5px;
-  padding: 2px 7px
+  padding: 2px 7px;
+  white-space: nowrap
 }
 
 .opp-conf {
