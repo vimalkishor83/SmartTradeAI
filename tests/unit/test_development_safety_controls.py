@@ -33,12 +33,35 @@ def test_safety_flags_default_to_false_and_debug_is_forced_off():
     assert DevelopmentConfig.DEBUG is False
     assert DevelopmentConfig.JWT_COOKIE_SECURE is True
     assert DevelopmentConfig.SESSION_COOKIE_SECURE is True
-    assert DevelopmentConfig.CORS_ORIGINS == [
+    assert DevelopmentConfig.RUN_MIGRATIONS_ON_STARTUP is False
+    assert TestingConfig.RUN_MIGRATIONS_ON_STARTUP is True
+
+
+def test_development_cors_origins_defaults_to_the_info_domain(monkeypatch):
+    """DevelopmentConfig.CORS_ORIGINS is computed once at class-definition
+    time from the CORS_ORIGINS env var, so it can't be re-checked against a
+    monkeypatched environment the way the plain class attributes above can
+    -- whatever value happened to be in the environment (e.g. production's
+    real .env, which legitimately sets this to smarttradeai.online) is
+    already baked in by the time this test runs. Testing the underlying
+    function directly instead verifies the actual fallback behavior without
+    depending on which .env the test process happens to load from disk."""
+    from app.config import _development_cors_origins
+
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    assert _development_cors_origins() == [
         "https://smarttradeai.info",
         "https://www.smarttradeai.info",
     ]
-    assert DevelopmentConfig.RUN_MIGRATIONS_ON_STARTUP is False
-    assert TestingConfig.RUN_MIGRATIONS_ON_STARTUP is True
+
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    assert _development_cors_origins() == [
+        "https://smarttradeai.info",
+        "https://www.smarttradeai.info",
+    ]
+
+    monkeypatch.setenv("CORS_ORIGINS", "https://custom.example.com")
+    assert _development_cors_origins() == ["https://custom.example.com"]
 
 
 def test_development_auto_generate_defaults_cover_all_timeframes_safely():
