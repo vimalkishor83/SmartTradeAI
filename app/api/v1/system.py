@@ -100,10 +100,27 @@ def _check_market_stream() -> dict:
     # markets poll instead), so a down stream is reported but not fatal.
     try:
         from app.services.data.delta_stream import delta_stream
-        running = bool(getattr(delta_stream, "running", None) or
-                       getattr(delta_stream, "_running", False))
-        return {"name": "market_stream", "healthy": True,
-                "detail": "connected" if running else "idle (polling fallback)"}
+        import time as _time
+
+        status = delta_stream.status()
+        last_ts = status.get("last_message_ts")
+        last_message_age_seconds = round(_time.time() - last_ts, 1) if last_ts else None
+
+        if status.get("connected"):
+            detail = "connected"
+        elif not status.get("thread_alive"):
+            detail = "stopped (polling fallback)"
+        else:
+            reason = status.get("last_close_reason")
+            detail = f"reconnecting ({reason})" if reason else "reconnecting (polling fallback)"
+
+        return {
+            "name": "market_stream",
+            "healthy": True,
+            "detail": detail,
+            "connected": status.get("connected", False),
+            "last_message_age_seconds": last_message_age_seconds,
+        }
     except Exception as e:
         logger.debug(f"readiness: market stream check failed: {e}")
         return {"name": "market_stream", "healthy": True, "detail": "unknown"}
