@@ -75,6 +75,8 @@ async function loadKPIs() {
   const winRate = mnum(ov.win_rate);
   mset('kpiWin', winRate === null ? '—' : mpercent(winRate).toFixed(1) + '%');
   mset('kpiWinSub', 'historical · n = ' + mcount(ov.total_closed));
+  const avgRR = mnum(ov.avg_rr);
+  mset('kpiRR', avgRR === null ? '—' : '1:' + avgRR.toFixed(2));
   if (Array.isArray(pnl) && pnl.length) {
     const values = pnl.map(r => mnum(r?.pnl_pct)).filter(v => v !== null);
     const avg = values.length ? values.reduce((s, value) => s + value, 0) / values.length : null;
