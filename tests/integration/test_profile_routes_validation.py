@@ -36,8 +36,14 @@ class TestProfileUpdate:
         assert response.status_code == 400
         assert response.get_json()["error"] == "request body must be a JSON object"
 
-    def test_valid_profile_and_risk_settings_are_persisted(self, profile_client):
+    def test_valid_profile_and_risk_settings_are_persisted(self, app, profile_client):
         client, headers = profile_client
+        # Individual Telegram delivery is a real, working mode
+        # (news_group_individual_signals), but TELEGRAM_NOTIFICATIONS_ENABLED
+        # defaults to False in every profile including testing -- this test
+        # exercises the telegram_enabled/telegram_chat_id fields, so it needs
+        # to opt in explicitly rather than relying on ambient config.
+        app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
         response = client.put("/api/v1/auth/me", headers=headers, json={
             "first_name": "Vimal",
             "last_name": "Trader",

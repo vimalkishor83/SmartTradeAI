@@ -89,11 +89,23 @@ def test_protective_and_telegram_paths_are_fail_closed():
     assert protective_api.index('safety_disabled_payload("protective_orders")', update_start) < protective_api.index("_positive_level", update_start)
     assert protective_task.index("protective_orders_enabled") < protective_task.index("client.place_order")
     assert notifications.index("telegram_notifications_enabled") < notifications.index("requests.post")
-    assert live_read.index("telegram_notifications_enabled", live_read.index("def enqueue_live_read_event_notifications")) < live_read.index("Notification", live_read.index("def enqueue_live_read_event_notifications"))
-    assert auth.index('safety_disabled_payload("telegram")', auth.index("def find_telegram_chat_id")) < auth.index("requests.get", auth.index("def find_telegram_chat_id"))
-    assert auth.index('safety_disabled_payload("telegram")', auth.index("def send_telegram_test")) < auth.index("requests.post", auth.index("def send_telegram_test"))
+    # live_read_notifications gates on the more specific
+    # telegram_individual_delivery_enabled() (personal-delivery mode), not
+    # the generic telegram_notifications_enabled() master switch checked
+    # elsewhere -- both fail closed, but this one also respects
+    # TELEGRAM_DELIVERY_MODE.
+    assert live_read.index("telegram_individual_delivery_enabled", live_read.index("def enqueue_live_read_event_notifications")) < live_read.index("Notification", live_read.index("def enqueue_live_read_event_notifications"))
+    # These two now use the "telegram_individual" reason (personal-delivery
+    # specific), distinct from the generic "telegram" reason admin.py's
+    # group-broadcast paths below still use.
+    assert auth.index('safety_disabled_payload("telegram_individual")', auth.index("def find_telegram_chat_id")) < auth.index("requests.get", auth.index("def find_telegram_chat_id"))
+    assert auth.index('safety_disabled_payload("telegram_individual")', auth.index("def send_telegram_test")) < auth.index("requests.post", auth.index("def send_telegram_test"))
     assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_channel_broadcast")) < admin.index("_send_to_chat", admin.index("def telegram_channel_broadcast"))
-    assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_security_test")) < admin.index("send_security_alert", admin.index("def telegram_security_test"))
+    # telegram_security_test is now a retired compatibility endpoint that
+    # always 403s (security alerts no longer go to the news-only shared
+    # group at all) -- it still checks telegram_notifications_enabled
+    # first, but never reaches send_security_alert by design.
+    assert admin.index('safety_disabled_payload("telegram")', admin.index("def telegram_security_test")) < admin.index("telegram_group_news_only", admin.index("def telegram_security_test"))
 
 
 def test_startup_migrations_are_explicitly_gated():
