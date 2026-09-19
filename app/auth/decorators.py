@@ -1,6 +1,7 @@
 from functools import wraps
 from flask import jsonify
 from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt
+from flask_jwt_extended.exceptions import RevokedTokenError
 from app.models.user import User
 
 
@@ -24,6 +25,22 @@ def _rejects_totp_pending_token():
         return False
 
 
+def _verify_jwt_allowing_totp_pending_message():
+    """Same as verify_jwt_in_request(), except a RevokedTokenError caused
+    specifically by the app-wide totp_pending blocklist rule (app/__init__.py's
+    _check_session_revoked) is swallowed here so the caller's own
+    _rejects_totp_pending_token() check runs next and returns the clearer
+    "2FA verification required" message instead of a generic 401 — without
+    this, the blocklist's RevokedTokenError fires before this decorator
+    ever gets to inspect the token's totp_pending claim itself."""
+    try:
+        verify_jwt_in_request()
+    except RevokedTokenError:
+        verify_jwt_in_request(skip_revocation_check=True)
+        if not _rejects_totp_pending_token():
+            raise
+
+
 def login_required(f):
     """Requires a valid JWT *and* an account that is still active.
 
@@ -37,7 +54,7 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
-            verify_jwt_in_request()
+            _verify_jwt_allowing_totp_pending_message()
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
@@ -58,7 +75,7 @@ def roles_required(*roles):
         @wraps(f)
         def decorated(*args, **kwargs):
             try:
-                verify_jwt_in_request()
+                _verify_jwt_allowing_totp_pending_message()
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 
@@ -93,7 +110,7 @@ def super_admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
-            verify_jwt_in_request()
+            _verify_jwt_allowing_totp_pending_message()
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
@@ -128,7 +145,7 @@ def approved_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         try:
-            verify_jwt_in_request()
+            _verify_jwt_allowing_totp_pending_message()
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
@@ -173,7 +190,7 @@ def page_admin_required(f):
     def decorated(*args, **kwargs):
         from flask import redirect, url_for, request
         try:
-            verify_jwt_in_request()
+            _verify_jwt_allowing_totp_pending_message()
         except Exception:
             _notify_security_admin_unauthorized(None, "no valid session")
             return redirect(url_for("views.login"))
@@ -234,7 +251,7 @@ def min_tier_required(min_tier_level):
         @wraps(f)
         def decorated(*args, **kwargs):
             try:
-                verify_jwt_in_request()
+                _verify_jwt_allowing_totp_pending_message()
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 
@@ -268,7 +285,7 @@ def subscription_feature_required(flag_name):
         @wraps(f)
         def decorated(*args, **kwargs):
             try:
-                verify_jwt_in_request()
+                _verify_jwt_allowing_totp_pending_message()
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 

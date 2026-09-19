@@ -29,7 +29,7 @@ def evaluate_limits(limits, *, current_exposure=0.0, proposed_exposure=0.0,
 
 def evaluate_order_for_user(user_id, *, size, price, stop_price=None, symbol=None):
     """Evaluate a proposed order against the user's stored portfolio limits."""
-    from datetime import date
+    from datetime import datetime
 
     from sqlalchemy import func
 
@@ -62,12 +62,20 @@ def evaluate_order_for_user(user_id, *, size, price, stop_price=None, symbol=Non
         if capital > 0:
             drawdown_pct = max(0.0, (capital - current_exposure) / capital * 100)
 
-    # JournalEntry.trade_date is a calendar date, not a timestamp. Use the
-    # process-local calendar date so the risk check matches entries created
-    # by the dashboard and avoids a UTC-midnight limit bypass.
+    # JournalEntry.trade_date has no server-side timezone normalization --
+    # it's a plain client-supplied date (frontend/templates/dashboard/
+    # journal.html defaults the date picker via
+    # `new Date().toISOString().slice(0,10)`, which is always the UTC
+    # calendar date regardless of the browser's local timezone). A prior
+    # change here compared trade_date against a SCHEDULER_TIMEZONE-based
+    # "business date" instead, which silently stopped matching any
+    # journal entry once the scheduler's local date diverged from the UTC
+    # date. Comparing against the same UTC date convention trade_date
+    # actually uses is what keeps this check able to find "today's"
+    # entries at all.
     today_loss = db.session.query(func.coalesce(func.sum(JournalEntry.pnl_amount), 0)).filter(
         JournalEntry.user_id == user_id,
-        JournalEntry.trade_date == date.today(),
+        JournalEntry.trade_date == datetime.utcnow().date(),
         JournalEntry.pnl_amount < 0,
     ).scalar()
     daily_loss = abs(float(today_loss or 0))
