@@ -12,8 +12,15 @@ logger = logging.getLogger(__name__)
 
 
 @socketio.on("connect")
-def on_connect():
-    token = request.args.get("token")
+def on_connect(auth=None):
+    # Prefer the handshake auth payload (sent by the client's `auth:` option,
+    # part of the connection body) over the URL query string — a token in
+    # the query string ends up in server access logs, any proxy/CDN logs in
+    # between, and browser history. The query-string fallback stays only
+    # for any client connecting with cached pre-fix JS during rollout.
+    token = (auth or {}).get("token") if isinstance(auth, dict) else None
+    if not token:
+        token = request.args.get("token")
     if not token:
         return False
     try:

@@ -56,7 +56,10 @@ def get_asset(asset_id):
 
 @assets_bp.route("/<int:asset_id>/ticker", methods=["GET"])
 @login_required
-@limiter.exempt
+# Was @limiter.exempt (no limit at all) — this triggers a real external
+# provider call per miss on the 5s ticker cache; a repeatedly-polling or
+# malicious client could otherwise generate unbounded upstream API calls.
+@limiter.limit("30 per minute")
 def get_ticker(asset_id):
     asset = Asset.query.get_or_404(asset_id)
     ticker = market_fetcher.fetch_ticker(asset)

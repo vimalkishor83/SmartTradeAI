@@ -1167,6 +1167,8 @@ def clear_audit_logs():
     unchanged for the dashboard widget's "Clear Log" button. Passing
     {"ids": [...]} instead deletes just those rows, for the full Audit
     Log page's per-row selection."""
+    from flask_jwt_extended import get_jwt_identity
+
     data = request.get_json(silent=True) or {}
     ids = data.get("ids")
     if ids:
@@ -1174,10 +1176,19 @@ def clear_audit_logs():
             return jsonify({"error": "ids must be a list of integers"}), 400
         deleted = AuditLog.query.filter(AuditLog.id.in_(ids)).delete(synchronize_session=False)
         db.session.commit()
+        # Recorded after the delete so this entry survives it, not before.
+        AuditLog.record(
+            int(get_jwt_identity()), "audit_logs_cleared", resource="audit_log",
+            details={"count": deleted, "scope": "selected"}, status="success",
+        )
         return jsonify({"message": f"Deleted {deleted} selected entr{'y' if deleted == 1 else 'ies'}"}), 200
 
     deleted = AuditLog.query.delete()
     db.session.commit()
+    AuditLog.record(
+        int(get_jwt_identity()), "audit_logs_cleared", resource="audit_log",
+        details={"count": deleted, "scope": "all"}, status="success",
+    )
     return jsonify({"message": f"Cleared {deleted} audit log entries"}), 200
 
 

@@ -241,7 +241,7 @@ def register():
     # Invalid/inactive/expired/exhausted codes are silently ignored — the
     # signup still succeeds, it just falls back to the free tier, so a typo
     # doesn't block registration.
-    referral_code_raw = (data.get("referral_code") or "").strip()
+    referral_code_raw = (data.get("referral_code") or "").strip().upper()
     referral = None
     if referral_code_raw:
         referral = ReferralCode.query.filter_by(code=referral_code_raw).first()
@@ -524,7 +524,7 @@ def forgot_password():
     if user:
         from app.services.tokens import make_reset_token
         from app.services.mailer import send_password_reset_email
-        send_password_reset_email(user, make_reset_token(user.id))
+        send_password_reset_email(user, make_reset_token(user.id, user.password_hash))
         _audit(user.id, "password_reset_requested", "user", str(user.id))
     return jsonify({"message": "If that email is registered, a reset link has been sent."}), 200
 
@@ -540,7 +540,7 @@ def reset_password():
     if len(new_password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
 
-    user_id = read_reset_token(token)
+    user_id, fingerprint = read_reset_token(token)
     if not user_id:
         return jsonify({"error": "Invalid or expired reset link"}), 400
 
@@ -548,7 +548,29 @@ def reset_password():
     if not user:
         return jsonify({"error": "Invalid or expired reset link"}), 400
 
+    # The token embeds a fingerprint of the password hash that was current
+    # when it was issued — if the password has already been changed since
+    # (this same link used once already, or changed some other way), that
+    # fingerprint no longer matches and the token must not work a second
+    # time. Without this, a stateless token stayed valid and reusable for
+    # its whole 1-hour window regardless of how many times it was used.
+    if fingerprint != (user.password_hash or "")[-16:]:
+        return jsonify({"error": "Invalid or expired reset link"}), 400
+
     user.set_password(new_password)
+
+    # A password reset is exactly the scenario a stolen/compromised
+    # session should not survive — revoke every other active session so
+    # an attacker holding an old access token from before the reset loses
+    # access immediately rather than staying in for the rest of that
+    # token's natural lifetime.
+    from app.models.user_session import UserSession
+    now = datetime.utcnow()
+    UserSession.query.filter_by(user_id=user.id, revoked_at=None).update(
+        {UserSession.revoked_at: now, UserSession.revoked_reason: "password_reset"},
+        synchronize_session=False,
+    )
+
     db.session.commit()
     _audit(user.id, "password_reset", "user", str(user.id))
     return jsonify({"message": "Password reset successfully — you can now log in."}), 200
@@ -644,16 +666,30 @@ def export_my_data():
 def delete_my_account():
     """Self-service account deletion. Requires current password confirmation
     (prevents a hijacked session / CSRF-adjacent mistake from nuking an
-    account silently). Cascade-related tables (Watchlist, Portfolio,
-    Notification, Backtest) are removed via the User model's
-    cascade='all, delete-orphan' relationships; tables without a declared
-    relationship (JournalEntry, UserAssetPreference, UserBrokerCredential,
-    AuditLog) are deleted explicitly here first so the final user delete
-    doesn't fail on a lingering foreign key."""
+    account silently). Mirrors admin.py's delete_user exactly — every
+    user-owned table with a non-null foreign key is deleted explicitly
+    here first, in dependency order, rather than relying on a declared
+    ORM cascade that doesn't cover every feature a self-service user
+    could have used (protective orders, algo policies, MTF watch configs,
+    saved screens, daily-compound-calculator scenarios). Without this,
+    any user with one of those features enabled got an unhandled
+    IntegrityError/500 trying to delete their own account."""
     from app.models.journal import JournalEntry
     from app.models.user import UserAssetPreference
     from app.models.api_config import UserBrokerCredential
     from app.models.audit import AuditLog
+    from app.models.watchlist import Watchlist, WatchlistItem
+    from app.models.portfolio import Portfolio, PortfolioItem
+    from app.models.notification import Notification
+    from app.models.backtest import Backtest
+    from app.models.algo_trading import AlgoExecutionPolicy
+    from app.models.mtf_watch_config import MtfWatchConfig
+    from app.models.saved_screen import SavedScreen
+    from app.models.protective_order import ProtectiveOrder
+    from app.models.user_session import UserSession
+    from app.models.daily_compound_calculator import DailyCompoundCalculation
+    from app.models.platform_config import PlatformConfig
+    from sqlalchemy.exc import IntegrityError
 
     user = get_current_user()
     data = request.get_json(silent=True)
@@ -663,16 +699,50 @@ def delete_my_account():
         return jsonify({"error": "Password incorrect"}), 403
 
     user_id = user.id
-    JournalEntry.query.filter_by(user_id=user_id).delete()
-    UserAssetPreference.query.filter_by(user_id=user_id).delete()
-    UserBrokerCredential.query.filter_by(user_id=user_id).delete()
-    # Audit rows keep user_id nullable specifically so a deletion audit trail
-    # can survive the account itself being removed — null the FK, don't delete.
-    AuditLog.query.filter_by(user_id=user_id).update({"user_id": None})
 
-    _audit(None, "account_deleted", "user", str(user_id))
-    db.session.delete(user)
-    db.session.commit()
+    try:
+        # Nested children must be removed before their watchlist/portfolio.
+        WatchlistItem.query.filter(WatchlistItem.watchlist_id.in_(
+            db.session.query(Watchlist.id).filter(Watchlist.user_id == user_id)
+        )).delete(synchronize_session=False)
+        ProtectiveOrder.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        PortfolioItem.query.filter(PortfolioItem.portfolio_id.in_(
+            db.session.query(Portfolio.id).filter(Portfolio.user_id == user_id)
+        )).delete(synchronize_session=False)
+
+        for model in (
+            UserAssetPreference, Notification, Backtest, JournalEntry,
+            UserBrokerCredential, AlgoExecutionPolicy, MtfWatchConfig,
+            SavedScreen, UserSession,
+        ):
+            model.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        # These records are owned by the account, but their FK is named
+        # created_by_user_id rather than user_id.
+        DailyCompoundCalculation.query.filter_by(created_by_user_id=user_id).delete(
+            synchronize_session=False
+        )
+        Portfolio.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+        Watchlist.query.filter_by(user_id=user_id).delete(synchronize_session=False)
+
+        # Audit rows and the singleton config remain useful after account
+        # removal; both references are nullable and can safely become
+        # system-owned rather than being deleted.
+        AuditLog.query.filter_by(user_id=user_id).update(
+            {AuditLog.user_id: None}, synchronize_session=False
+        )
+        PlatformConfig.query.filter_by(updated_by=user_id).update(
+            {PlatformConfig.updated_by: None}, synchronize_session=False
+        )
+
+        _audit(None, "account_deleted", "user", str(user_id))
+        db.session.delete(user)
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({
+            "error": "Account cannot be deleted because another record still references it. Please contact support."
+        }), 409
 
     response = jsonify({"message": "Account deleted"})
     unset_jwt_cookies(response)

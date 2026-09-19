@@ -135,12 +135,21 @@ def restore_backup(app, backup_path: str, target_path: str | None = None) -> boo
 
     # Verify the restored file is a valid SQLite database before
     # replacing the live target — a truncated/corrupt backup should fail
-    # loudly here, not silently destroy the existing DB.
+    # loudly here, not silently destroy the existing DB. PRAGMA
+    # integrity_check does not raise on corruption; it returns the string
+    # "ok" on success or one row per problem found, so the result must be
+    # checked explicitly rather than merely executed.
     conn = sqlite3.connect(tmp_restored)
     try:
-        conn.execute("PRAGMA integrity_check").fetchone()
+        result = conn.execute("PRAGMA integrity_check").fetchone()
     finally:
         conn.close()
+
+    if not result or result[0] != "ok":
+        os.remove(tmp_restored)
+        raise ValueError(
+            f"Backup file failed integrity check, refusing to restore: {result}"
+        )
 
     shutil.move(tmp_restored, target_path)
     logger.info(f"DB restored from {backup_path} to {target_path}")

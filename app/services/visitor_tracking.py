@@ -6,13 +6,24 @@ security alert — only a genuinely new IP, or a new device on an
 already-known IP, does. Called from the before_request hook in
 app/__init__.py; every failure here is swallowed by the caller, so this
 module never needs to worry about breaking a page load.
+
+Rate-limited per IP (not per (ip, user_agent)): the uniqueness key being
+(ip, user_agent) means a script that varies its User-Agent on every
+request would otherwise trigger an unbounded number of new-row inserts,
+geolocation lookups, and Telegram alerts from a single source IP. A
+short per-IP cooldown caps this to at most one alert per IP per window,
+regardless of how many distinct user agents show up in that window.
 """
 import logging
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
+
 from app.extensions import db
 
 logger = logging.getLogger(__name__)
+
+_ALERT_COOLDOWN_SECONDS = 300  # one new-visitor/new-device alert per IP per 5 minutes
 
 
 def record_visitor_and_alert_if_new(ip_address: str, user_agent: str) -> None:
@@ -38,15 +49,33 @@ def record_visitor_and_alert_if_new(ip_address: str, user_agent: str) -> None:
     from app.services.ip_geolocation import lookup_location
     location = lookup_location(ip_address)
 
-    db.session.add(VisitorLog(
-        ip_address=ip_address,
-        user_agent=user_agent,
-        location=location,
-        first_seen_at=now,
-        last_seen_at=now,
-        visit_count=1,
-    ))
-    db.session.commit()
+    try:
+        with db.session.begin_nested():
+            db.session.add(VisitorLog(
+                ip_address=ip_address,
+                user_agent=user_agent,
+                location=location,
+                first_seen_at=now,
+                last_seen_at=now,
+                visit_count=1,
+            ))
+        db.session.commit()
+    except IntegrityError:
+        # Another concurrent request for this exact (ip, user_agent) pair
+        # already inserted it first — that request already alerted (or
+        # will), so this one silently backs off rather than double-alerting
+        # or crashing the caller's before_request hook.
+        db.session.rollback()
+        return
+
+    # Cap alert volume per IP regardless of how many distinct user agents
+    # show up — the DB row above still records every device for the admin
+    # UI, only the Telegram/security-channel alert itself is throttled.
+    from app.extensions import cache
+    cooldown_key = f"visitor_alert_cooldown:{ip_address}"
+    if cache.get(cooldown_key):
+        return
+    cache.set(cooldown_key, True, timeout=_ALERT_COOLDOWN_SECONDS)
 
     from app.models.user_session import parse_device_label
     from app.tasks.notification_tasks import send_security_alert

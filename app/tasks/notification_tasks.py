@@ -788,7 +788,7 @@ def send_daily_summary(app):
             text += "\n🔝 Top moves:\n" + "\n".join(lines)
 
         from app.services.telegram_delivery import send_group_message
-        send_group_message(text)
+        send_group_message(text, category="news")
 
 
 def register_notification_jobs(scheduler, app):

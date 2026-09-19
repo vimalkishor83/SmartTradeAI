@@ -2,8 +2,11 @@
 - a repeat visit from an already-known (ip, user_agent) pair must not
   re-alert, only update last_seen_at/visit_count.
 - a brand new IP must be logged and alerted as "new visitor IP".
-- a known IP with a new user_agent must be logged and alerted as "new
-  device on known ip", distinct from a brand new IP.
+- a known IP with a new user_agent must be logged as a distinct device,
+  but the ALERT for a second new device on the same IP within the
+  cooldown window is throttled (rate-limit fix: an attacker varying
+  User-Agent per request must not be able to spam unlimited alerts from
+  one IP) — the DB row is still created either way.
 See app/services/visitor_tracking.py and app/models/visitor_log.py.
 """
 from unittest.mock import patch
@@ -43,7 +46,7 @@ def test_repeat_visit_from_known_ip_and_device_does_not_alert(app):
         assert row.visit_count == 2
 
 
-def test_new_device_on_known_ip_alerts_distinctly(app):
+def test_new_device_on_known_ip_is_logged_but_alert_is_rate_limited(app):
     with app.app_context():
         from app.services.visitor_tracking import record_visitor_and_alert_if_new
 
@@ -53,6 +56,27 @@ def test_new_device_on_known_ip_alerts_distinctly(app):
             mock_alert.reset_mock()
             record_visitor_and_alert_if_new("203.0.113.30", "Mozilla/5.0 Safari iPhone")
 
+        # The per-IP alert cooldown (fixed to prevent User-Agent-randomization
+        # spam) suppresses this second alert within the window — the DB row
+        # for the new device is still created, only the Telegram alert is throttled.
+        mock_alert.assert_not_called()
+        assert VisitorLog.query.filter_by(ip_address="203.0.113.30").count() == 2
+
+
+def test_new_device_on_known_ip_alerts_once_cooldown_has_expired(app):
+    with app.app_context():
+        from app.extensions import cache
+        from app.services.visitor_tracking import record_visitor_and_alert_if_new
+
+        with patch("app.services.ip_geolocation.lookup_location", return_value=""), \
+             patch("app.tasks.notification_tasks.send_security_alert") as mock_alert:
+            record_visitor_and_alert_if_new("203.0.113.40", "Mozilla/5.0 Chrome Windows")
+            mock_alert.reset_mock()
+            # Simulate the cooldown having expired naturally between the two
+            # visits, without relying on real wall-clock time in a unit test.
+            cache.delete("visitor_alert_cooldown:203.0.113.40")
+            record_visitor_and_alert_if_new("203.0.113.40", "Mozilla/5.0 Safari iPhone")
+
         mock_alert.assert_called_once()
         assert "NEW DEVICE ON KNOWN IP" in mock_alert.call_args[0][0]
-        assert VisitorLog.query.filter_by(ip_address="203.0.113.30").count() == 2
+        assert VisitorLog.query.filter_by(ip_address="203.0.113.40").count() == 2

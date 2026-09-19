@@ -1,7 +1,27 @@
 from functools import wraps
 from flask import jsonify
-from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity, get_jwt
 from app.models.user import User
+
+
+def _rejects_totp_pending_token():
+    """True if the current request's JWT carries totp_pending=True.
+
+    /auth/login issues this short-lived (5 min) token in its 202 response
+    the moment a password check succeeds but 2FA hasn't been verified yet
+    — it is a fully valid, correctly-signed access token in every other
+    respect, so without this check it would grant full access to every
+    @login_required-guarded endpoint for its whole lifetime on password
+    alone, defeating the point of having 2FA enabled. The actual login
+    flow never uses this token for anything (the frontend re-submits
+    username+password+totp_code to /auth/login again to complete 2FA),
+    so it is safe to reject unconditionally here rather than needing a
+    single dedicated endpoint that accepts it.
+    """
+    try:
+        return bool(get_jwt().get("totp_pending"))
+    except Exception:
+        return False
 
 
 def login_required(f):
@@ -21,6 +41,9 @@ def login_required(f):
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
+        if _rejects_totp_pending_token():
+            return jsonify({"error": "2FA verification required"}), 401
+
         user_id = get_jwt_identity()
         user = User.query.get(int(user_id)) if user_id else None
         if not user or not user.is_active:
@@ -39,8 +62,11 @@ def roles_required(*roles):
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 
+            if _rejects_totp_pending_token():
+                return jsonify({"error": "2FA verification required"}), 401
+
             user_id = get_jwt_identity()
-            user = User.query.get(int(user_id))
+            user = User.query.get(int(user_id)) if user_id else None
             if not user or not user.is_active:
                 return jsonify({"error": "User not found or inactive"}), 403
 
@@ -71,8 +97,11 @@ def super_admin_required(f):
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
+        if _rejects_totp_pending_token():
+            return jsonify({"error": "2FA verification required"}), 401
+
         user_id = get_jwt_identity()
-        user = User.query.get(int(user_id))
+        user = User.query.get(int(user_id)) if user_id else None
         if not user or not user.is_active:
             return jsonify({"error": "User not found or inactive"}), 403
 
@@ -103,8 +132,11 @@ def approved_required(f):
         except Exception:
             return jsonify({"error": "Authentication required"}), 401
 
+        if _rejects_totp_pending_token():
+            return jsonify({"error": "2FA verification required"}), 401
+
         user_id = get_jwt_identity()
-        user = User.query.get(int(user_id))
+        user = User.query.get(int(user_id)) if user_id else None
         if not user or not user.is_active:
             return jsonify({"error": "User not found or inactive"}), 403
 
@@ -144,6 +176,10 @@ def page_admin_required(f):
             verify_jwt_in_request()
         except Exception:
             _notify_security_admin_unauthorized(None, "no valid session")
+            return redirect(url_for("views.login"))
+
+        if _rejects_totp_pending_token():
+            _notify_security_admin_unauthorized(None, "2FA not yet verified")
             return redirect(url_for("views.login"))
 
         user_id = get_jwt_identity()
@@ -202,8 +238,11 @@ def min_tier_required(min_tier_level):
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 
+            if _rejects_totp_pending_token():
+                return jsonify({"error": "2FA verification required"}), 401
+
             user_id = get_jwt_identity()
-            user = User.query.get(int(user_id))
+            user = User.query.get(int(user_id)) if user_id else None
             if not user or not user.is_active:
                 return jsonify({"error": "User not found or inactive"}), 403
 
@@ -233,8 +272,11 @@ def subscription_feature_required(flag_name):
             except Exception:
                 return jsonify({"error": "Authentication required"}), 401
 
+            if _rejects_totp_pending_token():
+                return jsonify({"error": "2FA verification required"}), 401
+
             user_id = get_jwt_identity()
-            user = User.query.get(int(user_id))
+            user = User.query.get(int(user_id)) if user_id else None
             if not user or not user.is_active:
                 return jsonify({"error": "User not found or inactive"}), 403
 

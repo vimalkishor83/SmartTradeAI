@@ -109,7 +109,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 if not result or result["signal_type"] == "HOLD":
                     return None
 
-                return result, asset
+                return result, asset, df
             except Exception as e:
                 logger.error(f"Signal pipeline failed [{asset.symbol}/{timeframe}]: {e}")
                 return None
@@ -121,8 +121,8 @@ def generate_signals_for_timeframe(app, timeframe: str):
                 res = future.result()
                 if res is None:
                     continue
-                result, asset = res
-                signals_to_add.append((result, asset))
+                result, asset, df = res
+                signals_to_add.append((result, asset, df))
 
         # ── Write signals one at a time, not as one all-or-nothing batch ──
         # A partial unique index (uq_signals_active_asset_tf) now enforces
@@ -141,7 +141,7 @@ def generate_signals_for_timeframe(app, timeframe: str):
         from sqlalchemy.exc import IntegrityError
         from app.websocket.events import broadcast_signal
 
-        for result, asset in signals_to_add:
+        for result, asset, df in signals_to_add:
             # Optional LLM-written narrative in place of the deterministic
             # joined-string reasoning -- see llm_reasoning's docstring for
             # why this call site (a genuine, already-gated new signal, not

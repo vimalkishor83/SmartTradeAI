@@ -616,7 +616,13 @@ def ai_summary():
 
 
 @market_data_bp.route("/live-prices", methods=["GET"])
-@limiter.exempt
+# Was @limiter.exempt (no limit at all) — this is public/unauthenticated,
+# and on a cache miss it fans out one provider request per active crypto
+# asset via a ThreadPoolExecutor. Without a limit, bot traffic or a
+# provider outage (which keeps the cache perpetually empty) can amplify
+# into a large, repeated burst of upstream calls per visitor. Keyed by
+# IP (the default), since there's no authenticated identity here.
+@limiter.limit("20 per minute")
 def live_prices():
     """Return cached live prices from Delta Exchange WebSocket stream (crypto only).
     Falls back to REST fetch_ticker for assets not in stream cache.

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity
-from app.extensions import db
+from app.extensions import db, limiter
 from app.models.backtest import Backtest
 from app.models.backtest_sweep import BacktestSweep
 from app.models.asset import Asset
@@ -50,6 +50,13 @@ def list_backtests():
 @backtesting_bp.route("/run", methods=["POST"])
 @premium_required
 @subscription_feature_required("backtesting_enabled")
+# Each request runs synchronously on the request-handling worker and does
+# real, expensive per-candle computation (potentially hundreds of model
+# evaluations) — with no rate limit at all, a handful of concurrent
+# requests could tie up every worker. This isn't a substitute for moving
+# this to a background job queue (a bigger change), just a floor against
+# accidental or deliberate request-flooding in the meantime.
+@limiter.limit("10 per minute")
 def run_backtest():
     user_id = get_jwt_identity()
     try:
@@ -149,6 +156,7 @@ def run_backtest():
 @backtesting_bp.route("/walk-forward", methods=["POST"])
 @premium_required
 @subscription_feature_required("backtesting_enabled")
+@limiter.limit("10 per minute")
 def walk_forward():
     """
     Splits history into N sequential windows and runs the same strategy

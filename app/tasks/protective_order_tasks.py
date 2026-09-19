@@ -153,16 +153,23 @@ def _handle_trigger(order, asset, current_price, outcome, app):
     from app.services.safety import protective_orders_enabled
 
     executed = False
+    # Distinct from "never attempted" (dry-run, or not configured to
+    # auto-execute at all) — this specifically means the user asked for a
+    # real close and it was tried and failed, so they are now silently
+    # unprotected on a real position unless told clearly.
+    close_attempt_failed = False
     if order.auto_execute and not order.is_dry_run:
         if not protective_orders_enabled():
             order.error_message = "Protective-order execution is disabled in this environment"
             logger.warning("Protective order %s close blocked by environment safety gate", order.id)
+            close_attempt_failed = True
         else:
             executed = _execute_close(order, asset, current_price)
+            close_attempt_failed = not executed
     elif order.auto_execute and order.is_dry_run:
         order.broker_order_result = json.dumps({"dry_run": True, "would_close_at": current_price})
 
-    _notify_trigger(order, asset, current_price, label, executed)
+    _notify_trigger(order, asset, current_price, label, executed, close_attempt_failed)
 
 
 def _execute_close(order, asset, current_price) -> bool:
@@ -216,7 +223,7 @@ def _execute_close(order, asset, current_price) -> bool:
         return False
 
 
-def _notify_trigger(order, asset, current_price, label, executed):
+def _notify_trigger(order, asset, current_price, label, executed, close_attempt_failed=False):
     from app.models.notification import Notification
     from app.models.user import User
     from app.extensions import db
@@ -225,7 +232,19 @@ def _notify_trigger(order, asset, current_price, label, executed):
     if not user:
         return
 
-    mode = "auto-closed" if executed else ("dry-run — no order sent" if order.auto_execute else "notify only")
+    if executed:
+        mode = "auto-closed"
+    elif close_attempt_failed:
+        # A real close was attempted (the user configured auto_execute with
+        # is_dry_run off) and it failed — this is NOT the same as a
+        # deliberately-configured "notify only" order, and must read as an
+        # active problem: the position is still open with no further
+        # automatic protection from this order.
+        mode = f"⚠️ AUTO-CLOSE FAILED — position still open: {order.error_message or 'unknown error'}"
+    elif order.auto_execute:
+        mode = "dry-run — no order sent"
+    else:
+        mode = "notify only"
     title = f"{'🛑' if 'SL' in label or 'Stop' in label else '🎯'} {label}: {asset.symbol}"
     msg = f"{asset.symbol} {order.side} position — {label} @ {current_price:.4f} ({mode})"
 

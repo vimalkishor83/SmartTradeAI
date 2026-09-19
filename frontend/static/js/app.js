@@ -899,7 +899,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const token = localStorage.getItem('access_token');
   if (token && typeof io !== 'undefined') {
     try {
-      const socket = io({ query: { token }, transports: ['websocket', 'polling'],
+      // auth (not query) so the token travels in the handshake payload,
+      // not the connection URL — a query-string token gets written into
+      // server access logs, any proxy/CDN logs in between, and browser
+      // history for the page that opened the socket.
+      const socket = io({ auth: { token }, transports: ['websocket', 'polling'],
                           reconnection: true, reconnectionDelay: 2000,
                           reconnectionDelayMax: 30000, reconnectionAttempts: Infinity });
 
