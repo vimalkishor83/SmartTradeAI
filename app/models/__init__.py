@@ -25,3 +25,4 @@ from app.models.telegram_individual_signal_limit import TelegramIndividualSignal
 from app.models.telegram_user_preference import TelegramUserPreference
 from app.models.trading_order import TradeRequest, PaperOrder
 from app.models.risk_limit import RiskLimit
+from app.models.visitor_log import VisitorLog
