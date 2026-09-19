@@ -54,6 +54,7 @@
       { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Basic", "price": "299", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Premium", "price": "999", "priceCurrency": "INR" },
+      { "@type": "Offer", "name": "Advanced", "price": "1499", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Pro", "price": "2499", "priceCurrency": "INR" }
     ]
   }
@@ -1297,7 +1298,7 @@
     }
 
     .pricing-inner {
-      max-width: 1100px;
+      max-width: 1280px;
       margin: 0 auto;
     }
 
@@ -1308,6 +1309,11 @@
       align-items: start;
     }
     .pricing-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .pricing-grid-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .pricing-grid-5 .pricing-card { padding-left: 22px; padding-right: 22px; }
 
     .pricing-comparison {
       margin: 0 auto 30px;
@@ -1318,8 +1324,8 @@
     }
     .pricing-comparison-grid {
       display: grid;
-      grid-template-columns: minmax(145px, 1.35fr) repeat(4, minmax(112px, 1fr));
-      min-width: 680px;
+      grid-template-columns: minmax(145px, 1.35fr) repeat(5, minmax(112px, 1fr));
+      min-width: 820px;
     }
     .pricing-comparison-grid > span,
     .pricing-comparison-grid > strong {
@@ -1334,7 +1340,7 @@
       text-transform: uppercase;
       background: rgba(255,255,255,0.035);
     }
-    .pricing-comparison-grid > span:nth-last-child(-n+5) { border-bottom: 0; }
+    .pricing-comparison-grid > span:nth-last-child(-n+6) { border-bottom: 0; }
     .pricing-comparison-grid .comparison-label {
       color: var(--text2);
       font-weight: 600;
@@ -1659,11 +1665,13 @@
     /* ── RESPONSIVE ─────────────────────── */
     @media (max-width: 1180px) {
       .pricing-grid-4 { grid-template-columns: repeat(2, 1fr); max-width: 620px; margin: 0 auto; }
+      .pricing-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 960px; margin: 0 auto; }
     }
 
     @media (max-width: 1024px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
       .pricing-grid  { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+      .pricing-grid.pricing-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
       .pricing-card.featured { transform: scale(1); }
       .snapshot-table th:nth-child(4), .snapshot-table td:nth-child(4) { display: none; }
       .pricing-trust-row { grid-template-columns: repeat(2, 1fr); }
@@ -1681,6 +1689,7 @@
       }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .hero-visual .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pricing-grid.pricing-grid-5 { grid-template-columns: 1fr; max-width: 420px; }
       .pricing-trust-row { grid-template-columns: 1fr; }
       .dashboard-preview-head { align-items: flex-start; flex-direction: column; }
       .dashboard-preview-panels { grid-template-columns: 1fr; }
@@ -2197,10 +2206,10 @@
 
     <div class="pricing-comparison" aria-label="Plan comparison at a glance">
       <div class="pricing-comparison-grid">
-        <strong>At a glance</strong><strong>Free</strong><strong>Basic</strong><strong>Premium</strong><strong>Pro</strong>
-        <span class="comparison-label">Signal freshness</span><span class="comparison-value"><strong>30 min</strong></span><span class="comparison-value"><strong>5 min</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span>
-        <span class="comparison-label">Watchlist / alerts</span><span class="comparison-value">5 / 3</span><span class="comparison-value">15 / 10</span><span class="comparison-value">50 / 50</span><span class="comparison-value">200 / 200</span>
-        <span class="comparison-label">Intelligence</span><span class="comparison-value">Core</span><span class="comparison-value">Multi-market</span><span class="comparison-value">AI + 50+</span><span class="comparison-value">Advanced</span>
+        <strong>At a glance</strong><strong>Free</strong><strong>Basic</strong><strong>Premium</strong><strong>Advanced</strong><strong>Pro</strong>
+        <span class="comparison-label">Signal freshness</span><span class="comparison-value"><strong>30 min</strong></span><span class="comparison-value"><strong>5 min</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span>
+        <span class="comparison-label">Watchlist / alerts</span><span class="comparison-value">5 / 3</span><span class="comparison-value">15 / 10</span><span class="comparison-value">50 / 50</span><span class="comparison-value">100 / 100</span><span class="comparison-value">200 / 200</span>
+        <span class="comparison-label">Intelligence</span><span class="comparison-value">Core</span><span class="comparison-value">Multi-market</span><span class="comparison-value">AI + 50+</span><span class="comparison-value">Advanced workflows</span><span class="comparison-value">Priority</span>
       </div>
     </div>
 
@@ -2211,7 +2220,7 @@
       <div class="pricing-trust-item"><i class="bi bi-lock" aria-hidden="true"></i><span>No broker required</span></div>
     </div>
 
-    <div class="pricing-grid pricing-grid-4">
+    <div class="pricing-grid pricing-grid-5">
       <!-- Free -->
       <div class="pricing-card">
         <div class="plan-name">Free</div>
@@ -2280,6 +2289,28 @@
         </ul>
         <p class="plan-note">Best for users who want the full signal context, research tools and personal notifications.</p>
         <a href="/register" class="btn btn-accent" style="width:100%;justify-content:center">Start Premium</a>
+      </div>
+
+      <!-- Advanced -->
+      <div class="pricing-card">
+        <div class="plan-name">Advanced</div>
+        <div class="plan-price">
+          <span class="currency">₹</span>1,499
+          <span class="period">/month</span>
+        </div>
+        <div class="savings-badge">For serious independent research</div>
+        <p class="plan-summary">More room for active research without jumping to Pro capacity.</p>
+        <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything in Premium, plus</div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> 100 watchlist slots · 100 alerts</li>
+          <li><span class="check">✓</span> Advanced scanner presets and saved workflows</li>
+          <li><span class="check">✓</span> Deeper backtesting and model context</li>
+          <li><span class="check">✓</span> Expanded signal history and exports</li>
+          <li><span class="check">✓</span> Priority email support</li>
+        </ul>
+        <p class="plan-note">A capacity-focused step up for users who outgrow Premium but do not need Pro support.</p>
+        <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Advanced</a>
       </div>
 
       <!-- Pro -->
