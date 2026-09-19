@@ -55,7 +55,7 @@
       { "@type": "Offer", "name": "Basic", "price": "299", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Premium", "price": "999", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Advanced", "price": "1499", "priceCurrency": "INR" },
-      { "@type": "Offer", "name": "Pro", "price": "2499", "priceCurrency": "INR" }
+      { "@type": "Offer", "name": "Pro", "price": "1999", "priceCurrency": "INR" }
     ]
   }
   </script>
@@ -1340,6 +1340,7 @@
       text-transform: uppercase;
       background: rgba(255,255,255,0.035);
     }
+    .pricing-comparison-grid > strong:not(:first-child) { text-align: center; }
     .pricing-comparison-grid > span:nth-last-child(-n+6) { border-bottom: 0; }
     .pricing-comparison-grid .comparison-label {
       color: var(--text2);
@@ -2317,7 +2318,7 @@
       <div class="pricing-card">
         <div class="plan-name">Pro</div>
         <div class="plan-price">
-          <span class="currency">₹</span>2,499
+          <span class="currency">₹</span>1,999
           <span class="period">/month</span>
         </div>
         <div class="savings-badge">For high-volume workflows</div>

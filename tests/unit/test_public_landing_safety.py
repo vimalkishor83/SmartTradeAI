@@ -71,9 +71,11 @@ def test_public_landing_pricing_presents_five_clear_tiers():
     assert pricing.count('class="pricing-card') == 5
     assert '<strong>Advanced</strong>' in pricing
     assert '<span class="currency">₹</span>1,499' in pricing
+    assert '<span class="currency">₹</span>1,999' in pricing
     assert 'pricing-grid-5' in pricing
     assert 'repeat(5, minmax(112px, 1fr))' in source
     assert 'class="plan-name">Advanced</div>' in pricing
+    assert '"name": "Pro", "price": "1999"' in source
 
 
 def test_shared_public_nav_is_loaded_across_public_pages():
