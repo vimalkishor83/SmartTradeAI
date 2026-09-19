@@ -333,6 +333,8 @@ def _init_extensions(app):
         both fall through as "not revoked" rather than breaking on
         upgrade or mid-2FA-flow.
         """
+        if jwt_payload.get("totp_pending"):
+            return True
         sid = jwt_payload.get("sid")
         if sid is None:
             return False
@@ -938,6 +940,7 @@ def _init_scheduler(app):
     from app.tasks.data_tasks import register_data_jobs
     from app.tasks.notification_tasks import register_notification_jobs
     from app.tasks.protective_order_tasks import register_protective_order_jobs
+    from app.tasks.trading_tasks import register_trading_jobs
     from app.services.data.collector import register_collector_job
     from app.services.backup.db_backup import register_backup_job
 
@@ -951,6 +954,7 @@ def _init_scheduler(app):
         register_data_jobs(scheduler, app)
         register_notification_jobs(scheduler, app)
         register_protective_order_jobs(scheduler, app)
+        register_trading_jobs(scheduler, app)
         register_backup_job(scheduler, app)
 
         # Defensively remove any legacy per-timeframe signal jobs left in a
@@ -1354,7 +1358,6 @@ def _configure_logging(app):
     for name in (
         "werkzeug",
         "apscheduler.executors.default",
-        "apscheduler.scheduler",
         "apscheduler.jobstores.default",
         "yfinance",
         "peewee",
@@ -1368,6 +1371,10 @@ def _configure_logging(app):
         "sqlalchemy.pool",
     ):
         logging.getLogger(name).setLevel(logging.ERROR)
+
+    # Keep missed/failed scheduled-job diagnostics visible; these are the
+    # operational signals needed to detect a stalled market-data cycle.
+    logging.getLogger("apscheduler.scheduler").setLevel(logging.WARNING)
 
     # Kill werkzeug request-line output entirely
     logging.getLogger("werkzeug").disabled = True

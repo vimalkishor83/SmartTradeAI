@@ -16,6 +16,8 @@ class TradeRequest(db.Model):
     status = db.Column(db.String(20), nullable=False, default="pending")
     response = db.Column(db.JSON)
     broker_order_id = db.Column(db.String(100))
+    requested_exposure = db.Column(db.Numeric(24, 8), nullable=False, default=0)
+    requested_open_risk = db.Column(db.Numeric(24, 8), nullable=False, default=0)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 

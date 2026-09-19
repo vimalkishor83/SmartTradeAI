@@ -1242,6 +1242,18 @@ def generate_signal():
     except Exception:
         pass
 
+    existing = Signal.query.filter(
+        Signal.asset_id == asset.id,
+        Signal.timeframe == timeframe,
+        Signal.status == "active",
+    ).first()
+    if existing:
+        return jsonify({
+            "error": "An active signal already exists for this asset and timeframe",
+            "code": "active_signal_exists",
+            "signal": existing.to_dict(),
+        }), 409
+
     signal = Signal(
         asset_id=asset.id,
         timeframe=timeframe,
@@ -1265,7 +1277,20 @@ def generate_signal():
         }), 422
     signal.set_confidence_label()
     db.session.add(signal)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        existing = Signal.query.filter(
+            Signal.asset_id == asset.id,
+            Signal.timeframe == timeframe,
+            Signal.status == "active",
+        ).order_by(Signal.generated_at.desc()).first()
+        return jsonify({
+            "error": "An active signal already exists for this asset and timeframe",
+            "code": "active_signal_exists",
+            "signal": existing.to_dict() if existing else None,
+        }), 409
 
     return jsonify(signal.to_dict()), 201
 

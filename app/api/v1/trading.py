@@ -20,12 +20,15 @@ from decimal import Decimal, InvalidOperation
 import hashlib
 import json
 import re
+import logging
 from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.auth.decorators import login_required, approved_required, subscription_feature_required
 from app.services.data.fetcher import to_delta_symbol
 from app.services.trading.delta_trading import get_configured_client, DeltaTradingError
 from app.services.trading.broker_registry import get_broker, list_brokers, required_fields
+
+logger = logging.getLogger(__name__)
 from app.services.safety import (
     broker_connections_enabled,
     broker_trading_enabled,
@@ -135,6 +138,8 @@ def _paper_order_response(user_id, data, key, request_hash, *, symbol, side,
     record = TradeRequest(
         user_id=user_id, idempotency_key=key, request_hash=request_hash,
         mode="paper", status="pending",
+        requested_exposure=float(size_int) * float(limit_price or 0),
+        requested_open_risk=abs(float(limit_price or 0) - float(stop_price or limit_price or 0)) * float(size_int),
     )
     db.session.add(record)
     db.session.flush()
@@ -172,6 +177,7 @@ def _audit(user_id, action, provider):
         AuditLog.record(
             user_id, action, resource="broker_credential", resource_id=provider,
             ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
+            commit=True,
         )
     except Exception:
         pass
@@ -187,6 +193,7 @@ def _audit_trade(user_id, action, resource_id=None, status="success", details=No
             status=status, details=details or {},
             ip_address=request.remote_addr,
             user_agent=request.headers.get("User-Agent", ""),
+            commit=True,
         )
     except Exception:
         pass
@@ -558,6 +565,8 @@ def place_order():
         live_request = TradeRequest(
             user_id=user_id, idempotency_key=idempotency_key,
             request_hash=request_hash, mode="live", status="pending",
+            requested_exposure=float(size_int) * float(limit_price or data.get("market_price") or 0),
+            requested_open_risk=abs(float(limit_price or data.get("market_price") or 0) - float(stop_price or limit_price or data.get("market_price") or 0)) * float(size_int),
         )
         db.session.add(live_request)
         db.session.commit()
@@ -592,6 +601,20 @@ def place_order():
             live_request.status = "rejected"
             db.session.commit()
         return jsonify({"error": str(e)}), e.status_code or 400
+    except Exception as e:
+        # A malformed/partial broker response must never leave the durable
+        # request indistinguishable from an order still being submitted.
+        # The reconciliation job will query broker history using the client
+        # order id before deciding whether this was accepted or lost.
+        logger.exception("Unexpected live order response; reconciliation required")
+        if live_request is not None:
+            live_request.status = "reconciliation_required"
+            live_request.response = {"error": "Unexpected broker response; reconciliation required"}
+            db.session.commit()
+        return jsonify({
+            "error": "Broker response could not be verified; reconciliation is required",
+            "code": "reconciliation_required",
+        }), 502
 
 
 @trading_bp.route("/orders/<int:order_id>", methods=["DELETE"])

@@ -9,6 +9,8 @@ from flask_migrate import Migrate
 from flask_cors import CORS
 from flask_mail import Mail
 from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_MISSED
+import logging
 
 db = SQLAlchemy()
 cors = CORS()
@@ -63,4 +65,25 @@ socketio = SocketIO()
 limiter = Limiter(key_func=get_remote_address)
 cache = Cache()
 migrate = Migrate()
-scheduler = BackgroundScheduler()
+scheduler = BackgroundScheduler(job_defaults={
+    "coalesce": True,
+    "max_instances": 1,
+    "misfire_grace_time": 120,
+})
+
+
+def _scheduler_event_listener(event):
+    if event.code == EVENT_JOB_MISSED:
+        logging.getLogger("apscheduler.scheduler").warning(
+            "Scheduled job missed its run window: %s", event.job_id
+        )
+    elif event.code == EVENT_JOB_ERROR:
+        exception = event.exception
+        logging.getLogger("apscheduler.scheduler").error(
+            "Scheduled job failed: %s", event.job_id,
+            exc_info=(type(exception), exception, exception.__traceback__)
+            if exception else None,
+        )
+
+
+scheduler.add_listener(_scheduler_event_listener, EVENT_JOB_ERROR | EVENT_JOB_MISSED)

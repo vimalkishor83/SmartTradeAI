@@ -149,7 +149,14 @@ class PlatformConfig(db.Model):
         if not row:
             row = cls(id=1, disabled_nav_items=[], timeframes=list(DEFAULT_TIMEFRAMES))
             db.session.add(row)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except Exception:
+                # Another worker may have created the singleton first.
+                db.session.rollback()
+                row = cls.query.get(1)
+                if row is None:
+                    raise
         return row
 
     def to_dict(self):

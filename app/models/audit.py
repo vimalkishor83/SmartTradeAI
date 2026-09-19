@@ -26,7 +26,7 @@ class AuditLog(db.Model):
 
     @classmethod
     def record(cls, user_id, action, resource=None, resource_id=None, status="success",
-               ip_address=None, user_agent=None, details=None):
+               ip_address=None, user_agent=None, details=None, *, commit=False):
         """Single entry point for writing an audit row — every call site
         should go through this rather than `AuditLog(...)` directly, so
         the admin's "log super admin actions too" setting (off by
@@ -56,7 +56,10 @@ class AuditLog(db.Model):
             status=status, ip_address=ip_address, user_agent=user_agent, details=details or {},
         )
         db.session.add(log)
-        db.session.commit()
+        if commit:
+            db.session.commit()
+        else:
+            db.session.flush()
         return log
 
     def to_dict(self):

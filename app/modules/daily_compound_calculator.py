@@ -167,7 +167,28 @@ def api_save():
         )
         db.session.add(row)
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as exc:
+        from sqlalchemy.exc import IntegrityError
+        if not isinstance(exc, IntegrityError):
+            db.session.rollback()
+            raise
+        db.session.rollback()
+        # Another admin saved the same name concurrently. Update that
+        # canonical row rather than returning a 500 or creating a duplicate.
+        row = DailyCompoundCalculation.query.filter(
+            db.func.lower(DailyCompoundCalculation.name) == name.lower()
+        ).first()
+        if not row:
+            return jsonify({"error": "Could not save this calculation; please retry"}), 409
+        row.principal = inputs["principal"]
+        row.rate_percent = inputs["rate_percent"]
+        row.start_date = inputs["start_date"]
+        row.duration_value = inputs["duration_value"]
+        row.duration_unit = inputs["duration_unit"]
+        row.frequency = inputs["frequency"]
+        db.session.commit()
     return jsonify(row.to_dict()), 200
 
 

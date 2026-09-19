@@ -14,6 +14,21 @@ from app.auth.decorators import login_required, get_current_user
 
 auth_bp = Blueprint("auth", __name__)
 
+
+def _login_identifier_rate_key():
+    """Keep a second throttle bucket for each login identifier."""
+    data = request.get_json(silent=True) or {}
+    identifier = str(data.get("email") or data.get("username") or "").strip().lower()
+    return f"login-account:{identifier or request.remote_addr}"
+
+
+def _authenticated_rate_key():
+    try:
+        identity = get_jwt_identity()
+    except Exception:
+        identity = None
+    return f"user-action:{identity or request.remote_addr}"
+
 _PROFILE_TEXT_LIMITS = {
     "first_name": 80,
     "last_name": 80,
@@ -244,7 +259,7 @@ def register():
     referral_code_raw = (data.get("referral_code") or "").strip().upper()
     referral = None
     if referral_code_raw:
-        referral = ReferralCode.query.filter_by(code=referral_code_raw).first()
+        referral = ReferralCode.query.filter_by(code=referral_code_raw.upper()).first()
         if not referral or not referral.is_valid():
             referral = None
 
@@ -305,6 +320,7 @@ def register():
 
 @auth_bp.route("/login", methods=["POST"])
 @limiter.limit("10 per minute")
+@limiter.limit("10 per minute;50 per hour", key_func=_login_identifier_rate_key)
 def login():
     data = request.get_json()
     # Accepts either a username or an email address in the same field — kept
@@ -532,7 +548,7 @@ def forgot_password():
 @auth_bp.route("/reset-password", methods=["POST"])
 @limiter.limit("5 per minute")
 def reset_password():
-    from app.services.tokens import read_reset_token
+    from app.services.tokens import read_reset_token_data
     data = request.get_json() or {}
     token = data.get("token", "")
     new_password = data.get("password", "")
@@ -540,7 +556,8 @@ def reset_password():
     if len(new_password) < 8:
         return jsonify({"error": "Password must be at least 8 characters"}), 400
 
-    user_id, fingerprint = read_reset_token(token)
+    token_data = read_reset_token_data(token)
+    user_id = token_data.get("uid") if token_data else None
     if not user_id:
         return jsonify({"error": "Invalid or expired reset link"}), 400
 
@@ -548,13 +565,13 @@ def reset_password():
     if not user:
         return jsonify({"error": "Invalid or expired reset link"}), 400
 
-    # The token embeds a fingerprint of the password hash that was current
-    # when it was issued — if the password has already been changed since
-    # (this same link used once already, or changed some other way), that
-    # fingerprint no longer matches and the token must not work a second
-    # time. Without this, a stateless token stayed valid and reusable for
-    # its whole 1-hour window regardless of how many times it was used.
-    if fingerprint != (user.password_hash or "")[-16:]:
+    # The token embeds the password hash that was current when it was
+    # issued — if the password has already been changed since (this same
+    # link used once already, or changed some other way), that no longer
+    # matches and the token must not work a second time. Without this, a
+    # stateless token stayed valid and reusable for its whole 1-hour
+    # window regardless of how many times it was used.
+    if not token_data.get("password_hash") or token_data["password_hash"] != user.password_hash:
         return jsonify({"error": "Invalid or expired reset link"}), 400
 
     user.set_password(new_password)
@@ -565,12 +582,13 @@ def reset_password():
     # access immediately rather than staying in for the rest of that
     # token's natural lifetime.
     from app.models.user_session import UserSession
-    now = datetime.utcnow()
-    UserSession.query.filter_by(user_id=user.id, revoked_at=None).update(
-        {UserSession.revoked_at: now, UserSession.revoked_reason: "password_reset"},
-        synchronize_session=False,
-    )
-
+    UserSession.query.filter(
+        UserSession.user_id == user.id,
+        UserSession.revoked_at.is_(None),
+    ).update({
+        "revoked_at": datetime.utcnow(),
+        "revoked_reason": "password_reset",
+    }, synchronize_session=False)
     db.session.commit()
     _audit(user.id, "password_reset", "user", str(user.id))
     return jsonify({"message": "Password reset successfully — you can now log in."}), 200
@@ -663,6 +681,7 @@ def export_my_data():
 
 @auth_bp.route("/me", methods=["DELETE"])
 @login_required
+@limiter.limit("5 per minute", key_func=_authenticated_rate_key)
 def delete_my_account():
     """Self-service account deletion. Requires current password confirmation
     (prevents a hijacked session / CSRF-adjacent mistake from nuking an
@@ -675,13 +694,12 @@ def delete_my_account():
     any user with one of those features enabled got an unhandled
     IntegrityError/500 trying to delete their own account."""
     from app.models.journal import JournalEntry
-    from app.models.user import UserAssetPreference
-    from app.models.api_config import UserBrokerCredential
-    from app.models.audit import AuditLog
     from app.models.watchlist import Watchlist, WatchlistItem
     from app.models.portfolio import Portfolio, PortfolioItem
     from app.models.notification import Notification
     from app.models.backtest import Backtest
+    from app.models.user import UserAssetPreference
+    from app.models.api_config import UserBrokerCredential
     from app.models.algo_trading import AlgoExecutionPolicy
     from app.models.mtf_watch_config import MtfWatchConfig
     from app.models.saved_screen import SavedScreen
@@ -689,6 +707,7 @@ def delete_my_account():
     from app.models.user_session import UserSession
     from app.models.daily_compound_calculator import DailyCompoundCalculation
     from app.models.platform_config import PlatformConfig
+    from app.models.audit import AuditLog
     from sqlalchemy.exc import IntegrityError
 
     user = get_current_user()
@@ -960,6 +979,7 @@ def request_upgrade():
     AuditLog.record(
         user.id, "upgrade_request", resource="subscription", resource_id=requested_plan,
         ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
+        commit=True,
     )
 
     # Notify every admin so the request doesn't require the user to email
@@ -1115,6 +1135,7 @@ def _audit(user_id, action, resource, resource_id, status="success"):
         AuditLog.record(
             user_id, action, resource=resource, resource_id=resource_id, status=status,
             ip_address=request.remote_addr, user_agent=request.headers.get("User-Agent", ""),
+            commit=True,
         )
     except Exception:
         pass
@@ -1254,6 +1275,7 @@ def verify_2fa():
 
 @auth_bp.route("/2fa/disable", methods=["POST"])
 @login_required
+@limiter.limit("5 per minute", key_func=_authenticated_rate_key)
 def disable_2fa():
     """Disable 2FA — requires current password confirmation."""
     import pyotp

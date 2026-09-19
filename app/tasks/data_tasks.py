@@ -255,6 +255,19 @@ def _claim_watchlist_alert(item, current_price: float, alert_price: float) -> bo
     return result.rowcount > 0
 
 
+def _initialize_watchlist_baseline(item_id: int, current_price: float) -> bool:
+    """Arm legacy alerts without treating their first observation as a cross."""
+    from app.models.watchlist import WatchlistItem
+    result = db.session.execute(
+        WatchlistItem.__table__.update().where(
+            WatchlistItem.id == item_id,
+            WatchlistItem.alert_set_at_price.is_(None),
+        ).values(alert_set_at_price=current_price)
+    )
+    db.session.commit()
+    return result.rowcount > 0
+
+
 def _claim_signal_close(signal, new_status: str) -> bool:
     """Atomically transition a signal from "active" to a closed status.
 
@@ -1058,7 +1071,12 @@ def check_watchlist_alerts(app):
                         (not started_below and current_price <= alert_price)
                     )
                 else:
-                    crossed = current_price >= alert_price or current_price <= alert_price
+                    # A legacy row has no previous-side information. Arm it
+                    # at the first observed quote; firing immediately would
+                    # be the tautological >= OR <= check and create false
+                    # alerts for every legacy item.
+                    _initialize_watchlist_baseline(item.id, current_price)
+                    continue
 
                 if crossed:
                     # Determine the watchlist owner

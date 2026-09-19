@@ -1,6 +1,9 @@
 import time
 import psutil
 import requests
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from flask import Blueprint, request, jsonify, current_app
 from app.extensions import db
 from app.models.user import User, Role, Subscription, Broker, ReferralCode
@@ -682,6 +685,7 @@ def _audit_admin_action(target_user_id, action):
         from flask_jwt_extended import get_jwt_identity
         AuditLog.record(
             int(get_jwt_identity()), action, resource="user", resource_id=str(target_user_id), status="success",
+            commit=True,
         )
     except Exception:
         db.session.rollback()  # audit logging must never break the actual request
@@ -908,7 +912,11 @@ def create_api_config():
     if clean.get("access_token"):  cfg.set_access_token(clean["access_token"])
     if clean.get("refresh_token"): cfg.set_refresh_token(clean["refresh_token"])
     db.session.add(cfg)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "An API config with this name or default market already exists"}), 409
     return jsonify(cfg.to_dict()), 201
 
 
@@ -955,7 +963,11 @@ def update_api_config(cfg_id):
     if clean.get("refresh_token"): cfg.set_refresh_token(clean["refresh_token"])
 
     cfg.updated_at = datetime.utcnow()
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "API config conflicts with an existing name or default market"}), 409
     return jsonify(cfg.to_dict()), 200
 
 
@@ -1006,7 +1018,11 @@ def set_default_api_config(cfg_id):
         APIConfig.is_default
     ).update({"is_default": False})
     cfg.is_default = True
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Unable to set a unique default API config"}), 409
     return jsonify({"message": f"'{cfg.name}' set as default for {cfg.market}"}), 200
 
 
@@ -1030,7 +1046,11 @@ def duplicate_api_config(cfg_id):
         priority=src.priority, is_default=False, is_active=False, status="paused",
     )
     db.session.add(dup)
-    db.session.commit()
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "A duplicate API config already exists"}), 409
     return jsonify(dup.to_dict()), 201
 
 
@@ -1167,8 +1187,6 @@ def clear_audit_logs():
     unchanged for the dashboard widget's "Clear Log" button. Passing
     {"ids": [...]} instead deletes just those rows, for the full Audit
     Log page's per-row selection."""
-    from flask_jwt_extended import get_jwt_identity
-
     data = request.get_json(silent=True) or {}
     ids = data.get("ids")
     if ids:
@@ -1176,19 +1194,12 @@ def clear_audit_logs():
             return jsonify({"error": "ids must be a list of integers"}), 400
         deleted = AuditLog.query.filter(AuditLog.id.in_(ids)).delete(synchronize_session=False)
         db.session.commit()
-        # Recorded after the delete so this entry survives it, not before.
-        AuditLog.record(
-            int(get_jwt_identity()), "audit_logs_cleared", resource="audit_log",
-            details={"count": deleted, "scope": "selected"}, status="success",
-        )
+        _audit_resource_action("audit_logs_deleted", "audit_log", "selected", {"count": deleted})
         return jsonify({"message": f"Deleted {deleted} selected entr{'y' if deleted == 1 else 'ies'}"}), 200
 
     deleted = AuditLog.query.delete()
     db.session.commit()
-    AuditLog.record(
-        int(get_jwt_identity()), "audit_logs_cleared", resource="audit_log",
-        details={"count": deleted, "scope": "all"}, status="success",
-    )
+    _audit_resource_action("audit_logs_cleared", "audit_log", "all", {"count": deleted})
     return jsonify({"message": f"Cleared {deleted} audit log entries"}), 200
 
 
@@ -1216,6 +1227,7 @@ def create_broker():
     )
     db.session.add(broker)
     db.session.commit()
+    _audit_resource_action("broker_created", "broker", broker.id)
     return jsonify(broker.to_dict()), 201
 
 
@@ -1231,6 +1243,7 @@ def update_broker(broker_id):
             setattr(broker, k, data[k])
 
     db.session.commit()
+    _audit_resource_action("broker_updated", "broker", broker.id)
     return jsonify(broker.to_dict()), 200
 
 
@@ -1244,10 +1257,12 @@ def delete_broker(broker_id):
     if broker.users.count() > 0:
         broker.is_active = False
         db.session.commit()
+        _audit_resource_action("broker_deactivated", "broker", broker.id)
         return jsonify({"message": f"'{broker.name}' has existing users — deactivated instead of deleted"}), 200
 
     db.session.delete(broker)
     db.session.commit()
+    _audit_resource_action("broker_deleted", "broker", broker_id)
     return jsonify({"message": f"'{broker.name}' deleted"}), 200
 
 
@@ -1299,6 +1314,7 @@ def create_referral_code():
     )
     db.session.add(rc)
     db.session.commit()
+    _audit_resource_action("referral_code_created", "referral_code", rc.id)
     return jsonify({"id": rc.id, "code": rc.code}), 201
 
 
@@ -1311,6 +1327,7 @@ def update_referral_code(code_id):
         if k in data:
             setattr(rc, k, data[k])
     db.session.commit()
+    _audit_resource_action("referral_code_updated", "referral_code", rc.id)
     return jsonify({"message": f"'{rc.code}' updated"}), 200
 
 
@@ -1320,6 +1337,7 @@ def delete_referral_code(code_id):
     rc = ReferralCode.query.get_or_404(code_id)
     db.session.delete(rc)
     db.session.commit()
+    _audit_resource_action("referral_code_deleted", "referral_code", code_id)
     return jsonify({"message": f"'{rc.code}' deleted"}), 200
 
 
@@ -1347,10 +1365,21 @@ def clear_system_logs():
         query = query.filter_by(level=level.upper())
     deleted = query.delete(synchronize_session=False)
     db.session.commit()
+    _audit_resource_action("system_logs_cleared", "system_log", level or "all", {"count": deleted})
     return jsonify({"deleted": deleted}), 200
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
+
+def _audit_resource_action(action, resource, resource_id, details=None):
+    try:
+        from flask_jwt_extended import get_jwt_identity
+        AuditLog.record(
+            int(get_jwt_identity()), action, resource=resource,
+            resource_id=str(resource_id), details=details or {}, commit=True,
+        )
+    except Exception:
+        db.session.rollback()
 
 def _log(cfg_id, action, status, response_time_ms=None, error_message=None):
     try:
@@ -1372,6 +1401,19 @@ def _test_connection(cfg: APIConfig) -> dict:
     base = (cfg.base_url or "").rstrip("/")
     if not base:
         result["error"] = "No base URL configured"
+        return result
+    try:
+        parsed = urlparse(base)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username or parsed.password:
+            raise ValueError("Base URL must be an http(s) URL without embedded credentials")
+        host = parsed.hostname
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))}
+        if any(ipaddress.ip_address(address).is_private or ipaddress.ip_address(address).is_loopback
+               or ipaddress.ip_address(address).is_link_local or ipaddress.ip_address(address).is_reserved
+               for address in addresses):
+            raise ValueError("Private or local network targets are not allowed")
+    except (ValueError, socket.gaierror, OSError) as exc:
+        result["error"] = f"Unsafe base URL: {exc}"
         return result
 
     headers = {}
@@ -1429,7 +1471,7 @@ def _test_connection(cfg: APIConfig) -> dict:
             params = {"apikey": cfg.get_api_key()}
         elif cfg.provider == "gemini":
             params = {"key": cfg.get_api_key()}
-        r   = requests.get(url, headers=headers, timeout=6, params=params)
+        r   = requests.get(url, headers=headers, timeout=6, params=params, allow_redirects=False)
         ms  = int((time.time() - t0) * 1000)
         result["latency_ms"] = ms
         result["reachable"]  = True

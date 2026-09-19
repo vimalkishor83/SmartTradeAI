@@ -2,6 +2,13 @@
 
 
 def calculate_sentiment(indicators: dict, news_sentiment: float = 0.0) -> dict:
+    # News providers/models may return out-of-contract values. Clamp before
+    # applying the documented five-point contribution so one bad item cannot
+    # dominate the otherwise bounded sentiment score.
+    try:
+        news_sentiment = max(-1.0, min(1.0, float(news_sentiment)))
+    except (TypeError, ValueError):
+        news_sentiment = 0.0
     score = 50  # neutral baseline
 
     rsi = indicators.get("rsi") or 50

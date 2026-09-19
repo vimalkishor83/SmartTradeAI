@@ -100,7 +100,16 @@ class SignalEngine:
             if not indicators:
                 return None
 
-            atr      = indicators.get("atr") or 0
+            required_indicators = ("atr", "adx", "ema9", "plus_di", "minus_di", "rsi", "macd_hist")
+            missing_indicators = [name for name in required_indicators if indicators.get(name) is None]
+            if missing_indicators:
+                logger.warning(
+                    "Signal blocked because indicators are unavailable for %s %s: %s",
+                    getattr(asset, "symbol", "?"), timeframe, missing_indicators,
+                )
+                return None
+
+            atr      = indicators["atr"]
             close    = float(df["close"].iloc[-1])
             atr_pct  = (atr / close * 100) if close else 0
 
@@ -108,10 +117,10 @@ class SignalEngine:
             if not vol_ok:
                 return None
 
-            if not force and not self._trend_strength_gate(indicators.get("adx") or 0):
+            if not force and not self._trend_strength_gate(indicators["adx"]):
                 return None
 
-            if not force and not self._ema_extension_gate(close, indicators.get("ema9") or 0, atr, timeframe):
+            if not force and not self._ema_extension_gate(close, indicators["ema9"], atr, timeframe):
                 return None
 
             # ── Stage 3: MTF alignment gate ────────────────────────
@@ -144,7 +153,7 @@ class SignalEngine:
                 return None
 
             if not force and not self._di_direction_gate(
-                indicators.get("plus_di") or 0, indicators.get("minus_di") or 0, raw_direction,
+                indicators["plus_di"], indicators["minus_di"], raw_direction,
             ):
                 return None
 
@@ -481,8 +490,8 @@ class SignalEngine:
     ADX_TREND_MIN = 20.0
 
     def _trend_strength_gate(self, adx: float) -> bool:
-        if not adx:
-            return True  # no ADX data — allow through (data issue, not a bad market)
+        if adx is None:
+            return False
         return adx >= self.ADX_TREND_MIN
 
     # Rejects a signal when price has already run too far from its own
@@ -510,8 +519,8 @@ class SignalEngine:
     def _ema_extension_gate(self, close: float, ema9: float, atr: float, timeframe: str) -> bool:
         if timeframe not in self.EMA_EXTENSION_TIMEFRAMES:
             return True
-        if not ema9 or not atr:
-            return True  # no EMA/ATR data — allow through (data issue, not a bad setup)
+        if ema9 is None or atr is None:
+            return False
         return abs(close - ema9) <= self.EMA_EXTENSION_MAX_ATR * atr
 
     # ──────────────────────────────────────────────────────
@@ -874,8 +883,8 @@ class SignalEngine:
         cross that mostly drives `trend_bull`/`trend_bear`: DI is derived
         from expanding highs/lows, not moving-average position, so it can
         disagree with the EMA cross right at a stalling/reversing move."""
-        if not plus_di or not minus_di:
-            return True  # no DI data — allow through (data issue, not a bad market)
+        if plus_di is None or minus_di is None:
+            return False
         if direction == "BUY":
             return plus_di > minus_di
         return minus_di > plus_di
@@ -1061,14 +1070,16 @@ class SignalEngine:
             bear_pat = [p for p in patterns if p["type"] == "bearish"]
             if bull_pat:
                 best = max(bull_pat, key=lambda p: p["strength"])
-                scores["pattern"] = min(15, int(best["strength"] / 7))
+                pattern_points = min(15, int(best["strength"] / 7))
+                scores["pattern"] = pattern_points
                 reasons.append(("pattern", f"Pattern: {best['name']}", "bull"))
-                bull += best["strength"]
+                bull += pattern_points
             elif bear_pat:
                 best = max(bear_pat, key=lambda p: p["strength"])
-                scores["pattern"] = min(15, int(best["strength"] / 7))
+                pattern_points = min(15, int(best["strength"] / 7))
+                scores["pattern"] = pattern_points
                 reasons.append(("pattern", f"Pattern: {best['name']}", "bear"))
-                bear += best["strength"]
+                bear += pattern_points
         except Exception:
             pass
 

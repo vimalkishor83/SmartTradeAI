@@ -527,7 +527,12 @@ class AIPredictor:
         confidence = max(bull_prob, bear_prob)
 
         close = float(df["close"].iloc[-1])
-        atr   = float((df["high"].iloc[-20:] - df["low"].iloc[-20:]).mean())
+        # Use the canonical Wilder-style ATR used by the rule engine. A raw
+        # high-low average ignores gaps and made AI risk levels disagree with
+        # the rest of the application on forex/index sessions.
+        from app.services.indicators.calculator import calculate_atr
+        atr_series = calculate_atr(df["high"], df["low"], df["close"])
+        atr = float(atr_series.iloc[-1]) if not atr_series.empty else float("nan")
         # Use the same recent range for all levels so the risk map is
         # internally consistent. Entry guidance is a pullback reference, not
         # an order instruction or a guarantee of a fill.
