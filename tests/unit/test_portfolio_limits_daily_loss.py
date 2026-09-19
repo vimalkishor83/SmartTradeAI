@@ -69,6 +69,7 @@ def daily_loss_setup(app):
         return user.id
 
 
+@pytest.mark.slow
 def test_daily_loss_check_finds_todays_entry_when_ist_has_already_rolled_over(app, daily_loss_setup):
     """At 23:00 UTC, Asia/Kolkata (UTC+5:30) is already at 04:30 the next
     calendar day. Before the fix, business_date would be one day ahead of

@@ -2,8 +2,10 @@
 from datetime import datetime, timedelta
 
 import pandas as pd
+import pytest
 
 
+@pytest.mark.slow
 def test_evaluating_prediction_invalidates_its_history_context_cache(app, monkeypatch):
     with app.app_context():
         from app.extensions import cache, db

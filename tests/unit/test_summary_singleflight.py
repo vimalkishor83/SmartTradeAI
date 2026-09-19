@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 import threading
 import time
+import pytest
 
 
 def _run_view(app, view, path):
@@ -46,6 +47,7 @@ def test_ta_summary_cold_requests_share_one_build(app, monkeypatch):
     assert all(status == 200 for status, _ in results)
 
 
+@pytest.mark.slow
 def test_ema_summary_cold_requests_share_one_build(app, monkeypatch):
     from app.api.v1 import market_data
     from app.auth import decorators
