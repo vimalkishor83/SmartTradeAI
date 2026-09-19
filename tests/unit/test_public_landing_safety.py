@@ -37,6 +37,18 @@ def test_public_landing_centers_desktop_menu_and_uses_decorative_hero_asset():
     assert hero_asset.stat().st_size > 0
 
 
+def test_public_landing_presents_a_read_only_intelligence_console():
+    source = LANDING.read_text(encoding="utf-8")
+
+    assert 'class="hero-console" aria-label="Illustrative read-only market intelligence console"' in source
+    assert 'class="hero-chart-svg"' in source
+    assert 'class="hero-signal-stack"' in source
+    assert 'id="market-intelligence" class="intelligence-section"' in source
+    assert 'aria-label="Supported market categories"' in source
+    assert 'aria-label="Available analysis timeframes"' in source
+    assert 'Confidence is a measure of internal indicator agreement' in source
+
+
 def test_shared_public_nav_is_loaded_across_public_pages():
     templates = [LANDING, *sorted((ROOT / "frontend" / "templates" / "legal").glob("*.html"))]
     css = ROOT / "frontend" / "static" / "css" / "public-nav.css"
