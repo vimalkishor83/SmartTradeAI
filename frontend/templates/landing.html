@@ -825,6 +825,64 @@
     }
     .pricing-grid-4 { grid-template-columns: repeat(4, 1fr); }
 
+    .pricing-comparison {
+      margin: 0 auto 30px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow-x: auto;
+      background: rgba(255,255,255,0.025);
+    }
+    .pricing-comparison-grid {
+      display: grid;
+      grid-template-columns: minmax(145px, 1.35fr) repeat(4, minmax(112px, 1fr));
+      min-width: 680px;
+    }
+    .pricing-comparison-grid > span,
+    .pricing-comparison-grid > strong {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .pricing-comparison-grid > strong {
+      color: var(--text);
+      font-size: 11px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.035);
+    }
+    .pricing-comparison-grid > span:nth-last-child(-n+5) { border-bottom: 0; }
+    .pricing-comparison-grid .comparison-label {
+      color: var(--text2);
+      font-weight: 600;
+    }
+    .pricing-comparison-grid .comparison-value {
+      color: var(--text2);
+      text-align: center;
+    }
+    .pricing-comparison-grid .comparison-value strong {
+      color: var(--text);
+      font-size: 12.5px;
+    }
+    .pricing-trust-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 0 auto 30px;
+    }
+    .pricing-trust-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text2);
+      font-size: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    .pricing-trust-item i { color: var(--green); font-size: 15px; }
+
     .referral-callout {
       display: flex;
       align-items: flex-start;
@@ -862,6 +920,8 @@
       border-radius: 16px;
       padding: 32px 28px;
       position: relative;
+      display: flex;
+      flex-direction: column;
       transition: all 0.25s;
     }
     .pricing-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.35); }
@@ -910,6 +970,22 @@
       margin-bottom: 14px;
     }
 
+    .plan-summary {
+      min-height: 38px;
+      color: var(--text2);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .plan-feature-heading {
+      margin: 0 0 10px;
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
     .plan-price {
       font-family: var(--font-mono);
       font-size: 40px;
@@ -925,13 +1001,31 @@
     .plan-features { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 28px; }
     .plan-features li {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
       font-size: 13.5px;
       color: var(--text2);
+      line-height: 1.45;
     }
-    .plan-features li .check { color: var(--green); font-size: 15px; flex-shrink: 0; }
-    .plan-features li .cross { color: var(--text3); font-size: 15px; flex-shrink: 0; }
+    .plan-features li .check { color: var(--green); font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .plan-features li .cross { color: var(--text3); font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .plan-note {
+      min-height: 34px;
+      margin: -10px 0 18px;
+      color: var(--text3);
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .pricing-card > .btn { margin-top: auto; }
+
+    .pricing-legal-note {
+      max-width: 860px;
+      margin: 28px auto 0;
+      color: var(--text3);
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: center;
+    }
 
     /* ── FOOTER ─────────────────────────── */
     .footer {
@@ -1088,6 +1182,7 @@
       .pricing-grid  { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
       .pricing-card.featured { transform: scale(1); }
       .snapshot-table th:nth-child(4), .snapshot-table td:nth-child(4) { display: none; }
+      .pricing-trust-row { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 768px) {
@@ -1100,6 +1195,7 @@
         opacity: 0.52;
       }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .pricing-trust-row { grid-template-columns: 1fr; }
       .navbar { display: flex; justify-content: space-between; }
       .nav-menu-toggle { display: inline-flex; order: 2; }
       .nav-cta { order: 3; }
@@ -1411,18 +1507,34 @@
 <div class="pricing-section" id="pricing">
   <div class="pricing-inner">
     <div class="section-header">
-      <span class="section-label">Simple Pricing</span>
-      <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
-      <p class="section-sub">No hidden fees. Cancel anytime. Priced in INR, built for every market you trade.</p>
+      <span class="section-label">Plans that scale with your workflow</span>
+      <h2 class="section-title">From your first signal to full market intelligence</h2>
+      <p class="section-sub">Choose the signal freshness, analysis depth and workflow capacity that fits you. Every plan stays transparent, practical and paper-trading safe.</p>
     </div>
 
     <div class="referral-callout">
-      <span class="referral-callout-icon">🎁</span>
+      <span class="referral-callout-icon"><i class="bi bi-gift" aria-hidden="true"></i></span>
       <div>
         <strong>Have a broker or partner referral code?</strong>
         A valid code bumps you one tier above Free — straight to <strong>Basic</strong> — at no cost.
         Want Premium or Pro on top of that? Those higher tiers are still a paid upgrade, referral or not.
       </div>
+    </div>
+
+    <div class="pricing-comparison" aria-label="Plan comparison at a glance">
+      <div class="pricing-comparison-grid">
+        <strong>At a glance</strong><strong>Free</strong><strong>Basic</strong><strong>Premium</strong><strong>Pro</strong>
+        <span class="comparison-label">Signal freshness</span><span class="comparison-value"><strong>30 min</strong></span><span class="comparison-value"><strong>5 min</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span>
+        <span class="comparison-label">Watchlist / alerts</span><span class="comparison-value">5 / 3</span><span class="comparison-value">15 / 10</span><span class="comparison-value">50 / 50</span><span class="comparison-value">200 / 200</span>
+        <span class="comparison-label">Intelligence</span><span class="comparison-value">Core</span><span class="comparison-value">Multi-market</span><span class="comparison-value">AI + 50+</span><span class="comparison-value">Advanced</span>
+      </div>
+    </div>
+
+    <div class="pricing-trust-row" aria-label="Platform commitments">
+      <div class="pricing-trust-item"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Paper trading by default</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i><span>Entry, stop and target context</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-phone" aria-hidden="true"></i><span>Personal alerts on eligible plans</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-lock" aria-hidden="true"></i><span>No broker required</span></div>
     </div>
 
     <div class="pricing-grid pricing-grid-4">
@@ -1433,15 +1545,19 @@
           <span class="currency">₹</span>0
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">Explore the workspace with delayed market intelligence.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Included</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Delayed signals (30 min)</li>
-          <li><span class="check">✓</span> 1 market (Crypto)</li>
-          <li><span class="check">✓</span> Basic indicators</li>
+          <li><span class="check">✓</span> Crypto market coverage</li>
+          <li><span class="check">✓</span> Multi-timeframe market view</li>
+          <li><span class="check">✓</span> Basic indicators and sentiment</li>
+          <li><span class="check">✓</span> 5 watchlist slots · 3 alerts</li>
           <li><span class="check">✓</span> Community support</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI predictions</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> Backtesting</li>
+          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI analysis and backtesting</li>
         </ul>
+        <p class="plan-note">A low-pressure way to learn the platform before upgrading.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Get Started Free</a>
       </div>
 
@@ -1452,15 +1568,19 @@
           <span class="currency">₹</span>299
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">Near-live coverage for users who want broader market context.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Included</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Near-live signals (5 min)</li>
-          <li><span class="check">✓</span> All markets</li>
-          <li><span class="check">✓</span> 15 watchlist slots</li>
+          <li><span class="check">✓</span> Crypto, Forex, Commodities, Indian Stocks and Indices</li>
+          <li><span class="check">✓</span> Multi-timeframe analysis and asset search</li>
+          <li><span class="check">✓</span> 15 watchlist slots · 10 alerts</li>
+          <li><span class="check">✓</span> Market news and economic calendar</li>
           <li><span class="check">✓</span> Email support</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI predictions</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> Backtesting</li>
+          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI analysis and backtesting</li>
         </ul>
+        <p class="plan-note">A referral code can unlock Basic at no cost; Premium and Pro remain paid upgrades.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Basic</a>
       </div>
 
@@ -1472,15 +1592,19 @@
           <span class="currency">₹</span>999
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">The complete analysis workspace for active market watchers.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything you need to investigate a setup</div>
         <ul class="plan-features">
-          <li><span class="check">✓</span> Unlimited live signals</li>
-          <li><span class="check">✓</span> All markets</li>
-          <li><span class="check">✓</span> All 50+ indicators</li>
-          <li><span class="check">✓</span> AI predictions</li>
-          <li><span class="check">✓</span> Backtesting</li>
-          <li><span class="check">✓</span> Portfolio tracker</li>
+          <li><span class="check">✓</span> Live signals across all markets</li>
+          <li><span class="check">✓</span> AI analysis and Decision Inspector</li>
+          <li><span class="check">✓</span> 50+ indicators and multi-timeframe scoring</li>
+          <li><span class="check">✓</span> Backtesting and advanced charts</li>
+          <li><span class="check">✓</span> Portfolio tracker and risk metrics</li>
+          <li><span class="check">✓</span> 50 watchlist slots · 50 alerts</li>
+          <li><span class="check">✓</span> Personal Telegram signal alerts</li>
         </ul>
+        <p class="plan-note">Best for users who want the full signal context, research tools and personal notifications.</p>
         <a href="/register" class="btn btn-accent" style="width:100%;justify-content:center">Start Premium</a>
       </div>
 
@@ -1491,20 +1615,27 @@
           <span class="currency">₹</span>2,499
           <span class="period">/month</span>
         </div>
-        <div class="savings-badge">For serious/prop traders</div>
+        <div class="savings-badge">For high-volume workflows</div>
+        <p class="plan-summary">More capacity and advanced controls for demanding research routines.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything in Premium, plus</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Everything in Premium</li>
+          <li><span class="check">✓</span> 200 watchlist slots · 200 alerts</li>
+          <li><span class="check">✓</span> Advanced scanners and strategy workflows</li>
+          <li><span class="check">✓</span> Advanced backtesting and model insights</li>
+          <li><span class="check">✓</span> Optional broker connection controls</li>
           <li><span class="check">✓</span> Priority feature access</li>
           <li><span class="check">✓</span> Dedicated support</li>
-          <li><span class="check">✓</span> 200 watchlist slots &amp; alerts</li>
-          <li><span class="check">✓</span> Advanced backtesting</li>
         </ul>
+        <p class="plan-note">Broker execution stays explicitly user-controlled and is not required to use the platform.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Pro</a>
       </div>
     </div>
-  </div>
-</div>
+      </div>
+    </div>
+
+    <p class="pricing-legal-note">SmartTrade AI is a market-intelligence and paper-trading workspace, not personalized investment advice or a promise of returns. Signal confidence measures internal indicator agreement, not the probability of profit.</p>
 
 <!-- ═══ FAQ ════════════════════════════════════════════════════ -->
 <section id="faq">
