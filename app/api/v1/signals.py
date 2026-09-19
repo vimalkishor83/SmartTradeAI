@@ -20,7 +20,7 @@ from app.services.pagination import bounded_float, bounded_int, bounded_page, bo
 from app.services.backtest.validation import (
     parse_asset_id, parse_days, parse_market, parse_portfolio_limit, parse_timeframe, parse_symbol,
 )
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
@@ -1857,6 +1857,7 @@ _PUBLIC_SIGNAL_SYMBOLS = ["BTCUSDT", "NIFTY50", "XAUUSD", "USDJPY"]
 
 @signals_bp.route("/public-ticker", methods=["GET"])
 @limiter.limit("90 per minute", override_defaults=True)
+@cache.cached(timeout=5, key_prefix="signals_public_ticker")
 def public_ticker():
     """Unauthenticated live ticker strip for the landing page — symbol,
     price, % change only. No signal/entry/target data (that's paid detail).
@@ -1901,10 +1902,19 @@ def public_ticker():
             "market": a.market,
         })
 
-    return jsonify({"items": items}), 200
+    from datetime import datetime, timezone
+    as_of = datetime.now(timezone.utc).isoformat()
+    return jsonify({
+        "items": items,
+        "as_of": as_of,
+        "state": "fresh" if items else "unavailable",
+        "freshness_seconds": 30,
+    }), 200
 
 
 @signals_bp.route("/public-board", methods=["GET"])
+@limiter.limit("30 per minute", override_defaults=True)
+@cache.cached(timeout=30, key_prefix="signals_public_board")
 def public_board():
     """Unauthenticated 'Today's Top Signals' teaser for the landing page —
     a fixed, small symbol set with signal type/confidence/entry/target1 only
@@ -1940,13 +1950,24 @@ def public_board():
             "signal_type": result["signal_type"],
             "confidence_score": result.get("confidence_score", 0),
             "entry_price": result.get("entry_price"),
+            "stop_loss": result.get("stop_loss"),
             "target1": result.get("target1"),
         })
 
-    return jsonify({"rows": rows}), 200
+    from datetime import datetime, timezone
+    as_of = datetime.now(timezone.utc).isoformat()
+    return jsonify({
+        "rows": rows,
+        "as_of": as_of,
+        "state": "fresh" if rows else "unavailable",
+        "freshness_seconds": 300,
+        "scope": "1h public preview",
+    }), 200
 
 
 @signals_bp.route("/public-stats", methods=["GET"])
+@limiter.limit("30 per minute", override_defaults=True)
+@cache.cached(timeout=300, key_prefix="signals_public_stats")
 def public_stats():
     """Unauthenticated platform activity stats for the landing page — scale
     numbers only (signals generated, assets covered, trades tracked), not a
@@ -1964,6 +1985,7 @@ def public_stats():
         "assets_covered": assets,
         "markets_covered": markets,
         "timeframes_covered": timeframes,
+        "as_of": datetime.now(timezone.utc).isoformat(),
     }), 200
 
 
@@ -1985,6 +2007,8 @@ def public_performance():
             "available": False,
             "closed_trades": closed_trades,
             "minimum_sample": minimum_sample,
+            "as_of": datetime.now(timezone.utc).isoformat(),
+            "period": "all available closed records",
         }), 200
 
     wins = SignalHistory.query.filter(
@@ -2012,6 +2036,9 @@ def public_performance():
         "win_rate": round(wins / closed_trades * 100, 1),
         "profit_factor": profit_factor,
         "avg_pnl_pct": round(float(avg_pnl), 3) if avg_pnl is not None else None,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "period": "all available closed records",
+        "methodology": "Closed BUY/SELL records only; unresolved and HOLD records excluded.",
     }), 200
 
 

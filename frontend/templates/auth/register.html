@@ -391,6 +391,7 @@
       <div class="mb-4">
         <h1 class="fw-bold fs-4" id="authFormTitle">Create Account</h1>
         <p class="text-muted small">Start your AI-powered trading journey</p>
+        <div id="selectedPlanNotice" class="small text-accent d-none" role="status"></div>
       </div>
 
       <form id="registerForm">
@@ -516,6 +517,18 @@
     } catch(e) {}
     try { localStorage.removeItem('access_token'); localStorage.removeItem('refresh_token'); } catch (_) {}
   }
+})();
+
+// Carry the visitor's pricing choice into registration without granting an
+// entitlement client-side. Billing/entitlement remains server-controlled.
+(function showSelectedPlan() {
+  const allowed = new Set(['free', 'basic', 'premium', 'advanced', 'pro']);
+  const plan = new URLSearchParams(window.location.search).get('plan')?.toLowerCase();
+  const notice = document.getElementById('selectedPlanNotice');
+  if (!notice || !allowed.has(plan)) return;
+  notice.textContent = `Selected plan: ${plan[0].toUpperCase()}${plan.slice(1)}. You can change this later.`;
+  notice.classList.remove('d-none');
+  try { sessionStorage.setItem('selected_plan', plan); } catch (_) {}
 })();
 
 // Populate the Broker dropdown from the admin-managed list and show an

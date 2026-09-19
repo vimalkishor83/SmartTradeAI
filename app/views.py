@@ -16,6 +16,12 @@ def _site_url():
 # URL in the sitemap is a real, flaggable inconsistency in Search Console.
 _PUBLIC_PAGES = [
     ("/home", "1.0", "weekly"),
+    ("/features", "0.8", "monthly"),
+    ("/how-it-works", "0.8", "monthly"),
+    ("/live-signals", "0.8", "daily"),
+    ("/pricing", "0.8", "monthly"),
+    ("/results", "0.6", "monthly"),
+    ("/faq", "0.5", "monthly"),
     ("/terms", "0.2", "yearly"),
     ("/privacy", "0.2", "yearly"),
     ("/disclaimer", "0.2", "yearly"),
@@ -37,6 +43,12 @@ def robots_txt():
     lines = [
         "User-agent: *",
         "Allow: /home",
+        "Allow: /features",
+        "Allow: /how-it-works",
+        "Allow: /live-signals",
+        "Allow: /pricing",
+        "Allow: /results",
+        "Allow: /faq",
         "Allow: /login",
         "Allow: /register",
         "Allow: /forgot-password",
@@ -73,7 +85,37 @@ def sitemap_xml():
 
 @views_bp.route("/home")
 def landing():
-    return render_template("landing.html")
+    return render_template("public/landing.html")
+
+
+@views_bp.route("/features")
+def public_features():
+    return render_template("public/features.html")
+
+
+@views_bp.route("/how-it-works")
+def public_how_it_works():
+    return render_template("public/how_it_works.html")
+
+
+@views_bp.route("/live-signals")
+def public_live_signals():
+    return render_template("public/live_signals.html")
+
+
+@views_bp.route("/pricing")
+def public_pricing():
+    return render_template("public/pricing.html")
+
+
+@views_bp.route("/results")
+def public_results():
+    return render_template("public/results.html")
+
+
+@views_bp.route("/faq")
+def public_faq():
+    return render_template("public/faq.html")
 
 
 @views_bp.route("/dashboard")

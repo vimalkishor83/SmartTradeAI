@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}SmartTrade AI{% endblock %}</title>
+  <meta name="description" content="{% block meta_description %}SmartTrade AI helps traders discover market opportunities, understand signal reasoning and manage risk across global markets.{% endblock %}">
+  <link rel="canonical" href="{{ config.PUBLIC_SITE_URL.rstrip('/') }}{{ canonical_path }}">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SmartTrade AI">
+  <meta property="og:title" content="{% block og_title %}SmartTrade AI{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}Market intelligence, explainable signals and risk-aware research tools.{% endblock %}">
+  <meta property="og:url" content="{{ config.PUBLIC_SITE_URL.rstrip('/') }}{{ canonical_path }}">
+  <meta property="og:image" content="{{ config.PUBLIC_SITE_URL.rstrip('/') }}/static/img/icon-512.png">
+  <meta property="og:image:alt" content="SmartTrade AI market intelligence">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="{% block twitter_title %}SmartTrade AI{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}Market intelligence, explainable signals and risk-aware research tools.{% endblock %}">
+  <meta name="twitter:image" content="{{ config.PUBLIC_SITE_URL.rstrip('/') }}/static/img/icon-512.png">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>AI</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="/static/vendor/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="/static/css/public-nav.css" rel="stylesheet">
+  <link href="/static/css/public-pages.css?v={{ asset_version('css/public-pages.css') }}" rel="stylesheet">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="public-page">
+  <a class="public-skip-link" href="#publicMain">Skip to content</a>
+  <nav class="public-navbar" aria-label="Public site navigation">
+    <a class="public-brand" href="/home" aria-label="SmartTrade AI home"><span class="public-brand-mark" aria-hidden="true">AI</span><span>SmartTrade <b>AI</b></span></a>
+    <button class="public-menu-toggle" type="button" aria-expanded="false" aria-controls="publicMenu">Menu</button>
+    <div class="public-menu" id="publicMenu">
+      <a href="/features">Features</a>
+      <a href="/how-it-works">How it works</a>
+      <a href="/live-signals">Live Signals</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/faq">FAQ</a>
+      <span class="public-nav-divider" aria-hidden="true"></span>
+      <a href="/login">Login</a>
+      <a class="public-nav-cta" href="/register">Start free</a>
+    </div>
+  </nav>
+
+  <main id="publicMain">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="public-footer">
+    <div class="public-footer-inner">
+      <div><a class="public-brand" href="/home"><span class="public-brand-mark" aria-hidden="true">AI</span><span>SmartTrade <b>AI</b></span></a><p>Market intelligence for clearer, more disciplined decisions.</p><div class="public-social-links" data-public-social aria-label="SmartTrade AI social links"></div></div>
+      <div class="public-footer-links"><a href="/features">Features</a><a href="/live-signals">Signals</a><a href="/pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a></div>
+      <div class="public-footer-note">Paper trading by default<br>Read-only public preview</div>
+    </div>
+  </footer>
+  <div class="public-toast" id="publicToast" role="status" aria-live="polite"></div>
+  <script src="/static/js/public-pages.js?v={{ asset_version('js/public-pages.js') }}"></script>
+  {% block extra_js %}{% endblock %}
+</body>
+</html>
