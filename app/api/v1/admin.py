@@ -195,7 +195,7 @@ def update_platform_config_route():
 
     for field in ["telegram_security_notify_login_success", "telegram_security_notify_login_failed",
                   "telegram_security_notify_new_ip_login", "telegram_security_notify_admin_unauthorized",
-                  "telegram_security_notify_anonymous_visits"]:
+                  "telegram_security_notify_anonymous_visits", "telegram_security_notify_new_visitor"]:
         if field in data:
             setattr(row, field, bool(data[field]))
 

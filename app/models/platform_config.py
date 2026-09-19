@@ -89,6 +89,16 @@ class PlatformConfig(db.Model):
     # other toggles above which only fire on genuinely occasional events.
     telegram_security_notify_anonymous_visits   = db.Column(db.Boolean, default=False, nullable=False)
 
+    # On by default — unlike the raw anonymous-visit firehose above, this
+    # only fires once per genuinely new (ip_address, user_agent) pair ever
+    # seen on the public homepage (see VisitorLog + _register_security_visit_alerts
+    # in app/__init__.py), so it stays low-volume even on a live public
+    # site: a repeat visitor from the same IP/device is silent every time
+    # after the first. Two events share this one toggle — "brand new IP"
+    # and "known IP, new device" — since both mean "someone/something the
+    # security channel hasn't seen before."
+    telegram_security_notify_new_visitor        = db.Column(db.Boolean, default=True, nullable=False)
+
     # ── Social media links ───────────────────────────────────────────────
     # Every field is empty by default and stays empty until an admin pastes
     # a real, official account URL — never auto-populated or guessed. A
@@ -172,6 +182,7 @@ class PlatformConfig(db.Model):
             "telegram_security_notify_new_ip_login": self.telegram_security_notify_new_ip_login,
             "telegram_security_notify_admin_unauthorized": self.telegram_security_notify_admin_unauthorized,
             "telegram_security_notify_anonymous_visits": self.telegram_security_notify_anonymous_visits,
+            "telegram_security_notify_new_visitor": self.telegram_security_notify_new_visitor,
             "audit_log_super_admins": self.audit_log_super_admins,
             "smc_order_block_gate_enabled": self.smc_order_block_gate_enabled,
             "smc_liquidity_sweep_gate_enabled": self.smc_liquidity_sweep_gate_enabled,

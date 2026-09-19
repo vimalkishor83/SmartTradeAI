@@ -330,9 +330,41 @@ def _send_to_chat(chat_id: str, text: str):
     return send_group_message(text, chat_id=chat_id, category="news")
 
 def send_security_alert(text: str):
-    """Safely skip non-news security delivery because the shared group is news-only."""
-    from app.services.telegram_delivery import send_group_message
-    return send_group_message(text)
+    """Deliver to the dedicated security Telegram chat (PlatformConfig.
+    telegram_security_chat_id) using the platform bot token directly —
+    this is deliberately NOT send_group_message(), which is reserved for
+    the trading TelegramAlertChannel group and hard-rejects anything but
+    category="news". Security events have their own separate chat, so
+    they must never go through that news-only gate. No chat id configured
+    means there's nowhere to send this — a silent no-op, not an error."""
+    from flask import current_app
+    from app.services.platform_config import get_platform_config
+
+    chat_id = (get_platform_config().get("telegram_security_chat_id") or "").strip()
+    if not chat_id:
+        logger.info("Security alert skipped because no security chat id is configured")
+        return False
+
+    token = current_app.config.get("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.info("Security alert skipped because the platform bot is not configured")
+        return False
+
+    try:
+        import requests
+
+        response = requests.post(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            timeout=5,
+        )
+        if not response.ok:
+            logger.warning("Security alert delivery rejected with HTTP %s", response.status_code)
+            return False
+        return True
+    except Exception as exc:
+        logger.error("Security alert delivery failed: %s", type(exc).__name__)
+        return False
 
 def send_news_digest(items):
     """Send a bounded digest of newly ingested news to the shared group."""

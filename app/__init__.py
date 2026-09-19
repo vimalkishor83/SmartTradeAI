@@ -146,25 +146,30 @@ def _register_security_visit_alerts(app):
 
         try:
             from app.services.platform_config import get_platform_config
-            if not get_platform_config().get("telegram_security_notify_anonymous_visits", False):
-                return None
+            config = get_platform_config()
 
-            from app.extensions import cache
-            cache_key = f"sec_visit_cooldown:{request.remote_addr}"
-            if cache.get(cache_key):
-                return None
-            cache.set(cache_key, True, timeout=300)  # one alert per IP per 5 minutes
+            if config.get("telegram_security_notify_anonymous_visits", False):
+                from app.extensions import cache
+                cache_key = f"sec_visit_cooldown:{request.remote_addr}"
+                if not cache.get(cache_key):
+                    cache.set(cache_key, True, timeout=300)  # one alert per IP per 5 minutes
 
-            from datetime import datetime
-            from app.tasks.notification_tasks import send_security_alert
-            when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
-            send_security_alert(
-                f"👀 *ANONYMOUS VISIT*\n\n"
-                f"📄 Page: `{request.path}`\n"
-                f"🌐 IP: `{request.remote_addr}`\n"
-                f"💻 User-Agent: `{request.headers.get('User-Agent', '')[:150]}`\n"
-                f"🕐 Time: `{when}`"
-            )
+                    from datetime import datetime
+                    from app.tasks.notification_tasks import send_security_alert
+                    when = datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')
+                    send_security_alert(
+                        f"👀 *ANONYMOUS VISIT*\n\n"
+                        f"📄 Page: `{request.path}`\n"
+                        f"🌐 IP: `{request.remote_addr}`\n"
+                        f"💻 User-Agent: `{request.headers.get('User-Agent', '')[:150]}`\n"
+                        f"🕐 Time: `{when}`"
+                    )
+
+            if config.get("telegram_security_notify_new_visitor", True):
+                from app.services.visitor_tracking import record_visitor_and_alert_if_new
+                record_visitor_and_alert_if_new(
+                    request.remote_addr, request.headers.get("User-Agent", "")
+                )
         except Exception:
             pass
         return None
