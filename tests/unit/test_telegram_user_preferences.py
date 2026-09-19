@@ -3,6 +3,7 @@ of (never wider than) PlatformConfig's existing category/market gates."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
+import pytest
 
 from app.services.notifications.telegram_user_preferences import (
     user_wants_telegram_category,
@@ -33,6 +34,7 @@ def test_user_with_no_preference_row_allows_every_category(app):
         assert user_wants_telegram_category(user.id, "watchlist") is True
 
 
+@pytest.mark.slow
 def test_user_preference_narrows_to_selected_categories(app):
     from app.extensions import db
     from app.models.telegram_user_preference import TelegramUserPreference
@@ -48,6 +50,7 @@ def test_user_preference_narrows_to_selected_categories(app):
         assert user_wants_telegram_category(user.id, "rating_change") is False
 
 
+@pytest.mark.slow
 def test_user_preference_narrows_by_market(app):
     from app.extensions import db
     from app.models.telegram_user_preference import TelegramUserPreference
@@ -91,6 +94,7 @@ def test_send_telegram_respects_user_category_preference(app, monkeypatch):
         requests_post.assert_called_once()
 
 
+@pytest.mark.slow
 def test_send_telegram_without_category_skips_user_preference_check(app, monkeypatch):
     """The generic pending-notification sweep's legacy call (no category)
     must keep working exactly as before this feature -- untouched by any

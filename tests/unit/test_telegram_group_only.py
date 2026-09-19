@@ -2,6 +2,7 @@
 
 from types import SimpleNamespace
 from unittest.mock import Mock
+import pytest
 
 from app.services.safety import (
     telegram_delivery_mode,
@@ -10,6 +11,7 @@ from app.services.safety import (
 )
 
 
+@pytest.mark.slow
 def test_news_group_and_individual_signal_policy_is_explicit(app):
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True
@@ -40,6 +42,7 @@ def test_individual_sender_is_blocked_when_environment_disables_telegram(app, mo
         requests_post.assert_not_called()
 
 
+@pytest.mark.slow
 def test_individual_sender_uses_user_chat_when_enabled(app, monkeypatch):
     with app.app_context():
         app.config["TELEGRAM_NOTIFICATIONS_ENABLED"] = True

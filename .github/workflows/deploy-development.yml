@@ -13,8 +13,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Run fast test suite
+    if: github.event_name == 'push' && github.ref == 'refs/heads/development'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run unit tests
+        env:
+          FLASK_ENV: testing
+        run: python -m pytest -q tests/unit -m "not slow" --no-cov --durations=10
+
   deploy:
     name: Deploy to smarttradeai.info
+    needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/development'
     runs-on: ubuntu-latest
     timeout-minutes: 15

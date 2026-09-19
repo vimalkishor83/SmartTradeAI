@@ -7,6 +7,7 @@
 See app/services/visitor_tracking.py and app/models/visitor_log.py.
 """
 from unittest.mock import patch
+import pytest
 
 from app.models.visitor_log import VisitorLog
 
@@ -26,6 +27,7 @@ def test_brand_new_ip_is_logged_and_alerted(app):
         assert "NEW VISITOR IP" in mock_alert.call_args[0][0]
 
 
+@pytest.mark.slow
 def test_repeat_visit_from_known_ip_and_device_does_not_alert(app):
     with app.app_context():
         from app.services.visitor_tracking import record_visitor_and_alert_if_new

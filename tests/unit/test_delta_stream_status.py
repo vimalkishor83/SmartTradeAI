@@ -7,6 +7,7 @@ fallback)" regardless of whether the WebSocket was genuinely connected.
 """
 
 from app.services.data.delta_stream import DeltaStreamManager
+import pytest
 
 
 def test_status_defaults_to_disconnected_before_any_connection_attempt():
@@ -18,6 +19,7 @@ def test_status_defaults_to_disconnected_before_any_connection_attempt():
     assert status["thread_alive"] is False
 
 
+@pytest.mark.slow
 def test_connect_wires_on_open_to_mark_connected(monkeypatch):
     """Exercises the real on_open closure built inside _connect(), rather
     than asserting against manually-set state -- catches a future refactor
