@@ -54,7 +54,8 @@
       { "@type": "Offer", "name": "Free", "price": "0", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Basic", "price": "299", "priceCurrency": "INR" },
       { "@type": "Offer", "name": "Premium", "price": "999", "priceCurrency": "INR" },
-      { "@type": "Offer", "name": "Pro", "price": "2499", "priceCurrency": "INR" }
+      { "@type": "Offer", "name": "Advanced", "price": "1499", "priceCurrency": "INR" },
+      { "@type": "Offer", "name": "Pro", "price": "1999", "priceCurrency": "INR" }
     ]
   }
   </script>
@@ -464,6 +465,325 @@
       margin-top: 3px;
     }
 
+    /* ── HERO INTELLIGENCE CONSOLE ───────────────────────────── */
+    .hero-visual {
+      display: grid;
+      gap: 14px;
+      min-width: 0;
+    }
+    .hero-console {
+      position: relative;
+      overflow: hidden;
+      min-height: 360px;
+      padding: 18px;
+      border: 1px solid rgba(245,166,35,0.24);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(22,29,41,0.98), rgba(7,10,17,0.98));
+      box-shadow: 0 22px 55px rgba(0,0,0,0.3), 0 0 0 1px rgba(255,255,255,0.02) inset;
+    }
+    .hero-console::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(115deg, rgba(8,11,18,0.98) 18%, rgba(8,11,18,0.62) 58%, rgba(8,11,18,0.16)), url('/static/img/hero-market-atmosphere.png') center / cover no-repeat;
+      opacity: 0.52;
+      pointer-events: none;
+    }
+    .hero-console::after {
+      content: '';
+      position: absolute;
+      width: 250px;
+      height: 250px;
+      right: -120px;
+      top: -145px;
+      border: 1px solid rgba(245,166,35,0.34);
+      border-radius: 50%;
+      box-shadow: 0 0 0 28px rgba(245,166,35,0.025), 0 0 0 58px rgba(245,166,35,0.018);
+      pointer-events: none;
+    }
+    .hero-console > * { position: relative; z-index: 1; }
+    .hero-console-head,
+    .hero-console-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .hero-console-head {
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+    .hero-console-kicker {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.35px;
+    }
+    .hero-console-kicker i { color: var(--accent2); font-size: 14px; }
+    .hero-console-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 8px;
+      border: 1px solid rgba(34,217,127,0.28);
+      border-radius: 999px;
+      color: var(--green);
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.45px;
+      text-transform: uppercase;
+    }
+    .hero-console-status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 10px rgba(34,217,127,0.65);
+    }
+    .hero-console-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(150px, 0.75fr);
+      gap: 12px;
+      padding: 15px 0;
+    }
+    .hero-chart-panel,
+    .hero-signal-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(5,8,14,0.56);
+    }
+    .hero-chart-panel { padding: 13px 13px 10px; }
+    .hero-chart-panel-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 9px;
+    }
+    .hero-chart-asset {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .hero-chart-meta {
+      margin-top: 3px;
+      color: var(--text3);
+      font-family: var(--font-mono);
+      font-size: 9.5px;
+    }
+    .hero-chart-price {
+      color: var(--green);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .hero-chart-svg { display: block; width: 100%; height: 170px; }
+    .hero-chart-grid { stroke: rgba(148,163,184,0.13); stroke-width: 1; }
+    .hero-chart-area { fill: url(#heroAreaFill); }
+    .hero-chart-line {
+      fill: none;
+      stroke: var(--green);
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      filter: drop-shadow(0 0 5px rgba(34,217,127,0.36));
+    }
+    .hero-chart-candle.up { fill: rgba(34,217,127,0.85); }
+    .hero-chart-candle.down { fill: rgba(255,90,106,0.85); }
+    .hero-chart-axis {
+      fill: var(--text3);
+      font-family: var(--font-mono);
+      font-size: 8px;
+    }
+    .hero-chart-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      color: var(--text3);
+      font-size: 9px;
+    }
+    .hero-chart-legend span { display: inline-flex; align-items: center; gap: 4px; }
+    .hero-chart-legend i { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+    .hero-chart-legend i.amber { background: var(--accent); }
+    .hero-signal-stack { display: grid; gap: 10px; align-content: start; }
+    .hero-signal-card { padding: 13px; }
+    .hero-signal-card-live { border-color: rgba(34,217,127,0.34); background: linear-gradient(145deg, rgba(34,217,127,0.07), rgba(255,255,255,0.02)); }
+    .hero-signal-card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .hero-signal-card-asset { color: var(--text); font-size: 12px; font-weight: 800; }
+    .hero-signal-card-tf { color: var(--text3); font-family: var(--font-mono); font-size: 9px; }
+    .hero-signal-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 7px;
+      border-radius: 5px;
+      background: rgba(34,217,127,0.12);
+      color: var(--green);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 800;
+    }
+    .hero-signal-badge.hold { background: rgba(245,166,35,0.12); color: var(--accent2); }
+    .hero-signal-levels { display: grid; gap: 6px; margin-top: 10px; }
+    .hero-signal-level {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--text3);
+      font-family: var(--font-mono);
+      font-size: 9px;
+    }
+    .hero-signal-level strong { color: var(--text2); font-weight: 600; }
+    .hero-console-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 16px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      color: var(--text3);
+      font-size: 10px;
+    }
+    .hero-console-footer strong { color: var(--text2); font-weight: 600; }
+    .hero-console-footer i { color: var(--accent2); margin-right: 4px; }
+    .hero-console-data-note { color: var(--text3); }
+    .hero-console-data-note .live-dot { width: 6px; height: 6px; margin-right: 5px; }
+    .hero-visual .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+
+    /* ── MARKET INTELLIGENCE MAP ─────────────────────────────── */
+    .intelligence-section {
+      position: relative;
+      max-width: 1360px;
+    }
+    .intelligence-section::before {
+      content: '';
+      position: absolute;
+      inset: 16% 5% 8%;
+      background: radial-gradient(ellipse at 50% 45%, rgba(245,166,35,0.08), transparent 62%);
+      pointer-events: none;
+    }
+    .intelligence-grid {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 20px;
+    }
+    .coverage-board,
+    .analysis-board {
+      position: relative;
+      overflow: hidden;
+      min-height: 390px;
+      padding: 24px;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: linear-gradient(145deg, rgba(16,20,28,0.98), rgba(10,13,21,0.98));
+    }
+    .coverage-board::after,
+    .analysis-board::after {
+      content: '';
+      position: absolute;
+      right: -90px;
+      bottom: -120px;
+      width: 260px;
+      height: 260px;
+      border: 1px solid rgba(245,166,35,0.2);
+      border-radius: 50%;
+      box-shadow: 0 0 0 25px rgba(245,166,35,0.025), 0 0 0 52px rgba(245,166,35,0.018);
+      pointer-events: none;
+    }
+    .board-kicker {
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.6px;
+      text-transform: uppercase;
+    }
+    .board-title { margin-top: 8px; font-size: 20px; font-weight: 800; letter-spacing: -0.35px; }
+    .board-copy { max-width: 480px; margin-top: 8px; color: var(--text2); font-size: 13px; line-height: 1.65; }
+    .coverage-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 9px;
+      margin-top: 22px;
+    }
+    .coverage-tile {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 88px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: rgba(255,255,255,0.025);
+      transition: transform 0.2s, border-color 0.2s, background 0.2s;
+    }
+    .coverage-tile:hover { transform: translateY(-2px); border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
+    .coverage-tile i { color: var(--accent2); font-size: 16px; }
+    .coverage-tile strong { margin-top: 12px; color: var(--text); font-size: 11.5px; }
+    .coverage-tile span { color: var(--text3); font-family: var(--font-mono); font-size: 9px; }
+    .timeframe-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-top: 20px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .timeframe-label { margin-right: 4px; color: var(--text3); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; }
+    .timeframe-pill {
+      padding: 4px 8px;
+      border: 1px solid rgba(91,140,255,0.22);
+      border-radius: 6px;
+      background: rgba(91,140,255,0.08);
+      color: #9db8ff;
+      font-family: var(--font-mono);
+      font-size: 9px;
+    }
+    .analysis-ladder { display: grid; gap: 10px; margin-top: 22px; }
+    .analysis-node {
+      display: grid;
+      grid-template-columns: 34px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 11px;
+      background: rgba(255,255,255,0.025);
+    }
+    .analysis-node-index {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border: 1px solid rgba(245,166,35,0.28);
+      border-radius: 9px;
+      background: var(--accent-dim);
+      color: var(--accent2);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .analysis-node strong { color: var(--text); font-size: 12px; }
+    .analysis-node p { margin: 3px 0 0; color: var(--text3); font-size: 10.5px; line-height: 1.45; }
+    .analysis-node-status { color: var(--green); font-family: var(--font-mono); font-size: 9px; font-weight: 700; text-transform: uppercase; }
+    .analysis-node-status.neutral { color: var(--accent2); }
+    .analysis-footnote { margin-top: 16px; color: var(--text3); font-size: 10.5px; line-height: 1.55; }
+
     /* ── LIVE SIGNAL TICKER ─────────────────────── */
     :root { --ticker-h: 43px; }
     .ticker-wrap {
@@ -756,6 +1076,161 @@
       letter-spacing: 0.6px;
     }
 
+    /* ── READ-ONLY DASHBOARD PREVIEW ───── */
+    .dashboard-preview-shell {
+      background: linear-gradient(145deg, rgba(22,29,41,0.98), rgba(13,17,26,0.98));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      overflow: hidden;
+    }
+    .dashboard-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dashboard-preview-kicker {
+      display: block;
+      color: var(--accent2);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .dashboard-preview-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .dashboard-readonly-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 4px 9px;
+      border: 1px solid rgba(34,217,127,0.3);
+      border-radius: 999px;
+      color: var(--green);
+      font-size: 11px;
+    }
+    .dashboard-readonly-badge i { font-size: 12px; }
+    .dashboard-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 20px 0;
+    }
+    .dashboard-metric-card {
+      min-height: 112px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.035);
+    }
+    .dashboard-metric-card:nth-child(1) { border-top: 2px solid var(--green); }
+    .dashboard-metric-card:nth-child(2) { border-top: 2px solid #5b8cff; }
+    .dashboard-metric-card:nth-child(3) { border-top: 2px solid var(--accent); }
+    .dashboard-metric-card:nth-child(4) { border-top: 2px solid #a77bff; }
+    .dashboard-metric-label {
+      color: var(--text3);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+    }
+    .dashboard-metric-value {
+      display: block;
+      margin: 10px 0 4px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+    .dashboard-metric-note {
+      color: var(--text3);
+      font-size: 11.5px;
+    }
+    .dashboard-preview-panels {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 12px;
+    }
+    .dashboard-preview-panel {
+      min-height: 205px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+    }
+    .dashboard-preview-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .dashboard-preview-panel-head i { color: var(--accent2); }
+    .preview-outcome-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 42px;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0;
+      color: var(--text2);
+      font-size: 12px;
+    }
+    .preview-outcome-track {
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .preview-outcome-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      transition: width 0.35s ease;
+    }
+    .preview-outcome-fill.win { background: var(--green); }
+    .preview-outcome-fill.loss { background: var(--red); }
+    .preview-outcome-count {
+      color: var(--text);
+      font-family: var(--font-mono);
+      text-align: right;
+    }
+    .dashboard-preview-note {
+      margin: 18px 0 0;
+      color: var(--text3);
+      font-size: 11.5px;
+      line-height: 1.55;
+    }
+    .preview-feature-list {
+      display: grid;
+      gap: 11px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .preview-feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: var(--text2);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .preview-feature-list i {
+      flex: 0 0 auto;
+      margin-top: 2px;
+      color: var(--green);
+    }
+
     /* ── FAQ ─────────────────────────────── */
     .faq-list {
       max-width: 760px;
@@ -798,12 +1273,22 @@
     }
 
     @media (max-width: 900px) {
+      .hero { grid-template-columns: 1fr; gap: 40px; }
       .steps-grid { grid-template-columns: repeat(2, 1fr); }
       .stats-band { grid-template-columns: repeat(2, 1fr); }
+      .hero-console-body { grid-template-columns: minmax(0, 1.25fr) minmax(135px, 0.75fr); }
+      .intelligence-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 560px) {
       .steps-grid { grid-template-columns: 1fr; }
       .stats-band { grid-template-columns: 1fr 1fr; }
+      .hero-console { padding: 13px; }
+      .hero-console-body { grid-template-columns: 1fr; }
+      .hero-console-footer { align-items: flex-start; flex-direction: column; }
+      .coverage-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .coverage-board, .analysis-board { min-height: 0; padding: 18px; }
+      .analysis-node { grid-template-columns: 30px minmax(0,1fr); }
+      .analysis-node-status { grid-column: 2; }
     }
 
     /* ── PRICING ────────────────────────── */
@@ -813,7 +1298,7 @@
     }
 
     .pricing-inner {
-      max-width: 1100px;
+      max-width: 1280px;
       margin: 0 auto;
     }
 
@@ -824,6 +1309,70 @@
       align-items: start;
     }
     .pricing-grid-4 { grid-template-columns: repeat(4, 1fr); }
+    .pricing-grid-5 {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 16px;
+    }
+    .pricing-grid-5 .pricing-card { padding-left: 22px; padding-right: 22px; }
+
+    .pricing-comparison {
+      margin: 0 auto 30px;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow-x: auto;
+      background: rgba(255,255,255,0.025);
+    }
+    .pricing-comparison-grid {
+      display: grid;
+      grid-template-columns: minmax(145px, 1.35fr) repeat(5, minmax(112px, 1fr));
+      min-width: 820px;
+    }
+    .pricing-comparison-grid > span,
+    .pricing-comparison-grid > strong {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .pricing-comparison-grid > strong {
+      color: var(--text);
+      font-size: 11px;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      background: rgba(255,255,255,0.035);
+    }
+    .pricing-comparison-grid > strong:not(:first-child) { text-align: center; }
+    .pricing-comparison-grid > span:nth-last-child(-n+6) { border-bottom: 0; }
+    .pricing-comparison-grid .comparison-label {
+      color: var(--text2);
+      font-weight: 600;
+    }
+    .pricing-comparison-grid .comparison-value {
+      color: var(--text2);
+      text-align: center;
+    }
+    .pricing-comparison-grid .comparison-value strong {
+      color: var(--text);
+      font-size: 12.5px;
+    }
+    .pricing-trust-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin: 0 auto 30px;
+    }
+    .pricing-trust-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 42px;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text2);
+      font-size: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    .pricing-trust-item i { color: var(--green); font-size: 15px; }
 
     .referral-callout {
       display: flex;
@@ -862,6 +1411,8 @@
       border-radius: 16px;
       padding: 32px 28px;
       position: relative;
+      display: flex;
+      flex-direction: column;
       transition: all 0.25s;
     }
     .pricing-card:hover { transform: translateY(-3px); box-shadow: 0 12px 32px rgba(0,0,0,0.35); }
@@ -910,6 +1461,22 @@
       margin-bottom: 14px;
     }
 
+    .plan-summary {
+      min-height: 38px;
+      color: var(--text2);
+      font-size: 12.5px;
+      line-height: 1.5;
+    }
+
+    .plan-feature-heading {
+      margin: 0 0 10px;
+      color: var(--text3);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
     .plan-price {
       font-family: var(--font-mono);
       font-size: 40px;
@@ -925,13 +1492,31 @@
     .plan-features { list-style: none; display: flex; flex-direction: column; gap: 11px; margin-bottom: 28px; }
     .plan-features li {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 10px;
       font-size: 13.5px;
       color: var(--text2);
+      line-height: 1.45;
     }
-    .plan-features li .check { color: var(--green); font-size: 15px; flex-shrink: 0; }
-    .plan-features li .cross { color: var(--text3); font-size: 15px; flex-shrink: 0; }
+    .plan-features li .check { color: var(--green); font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .plan-features li .cross { color: var(--text3); font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+    .plan-note {
+      min-height: 34px;
+      margin: -10px 0 18px;
+      color: var(--text3);
+      font-size: 11.5px;
+      line-height: 1.45;
+    }
+    .pricing-card > .btn { margin-top: auto; }
+
+    .pricing-legal-note {
+      max-width: 860px;
+      margin: 28px auto 0;
+      color: var(--text3);
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: center;
+    }
 
     /* ── FOOTER ─────────────────────────── */
     .footer {
@@ -1081,13 +1666,17 @@
     /* ── RESPONSIVE ─────────────────────── */
     @media (max-width: 1180px) {
       .pricing-grid-4 { grid-template-columns: repeat(2, 1fr); max-width: 620px; margin: 0 auto; }
+      .pricing-grid-5 { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 960px; margin: 0 auto; }
     }
 
     @media (max-width: 1024px) {
       .features-grid { grid-template-columns: repeat(2, 1fr); }
       .pricing-grid  { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+      .pricing-grid.pricing-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 760px; }
       .pricing-card.featured { transform: scale(1); }
       .snapshot-table th:nth-child(4), .snapshot-table td:nth-child(4) { display: none; }
+      .pricing-trust-row { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-preview-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 768px) {
@@ -1100,6 +1689,11 @@
         opacity: 0.52;
       }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
+      .hero-visual .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .pricing-grid.pricing-grid-5 { grid-template-columns: 1fr; max-width: 420px; }
+      .pricing-trust-row { grid-template-columns: 1fr; }
+      .dashboard-preview-head { align-items: flex-start; flex-direction: column; }
+      .dashboard-preview-panels { grid-template-columns: 1fr; }
       .navbar { display: flex; justify-content: space-between; }
       .nav-menu-toggle { display: inline-flex; order: 2; }
       .nav-cta { order: 3; }
@@ -1234,27 +1828,97 @@
       </div>
     </div>
 
-    <!-- Right: Animated stats cards -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></div>
-        <div class="stat-num mono" id="heroStatAssets">···</div>
-        <div class="stat-label">Assets Tracked</div>
+    <!-- Right: Read-only product console preview -->
+    <div class="hero-visual">
+      <div class="hero-console" aria-label="Illustrative read-only market intelligence console">
+        <div class="hero-console-head">
+          <div class="hero-console-kicker"><i class="bi bi-grid-1x2-fill" aria-hidden="true"></i> Market intelligence console</div>
+          <span class="hero-console-status">Read-only preview</span>
+        </div>
+
+        <div class="hero-console-body">
+          <div class="hero-chart-panel">
+            <div class="hero-chart-panel-head">
+              <div>
+                <div class="hero-chart-asset">Market snapshot <span class="hero-chart-meta">· illustrative 1H path</span></div>
+                <div class="hero-chart-meta">Trend alignment · momentum · volatility</div>
+              </div>
+              <span class="hero-chart-price">Example view</span>
+            </div>
+            <svg class="hero-chart-svg" viewBox="0 0 520 190" role="img" aria-label="Illustrative price chart with trend line and signal markers">
+              <defs>
+                <linearGradient id="heroAreaFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stop-color="#22d97f" stop-opacity="0.22" />
+                  <stop offset="1" stop-color="#22d97f" stop-opacity="0" />
+                </linearGradient>
+              </defs>
+              <g class="hero-chart-grid">
+                <line x1="10" y1="28" x2="510" y2="28" /><line x1="10" y1="70" x2="510" y2="70" />
+                <line x1="10" y1="112" x2="510" y2="112" /><line x1="10" y1="154" x2="510" y2="154" />
+                <line x1="72" y1="12" x2="72" y2="170" /><line x1="190" y1="12" x2="190" y2="170" />
+                <line x1="308" y1="12" x2="308" y2="170" /><line x1="426" y1="12" x2="426" y2="170" />
+              </g>
+              <path class="hero-chart-area" d="M10 148 L30 137 L50 143 L70 122 L90 129 L110 107 L130 114 L150 98 L170 108 L190 84 L210 93 L230 78 L250 82 L270 65 L290 74 L310 54 L330 61 L350 46 L370 54 L390 40 L410 45 L430 32 L450 39 L470 25 L490 30 L510 17 L510 170 L10 170 Z" />
+              <g opacity="0.72">
+                <rect class="hero-chart-candle.down" x="38" y="126" width="7" height="27" rx="2" /><rect class="hero-chart-candle.up" x="78" y="108" width="7" height="29" rx="2" />
+                <rect class="hero-chart-candle.up" x="118" y="98" width="7" height="28" rx="2" /><rect class="hero-chart-candle.down" x="158" y="95" width="7" height="23" rx="2" />
+                <rect class="hero-chart-candle.up" x="198" y="75" width="7" height="31" rx="2" /><rect class="hero-chart-candle.up" x="238" y="68" width="7" height="28" rx="2" />
+                <rect class="hero-chart-candle.down" x="278" y="58" width="7" height="25" rx="2" /><rect class="hero-chart-candle.up" x="318" y="43" width="7" height="31" rx="2" />
+                <rect class="hero-chart-candle.up" x="358" y="36" width="7" height="28" rx="2" /><rect class="hero-chart-candle.down" x="398" y="35" width="7" height="22" rx="2" />
+                <rect class="hero-chart-candle.up" x="438" y="21" width="7" height="28" rx="2" /><rect class="hero-chart-candle.up" x="478" y="14" width="7" height="24" rx="2" />
+              </g>
+              <path class="hero-chart-line" d="M10 148 L30 137 L50 143 L70 122 L90 129 L110 107 L130 114 L150 98 L170 108 L190 84 L210 93 L230 78 L250 82 L270 65 L290 74 L310 54 L330 61 L350 46 L370 54 L390 40 L410 45 L430 32 L450 39 L470 25 L490 30 L510 17" />
+              <circle cx="430" cy="32" r="4" fill="#f5a623" stroke="#080b12" stroke-width="3" />
+              <text class="hero-chart-axis" x="10" y="185">09:00</text><text class="hero-chart-axis" x="164" y="185">12:00</text><text class="hero-chart-axis" x="318" y="185">15:00</text><text class="hero-chart-axis" x="470" y="185">18:00</text>
+            </svg>
+            <div class="hero-chart-legend"><span><i></i>Trend path</span><span><i class="amber"></i>Decision point</span><span>Illustrative preview</span></div>
+          </div>
+
+          <div class="hero-signal-stack">
+            <div class="hero-signal-card hero-signal-card-live">
+              <div class="hero-signal-card-head"><span id="heroConsolePrimaryAsset" class="hero-signal-card-asset">Public signal sample</span><span id="heroConsolePrimaryTf" class="hero-signal-card-tf">—</span></div>
+              <span id="heroConsolePrimaryBadge" class="hero-signal-badge hold" aria-live="polite">Loading public signal…</span>
+              <div class="hero-signal-levels">
+                <div class="hero-signal-level"><span>Entry</span><strong id="heroConsoleEntry">—</strong></div>
+                <div class="hero-signal-level"><span>Stop loss</span><strong>Risk boundary</strong></div>
+                <div class="hero-signal-level"><span>Target 1</span><strong id="heroConsoleTarget">—</strong></div>
+              </div>
+            </div>
+            <div class="hero-signal-card">
+              <div class="hero-signal-card-head"><span class="hero-signal-card-asset">Evidence layers</span><span class="hero-signal-card-tf">Read-only</span></div>
+              <span class="hero-signal-badge hold">● INSPECTABLE</span>
+              <div class="hero-signal-levels">
+                <div class="hero-signal-level"><span>Context</span><strong>Market regime</strong></div>
+                <div class="hero-signal-level"><span>Decision</span><strong>Evidence first</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-console-footer"><span><i class="bi bi-eye" aria-hidden="true"></i><strong>Read-only product preview</strong></span><span id="heroConsoleDataNote" class="hero-console-data-note"><span class="live-dot"></span>Public board sample · private data stays behind login</span></div>
       </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
-        <div class="stat-num mono" id="heroStatTimeframes">···</div>
-        <div class="stat-label">Timeframes</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
-        <div class="stat-num mono">50+</div>
-        <div class="stat-label">Indicators</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon"><i class="bi bi-bell" aria-hidden="true"></i></div>
-        <div class="stat-num mono" style="color:var(--green)">Live</div>
-        <div class="stat-label">Real-time Alerts</div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon"><i class="bi bi-bar-chart-line" aria-hidden="true"></i></div>
+          <div class="stat-num mono" id="heroStatAssets">···</div>
+          <div class="stat-label">Assets tracked</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+          <div class="stat-num mono" id="heroStatTimeframes">···</div>
+          <div class="stat-label">Timeframes</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><i class="bi bi-diagram-3" aria-hidden="true"></i></div>
+          <div class="stat-num mono">50+</div>
+          <div class="stat-label">Indicators</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon"><i class="bi bi-bell" aria-hidden="true"></i></div>
+          <div class="stat-num mono" style="color:var(--green)">Live</div>
+          <div class="stat-label">Real-time alerts</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1278,13 +1942,13 @@
     <div class="feature-card">
       <div class="feature-icon"><i class="bi bi-layers" aria-hidden="true"></i></div>
       <div class="feature-title">Multi-Timeframe Analysis</div>
-      <p class="feature-desc">Spot confluences across 1m to 1D timeframes instantly. Higher confluence = higher probability setups.</p>
+      <p class="feature-desc">Spot confluences across 1m to 1D timeframes instantly. Higher agreement helps surface setups that deserve closer review.</p>
     </div>
 
     <div class="feature-card">
       <div class="feature-icon"><i class="bi bi-cpu" aria-hidden="true"></i></div>
       <div class="feature-title">AI Predictions</div>
-      <p class="feature-desc">Machine learning ensemble predicts next move with probability scores. Trained on millions of historical candles across every asset class we cover.</p>
+      <p class="feature-desc">AI-assisted scoring combines model output with indicator agreement and market context, with evidence you can inspect instead of a black-box label.</p>
     </div>
 
     <div class="feature-card">
@@ -1307,6 +1971,51 @@
   </div>
 </section>
 
+<!-- ═══ MARKET INTELLIGENCE MAP ════════════════════════════════ -->
+<section id="market-intelligence" class="intelligence-section">
+  <div class="section-header">
+    <span class="section-label">One workspace. Many market lenses.</span>
+    <h2 class="section-title">From raw price movement to a decision you can inspect</h2>
+    <p class="section-sub">SmartTrade AI brings market coverage, timeframe context and explainable analysis together before a setup reaches your signal board.</p>
+  </div>
+
+  <div class="intelligence-grid">
+    <div class="coverage-board">
+      <div class="board-kicker">Market coverage</div>
+      <h3 class="board-title">Keep the whole map in view</h3>
+      <p class="board-copy">Move from crypto momentum to currency strength, commodities and Indian equities without changing tools or losing the context around a setup.</p>
+
+      <div class="coverage-grid" aria-label="Supported market categories">
+        <div class="coverage-tile"><i class="bi bi-currency-bitcoin" aria-hidden="true"></i><strong>Crypto</strong><span>24/7 markets</span></div>
+        <div class="coverage-tile"><i class="bi bi-currency-exchange" aria-hidden="true"></i><strong>Forex</strong><span>Major pairs</span></div>
+        <div class="coverage-tile"><i class="bi bi-gem" aria-hidden="true"></i><strong>Commodities</strong><span>Metals &amp; more</span></div>
+        <div class="coverage-tile"><i class="bi bi-building" aria-hidden="true"></i><strong>Indian stocks</strong><span>Local sessions</span></div>
+        <div class="coverage-tile"><i class="bi bi-activity" aria-hidden="true"></i><strong>Indices</strong><span>Macro direction</span></div>
+        <div class="coverage-tile"><i class="bi bi-search" aria-hidden="true"></i><strong>Watchlists</strong><span>Your shortlist</span></div>
+      </div>
+
+      <div class="timeframe-bar" aria-label="Available analysis timeframes">
+        <span class="timeframe-label">Timeframe lens</span>
+        <span class="timeframe-pill">1m</span><span class="timeframe-pill">5m</span><span class="timeframe-pill">15m</span><span class="timeframe-pill">30m</span><span class="timeframe-pill">1h</span><span class="timeframe-pill">4h</span><span class="timeframe-pill">1d</span>
+      </div>
+    </div>
+
+    <div class="analysis-board">
+      <div class="board-kicker">Explainable pipeline</div>
+      <h3 class="board-title">See why a setup qualifies</h3>
+      <p class="board-copy">Signals are not just labels. The workflow surfaces the evidence, risk boundary and timeframe agreement behind each decision.</p>
+
+      <div class="analysis-ladder">
+        <div class="analysis-node"><span class="analysis-node-index">01</span><div><strong>Market feed</strong><p>Price, volume and session context</p></div><span class="analysis-node-status">Read</span></div>
+        <div class="analysis-node"><span class="analysis-node-index">02</span><div><strong>Indicator stack</strong><p>Trend, momentum and volatility checks</p></div><span class="analysis-node-status">Score</span></div>
+        <div class="analysis-node"><span class="analysis-node-index">03</span><div><strong>Timeframe confluence</strong><p>Short-term trigger against higher-timeframe bias</p></div><span class="analysis-node-status neutral">Align</span></div>
+        <div class="analysis-node"><span class="analysis-node-index">04</span><div><strong>Decision inspector</strong><p>Entry, stop, targets, R:R and expiry context</p></div><span class="analysis-node-status">Explain</span></div>
+      </div>
+      <p class="analysis-footnote"><i class="bi bi-info-circle me-1" aria-hidden="true"></i>Confidence is a measure of internal indicator agreement, not a promise of profit.</p>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ HOW IT WORKS ═══════════════════════════════════════════ -->
 <section id="how-it-works">
   <div class="section-header">
@@ -1319,7 +2028,7 @@
     <div class="step-card">
       <div class="step-num">1</div>
       <div class="step-title">Create your account</div>
-      <p class="step-desc">Sign up free — no card required. Have a broker referral code? It unlocks a paid tier free at signup.</p>
+      <p class="step-desc">Sign up free — no card required. A valid broker referral code may unlock an upgraded tier at signup.</p>
     </div>
     <div class="step-card">
       <div class="step-num">2</div>
@@ -1378,6 +2087,77 @@
   </div>
 </section>
 
+<!-- ═══ READ-ONLY DASHBOARD PREVIEW ═══════════════════════════ -->
+<section id="dashboard-preview">
+  <div class="section-header">
+    <span class="section-label">Read-only dashboard preview</span>
+    <h2 class="section-title">See the results view before you sign in</h2>
+    <p class="section-sub">A safe public preview of the dashboard experience. It uses anonymous platform aggregates and never exposes a user's portfolio, positions or account controls.</p>
+  </div>
+
+  <div class="dashboard-preview-shell" aria-label="Read-only dashboard preview">
+    <div class="dashboard-preview-head">
+      <div>
+        <span class="dashboard-preview-kicker">Platform snapshot</span>
+        <div class="dashboard-preview-title">Signal performance at a glance</div>
+        <span class="dashboard-readonly-badge"><i class="bi bi-eye" aria-hidden="true"></i> Read-only · no account data</span>
+      </div>
+      <a href="/register" class="btn btn-outline" style="padding:8px 14px;font-size:12.5px">Open your dashboard →</a>
+    </div>
+
+    <div class="dashboard-preview-grid">
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Win rate</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewWinRate">—</strong>
+        <span class="dashboard-metric-note">decisive closed signals</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Profit factor</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewProfitFactor">—</strong>
+        <span class="dashboard-metric-note">gross wins / losses</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Average P&amp;L</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewAvgPnl">—</strong>
+        <span class="dashboard-metric-note">per decisive signal</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Closed signals</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewClosed">—</strong>
+        <span class="dashboard-metric-note">platform aggregate</span>
+      </div>
+    </div>
+
+    <div class="dashboard-preview-panels">
+      <div class="dashboard-preview-panel">
+        <div class="dashboard-preview-panel-head"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Outcome mix</div>
+        <div class="preview-outcome-row">
+          <span>Wins</span>
+          <div class="preview-outcome-track"><div class="preview-outcome-fill win" id="publicPreviewWinsBar"></div></div>
+          <span class="preview-outcome-count" id="publicPreviewWins">—</span>
+        </div>
+        <div class="preview-outcome-row">
+          <span>Losses</span>
+          <div class="preview-outcome-track"><div class="preview-outcome-fill loss" id="publicPreviewLossesBar"></div></div>
+          <span class="preview-outcome-count" id="publicPreviewLosses">—</span>
+        </div>
+        <p class="dashboard-preview-note" id="publicPreviewNote">Loading anonymous platform performance…</p>
+      </div>
+
+      <div class="dashboard-preview-panel">
+        <div class="dashboard-preview-panel-head"><i class="bi bi-grid-1x2" aria-hidden="true"></i> What you get after login</div>
+        <ul class="preview-feature-list">
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Live market overview with freshness and provider context</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Multi-timeframe signals with entry, stop-loss and targets</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>AI Decision Inspector with evidence and signal history</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Portfolio, risk, drawdown and performance tracking</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Personal Telegram alerts on eligible plans</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══ SECURITY / TRUST ═══════════════════════════════════════ -->
 <section id="security">
   <div class="section-header">
@@ -1411,13 +2191,13 @@
 <div class="pricing-section" id="pricing">
   <div class="pricing-inner">
     <div class="section-header">
-      <span class="section-label">Simple Pricing</span>
-      <h2 class="section-title">Start free. Upgrade when you're ready.</h2>
-      <p class="section-sub">No hidden fees. Cancel anytime. Priced in INR, built for every market you trade.</p>
+      <span class="section-label">Plans that scale with your workflow</span>
+      <h2 class="section-title">From your first signal to full market intelligence</h2>
+      <p class="section-sub">Choose the signal freshness, analysis depth and workflow capacity that fits you. Every plan stays transparent, practical and paper-trading safe.</p>
     </div>
 
     <div class="referral-callout">
-      <span class="referral-callout-icon">🎁</span>
+      <span class="referral-callout-icon"><i class="bi bi-gift" aria-hidden="true"></i></span>
       <div>
         <strong>Have a broker or partner referral code?</strong>
         A valid code bumps you one tier above Free — straight to <strong>Basic</strong> — at no cost.
@@ -1425,7 +2205,23 @@
       </div>
     </div>
 
-    <div class="pricing-grid pricing-grid-4">
+    <div class="pricing-comparison" aria-label="Plan comparison at a glance">
+      <div class="pricing-comparison-grid">
+        <strong>At a glance</strong><strong>Free</strong><strong>Basic</strong><strong>Premium</strong><strong>Advanced</strong><strong>Pro</strong>
+        <span class="comparison-label">Signal freshness</span><span class="comparison-value"><strong>30 min</strong></span><span class="comparison-value"><strong>5 min</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span><span class="comparison-value"><strong>Live</strong></span>
+        <span class="comparison-label">Watchlist / alerts</span><span class="comparison-value">5 / 3</span><span class="comparison-value">15 / 10</span><span class="comparison-value">50 / 50</span><span class="comparison-value">100 / 100</span><span class="comparison-value">200 / 200</span>
+        <span class="comparison-label">Intelligence</span><span class="comparison-value">Core</span><span class="comparison-value">Multi-market</span><span class="comparison-value">AI + 50+</span><span class="comparison-value">Advanced workflows</span><span class="comparison-value">Priority</span>
+      </div>
+    </div>
+
+    <div class="pricing-trust-row" aria-label="Platform commitments">
+      <div class="pricing-trust-item"><i class="bi bi-shield-check" aria-hidden="true"></i><span>Paper trading by default</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i><span>Entry, stop and target context</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-phone" aria-hidden="true"></i><span>Personal alerts on eligible plans</span></div>
+      <div class="pricing-trust-item"><i class="bi bi-lock" aria-hidden="true"></i><span>No broker required</span></div>
+    </div>
+
+    <div class="pricing-grid pricing-grid-5">
       <!-- Free -->
       <div class="pricing-card">
         <div class="plan-name">Free</div>
@@ -1433,15 +2229,19 @@
           <span class="currency">₹</span>0
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">Explore the workspace with delayed market intelligence.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Included</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Delayed signals (30 min)</li>
-          <li><span class="check">✓</span> 1 market (Crypto)</li>
-          <li><span class="check">✓</span> Basic indicators</li>
+          <li><span class="check">✓</span> Crypto market coverage</li>
+          <li><span class="check">✓</span> Multi-timeframe market view</li>
+          <li><span class="check">✓</span> Basic indicators and sentiment</li>
+          <li><span class="check">✓</span> 5 watchlist slots · 3 alerts</li>
           <li><span class="check">✓</span> Community support</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI predictions</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> Backtesting</li>
+          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI analysis and backtesting</li>
         </ul>
+        <p class="plan-note">A low-pressure way to learn the platform before upgrading.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Get Started Free</a>
       </div>
 
@@ -1452,15 +2252,19 @@
           <span class="currency">₹</span>299
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">Near-live coverage for users who want broader market context.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Included</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Near-live signals (5 min)</li>
-          <li><span class="check">✓</span> All markets</li>
-          <li><span class="check">✓</span> 15 watchlist slots</li>
+          <li><span class="check">✓</span> Crypto, Forex, Commodities, Indian Stocks and Indices</li>
+          <li><span class="check">✓</span> Multi-timeframe analysis and asset search</li>
+          <li><span class="check">✓</span> 15 watchlist slots · 10 alerts</li>
+          <li><span class="check">✓</span> Market news and economic calendar</li>
           <li><span class="check">✓</span> Email support</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI predictions</li>
-          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> Backtesting</li>
+          <li><span class="cross"><i class="bi bi-lock" aria-hidden="true"></i></span> AI analysis and backtesting</li>
         </ul>
+        <p class="plan-note">A referral code can unlock Basic at no cost; Premium and Pro remain paid upgrades.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Basic</a>
       </div>
 
@@ -1472,39 +2276,72 @@
           <span class="currency">₹</span>999
           <span class="period">/month</span>
         </div>
+        <p class="plan-summary">The complete analysis workspace for active market watchers.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything you need to investigate a setup</div>
         <ul class="plan-features">
-          <li><span class="check">✓</span> Unlimited live signals</li>
-          <li><span class="check">✓</span> All markets</li>
-          <li><span class="check">✓</span> All 50+ indicators</li>
-          <li><span class="check">✓</span> AI predictions</li>
-          <li><span class="check">✓</span> Backtesting</li>
-          <li><span class="check">✓</span> Portfolio tracker</li>
+          <li><span class="check">✓</span> Live signals across all markets</li>
+          <li><span class="check">✓</span> AI analysis and Decision Inspector</li>
+          <li><span class="check">✓</span> 50+ indicators and multi-timeframe scoring</li>
+          <li><span class="check">✓</span> Backtesting and advanced charts</li>
+          <li><span class="check">✓</span> Portfolio tracker and risk metrics</li>
+          <li><span class="check">✓</span> 50 watchlist slots · 50 alerts</li>
+          <li><span class="check">✓</span> Personal Telegram signal alerts</li>
         </ul>
+        <p class="plan-note">Best for users who want the full signal context, research tools and personal notifications.</p>
         <a href="/register" class="btn btn-accent" style="width:100%;justify-content:center">Start Premium</a>
+      </div>
+
+      <!-- Advanced -->
+      <div class="pricing-card">
+        <div class="plan-name">Advanced</div>
+        <div class="plan-price">
+          <span class="currency">₹</span>1,499
+          <span class="period">/month</span>
+        </div>
+        <div class="savings-badge">For serious independent research</div>
+        <p class="plan-summary">More room for active research without jumping to Pro capacity.</p>
+        <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything in Premium, plus</div>
+        <ul class="plan-features">
+          <li><span class="check">✓</span> 100 watchlist slots · 100 alerts</li>
+          <li><span class="check">✓</span> Advanced scanner presets and saved workflows</li>
+          <li><span class="check">✓</span> Deeper backtesting and model context</li>
+          <li><span class="check">✓</span> Expanded signal history and exports</li>
+          <li><span class="check">✓</span> Priority email support</li>
+        </ul>
+        <p class="plan-note">A capacity-focused step up for users who outgrow Premium but do not need Pro support.</p>
+        <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Advanced</a>
       </div>
 
       <!-- Pro -->
       <div class="pricing-card">
         <div class="plan-name">Pro</div>
         <div class="plan-price">
-          <span class="currency">₹</span>2,499
+          <span class="currency">₹</span>1,999
           <span class="period">/month</span>
         </div>
-        <div class="savings-badge">For serious/prop traders</div>
+        <div class="savings-badge">For high-volume workflows</div>
+        <p class="plan-summary">More capacity and advanced controls for demanding research routines.</p>
         <hr class="plan-divider" />
+        <div class="plan-feature-heading">Everything in Premium, plus</div>
         <ul class="plan-features">
           <li><span class="check">✓</span> Everything in Premium</li>
+          <li><span class="check">✓</span> 200 watchlist slots · 200 alerts</li>
+          <li><span class="check">✓</span> Advanced scanners and strategy workflows</li>
+          <li><span class="check">✓</span> Advanced backtesting and model insights</li>
+          <li><span class="check">✓</span> Optional broker connection controls</li>
           <li><span class="check">✓</span> Priority feature access</li>
           <li><span class="check">✓</span> Dedicated support</li>
-          <li><span class="check">✓</span> 200 watchlist slots &amp; alerts</li>
-          <li><span class="check">✓</span> Advanced backtesting</li>
         </ul>
+        <p class="plan-note">Broker execution stays explicitly user-controlled and is not required to use the platform.</p>
         <a href="/register" class="btn btn-outline" style="width:100%;justify-content:center">Start Pro</a>
       </div>
     </div>
-  </div>
-</div>
+      </div>
+    </div>
+
+    <p class="pricing-legal-note">SmartTrade AI is a market-intelligence and paper-trading workspace, not personalized investment advice or a promise of returns. Signal confidence measures internal indicator agreement, not the probability of profit.</p>
 
 <!-- ═══ FAQ ════════════════════════════════════════════════════ -->
 <section id="faq">
@@ -1951,8 +2788,77 @@ loadSentimentStrip();
     } catch (e) { /* leave loading-state placeholders */ }
   }
 
+  const preview = document.getElementById('dashboard-preview');
+  if (preview) {
+    const setPreviewText = (id, value) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    };
+    const fmtPreview = (value, digits = 1, suffix = '') => {
+      const number = publicNumber(value);
+      return number == null ? '—' : `${number.toFixed(digits)}${suffix}`;
+    };
+    try {
+      const res = await fetch('/api/v1/signals/public-performance');
+      if (!res.ok) throw new Error('public performance request failed');
+      const data = await res.json();
+      const closed = Math.max(0, Math.round(publicNumber(data?.closed_trades, 0)));
+      setPreviewText('publicPreviewClosed', closed.toLocaleString('en-IN'));
+      if (!data?.available) {
+        setPreviewText('publicPreviewNote', `Win rate and P&L will appear after a meaningful closed-signal sample is available. Current sample: ${closed}.`);
+      } else {
+        const wins = Math.max(0, Math.round(publicNumber(data?.wins, 0)));
+        const losses = Math.max(0, Math.round(publicNumber(data?.losses, 0)));
+        const total = Math.max(1, wins + losses);
+        setPreviewText('publicPreviewWinRate', fmtPreview(data?.win_rate, 1, '%'));
+        setPreviewText('publicPreviewProfitFactor', fmtPreview(data?.profit_factor, 2));
+        setPreviewText('publicPreviewAvgPnl', fmtPreview(data?.avg_pnl_pct, 2, '%'));
+        setPreviewText('publicPreviewWins', wins.toLocaleString('en-IN'));
+        setPreviewText('publicPreviewLosses', losses.toLocaleString('en-IN'));
+        const winsBar = document.getElementById('publicPreviewWinsBar');
+        const lossesBar = document.getElementById('publicPreviewLossesBar');
+        if (winsBar) winsBar.style.width = `${Math.round(wins / total * 100)}%`;
+        if (lossesBar) lossesBar.style.width = `${Math.round(losses / total * 100)}%`;
+        setPreviewText('publicPreviewNote', `Anonymous platform aggregate · ${closed.toLocaleString('en-IN')} decisive closed signals · not a personal account result.`);
+      }
+    } catch (e) {
+      setPreviewText('publicPreviewNote', 'Performance preview is temporarily unavailable. Your private dashboard remains available after login.');
+    }
+  }
+
   const body = document.getElementById('landingSignalsBody');
   if (body) {
+    const setHeroConsoleText = (id, value, fallback = '—') => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value == null || value === '' ? fallback : value;
+    };
+    const updateHeroConsole = (row, fmt) => {
+      const type = ['BUY', 'SELL', 'HOLD'].includes(String(row?.signal_type || '').toUpperCase()) ? String(row.signal_type).toUpperCase() : null;
+      const badge = document.getElementById('heroConsolePrimaryBadge');
+      if (!row || !type) {
+        setHeroConsoleText('heroConsolePrimaryAsset', 'No public signal');
+        setHeroConsoleText('heroConsolePrimaryTf', '—');
+        setHeroConsoleText('heroConsoleEntry', '—');
+        setHeroConsoleText('heroConsoleTarget', '—');
+        if (badge) {
+          badge.className = 'hero-signal-badge hold';
+          badge.textContent = '● WAIT · NO SETUP';
+        }
+        setHeroConsoleText('heroConsoleDataNote', 'No public signal is available right now.');
+        return;
+      }
+      const conf = Math.max(0, Math.min(100, Math.round(publicNumber(row?.confidence_score, 0))));
+      const arrow = type === 'BUY' ? '▲' : type === 'SELL' ? '▼' : '●';
+      setHeroConsoleText('heroConsolePrimaryAsset', String(row?.asset || 'Public signal').slice(0, 24), 'Public signal');
+      setHeroConsoleText('heroConsolePrimaryTf', String(row?.timeframe || '—').slice(0, 10).toUpperCase());
+      setHeroConsoleText('heroConsoleEntry', fmt(row?.entry_price));
+      setHeroConsoleText('heroConsoleTarget', fmt(row?.target1));
+      if (badge) {
+        badge.className = `hero-signal-badge${type === 'HOLD' ? ' hold' : ''}`;
+        badge.textContent = `${arrow} ${type} · ${conf}%`;
+      }
+      setHeroConsoleText('heroConsoleDataNote', 'Public board sample updates with the live snapshot.');
+    };
     try {
       const res = await fetch('/api/v1/signals/public-board');
       const data = await res.json();
@@ -1963,6 +2869,7 @@ loadSentimentStrip();
          return value == null || value < 0 ? '—' : (value >= 1000 ? value.toLocaleString('en-IN', {maximumFractionDigits: 2}) : value.toFixed(value < 10 ? 4 : 2));
        };
        if (rows.length) {
+         updateHeroConsole(rows[0], fmt);
          body.innerHTML = rows.map(r => {
            const type = ['BUY', 'SELL', 'HOLD'].includes(String(r?.signal_type || '').toUpperCase()) ? String(r.signal_type).toUpperCase() : 'HOLD';
            const badgeClass = type === 'BUY' ? 'buy' : type === 'SELL' ? 'sell' : 'wait';
@@ -1980,9 +2887,11 @@ loadSentimentStrip();
              </tr>`;
         }).join('');
       } else {
+        updateHeroConsole(null, fmt);
         body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
       }
     } catch (e) {
+      updateHeroConsole(null, fmt);
       body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
     }
   }

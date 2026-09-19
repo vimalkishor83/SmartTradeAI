@@ -49,7 +49,7 @@
 </head>
 <body class="app-shell{% if hide_sidebar %} auth-shell{% endif %}" data-active="{{ active|default('dashboard') }}"{% if requires_admin %} data-requires-admin{% endif %}{% if requires_tier %} data-requires-tier="{{ requires_tier }}"{% endif %}>
 
-<a class="skip-link" href="#pageContent">Skip to main content</a>
+<a class="skip-link" href="{% if hide_sidebar %}#authFormTitle{% else %}#pageContent{% endif %}">Skip to main content</a>
 
 {% if not hide_sidebar %}
 <!-- ═══ SIDEBAR — flat, section-label layout ═══════════════════════════ -->

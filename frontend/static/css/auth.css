@@ -419,6 +419,15 @@ html[data-theme="light"] .auth-shell .form-control:-webkit-autofill:focus {
   padding-block: clamp(32px, 7vh, 72px);
 }
 
+.auth-shell .btn:disabled {
+  cursor: wait;
+}
+
+.auth-shell [role="alert"]:focus {
+  outline: 2px solid var(--accent, #f5a623);
+  outline-offset: 3px;
+}
+
 @media (max-width: 900px) {
   .auth-shell .auth-container.has-auth-side .auth-form-panel {
     min-height: 0;

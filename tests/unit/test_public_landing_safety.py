@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 LANDING = ROOT / "frontend" / "templates" / "landing.html"
+SIGNALS_API = ROOT / "app" / "api" / "v1" / "signals.py"
 
 
 def test_public_landing_has_skip_navigation_and_mobile_menu_contracts():
@@ -34,6 +35,48 @@ def test_public_landing_centers_desktop_menu_and_uses_decorative_hero_asset():
     assert "url('/static/img/hero-market-atmosphere.png')" in source
     assert hero_asset.is_file()
     assert hero_asset.stat().st_size > 0
+
+
+def test_public_landing_presents_a_read_only_intelligence_console():
+    source = LANDING.read_text(encoding="utf-8")
+
+    assert 'class="hero-console" aria-label="Illustrative read-only market intelligence console"' in source
+    assert 'class="hero-chart-svg"' in source
+    assert 'class="hero-signal-stack"' in source
+    assert 'id="heroConsolePrimaryAsset"' in source
+    assert 'id="heroConsolePrimaryBadge"' in source
+    assert 'id="heroConsoleDataNote"' in source
+    assert 'id="market-intelligence" class="intelligence-section"' in source
+    assert 'aria-label="Supported market categories"' in source
+    assert 'aria-label="Available analysis timeframes"' in source
+    assert 'Confidence is a measure of internal indicator agreement' in source
+
+
+def test_public_landing_binds_console_preview_to_bounded_public_board_data():
+    source = LANDING.read_text(encoding="utf-8")
+
+    assert "const updateHeroConsole = (row, fmt) =>" in source
+    assert "setHeroConsoleText('heroConsolePrimaryAsset'" in source
+    assert "setHeroConsoleText('heroConsoleEntry'" in source
+    assert "setHeroConsoleText('heroConsoleTarget'" in source
+    assert "setHeroConsoleText('heroConsoleDataNote'" in source
+    assert "updateHeroConsole(rows[0], fmt);" in source
+    assert "updateHeroConsole(null, fmt);" in source
+
+
+def test_public_landing_pricing_presents_five_clear_tiers():
+    source = LANDING.read_text(encoding="utf-8")
+    pricing = source.split('<div class="pricing-section"', 1)[1].split('<!-- ═══ FAQ', 1)[0]
+
+    assert pricing.count('class="pricing-card') == 5
+    assert '<strong>Advanced</strong>' in pricing
+    assert '<span class="currency">₹</span>1,499' in pricing
+    assert '<span class="currency">₹</span>1,999' in pricing
+    assert 'pricing-grid-5' in pricing
+    assert 'repeat(5, minmax(112px, 1fr))' in source
+    assert 'class="plan-name">Advanced</div>' in pricing
+    assert '"name": "Pro", "price": "1999"' in source
+    assert '.pricing-comparison-grid > strong:not(:first-child) { text-align: center; }' in source
 
 
 def test_shared_public_nav_is_loaded_across_public_pages():
@@ -72,3 +115,22 @@ def test_public_first_paint_storage_and_live_error_paths_are_safe():
     assert "if (timeout) clearTimeout(timeout);" in source
     assert "landingTickerInFlight = false;" in source
     assert 'role="region" aria-label="Live market prices"' in source
+
+
+def test_public_dashboard_preview_is_read_only_and_sample_gated():
+    source = LANDING.read_text(encoding="utf-8")
+    api_source = SIGNALS_API.read_text(encoding="utf-8")
+    route = api_source.split('@signals_bp.route("/public-performance"', 1)[1]
+    route = route.split('@signals_bp.route("/performance/by-asset"', 1)[0]
+
+    assert 'id="dashboard-preview"' in source
+    assert "Read-only · no account data" in source
+    assert "/api/v1/signals/public-performance" in source
+    assert "publicPreviewWinRate" in source
+    assert "publicPreviewNote" in source
+    assert '@limiter.limit("30 per minute", override_defaults=True)' in route
+    assert "@login_required" not in route
+    assert "minimum_sample = 30" in route
+    assert '"available": False' in route
+    assert '"wins": wins' in route
+    assert '"losses": losses' in route

@@ -1967,6 +1967,54 @@ def public_stats():
     }), 200
 
 
+@signals_bp.route("/public-performance", methods=["GET"])
+@limiter.limit("30 per minute", override_defaults=True)
+@cache.cached(timeout=300, key_prefix="signals_public_performance")
+def public_performance():
+    """Anonymous, read-only performance summary for the public landing page.
+
+    This intentionally exposes aggregate closed-signal outcomes only. It never
+    includes users, portfolios, positions, symbols or signal reasoning, and it
+    withholds the headline metrics until there is a meaningful sample.
+    """
+    decisive = SignalHistory.outcome.in_(("win", "loss"))
+    closed_trades = SignalHistory.query.filter(decisive).count()
+    minimum_sample = 30
+    if closed_trades < minimum_sample:
+        return jsonify({
+            "available": False,
+            "closed_trades": closed_trades,
+            "minimum_sample": minimum_sample,
+        }), 200
+
+    wins = SignalHistory.query.filter(
+        decisive, SignalHistory.outcome == "win"
+    ).count()
+    losses = SignalHistory.query.filter(
+        decisive, SignalHistory.outcome == "loss"
+    ).count()
+    gross_win = db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
+        SignalHistory.outcome == "win"
+    ).scalar() or 0.0
+    gross_loss = abs(db.session.query(func.sum(SignalHistory.pnl_pct)).filter(
+        SignalHistory.outcome == "loss"
+    ).scalar() or 0.0)
+    avg_pnl = db.session.query(func.avg(SignalHistory.pnl_pct)).filter(decisive).scalar()
+    profit_factor = (
+        round(float(gross_win) / float(gross_loss), 2)
+        if gross_loss > 0 else None
+    )
+    return jsonify({
+        "available": True,
+        "closed_trades": closed_trades,
+        "wins": wins,
+        "losses": losses,
+        "win_rate": round(wins / closed_trades * 100, 1),
+        "profit_factor": profit_factor,
+        "avg_pnl_pct": round(float(avg_pnl), 3) if avg_pnl is not None else None,
+    }), 200
+
+
 @signals_bp.route("/performance/by-asset", methods=["GET"])
 @login_required
 def signal_performance():
