@@ -988,6 +988,12 @@ async function runPrediction() {
       else if (dir === 'neutral') neut++;
     });
     const total = bull + bear + neut;
+    // Neutral readings remain part of the confluence count, but do not take
+    // up a full result card because they contain no directional setup.
+    const visiblePredictions = predictions.filter(result => {
+      const direction = String(result.prediction?.predicted_direction ?? '').toLowerCase();
+      return !result.prediction || direction !== 'neutral';
+    });
     let verdict = '', vClr = 'var(--text-muted)';
     if (total > 0) {
       if (bull >= total * 0.7) { verdict = `<i class="bi bi-arrow-up-right me-1"></i>Strong Bullish Confluence (${bull}/${total} TFs agree)`; vClr = 'var(--green)'; }
@@ -1019,9 +1025,12 @@ async function runPrediction() {
       ${confluenceHtml}
       <div class="ai-results-heading">
         <div><span class="ai-results-kicker">Decision support</span><span class="ai-results-title">Results by Timeframe</span></div>
-        <div class="ai-results-meta">${predictions.length} views · <span class="badge-tag">${assetLabel}</span></div>
+        <div class="ai-results-meta">${visiblePredictions.length} directional views${neut ? ` · ${neut} neutral timeframe${neut === 1 ? '' : 's'}` : ''} · <span class="badge-tag">${assetLabel}</span></div>
       </div>
-      <div class="ai-results-stack">${predictions.map(result => buildResultCard(result.tf, result.prediction)).join('')}</div>`;
+      <div class="ai-results-stack">${visiblePredictions.length
+        ? visiblePredictions.map(result => buildResultCard(result.tf, result.prediction)).join('')
+        : `<div class="ai-empty-state py-4"><i class="bi bi-dash-circle text-warning" aria-hidden="true"></i><strong>No directional setup in the selected timeframes</strong><span>${neut} neutral timeframe${neut === 1 ? '' : 's'} remain counted in the confluence summary above.</span></div>`
+      }</div>`;
     setAiStatus(total ? 'ready' : 'degraded', total ? 'Prediction results are ready' : 'Prediction results are incomplete', `${total}/${selected.length} timeframes returned usable model output · review input quality and observed history`);
   } finally {
     if (sequence === _predictionRunSequence) {

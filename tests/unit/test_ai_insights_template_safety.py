@@ -63,6 +63,15 @@ def test_ai_insights_exposes_prediction_context_and_unavailable_states():
     assert "if (!panel || !btn) return;" in source
 
 
+def test_ai_insights_counts_neutral_timeframes_without_rendering_neutral_cards():
+    source = TEMPLATE.read_text(encoding="utf-8")
+
+    assert "const visiblePredictions = predictions.filter" in source
+    assert "direction !== 'neutral'" in source
+    assert "${neut} neutral timeframe" in source
+    assert "visiblePredictions.map(result => buildResultCard" in source
+
+
 def test_ai_insights_persists_user_defaults():
     source = TEMPLATE.read_text(encoding="utf-8")
 
