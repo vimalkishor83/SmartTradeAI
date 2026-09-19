@@ -550,7 +550,15 @@ async function loadLegalTicker() {
   }
 }
 loadLegalTicker();
-setInterval(loadLegalTicker, 5000);
+let legalTickerTimer = setInterval(loadLegalTicker, 20000);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInterval(legalTickerTimer);
+  } else {
+    loadLegalTicker();
+    legalTickerTimer = setInterval(loadLegalTicker, 20000);
+  }
+});
 </script>
 
 <script>

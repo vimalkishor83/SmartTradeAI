@@ -300,7 +300,17 @@
     font-size: 12.5px;
     font-weight: 700;
     color: #ffc861;
-    margin-bottom: 8px;
+    cursor: pointer;
+    list-style: none;
+  }
+  .referral-box-label::-webkit-details-marker { display: none; }
+  .referral-box-label::after {
+    content: '▸';
+    margin-left: auto;
+    transition: transform 0.15s ease;
+  }
+  details.referral-box[open] .referral-box-label::after {
+    transform: rotate(90deg);
   }
   .referral-hint {
     font-size: 11.5px;
@@ -341,9 +351,9 @@
       Live across Global Markets
     </div>
 
-    <h1 class="auth-side-title" id="authValueTitle">
+    <h2 class="auth-side-title" id="authValueTitle">
       Join traders reading the market <span class="hl">like a terminal</span>
-    </h1>
+    </h2>
 
     <div class="auth-side-stats">
       <div class="auth-side-stat"><div class="auth-side-stat-num" id="authStatAssets">···</div><div class="auth-side-stat-label">Assets</div></div>
@@ -379,7 +389,7 @@
   <main class="auth-form-panel" aria-labelledby="authFormTitle">
     <div class="auth-card">
       <div class="mb-4">
-        <h2 class="fw-bold" id="authFormTitle">Create Account</h2>
+        <h1 class="fw-bold fs-4" id="authFormTitle">Create Account</h1>
         <p class="text-muted small">Start your AI-powered trading journey</p>
       </div>
 
@@ -387,20 +397,20 @@
         <div class="row g-3 mb-3">
           <div class="col">
             <label class="form-label" for="firstName">First Name</label>
-            <input type="text" class="form-control" id="firstName" placeholder="John" />
+            <input type="text" class="form-control" id="firstName" placeholder="John" autocomplete="given-name" />
           </div>
           <div class="col">
             <label class="form-label" for="lastName">Last Name</label>
-            <input type="text" class="form-control" id="lastName" placeholder="Doe" />
+            <input type="text" class="form-control" id="lastName" placeholder="Doe" autocomplete="family-name" />
           </div>
         </div>
         <div class="mb-3">
           <label class="form-label" for="username">Username</label>
-          <input type="text" class="form-control" id="username" placeholder="trader123" required />
+          <input type="text" class="form-control" id="username" placeholder="trader123" required autocomplete="username" />
         </div>
         <div class="mb-3">
           <label class="form-label" for="email">Email Address</label>
-          <input type="email" class="form-control" id="email" placeholder="you@example.com" required />
+          <input type="email" class="form-control" id="email" placeholder="you@example.com" required autocomplete="email" />
         </div>
         <div class="mb-3">
           <label class="form-label" for="password">Password</label>
@@ -414,10 +424,13 @@
           <div class="small mt-1" id="pwdStrengthLabel" style="color:var(--text-muted, var(--text3))">At least 8 characters</div>
         </div>
 
-        <!-- Broker + referral code — a valid code may unlock an upgraded plan -->
-        <div class="referral-box">
-          <div class="referral-box-label"><i class="bi bi-gift-fill"></i> Have a broker or referral code?</div>
-          <div class="row g-2">
+        <!-- Broker + referral code — a valid code may unlock an upgraded plan.
+             Collapsed by default: most signups need neither, so the form
+             leads with just the account fields and reveals these as an
+             opt-in disclosure rather than always-visible extra fields. -->
+        <details class="referral-box">
+          <summary class="referral-box-label"><i class="bi bi-gift-fill"></i> Have a broker or referral code?</summary>
+          <div class="row g-2 mt-1">
             <div class="col-6">
               <label class="form-label small mb-1" for="brokerSelect">Broker <span class="text-muted">(optional)</span></label>
               <select class="form-select form-select-sm" id="brokerSelect">
@@ -436,7 +449,7 @@
             </div>
           </div>
           <div class="referral-hint" id="referralHint">A valid partner code may unlock an upgraded plan; otherwise you start on the Free plan and can upgrade anytime.</div>
-        </div>
+        </details>
 
         <!-- Honeypot: hidden from real users via CSS, invisible to screen readers.
              Bots that fill in every field on the page trip this; real users never see it. -->
