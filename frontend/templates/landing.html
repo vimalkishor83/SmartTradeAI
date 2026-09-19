@@ -611,6 +611,7 @@
     .hero-chart-legend i.amber { background: var(--accent); }
     .hero-signal-stack { display: grid; gap: 10px; align-content: start; }
     .hero-signal-card { padding: 13px; }
+    .hero-signal-card-live { border-color: rgba(34,217,127,0.34); background: linear-gradient(145deg, rgba(34,217,127,0.07), rgba(255,255,255,0.02)); }
     .hero-signal-card-head {
       display: flex;
       align-items: center;
@@ -644,6 +645,11 @@
     }
     .hero-signal-level strong { color: var(--text2); font-weight: 600; }
     .hero-console-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 16px;
       padding-top: 12px;
       border-top: 1px solid var(--border);
       color: var(--text3);
@@ -651,6 +657,8 @@
     }
     .hero-console-footer strong { color: var(--text2); font-weight: 600; }
     .hero-console-footer i { color: var(--accent2); margin-right: 4px; }
+    .hero-console-data-note { color: var(--text3); }
+    .hero-console-data-note .live-dot { width: 6px; height: 6px; margin-right: 5px; }
     .hero-visual .stats-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 
     /* ── MARKET INTELLIGENCE MAP ─────────────────────────────── */
@@ -1822,10 +1830,10 @@
           <div class="hero-chart-panel">
             <div class="hero-chart-panel-head">
               <div>
-                <div class="hero-chart-asset">BTCUSDT <span class="hero-chart-meta">· 1H / multi-timeframe</span></div>
+                <div class="hero-chart-asset">Market snapshot <span class="hero-chart-meta">· illustrative 1H path</span></div>
                 <div class="hero-chart-meta">Trend alignment · momentum · volatility</div>
               </div>
-              <span class="hero-chart-price">+1.18%</span>
+              <span class="hero-chart-price">Example view</span>
             </div>
             <svg class="hero-chart-svg" viewBox="0 0 520 190" role="img" aria-label="Illustrative price chart with trend line and signal markers">
               <defs>
@@ -1857,27 +1865,27 @@
           </div>
 
           <div class="hero-signal-stack">
-            <div class="hero-signal-card">
-              <div class="hero-signal-card-head"><span class="hero-signal-card-asset">Signal anatomy</span><span class="hero-signal-card-tf">1H</span></div>
-              <span class="hero-signal-badge">▲ BUY · 73%</span>
+            <div class="hero-signal-card hero-signal-card-live">
+              <div class="hero-signal-card-head"><span id="heroConsolePrimaryAsset" class="hero-signal-card-asset">Public signal sample</span><span id="heroConsolePrimaryTf" class="hero-signal-card-tf">—</span></div>
+              <span id="heroConsolePrimaryBadge" class="hero-signal-badge hold" aria-live="polite">Loading public signal…</span>
               <div class="hero-signal-levels">
-                <div class="hero-signal-level"><span>Entry</span><strong>Defined zone</strong></div>
+                <div class="hero-signal-level"><span>Entry</span><strong id="heroConsoleEntry">—</strong></div>
                 <div class="hero-signal-level"><span>Stop loss</span><strong>Risk boundary</strong></div>
-                <div class="hero-signal-level"><span>Targets</span><strong>T1 · T2</strong></div>
+                <div class="hero-signal-level"><span>Target 1</span><strong id="heroConsoleTarget">—</strong></div>
               </div>
             </div>
             <div class="hero-signal-card">
-              <div class="hero-signal-card-head"><span class="hero-signal-card-asset">Confluence</span><span class="hero-signal-card-tf">AI lens</span></div>
-              <span class="hero-signal-badge hold">● HOLD · WAIT</span>
+              <div class="hero-signal-card-head"><span class="hero-signal-card-asset">Evidence layers</span><span class="hero-signal-card-tf">Read-only</span></div>
+              <span class="hero-signal-badge hold">● INSPECTABLE</span>
               <div class="hero-signal-levels">
-                <div class="hero-signal-level"><span>Trend</span><strong>Aligned</strong></div>
-                <div class="hero-signal-level"><span>Momentum</span><strong>Recovering</strong></div>
+                <div class="hero-signal-level"><span>Context</span><strong>Market regime</strong></div>
+                <div class="hero-signal-level"><span>Decision</span><strong>Evidence first</strong></div>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="hero-console-footer"><span><i class="bi bi-eye" aria-hidden="true"></i><strong>Read-only product preview</strong></span><span>Private dashboard data stays behind login</span></div>
+        <div class="hero-console-footer"><span><i class="bi bi-eye" aria-hidden="true"></i><strong>Read-only product preview</strong></span><span id="heroConsoleDataNote" class="hero-console-data-note"><span class="live-dot"></span>Public board sample · private data stays behind login</span></div>
       </div>
 
       <div class="stats-grid">
@@ -2788,6 +2796,37 @@ loadSentimentStrip();
 
   const body = document.getElementById('landingSignalsBody');
   if (body) {
+    const setHeroConsoleText = (id, value, fallback = '—') => {
+      const node = document.getElementById(id);
+      if (node) node.textContent = value == null || value === '' ? fallback : value;
+    };
+    const updateHeroConsole = (row, fmt) => {
+      const type = ['BUY', 'SELL', 'HOLD'].includes(String(row?.signal_type || '').toUpperCase()) ? String(row.signal_type).toUpperCase() : null;
+      const badge = document.getElementById('heroConsolePrimaryBadge');
+      if (!row || !type) {
+        setHeroConsoleText('heroConsolePrimaryAsset', 'No public signal');
+        setHeroConsoleText('heroConsolePrimaryTf', '—');
+        setHeroConsoleText('heroConsoleEntry', '—');
+        setHeroConsoleText('heroConsoleTarget', '—');
+        if (badge) {
+          badge.className = 'hero-signal-badge hold';
+          badge.textContent = '● WAIT · NO SETUP';
+        }
+        setHeroConsoleText('heroConsoleDataNote', 'No public signal is available right now.');
+        return;
+      }
+      const conf = Math.max(0, Math.min(100, Math.round(publicNumber(row?.confidence_score, 0))));
+      const arrow = type === 'BUY' ? '▲' : type === 'SELL' ? '▼' : '●';
+      setHeroConsoleText('heroConsolePrimaryAsset', String(row?.asset || 'Public signal').slice(0, 24), 'Public signal');
+      setHeroConsoleText('heroConsolePrimaryTf', String(row?.timeframe || '—').slice(0, 10).toUpperCase());
+      setHeroConsoleText('heroConsoleEntry', fmt(row?.entry_price));
+      setHeroConsoleText('heroConsoleTarget', fmt(row?.target1));
+      if (badge) {
+        badge.className = `hero-signal-badge${type === 'HOLD' ? ' hold' : ''}`;
+        badge.textContent = `${arrow} ${type} · ${conf}%`;
+      }
+      setHeroConsoleText('heroConsoleDataNote', 'Public board sample updates with the live snapshot.');
+    };
     try {
       const res = await fetch('/api/v1/signals/public-board');
       const data = await res.json();
@@ -2798,6 +2837,7 @@ loadSentimentStrip();
          return value == null || value < 0 ? '—' : (value >= 1000 ? value.toLocaleString('en-IN', {maximumFractionDigits: 2}) : value.toFixed(value < 10 ? 4 : 2));
        };
        if (rows.length) {
+         updateHeroConsole(rows[0], fmt);
          body.innerHTML = rows.map(r => {
            const type = ['BUY', 'SELL', 'HOLD'].includes(String(r?.signal_type || '').toUpperCase()) ? String(r.signal_type).toUpperCase() : 'HOLD';
            const badgeClass = type === 'BUY' ? 'buy' : type === 'SELL' ? 'sell' : 'wait';
@@ -2815,9 +2855,11 @@ loadSentimentStrip();
              </tr>`;
         }).join('');
       } else {
+        updateHeroConsole(null, fmt);
         body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
       }
     } catch (e) {
+      updateHeroConsole(null, fmt);
       body.innerHTML = '<tr><td colspan="5" class="mono" style="color:var(--text3)">No signals available right now — check back shortly.</td></tr>';
     }
   }

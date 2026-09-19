@@ -43,10 +43,25 @@ def test_public_landing_presents_a_read_only_intelligence_console():
     assert 'class="hero-console" aria-label="Illustrative read-only market intelligence console"' in source
     assert 'class="hero-chart-svg"' in source
     assert 'class="hero-signal-stack"' in source
+    assert 'id="heroConsolePrimaryAsset"' in source
+    assert 'id="heroConsolePrimaryBadge"' in source
+    assert 'id="heroConsoleDataNote"' in source
     assert 'id="market-intelligence" class="intelligence-section"' in source
     assert 'aria-label="Supported market categories"' in source
     assert 'aria-label="Available analysis timeframes"' in source
     assert 'Confidence is a measure of internal indicator agreement' in source
+
+
+def test_public_landing_binds_console_preview_to_bounded_public_board_data():
+    source = LANDING.read_text(encoding="utf-8")
+
+    assert "const updateHeroConsole = (row, fmt) =>" in source
+    assert "setHeroConsoleText('heroConsolePrimaryAsset'" in source
+    assert "setHeroConsoleText('heroConsoleEntry'" in source
+    assert "setHeroConsoleText('heroConsoleTarget'" in source
+    assert "setHeroConsoleText('heroConsoleDataNote'" in source
+    assert "updateHeroConsole(rows[0], fmt);" in source
+    assert "updateHeroConsole(null, fmt);" in source
 
 
 def test_shared_public_nav_is_loaded_across_public_pages():
