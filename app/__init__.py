@@ -201,7 +201,7 @@ def _register_request_observability(app):
                 "default-src 'self'; base-uri 'self'; frame-ancestors 'self'; "
                 "form-action 'self'; img-src 'self' data: https:; "
                 "font-src 'self' data: https:; connect-src 'self' https: wss:; "
-                "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:;",
+                "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
             )
         # These headers are independent of the CSP-Report-Only rollout above
         # (they don't touch inline-script/style behavior) so, unlike CSP,

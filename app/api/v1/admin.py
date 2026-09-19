@@ -14,7 +14,6 @@ from app.services.api_config_validation import (
     APIConfigValidationError,
     validate_api_config_payload,
 )
-from app.api.v1.public_config import _valid_social_url
 from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
@@ -186,9 +185,6 @@ def update_platform_config_route():
                 return jsonify({"error": f"{field} must be a full https:// URL, or empty"}), 400
             if len(url) > 300:
                 return jsonify({"error": f"{field} is too long"}), 400
-            platform = field.removeprefix("social_")
-            if url and not _valid_social_url(platform, url):
-                return jsonify({"error": f"{field} must be an official {platform} profile URL, not a homepage or different platform"}), 400
             setattr(row, field, url or None)
 
     if "telegram_security_chat_id" in data:
