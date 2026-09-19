@@ -756,6 +756,161 @@
       letter-spacing: 0.6px;
     }
 
+    /* ── READ-ONLY DASHBOARD PREVIEW ───── */
+    .dashboard-preview-shell {
+      background: linear-gradient(145deg, rgba(22,29,41,0.98), rgba(13,17,26,0.98));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 22px;
+      overflow: hidden;
+    }
+    .dashboard-preview-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .dashboard-preview-kicker {
+      display: block;
+      color: var(--accent2);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+    .dashboard-preview-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .dashboard-readonly-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 4px 9px;
+      border: 1px solid rgba(34,217,127,0.3);
+      border-radius: 999px;
+      color: var(--green);
+      font-size: 11px;
+    }
+    .dashboard-readonly-badge i { font-size: 12px; }
+    .dashboard-preview-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 20px 0;
+    }
+    .dashboard-metric-card {
+      min-height: 112px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.035);
+    }
+    .dashboard-metric-card:nth-child(1) { border-top: 2px solid var(--green); }
+    .dashboard-metric-card:nth-child(2) { border-top: 2px solid #5b8cff; }
+    .dashboard-metric-card:nth-child(3) { border-top: 2px solid var(--accent); }
+    .dashboard-metric-card:nth-child(4) { border-top: 2px solid #a77bff; }
+    .dashboard-metric-label {
+      color: var(--text3);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+    }
+    .dashboard-metric-value {
+      display: block;
+      margin: 10px 0 4px;
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 27px;
+      font-weight: 800;
+      letter-spacing: -0.8px;
+    }
+    .dashboard-metric-note {
+      color: var(--text3);
+      font-size: 11.5px;
+    }
+    .dashboard-preview-panels {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 12px;
+    }
+    .dashboard-preview-panel {
+      min-height: 205px;
+      padding: 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.025);
+    }
+    .dashboard-preview-panel-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 18px;
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .dashboard-preview-panel-head i { color: var(--accent2); }
+    .preview-outcome-row {
+      display: grid;
+      grid-template-columns: 70px 1fr 42px;
+      align-items: center;
+      gap: 10px;
+      margin: 12px 0;
+      color: var(--text2);
+      font-size: 12px;
+    }
+    .preview-outcome-track {
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .preview-outcome-fill {
+      width: 0;
+      height: 100%;
+      border-radius: inherit;
+      transition: width 0.35s ease;
+    }
+    .preview-outcome-fill.win { background: var(--green); }
+    .preview-outcome-fill.loss { background: var(--red); }
+    .preview-outcome-count {
+      color: var(--text);
+      font-family: var(--font-mono);
+      text-align: right;
+    }
+    .dashboard-preview-note {
+      margin: 18px 0 0;
+      color: var(--text3);
+      font-size: 11.5px;
+      line-height: 1.55;
+    }
+    .preview-feature-list {
+      display: grid;
+      gap: 11px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .preview-feature-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: var(--text2);
+      font-size: 12.5px;
+      line-height: 1.45;
+    }
+    .preview-feature-list i {
+      flex: 0 0 auto;
+      margin-top: 2px;
+      color: var(--green);
+    }
+
     /* ── FAQ ─────────────────────────────── */
     .faq-list {
       max-width: 760px;
@@ -1183,6 +1338,7 @@
       .pricing-card.featured { transform: scale(1); }
       .snapshot-table th:nth-child(4), .snapshot-table td:nth-child(4) { display: none; }
       .pricing-trust-row { grid-template-columns: repeat(2, 1fr); }
+      .dashboard-preview-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 768px) {
@@ -1196,6 +1352,8 @@
       }
       .stats-grid { grid-template-columns: repeat(2, 1fr); }
       .pricing-trust-row { grid-template-columns: 1fr; }
+      .dashboard-preview-head { align-items: flex-start; flex-direction: column; }
+      .dashboard-preview-panels { grid-template-columns: 1fr; }
       .navbar { display: flex; justify-content: space-between; }
       .nav-menu-toggle { display: inline-flex; order: 2; }
       .nav-cta { order: 3; }
@@ -1471,6 +1629,77 @@
     <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Trades Tracked</div></div>
     <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Assets Covered</div></div>
     <div class="stats-band-item"><div class="num mono">—</div><div class="lbl">Markets Covered</div></div>
+  </div>
+</section>
+
+<!-- ═══ READ-ONLY DASHBOARD PREVIEW ═══════════════════════════ -->
+<section id="dashboard-preview">
+  <div class="section-header">
+    <span class="section-label">Read-only dashboard preview</span>
+    <h2 class="section-title">See the results view before you sign in</h2>
+    <p class="section-sub">A safe public preview of the dashboard experience. It uses anonymous platform aggregates and never exposes a user's portfolio, positions or account controls.</p>
+  </div>
+
+  <div class="dashboard-preview-shell" aria-label="Read-only dashboard preview">
+    <div class="dashboard-preview-head">
+      <div>
+        <span class="dashboard-preview-kicker">Platform snapshot</span>
+        <div class="dashboard-preview-title">Signal performance at a glance</div>
+        <span class="dashboard-readonly-badge"><i class="bi bi-eye" aria-hidden="true"></i> Read-only · no account data</span>
+      </div>
+      <a href="/register" class="btn btn-outline" style="padding:8px 14px;font-size:12.5px">Open your dashboard →</a>
+    </div>
+
+    <div class="dashboard-preview-grid">
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Win rate</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewWinRate">—</strong>
+        <span class="dashboard-metric-note">decisive closed signals</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Profit factor</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewProfitFactor">—</strong>
+        <span class="dashboard-metric-note">gross wins / losses</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Average P&amp;L</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewAvgPnl">—</strong>
+        <span class="dashboard-metric-note">per decisive signal</span>
+      </div>
+      <div class="dashboard-metric-card">
+        <span class="dashboard-metric-label">Closed signals</span>
+        <strong class="dashboard-metric-value mono" id="publicPreviewClosed">—</strong>
+        <span class="dashboard-metric-note">platform aggregate</span>
+      </div>
+    </div>
+
+    <div class="dashboard-preview-panels">
+      <div class="dashboard-preview-panel">
+        <div class="dashboard-preview-panel-head"><i class="bi bi-bar-chart-line" aria-hidden="true"></i> Outcome mix</div>
+        <div class="preview-outcome-row">
+          <span>Wins</span>
+          <div class="preview-outcome-track"><div class="preview-outcome-fill win" id="publicPreviewWinsBar"></div></div>
+          <span class="preview-outcome-count" id="publicPreviewWins">—</span>
+        </div>
+        <div class="preview-outcome-row">
+          <span>Losses</span>
+          <div class="preview-outcome-track"><div class="preview-outcome-fill loss" id="publicPreviewLossesBar"></div></div>
+          <span class="preview-outcome-count" id="publicPreviewLosses">—</span>
+        </div>
+        <p class="dashboard-preview-note" id="publicPreviewNote">Loading anonymous platform performance…</p>
+      </div>
+
+      <div class="dashboard-preview-panel">
+        <div class="dashboard-preview-panel-head"><i class="bi bi-grid-1x2" aria-hidden="true"></i> What you get after login</div>
+        <ul class="preview-feature-list">
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Live market overview with freshness and provider context</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Multi-timeframe signals with entry, stop-loss and targets</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>AI Decision Inspector with evidence and signal history</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Portfolio, risk, drawdown and performance tracking</span></li>
+          <li><i class="bi bi-check2" aria-hidden="true"></i><span>Personal Telegram alerts on eligible plans</span></li>
+        </ul>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -2080,6 +2309,44 @@ loadSentimentStrip();
       if (heroAssets) heroAssets.textContent = fmtInt(s.assets_covered);
       if (heroTimeframes) heroTimeframes.textContent = fmtInt(s.timeframes_covered);
     } catch (e) { /* leave loading-state placeholders */ }
+  }
+
+  const preview = document.getElementById('dashboard-preview');
+  if (preview) {
+    const setPreviewText = (id, value) => {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
+    };
+    const fmtPreview = (value, digits = 1, suffix = '') => {
+      const number = publicNumber(value);
+      return number == null ? '—' : `${number.toFixed(digits)}${suffix}`;
+    };
+    try {
+      const res = await fetch('/api/v1/signals/public-performance');
+      if (!res.ok) throw new Error('public performance request failed');
+      const data = await res.json();
+      const closed = Math.max(0, Math.round(publicNumber(data?.closed_trades, 0)));
+      setPreviewText('publicPreviewClosed', closed.toLocaleString('en-IN'));
+      if (!data?.available) {
+        setPreviewText('publicPreviewNote', `Win rate and P&L will appear after a meaningful closed-signal sample is available. Current sample: ${closed}.`);
+      } else {
+        const wins = Math.max(0, Math.round(publicNumber(data?.wins, 0)));
+        const losses = Math.max(0, Math.round(publicNumber(data?.losses, 0)));
+        const total = Math.max(1, wins + losses);
+        setPreviewText('publicPreviewWinRate', fmtPreview(data?.win_rate, 1, '%'));
+        setPreviewText('publicPreviewProfitFactor', fmtPreview(data?.profit_factor, 2));
+        setPreviewText('publicPreviewAvgPnl', fmtPreview(data?.avg_pnl_pct, 2, '%'));
+        setPreviewText('publicPreviewWins', wins.toLocaleString('en-IN'));
+        setPreviewText('publicPreviewLosses', losses.toLocaleString('en-IN'));
+        const winsBar = document.getElementById('publicPreviewWinsBar');
+        const lossesBar = document.getElementById('publicPreviewLossesBar');
+        if (winsBar) winsBar.style.width = `${Math.round(wins / total * 100)}%`;
+        if (lossesBar) lossesBar.style.width = `${Math.round(losses / total * 100)}%`;
+        setPreviewText('publicPreviewNote', `Anonymous platform aggregate · ${closed.toLocaleString('en-IN')} decisive closed signals · not a personal account result.`);
+      }
+    } catch (e) {
+      setPreviewText('publicPreviewNote', 'Performance preview is temporarily unavailable. Your private dashboard remains available after login.');
+    }
   }
 
   const body = document.getElementById('landingSignalsBody');

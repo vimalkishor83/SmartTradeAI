@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[2]
 LANDING = ROOT / "frontend" / "templates" / "landing.html"
+SIGNALS_API = ROOT / "app" / "api" / "v1" / "signals.py"
 
 
 def test_public_landing_has_skip_navigation_and_mobile_menu_contracts():
@@ -72,3 +73,22 @@ def test_public_first_paint_storage_and_live_error_paths_are_safe():
     assert "if (timeout) clearTimeout(timeout);" in source
     assert "landingTickerInFlight = false;" in source
     assert 'role="region" aria-label="Live market prices"' in source
+
+
+def test_public_dashboard_preview_is_read_only_and_sample_gated():
+    source = LANDING.read_text(encoding="utf-8")
+    api_source = SIGNALS_API.read_text(encoding="utf-8")
+    route = api_source.split('@signals_bp.route("/public-performance"', 1)[1]
+    route = route.split('@signals_bp.route("/performance/by-asset"', 1)[0]
+
+    assert 'id="dashboard-preview"' in source
+    assert "Read-only · no account data" in source
+    assert "/api/v1/signals/public-performance" in source
+    assert "publicPreviewWinRate" in source
+    assert "publicPreviewNote" in source
+    assert '@limiter.limit("30 per minute", override_defaults=True)' in route
+    assert "@login_required" not in route
+    assert "minimum_sample = 30" in route
+    assert '"available": False' in route
+    assert '"wins": wins' in route
+    assert '"losses": losses' in route
