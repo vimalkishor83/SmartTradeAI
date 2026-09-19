@@ -67,7 +67,7 @@
       { "@type": "Question", "name": "What is SmartTrade AI?", "acceptedAnswer": { "@type": "Answer", "text": "A market analysis platform that combines live market data, technical indicators, multi-timeframe analysis and AI-assisted scoring into a single signal — with an entry, stop-loss and target attached, so you can see the reasoning, not just a buy/sell flag." } },
       { "@type": "Question", "name": "How are the signals generated?", "acceptedAnswer": { "@type": "Answer", "text": "Each signal runs through a multi-stage pipeline — trend, momentum, volume, and multi-timeframe alignment checks, plus a machine-learning confidence score — before it's shown. If a setup doesn't clear the bar, you'll see a HOLD instead of a forced call." } },
       { "@type": "Question", "name": "What does the confidence score mean?", "acceptedAnswer": { "@type": "Answer", "text": "It reflects how many of the pipeline's checks agree with each other for that setup — higher agreement across trend, momentum and timeframe alignment scores higher. It's a measure of internal consistency, not a probability of the trade working out." } },
-      { "@type": "Question", "name": "What markets and timeframes are covered?", "acceptedAnswer": { "@type": "Answer", "text": "Crypto, Forex, Indian Stocks, Commodities, and Indices — across 7 timeframes from 1 minute to 1 day. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier)." } },
+      { "@type": "Question", "name": "What markets and timeframes are covered?", "acceptedAnswer": { "@type": "Answer", "text": "Crypto, Forex, Indian Stocks, Commodities, and Indices — across multiple timeframes from 1 minute to 1 week. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier)." } },
       { "@type": "Question", "name": "Do I need to connect a broker?", "acceptedAnswer": { "@type": "Answer", "text": "No — you can use SmartTrade AI purely for signals and analysis. Connecting a supported broker is optional and only needed if you want one-click trade execution from inside the platform." } },
       { "@type": "Question", "name": "Is there a free plan?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The Free plan includes delayed signals and a limited watchlist. Paid tiers unlock live (undelayed) signals, backtesting, AI insights, and larger watchlists." } },
       { "@type": "Question", "name": "Can I cancel or change my plan anytime?", "acceptedAnswer": { "@type": "Answer", "text": "Yes — plan changes are requested from Settings once you're logged in and reviewed quickly. No lock-in contracts." } },
@@ -1998,7 +1998,7 @@
 
       <div class="timeframe-bar" aria-label="Available analysis timeframes">
         <span class="timeframe-label">Timeframe lens</span>
-        <span class="timeframe-pill">1m</span><span class="timeframe-pill">5m</span><span class="timeframe-pill">15m</span><span class="timeframe-pill">30m</span><span class="timeframe-pill">1h</span><span class="timeframe-pill">4h</span><span class="timeframe-pill">1d</span>
+        <span class="timeframe-pill">1m</span><span class="timeframe-pill">5m</span><span class="timeframe-pill">15m</span><span class="timeframe-pill">30m</span><span class="timeframe-pill">1h</span><span class="timeframe-pill">2h</span><span class="timeframe-pill">4h</span><span class="timeframe-pill">1d</span><span class="timeframe-pill">1w</span>
       </div>
     </div>
 
@@ -2368,7 +2368,7 @@
     </details>
     <details class="faq-item">
       <summary>What markets and timeframes are covered? <i class="faq-chevron">▸</i></summary>
-      <div class="faq-body">Crypto, Forex, Indian Stocks, Commodities, and Indices — across 7 timeframes from 1 minute to 1 day. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier).</div>
+      <div class="faq-body">Crypto, Forex, Indian Stocks, Commodities, and Indices — across <span id="faqTimeframeCount">several</span> timeframes from 1 minute to 1 week. Coverage varies slightly by plan (signal delay and watchlist size scale with your tier).</div>
     </details>
     <details class="faq-item">
       <summary>Do I need to connect a broker? <i class="faq-chevron">▸</i></summary>
@@ -2695,7 +2695,19 @@ async function loadLandingTicker() {
   }
 }
 loadLandingTicker();
-setInterval(loadLandingTicker, 5000);
+let landingTickerTimer = setInterval(loadLandingTicker, 20000);
+// Pause polling while the tab isn't visible -- a backgrounded marketing
+// page has no reason to keep hitting the ticker endpoint every 20s, and
+// refreshing once immediately on return keeps prices from looking stale
+// right when someone actually comes back to look at them.
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInterval(landingTickerTimer);
+  } else {
+    loadLandingTicker();
+    landingTickerTimer = setInterval(loadLandingTicker, 20000);
+  }
+});
 
 // Footer social icons — only ever shows a platform an admin has actually
 // configured with a real URL (GET /api/v1/public/site-config); nothing
@@ -2787,6 +2799,8 @@ loadSentimentStrip();
       // — now pulled live so they can never go stale again.
       if (heroAssets) heroAssets.textContent = fmtInt(s.assets_covered);
       if (heroTimeframes) heroTimeframes.textContent = fmtInt(s.timeframes_covered);
+      const faqTimeframeCount = document.getElementById('faqTimeframeCount');
+      if (faqTimeframeCount) faqTimeframeCount.textContent = fmtInt(s.timeframes_covered);
     } catch (e) { /* leave loading-state placeholders */ }
   }
 

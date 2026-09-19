@@ -1,6 +1,12 @@
 {% extends "partials/base.html" %}
 {% set hide_sidebar = true %}
 {% block title %}Verify Email — SmartTrade AI{% endblock %}
+{% block meta_description %}Confirm your email address for your SmartTrade AI account.{% endblock %}
+{% block seo_meta %}
+<link rel="canonical" href="{{ config.PUBLIC_SITE_URL }}/verify-email" />
+<meta name="robots" content="noindex, nofollow" />
+<meta name="referrer" content="no-referrer" />
+{% endblock %}
 
 {% block auth_content %}
 <div class="auth-container">
@@ -10,7 +16,7 @@
       <span class="fs-4 fw-bold">SmartTrade <span class="text-accent">AI</span></span>
     </div>
     <div id="veIcon" class="mb-3" style="font-size:42px"><i class="bi bi-hourglass-split text-accent"></i></div>
-    <h2 class="fw-bold" id="veTitle">Verifying your email…</h2>
+    <h1 class="fw-bold fs-4" id="veTitle">Verifying your email…</h1>
     <p class="text-muted small" id="veMessage" role="status" aria-live="polite">We’re confirming your email. This should only take a moment.</p>
     <a href="/login" class="btn btn-primary mt-2 d-none" id="veLoginBtn">Go to Sign In</a>
     <button type="button" class="btn btn-outline-secondary mt-2 d-none" id="veRetryBtn">Try again</button>

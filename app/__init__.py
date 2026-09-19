@@ -203,6 +203,25 @@ def _register_request_observability(app):
                 "font-src 'self' data: https:; connect-src 'self' https: wss:; "
                 "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;",
             )
+        # These headers are independent of the CSP-Report-Only rollout above
+        # (they don't touch inline-script/style behavior) so, unlike CSP,
+        # there's no reason to hold them back — safe to enforce immediately.
+        response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault(
+            "Permissions-Policy",
+            "geolocation=(), microphone=(), camera=(), payment=()",
+        )
+        if request.is_secure:
+            # Only ever sent over an HTTPS response — advertising HSTS on a
+            # plain-HTTP response is meaningless and, behind a misconfigured
+            # proxy that terminates TLS without setting X-Forwarded-Proto,
+            # could get cached by a browser against a host that can't
+            # actually serve HTTPS yet.
+            response.headers.setdefault(
+                "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+            )
         if request.endpoint == "static":
             return response
 
