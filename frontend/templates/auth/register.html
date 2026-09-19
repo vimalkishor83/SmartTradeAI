@@ -354,7 +354,7 @@
     <div class="auth-side-features">
       <div class="auth-side-feature"><i class="bi bi-lightning-charge-fill"></i><span><strong>Real-time signals</strong> across Crypto, Forex, Stocks &amp; Commodities</span></div>
       <div class="auth-side-feature"><i class="bi bi-cpu-fill"></i><span><strong>AI predictions</strong> backed by 50+ technical indicators</span></div>
-      <div class="auth-side-feature"><i class="bi bi-gift-fill"></i><span>Have a <strong>broker referral code</strong>? Unlock Premium free at signup</span></div>
+      <div class="auth-side-feature"><i class="bi bi-gift-fill"></i><span>Have a <strong>broker referral code</strong>? Unlock an upgraded plan at signup</span></div>
     </div>
 
     <div class="auth-ticker" id="authTicker" role="status" aria-live="polite" aria-label="Live market prices">
@@ -414,7 +414,7 @@
           <div class="small mt-1" id="pwdStrengthLabel" style="color:var(--text-muted, var(--text3))">At least 8 characters</div>
         </div>
 
-        <!-- Broker + referral code — a valid referral unlocks Premium free -->
+        <!-- Broker + referral code — a valid code may unlock an upgraded plan -->
         <div class="referral-box">
           <div class="referral-box-label"><i class="bi bi-gift-fill"></i> Have a broker or referral code?</div>
           <div class="row g-2">
@@ -428,14 +428,14 @@
               </div>
             </div>
             <div class="col-6">
-              <label class="form-label small mb-1" id="brokerAccountIdLabel" for="brokerAccountId">Broker Account ID <span class="text-muted">(optional)</span></label>
-              <input type="text" class="form-control form-control-sm" id="brokerAccountId" placeholder="e.g. ZH1234" />
-              <label class="form-label small mb-1 mt-2" for="referralCode">Referral Code <span class="text-muted">(optional)</span></label>
-              <input type="text" class="form-control form-control-sm text-uppercase" id="referralCode" placeholder="e.g. ZERODHA2026" autocomplete="off" />
+              <label class="form-label small mb-1" id="brokerAccountIdLabel" for="brokerAccountId">Broker account ID <span class="text-muted">(optional)</span></label>
+              <input type="text" class="form-control form-control-sm" id="brokerAccountId" placeholder="Required when a broker is selected" autocomplete="off" />
+              <label class="form-label small mb-1 mt-2" for="referralCode">Referral code <span class="text-muted">(optional)</span></label>
+              <input type="text" class="form-control form-control-sm text-uppercase" id="referralCode" placeholder="Optional partner code" autocomplete="off" />
               <div class="referral-hint" id="referralCodeStatus"></div>
             </div>
           </div>
-          <div class="referral-hint" id="referralHint">A valid partner code unlocks Premium free — otherwise you'll start on the Free plan (upgrade anytime).</div>
+          <div class="referral-hint" id="referralHint">A valid partner code may unlock an upgraded plan; otherwise you start on the Free plan and can upgrade anytime.</div>
         </div>
 
         <!-- Honeypot: hidden from real users via CSS, invisible to screen readers.
@@ -570,7 +570,7 @@
       const res = await fetch('/api/v1/auth/referral-codes/' + encodeURIComponent(code) + '/check');
       const data = await res.json();
       if (data.valid) {
-        status.textContent = '✔ Valid code — unlocks ' + (data.unlocks_plan || 'a premium') + ' plan free.';
+        status.textContent = 'Valid code — ' + (data.unlocks_plan || 'an upgraded') + ' access will be applied at signup.';
         status.className = 'referral-hint ok';
       } else {
         status.textContent = '✖ That code isn\'t valid or has expired.';
@@ -637,9 +637,11 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
   const spinner = document.getElementById('registerSpinner');
   const errEl = document.getElementById('registerError');
   const okEl = document.getElementById('registerSuccess');
+  const btnText = btn.querySelector('.btn-text');
 
   btn.disabled = true;
   spinner.classList.remove('d-none');
+  btnText.textContent = 'Creating account…';
   errEl.classList.add('d-none');
   okEl.classList.add('d-none');
 
@@ -648,6 +650,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     errEl.classList.remove('d-none');
     btn.disabled = false;
     spinner.classList.add('d-none');
+    btnText.textContent = 'Create Account';
     return;
   }
 
@@ -658,27 +661,36 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     errEl.classList.remove('d-none');
     btn.disabled = false;
     spinner.classList.add('d-none');
+    btnText.textContent = 'Create Account';
     brokerAccountIdEl.focus();
     return;
   }
 
   try {
-    const res = await fetch('/api/v1/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('username').value,
-        email: document.getElementById('email').value,
-        password: document.getElementById('password').value,
-        first_name: document.getElementById('firstName').value,
-        last_name: document.getElementById('lastName').value,
-        broker_id: brokerSelectEl.value || null,
-        broker_account_id: brokerAccountIdEl.value.trim(),
-        referral_code: document.getElementById('referralCode').value.trim().toUpperCase(),
-        accept_terms: true,
-        website: document.getElementById('website').value,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    let res;
+    try {
+      res = await fetch('/api/v1/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value,
+          email: document.getElementById('email').value,
+          password: document.getElementById('password').value,
+          first_name: document.getElementById('firstName').value,
+          last_name: document.getElementById('lastName').value,
+          broker_id: brokerSelectEl.value || null,
+          broker_account_id: brokerAccountIdEl.value.trim(),
+          referral_code: document.getElementById('referralCode').value.trim().toUpperCase(),
+          accept_terms: true,
+          website: document.getElementById('website').value,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.access_token) {
@@ -691,7 +703,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         return;
       }
       if (data.referral_applied) {
-        okEl.textContent = '🎉 Referral code applied — Premium unlocked! Redirecting…';
+        okEl.textContent = 'Referral code applied — your upgraded plan is ready. Redirecting…';
         okEl.classList.remove('d-none');
         setTimeout(() => { window.location.href = '/dashboard'; }, 1200);
       } else {
@@ -701,12 +713,15 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
       errEl.textContent = data.error || (res.ok ? 'Registration completed, but no session was returned.' : 'Registration failed');
       errEl.classList.remove('d-none');
     }
-  } catch (_) {
-    errEl.textContent = 'Connection issue — please check your internet connection and retry.';
+  } catch (err) {
+    errEl.textContent = err.name === 'AbortError'
+      ? 'Registration is taking longer than expected. Check your connection and try again.'
+      : 'We could not reach SmartTrade AI. Check your connection and try again.';
     errEl.classList.remove('d-none');
   } finally {
     btn.disabled = false;
     spinner.classList.add('d-none');
+    btnText.textContent = 'Create Account';
   }
 });
 </script>

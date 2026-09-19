@@ -11,8 +11,9 @@
     </div>
     <div id="veIcon" class="mb-3" style="font-size:42px"><i class="bi bi-hourglass-split text-accent"></i></div>
     <h2 class="fw-bold" id="veTitle">Verifying your email…</h2>
-    <p class="text-muted small" id="veMessage" role="status" aria-live="polite">Please wait a moment.</p>
+    <p class="text-muted small" id="veMessage" role="status" aria-live="polite">We’re confirming your email. This should only take a moment.</p>
     <a href="/login" class="btn btn-primary mt-2 d-none" id="veLoginBtn">Go to Sign In</a>
+    <button type="button" class="btn btn-outline-secondary mt-2 d-none" id="veRetryBtn">Try again</button>
     <a href="/home" class="d-block text-muted small mt-3">Back to home</a>
   </main>
 </div>
@@ -27,39 +28,60 @@
   const title = document.getElementById('veTitle');
   const message = document.getElementById('veMessage');
   const loginBtn = document.getElementById('veLoginBtn');
+  const retryBtn = document.getElementById('veRetryBtn');
+  const main = document.querySelector('main');
 
   if (!token) {
     icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
     title.textContent = 'Invalid link';
     message.textContent = 'This verification link is missing its token.';
-    document.querySelector('main').setAttribute('aria-busy', 'false');
+    main.setAttribute('aria-busy', 'false');
     loginBtn.classList.remove('d-none');
     return;
   }
 
-  try {
-    const res = await fetch('/api/v1/auth/verify-email', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token }),
-    });
-    const data = await res.json();
-    if (res.ok) {
-      icon.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
-      title.textContent = 'Email verified!';
-      message.textContent = data.message || 'Your email has been verified.';
-    } else {
-      icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
-      title.textContent = 'Verification failed';
-      message.textContent = data.error || 'This link may have expired.';
+  async function verifyEmail() {
+    if (main.getAttribute('aria-busy') === 'true' && !retryBtn.classList.contains('d-none')) return;
+    main.setAttribute('aria-busy', 'true');
+    retryBtn.classList.add('d-none');
+    icon.innerHTML = '<i class="bi bi-hourglass-split text-accent"></i>';
+    title.textContent = 'Verifying your email…';
+    message.textContent = 'We’re confirming your email. This should only take a moment.';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const res = await fetch('/api/v1/auth/verify-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+        signal: controller.signal,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        icon.innerHTML = '<i class="bi bi-check-circle text-success"></i>';
+        title.textContent = 'Email verified';
+        message.textContent = data.message || 'Your email is verified. You can sign in now.';
+      } else {
+        icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
+        title.textContent = 'Verification link unavailable';
+        message.textContent = data.error || 'This link may have expired. Request a new verification email.';
+      }
+    } catch (err) {
+      icon.innerHTML = '<i class="bi bi-wifi-off text-danger"></i>';
+      title.textContent = 'We could not verify your email';
+      message.textContent = err.name === 'AbortError'
+        ? 'Verification is taking longer than expected. Check your connection and try again.'
+        : 'Check your connection and try again.';
+      retryBtn.classList.remove('d-none');
+    } finally {
+      clearTimeout(timeout);
+      main.setAttribute('aria-busy', 'false');
+      loginBtn.classList.remove('d-none');
     }
-  } catch (err) {
-    icon.innerHTML = '<i class="bi bi-x-circle text-danger"></i>';
-    title.textContent = 'Network error';
-    message.textContent = 'Could not reach the server.';
   }
-  document.querySelector('main').setAttribute('aria-busy', 'false');
-  loginBtn.classList.remove('d-none');
+
+  retryBtn.addEventListener('click', verifyEmail);
+  verifyEmail();
 })();
 </script>
 {% endblock %}
