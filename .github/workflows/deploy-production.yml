@@ -24,6 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Check for database migration changes
+        id: migration_check
         shell: bash
         run: |
           set -euo pipefail
@@ -38,24 +39,17 @@ jobs:
           fi
           changed=$(git diff --name-only "$before" "${{ github.sha }}" -- migrations/versions/ || true)
           if [[ -n "$changed" ]]; then
+            echo "has_migration_files=true" >> "$GITHUB_OUTPUT"
             {
-              echo "## :warning: This push includes database migration changes"
-              echo ""
-              echo "Production migrations are never run automatically -- the deploy"
-              echo "step below intentionally omits \`--run-migrations\`. If any of the"
-              echo "files below need to run against the production database, do it"
-              echo "by hand, once, before or right after approving this deploy:"
-              echo ""
-              echo '```'
-              echo "ssh ubuntu@140.238.247.245 sudo -n -- /usr/local/sbin/smarttrade-deploy-production --confirm-production --execute --run-migrations"
-              echo '```'
+              echo "## This push includes database migration changes"
               echo ""
               echo "Changed migration files:"
               echo '```'
               echo "$changed"
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::This push includes migration file changes -- see job summary for the manual migration command."
+          else
+            echo "has_migration_files=false" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/setup-python@v5
@@ -64,6 +58,85 @@ jobs:
 
       - name: Install dependencies
         run: pip install --no-cache-dir -r requirements.txt
+
+      - name: Verify production database is on this push's target migration
+        if: steps.migration_check.outputs.has_migration_files == 'true'
+        shell: bash
+        env:
+          PRODUCTION_DEPLOY_KEY: ${{ secrets.PRODUCTION_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          # This push touches migrations/versions/. Deploying the new code
+          # without the matching schema change already applied is exactly
+          # what caused a production outage on 2026-09-19 (PlatformConfig
+          # gained a column in code; the migration was never run by hand;
+          # every page that reads PlatformConfig started throwing
+          # UndefinedColumn and 500ing). Rather than a soft warning someone
+          # could miss, this asks the production database itself what
+          # revision it's on and hard-fails the whole job -- before the
+          # approval gate, before any container is touched -- unless it
+          # already matches this push's own migration head. Migrations
+          # are still never run automatically; this only stops an
+          # unmigrated deploy from proceeding, it never runs one itself.
+          [[ -n "$PRODUCTION_DEPLOY_KEY" ]] || {
+            echo "::error::PRODUCTION_DEPLOY_KEY is not configured -- cannot verify migration state" >&2
+            exit 1
+          }
+
+          # Ask Alembic itself for the head, rather than hand-parsing
+          # migration files -- this repo's migration graph has at least
+          # one merge migration (a down_revision tuple joining two
+          # branches), which a naive regex/diff parser mis-reads as two
+          # separate unmerged heads. `flask db heads` already understands
+          # merge revisions correctly. FLASK_APP is set explicitly since
+          # this runs outside the app's Docker image (no baked-in env),
+          # relying only on the wsgi.py entrypoint already at the repo root.
+          heads_output=$(FLASK_APP=wsgi.py FLASK_ENV=testing flask db heads 2>/dev/null)
+          head_count=$(echo "$heads_output" | grep -cE '^[a-z0-9]+' || true)
+          if [[ "$head_count" -ne 1 ]]; then
+            echo "::error::Expected exactly one migration head, found $head_count: $(echo "$heads_output" | tr '\n' ' ')" >&2
+            exit 1
+          fi
+          alembic_head=$(echo "$heads_output" | grep -oE '^[a-z0-9]+' | head -1)
+
+          key_file="$RUNNER_TEMP/smarttradeai-migration-check-key"
+          umask 077
+          printf '%s\n' "$PRODUCTION_DEPLOY_KEY" > "$key_file"
+          trap 'rm -f -- "$key_file"' EXIT
+
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "140.238.247.245 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIETGjq7bv3bnXPVw9+6hhli2nob5qD0AJGjU5JJRGt+9" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+          # flask db current writes noisy eventlet/deprecation warnings to
+          # stderr before the actual "<revision> (head)" line on stdout --
+          # 2>/dev/null drops those, so the first remaining line is the
+          # real revision (this repo's migration ids are hand-picked
+          # alnum strings, e.g. "s2g3h4i5j6k7", not real hex hashes).
+          db_revision=$(ssh \
+            -i "$key_file" \
+            -o IdentitiesOnly=yes \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            ubuntu@140.238.247.245 \
+            "docker exec smarttradeai-app-1 flask db current 2>/dev/null | grep -oE '^[a-z0-9]+' | head -1" || echo "UNKNOWN")
+
+          echo "This push's migration head: $alembic_head"
+          echo "Production database revision: $db_revision"
+
+          if [[ "$db_revision" == "UNKNOWN" || -z "$db_revision" ]]; then
+            echo "::error::Could not read the production database's current migration revision. Refusing to deploy a push with migration changes until this is confirmed manually." >&2
+            exit 1
+          fi
+
+          if [[ "$db_revision" != "$alembic_head" ]]; then
+            echo "::error::Production database is at revision '$db_revision' but this push expects '$alembic_head'. Run the migration by hand before re-running this workflow: ssh ubuntu@140.238.247.245 sudo -n -- /usr/local/sbin/smarttrade-deploy-production --confirm-production --execute --run-migrations" >&2
+            exit 1
+          fi
+
+          echo "Production database is already on this push's target migration -- safe to deploy."
 
       - name: Run full test suite
         env:
@@ -126,12 +199,16 @@ jobs:
           printf '%s\n' "$PRODUCTION_DEPLOY_KEY" > "$key_file"
           trap 'rm -f -- "$key_file"' EXIT
 
-          # --run-migrations is intentionally NOT passed here. A pending
-          # migration on a given push is a separate, deliberate decision --
-          # run it by hand (ssh ... sudo -n -- smarttrade-deploy-production
-          # --confirm-production --execute --run-migrations) once, ahead of
-          # or alongside approving this run, rather than letting every
-          # ordinary push silently alter the production schema.
+          # --run-migrations is intentionally NOT passed here. Running a
+          # migration is a separate, deliberate manual action (ssh ... sudo
+          # -n -- smarttrade-deploy-production --confirm-production
+          # --execute --run-migrations), never automatic on every push to
+          # main. The "Verify production database is on this push's target
+          # migration" step in the test job above already refuses to reach
+          # this point at all if this push needs a migration that hasn't
+          # been run yet -- so reaching this step means either this push
+          # has no migration changes, or its migration was already applied
+          # by hand before this run started.
           timeout --signal=TERM --kill-after=30s 10m \
             ssh \
               -i "$key_file" \

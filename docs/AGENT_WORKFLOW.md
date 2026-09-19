@@ -88,6 +88,34 @@ ssh ubuntu@140.238.247.245 sudo -n -- /usr/local/sbin/smarttrade-deploy-producti
 bypassing GitHub Actions entirely, if the workflow itself is ever broken
 or you need to deploy without waiting on CI.)
 
+**Hard-blocked, not just warned, since 2026-09-19.** This exact gap caused
+a real outage that day: a push added a `PlatformConfig` column in code
+(the visitor-tracking feature) but its migration was never run by hand on
+production, so every page reading `PlatformConfig` started throwing
+`UndefinedColumn` and 500ing until the migration was applied manually.
+The `test` job now has a "Verify production database is on this push's
+target migration" step, gated on `migrations/versions/` having changed in
+this push, that:
+1. Asks Alembic itself (`flask db heads`, run against a throwaway
+   in-memory `FLASK_ENV=testing` DB — never touches a real database) for
+   this push's migration head, rather than hand-parsing migration files
+   with regex. This repo's migration graph has at least one merge
+   migration (a tuple `down_revision`, e.g. `d07e8fbd6e1c`'s
+   `('7daaf6446589', 'a7b8c9d0e1f2')`), which a naive parser misreads as
+   two unmerged heads — `flask db heads` already understands merges
+   correctly.
+2. SSHes to production and runs `flask db current` inside the live app
+   container to see what revision the real database is actually on.
+3. Hard-fails the whole job (`exit 1`, before the approval gate, before
+   any container is touched) if those two don't match — with the exact
+   manual `--run-migrations` command to run, in the error message.
+
+If this step ever fails on a push you know is fine (e.g. you already ran
+the migration by hand before pushing), that means production is already
+caught up — just re-run the job and it'll pass on the second check. It
+never runs a migration itself; it only refuses to let an unmigrated push
+proceed.
+
 Repo secret `PRODUCTION_DEPLOY_KEY` holds the same private key as
 `DEVELOPMENT_DEPLOY_KEY` (the user asked for one common key across both
 environments and interactive use — see the SSH keys section below); it's
