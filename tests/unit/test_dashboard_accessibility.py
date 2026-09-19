@@ -7,7 +7,7 @@ BASE_TEMPLATE = ROOT / "frontend" / "templates" / "partials" / "base.html"
 
 def test_dashboard_shell_has_keyboard_navigation_landmarks():
     template = BASE_TEMPLATE.read_text(encoding="utf-8")
-    assert '<a class="skip-link" href="#pageContent">' in template
+    assert '<a class="skip-link" href="{% if hide_sidebar %}#authFormTitle{% else %}#pageContent{% endif %}">' in template
     assert '<main class="page-content" id="pageContent">' in template
     assert '<aside class="sidebar" id="sidebar" aria-labelledby="sidebarLabel">' in template
     assert template.count('class="nav-group-header"') == 8
