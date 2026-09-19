@@ -79,6 +79,17 @@ def test_public_landing_pricing_presents_five_clear_tiers():
     assert '.pricing-comparison-grid > strong:not(:first-child) { text-align: center; }' in source
 
 
+def test_public_landing_keeps_referral_callout_styled_and_visible():
+    source = LANDING.read_text(encoding="utf-8")
+
+    assert '<div class="referral-callout">' in source
+    assert "Have a broker or partner referral code?" in source
+    assert ".referral-callout {" in source
+    assert "background: var(--accent-dim);" in source
+    assert "border: 1px dashed rgba(245,166,35,0.35);" in source
+    assert "width: min(100%, 780px);" in source
+
+
 def test_shared_public_nav_is_loaded_across_public_pages():
     templates = [LANDING, *sorted((ROOT / "frontend" / "templates" / "legal").glob("*.html"))]
     css = ROOT / "frontend" / "static" / "css" / "public-nav.css"
